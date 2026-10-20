@@ -1,21 +1,24 @@
-import { accountHandle, sessionToken } from './account'
-import { track } from './analytics'
+import { accountHandle, accountState, sessionToken } from './account'
+import { featureFlag, track } from './analytics'
 import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/bank'
 import { createBot, botPick, type Bot } from './coop/bot'
 import { createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
+import { betaOn } from './coop/lobby'
 import { EGGS } from './game/eggs'
 import { coopPayout, playerDexLog } from './game/coop'
 import { mergeDex, recordRun, type Pokedex } from './game/dex'
 import { localPlayer } from './game/players'
 import type { Game, GameEvent } from './game/types'
-import { ROOM_PARAM, parseRoomCode } from './net/protocol'
+import { ROOM_PARAM, parseName, parseRoomCode } from './net/protocol'
+import { ROUTES } from './site/routes'
+import { locale } from './i18n'
 import { bankEggs, depositPokeDollars, recordRunProgress, updateSave } from './ui/save'
 
 /**
  * The browser's side of co-op that isn't drawing: the one client of this tab
  * (relay URL, Clerk token or guest id, localStorage), joining by link, the
  * banking of a run (exactly once, `coop/bank.ts`), which events of the
- * simulation are this player's, and the dev console's bots.
+ * simulation are this player's, the beta's gate, and the dev console's bots.
  */
 
 /** The dev relay on workers.dev: dev builds use it unless `VITE_COOP_URL` (or `ps.coop('url', …)`) says otherwise. */
@@ -77,6 +80,20 @@ export const coopName = () => {
   return name
 }
 
+/** Sets the name teammates see, for a guest (a signed-in player shows the profile's). Null: it didn't take (empty). */
+export const setCoopName = (raw: string) => {
+  const name = parseName(raw)
+  if (name) local.set(NAME_KEY, name)
+  return name
+}
+
+/**
+ * The token co-op joins with: Clerk's when signed in. A dev build's stand-in
+ * (`ps:devToken`, for a local API) isn't a Clerk token and the relay would
+ * refuse it, so co-op plays as a guest there.
+ */
+const coopToken = async () => (import.meta.env.DEV && local.get('ps:devToken') ? null : sessionToken())
+
 const browserDeps = (url: string, store: Store, token: () => Promise<string | null>, name: () => string): CoopDeps => ({
   url,
   build: __SIM_BUILD__,
@@ -95,12 +112,64 @@ let client: CoopClient | null = null
 export const coopClient = (): CoopClient | null => {
   const url = coopUrl()
   if (!url) return null
-  client ??= createCoopClient(browserDeps(url, local, sessionToken, coopName))
+  client ??= createCoopClient(browserDeps(url, local, coopToken, coopName))
   return client
 }
 
 /** The room code in the page's link (`?sala=K7QF2`), if any. */
 export const linkedRoom = () => parseRoomCode(new URLSearchParams(location.search).get(ROOM_PARAM))
+
+/** The room's link to share: the game's page with `?sala=CODE` (this site, so a dev or preview build shares itself). */
+export const roomLink = (code: string) => `${location.origin}${ROUTES.play[locale()]}?${ROOM_PARAM}=${code}`
+
+/* ---------------- The beta's gate ---------------- */
+
+/** The PostHog flag that shows the lobby's co-op entry (the Discord beta). Joining by link never asks it. */
+export const COOP_FLAG = 'coop-beta'
+/** A device's override, `on` or `off`, in any build (`ps.coop('beta', true)` in dev); and the flag's last answer, so the entry shows at once next time. */
+const BETA_KEY = 'ps:coopBeta'
+const BETA_SEEN = 'ps:coopBetaSeen'
+
+const seenFlag = () => {
+  const v = local.get(BETA_SEEN)
+  return v === '1' ? true : v === '0' ? false : null
+}
+
+let flag: boolean | null = seenFlag()
+const betaListeners = new Set<(on: boolean) => void>()
+
+/** Whether the lobby shows the co-op entry now: a relay in this build, and the beta's gate open (`betaOn`). */
+export const coopEntry = () => coopUrl() !== null && betaOn({ dev: import.meta.env.DEV, override: local.get(BETA_KEY), flag })
+
+/** Calls `fn` when `coopEntry` changes (the flag answered, an override). Returns the unsubscribe. */
+export const onCoopEntry = (fn: (on: boolean) => void) => {
+  betaListeners.add(fn)
+  return () => void betaListeners.delete(fn)
+}
+
+const setFlag = (next: boolean | null) => {
+  const before = coopEntry()
+  flag = next
+  local.set(BETA_SEEN, next ? '1' : '0')
+  const now = coopEntry()
+  if (now !== before) betaListeners.forEach((fn) => fn(now))
+}
+
+/** Asks the flag again (at boot, after signing in or out). Keeps the last answer when PostHog can't say. */
+export const refreshCoopEntry = () => {
+  if (!coopUrl()) return
+  void featureFlag(COOP_FLAG).then((on) => on !== null && setFlag(on))
+}
+
+/** Dev: forces the entry on or off on this device (`null` goes back to the flag). */
+export const setCoopBeta = (on: boolean | null) => {
+  const before = coopEntry()
+  if (on === null) local.remove(BETA_KEY)
+  else local.set(BETA_KEY, on ? 'on' : 'off')
+  const now = coopEntry()
+  if (now !== before) betaListeners.forEach((fn) => fn(now))
+  return now
+}
 
 /** Puts the room in the page's link, so a reload or the shared link comes back to it. */
 export const linkRoom = (code: string | null) => {
