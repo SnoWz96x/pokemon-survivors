@@ -41,9 +41,9 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
         title: { pt: 'Jogar junto (beta)', en: 'Play together (beta)', es: 'Jugar juntos (beta)' },
         notes: [
           {
-            pt: 'Até 4 treinadores na mesma partida, cada um com o seu Pokémon. Crie uma sala pelo Co-op do lobby e mande o link ou o código de 5 letras; quem abre o link entra direto, mesmo sem conta. O anfitrião escolhe a dificuldade e começa quando todos estiverem prontos.',
-            en: 'Up to 4 trainers in the same run, each with their own Pokémon. Create a room from the lobby\'s Co-op and send the link or the 5-letter code; whoever opens the link joins right away, even without an account. The host picks the difficulty and starts once everyone is ready.',
-            es: 'Hasta 4 entrenadores en la misma partida, cada uno con su Pokémon. Crea una sala desde el Co-op del lobby y manda el enlace o el código de 5 letras; quien abre el enlace entra directo, incluso sin cuenta. El anfitrión elige la dificultad y empieza cuando todos estén listos.',
+            pt: 'Até 4 treinadores na mesma partida, cada um com o seu Pokémon. Crie uma sala pelo Co-op do lobby e mande o link ou o código de 5 letras; quem abre o link entra com a sua conta (grátis), e a equipe vê o @ de cada um. O anfitrião escolhe a dificuldade e começa quando todos estiverem prontos.',
+            en: 'Up to 4 trainers in the same run, each with their own Pokémon. Create a room from the lobby\'s Co-op and send the link or the 5-letter code; whoever opens the link joins with their free account, and the team sees each player\'s @handle. The host picks the difficulty and starts once everyone is ready.',
+            es: 'Hasta 4 entrenadores en la misma partida, cada uno con su Pokémon. Crea una sala desde el Co-op del lobby y manda el enlace o el código de 5 letras; quien abre el enlace entra con su cuenta (es gratis), y el equipo ve el @ de cada uno. El anfitrión elige la dificultad y empieza cuando todos estén listos.',
           },
           {
             pt: 'Os level-ups e as escolhas acontecem ao mesmo tempo para todos, com um relógio. Quem desmaia vira uma Poké Ball que um colega revive ficando ao lado, e enquanto isso assiste a partida de quem ainda está de pé.',
@@ -56,9 +56,9 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
             es: 'Los ₽ del equipo se reparten entre todos, y cada uno se lleva su propio bono del final. Al final se ven los números de cada uno, con un destacado para cada entrenador, y Jugar de nuevo mantiene al equipo en la sala. El co-op no cuenta para el ranking, el Brote del día ni los objetos de la Bolsa.',
           },
           {
-            pt: 'Com conta: adicione amigos pelo @nome, veja quem está online, numa sala ou jogando, e convide para a sua sala. O convite aparece no lobby de quem você chamou.',
-            en: 'With an account: add friends by @handle, see who\'s online, in a room or playing, and invite them to your room. The invite shows up in their lobby.',
-            es: 'Con cuenta: agrega amigos por @nombre, mira quién está en línea, en una sala o jugando, e invítalos a tu sala. La invitación aparece en su lobby.',
+            pt: 'Adicione amigos pelo @nome, veja quem está online, numa sala ou jogando, e convide para a sua sala. O convite aparece no lobby de quem você chamou.',
+            en: 'Add friends by @handle, see who\'s online, in a room or playing, and invite them to your room. The invite shows up in their lobby.',
+            es: 'Agrega amigos por @nombre, mira quién está en línea, en una sala o jugando, e invítalos a tu sala. La invitación aparece en su lobby.',
           },
           {
             pt: 'É um beta: primeiro para quem está no nosso Discord. Se a conexão cair, a partida continua e você volta de onde parou.',
