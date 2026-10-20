@@ -132,12 +132,21 @@ const MAX_ERRORS = 20
 const MAX_REPLAY = 400_000
 
 let posthog: PostHog | null = null
-/** Calls waiting for PostHog to load; null once it won't (not a live domain, failed to load). */
-let pending: ((ph: PostHog) => void)[] | null = []
+/** Calls waiting for PostHog to load, with what to do if it never does; null once it won't (not a live domain, failed to load). */
+let pending: { fn: (ph: PostHog) => void; never?: () => void }[] | null = []
 
-const withPosthog = (fn: (ph: PostHog) => void) => {
+/** Runs `fn` with PostHog once it's loaded; `never` runs instead where it won't load (or too many calls already wait). */
+const withPosthog = (fn: (ph: PostHog) => void, never?: () => void) => {
   if (posthog) return fn(posthog)
-  if (pending && pending.length < 100) pending.push(fn)
+  if (pending && pending.length < 100) pending.push({ fn, never })
+  else never?.()
+}
+
+/** PostHog won't load: whoever waits on it hears so. */
+const giveUp = () => {
+  const waiting = pending ?? []
+  pending = null
+  for (const p of waiting) p.never?.()
 }
 
 /** Umami takes flat data only. */
@@ -169,23 +178,26 @@ export const identify = (userId: string | null, handle: string | null) => {
 
 /**
  * Evaluates one feature flag for this device's person, or null where PostHog
- * doesn't run (the promise waits for it to load). PostHog's own flags stay
- * off (`advanced_disable_flags`: they'd fetch the remote config, whose
- * `/array/<key>/config` gets Vercel's trailing-slash 308 and a 404, and could
- * turn on features from the dashboard), so this asks `/flags/` itself, a path
- * that already ends in a slash, for the one key. The handle goes along so a
- * flag can target players before PostHog has ingested their person.
+ * doesn't run (the promise waits for it to load, and gets null if it never
+ * does). PostHog's own flags stay off (`advanced_disable_flags`: they'd fetch
+ * the remote config, whose `/array/<key>/config` gets Vercel's trailing-slash
+ * 308 and a 404, and could turn on features from the dashboard), so this asks
+ * `/flags/` itself, a path that already ends in a slash, for the one key. The
+ * handle goes along so a flag can target players before PostHog has ingested
+ * their person.
  */
 export const featureFlag = (key: string): Promise<boolean | null> =>
   new Promise((resolve) => {
-    if (!pending && !posthog) return resolve(null)
-    withPosthog((ph) => {
-      const body = { token: POSTHOG_KEY, distinct_id: ph.get_distinct_id(), person_properties: identity?.handle ? { handle: identity.handle } : {}, flag_keys: [key] }
-      fetch('/ingest/flags/?v=2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000) })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((json: unknown) => resolve(flagIn(json, key)))
-        .catch(() => resolve(null))
-    })
+    withPosthog(
+      (ph) => {
+        const body = { token: POSTHOG_KEY, distinct_id: ph.get_distinct_id(), person_properties: identity?.handle ? { handle: identity.handle } : {}, flag_keys: [key] }
+        fetch('/ingest/flags/?v=2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000) })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((json: unknown) => resolve(flagIn(json, key)))
+          .catch(() => resolve(null))
+      },
+      () => resolve(null),
+    )
   })
 
 /** A flag's answer in a `/flags/?v=2` response (`flags[key].enabled`, or the older `featureFlags[key]`), or null. */
@@ -264,7 +276,7 @@ const live = () => {
  */
 export const startAnalytics = (context: () => ErrorContext) => {
   const key = POSTHOG_KEY
-  if (!key || !live()) return void (pending = null)
+  if (!key || !live()) return giveUp()
   // "Script error." comes from other origins (extensions) with nothing to go on.
   addEventListener('error', (e) => e.error && isOwnError(e.error, e.filename, location.origin) && reportError(e.error, context))
   addEventListener('unhandledrejection', (e) => isOwnError(e.reason, undefined, location.origin) && reportError(e.reason, context))
@@ -290,10 +302,10 @@ export const startAnalytics = (context: () => ErrorContext) => {
         })
         ph.register({ version: __GAME_VERSION__ })
         posthog = ph
-        pending?.forEach((fn) => fn(ph))
+        pending?.forEach((p) => p.fn(ph))
         pending = null
       })
-      .catch(() => void (pending = null))
+      .catch(giveUp)
   if ('requestIdleCallback' in window) requestIdleCallback(() => void load(), { timeout: 4000 })
   else setTimeout(() => void load(), 2000)
 }
