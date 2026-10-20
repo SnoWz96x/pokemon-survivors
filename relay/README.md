@@ -28,7 +28,10 @@ node scripts/probe.mjs --bots 3 --secs 40 --desync --rejoin   # bots against a d
 
 - `POST /rooms` `{ v, build, region? }` → `{ code, region }`. The room lives near the host
   (location hint from the request's continent, or `region`).
-- `GET /rooms/<code>/ws`: the WebSocket. The first message is `hello`.
+- `GET /rooms/<code>/ws`: the WebSocket. The first message is `hello`. Co-op is for signed-in
+  players (a Clerk session token in `hello.auth`): a guest hello is refused with `signIn`, except
+  where `ALLOW_GUESTS` is `on` (the dev relay and local `wrangler dev`, for the soak, the in-tab
+  bots and dev builds; `env.production` has it `off`).
 - `GET /health`: the Worker answering (no Durable Object is touched).
 - `GET /admin/dumps` (the last 100) and `GET /admin/dumps/<id>` (gzipped JSON), with
   `Authorization: Bearer <ADMIN_TOKEN>`. Without the token they answer 404.

@@ -46,7 +46,7 @@ const of = <T extends ServerMessage['t']>(msgs: readonly ServerMessage[], t: T) 
 /** Opens socket `conn` and says hello as guest `guest`; returns the effects. */
 const join = (state: State, conn: string, guest: string, now = T0, over: Partial<Hello> = {}) => {
   connect(state, conn, 'test-ua', now)
-  return hello(state, conn, helloMsg(guest, over), { id: `g:${guest}`, account: false }, now)
+  return hello(state, conn, helloMsg(guest, over), { id: `g:${guest}`, account: false }, now, { guests: true })
 }
 
 const say = (state: State, conn: string, msg: ClientMessage, now: number) => message(state, conn, msg, now)
@@ -82,11 +82,23 @@ describe('seats', () => {
     const full = join(state, 'c9', 'guest-9-xxxxxxxxxxxx')
     const ghost = loadState(null, { secret: () => 'x'.repeat(16), seed: () => 1 }, T0)
     connect(ghost, 'g', 'ua', T0)
-    const missing = hello(ghost, 'g', helloMsg('guest-9-xxxxxxxxxxxx'), { id: 'g:guest-9-xxxxxxxxxxxx', account: false }, T0)
+    const missing = hello(ghost, 'g', helloMsg('guest-9-xxxxxxxxxxxx'), { id: 'g:guest-9-xxxxxxxxxxxx', account: false }, T0, { guests: true })
     const build = join(state, 'c8', 'guest-8-xxxxxxxxxxxx', T0, { build: 'b2' })
     expect(of(sent(full, 'c9'), 'refused')).toEqual([{ t: 'refused', code: 'unavailable' }])
     expect(of(sent(missing, 'g'), 'refused')).toEqual([{ t: 'refused', code: 'unavailable' }])
     expect(of(sent(build, 'c8'), 'refused')).toEqual([{ t: 'refused', code: 'build', build: 'b1' }])
+  })
+
+  it('where guests may not play, tells a guest to sign in whatever the room, and seats an account', () => {
+    const state = newState()
+    const off = { guests: false }
+    connect(state, 'g1', 'ua', T0)
+    expect(of(sent(hello(state, 'g1', helloMsg('guest-1-xxxxxxxxxxxx'), { id: 'g:guest-1-xxxxxxxxxxxx', account: false }, T0, off), 'g1'), 'refused')).toEqual([{ t: 'refused', code: 'signIn' }])
+    connect(state, 'g2', 'ua', T0)
+    expect(of(sent(hello(state, 'g2', helloMsg('guest-2-xxxxxxxxxxxx', { room: 'ZZZZZ' }), { id: 'g:guest-2-xxxxxxxxxxxx', account: false }, T0, off), 'g2'), 'refused')).toEqual([{ t: 'refused', code: 'signIn' }])
+    connect(state, 'a1', 'ua', T0)
+    const account = hello(state, 'a1', helloMsg('x'.repeat(16), { auth: { kind: 'clerk', token: 'jwt' }, name: '@ash' }), { id: 'u:user_ash', account: true }, T0, off)
+    expect(of(sent(account, 'a1'), 'welcome')[0]?.room.members).toEqual([expect.objectContaining({ name: '@ash', account: true })])
   })
 
   it('gives a seat back to its identity from any socket, and tells the old one it was replaced', () => {

@@ -439,12 +439,15 @@ const heard = (state: State, room: Room, seat: Seat, now: number): Effect[] => {
  * failed). Takes the identity's seat back (a guest also needs the seat
  * secret), any older socket on it is told it was replaced; or seats a new
  * member outside a run. In a run the seat is brought up to the present.
+ * `guests`: whether guests may play here at all (`ALLOW_GUESTS`); otherwise a
+ * guest is told to sign in, before anything is said about the room.
  */
-export const hello = (state: State, connId: ConnId, h: Hello, identity: Identity | null, now: number): Effect[] => {
+export const hello = (state: State, connId: ConnId, h: Hello, identity: Identity | null, now: number, policy: { guests: boolean }): Effect[] => {
   const conn = state.live.conns.get(connId)
   const room = state.room
   if (!conn || conn.seat !== null) return []
   if (h.v !== PROTOCOL) return refuse(connId, 'version')
+  if (h.auth.kind === 'guest' && !policy.guests) return refuse(connId, 'signIn')
   if (!room || h.room !== room.code) return refuse(connId, 'unavailable')
   if (!identity) return refuse(connId, 'auth')
   if (h.build !== room.build) return refuse(connId, 'build', room.build)

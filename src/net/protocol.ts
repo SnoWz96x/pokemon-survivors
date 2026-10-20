@@ -96,7 +96,7 @@ export type Frame = { t: 'frame'; from: number; to: number; ticks: readonly Tick
 /** A snapshot the relay holds: the state at `tick` (after ticks `0..tick - 1`), whose hash a majority agreed on. */
 export type SnapshotRef = { tick: number; h: string; parts: number }
 
-/** Who a seat belongs to: a signed-in Clerk user (verified by the relay) or a guest id kept by the device. */
+/** Who a seat belongs to: a signed-in Clerk user (verified by the relay) or a guest id kept by the device (dev and local relays only). */
 export type Auth = { kind: 'clerk'; token: string } | { kind: 'guest'; id: string }
 
 export type Phase = 'lobby' | 'playing' | 'ended'
@@ -201,9 +201,11 @@ export type ClientMessage =
 /**
  * Why the relay refused a `hello`. `unavailable` covers every reason a room
  * can't be joined (no such room, full, already playing, kicked), so codes
- * can't be probed; `build` says the room runs another build (update the game).
+ * can't be probed; `build` says the room runs another build (update the game);
+ * `signIn`: co-op takes signed-in players only, and this hello came as a guest
+ * (said before anything about the room, so it tells nothing about it).
  */
-export type Refusal = 'version' | 'build' | 'unavailable' | 'auth' | 'invalid'
+export type Refusal = 'version' | 'build' | 'unavailable' | 'auth' | 'invalid' | 'signIn'
 
 /** Why the relay closed the socket (after the matching message). */
 export type CloseReason = 'replaced' | 'kicked' | 'left' | 'refused' | 'abuse' | 'expired'

@@ -133,7 +133,7 @@ export class RoomObject extends DurableObject<Env> {
       this.authing.add(a.id)
       const identity = await this.identify(msg.auth).catch(() => null)
       this.authing.delete(a.id)
-      this.apply(hello(this.state, a.id, msg, identity, Date.now()))
+      this.apply(hello(this.state, a.id, msg, identity, Date.now(), { guests: this.env.ALLOW_GUESTS === 'on' }))
       return
     }
     this.apply(message(this.state, a.id, msg, Date.now()))

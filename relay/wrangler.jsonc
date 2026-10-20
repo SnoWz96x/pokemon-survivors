@@ -18,9 +18,11 @@
     { "name": "CREATE_LIMIT", "namespace_id": "4101", "simple": { "limit": 30, "period": 60 } },
     { "name": "CONNECT_LIMIT", "namespace_id": "4102", "simple": { "limit": 300, "period": 60 } }
   ],
+  // ALLOW_GUESTS: the dev relay and local `wrangler dev` seat guests (the soak, in-tab bots, dev builds); production doesn't.
   "vars": {
     "CLERK_ISSUER": "https://clerk.pokemonsurvivors.com",
-    "ALLOWED_ORIGINS": "https://www.pokemonsurvivors.com,https://pokemonsurvivors.com,https://*.vercel.app"
+    "ALLOWED_ORIGINS": "https://www.pokemonsurvivors.com,https://pokemonsurvivors.com,https://*.vercel.app",
+    "ALLOW_GUESTS": "on"
   },
   // Bindings, rate limits and vars don't inherit into an environment, so they repeat here.
   // Production serves only the live site; Vercel previews use the dev relay.
@@ -42,7 +44,8 @@
       ],
       "vars": {
         "CLERK_ISSUER": "https://clerk.pokemonsurvivors.com",
-        "ALLOWED_ORIGINS": "https://www.pokemonsurvivors.com,https://pokemonsurvivors.com"
+        "ALLOWED_ORIGINS": "https://www.pokemonsurvivors.com,https://pokemonsurvivors.com",
+        "ALLOW_GUESTS": "off"
       }
     }
   }
