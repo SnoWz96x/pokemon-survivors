@@ -1,4 +1,4 @@
-import { accountState, sessionToken } from './account'
+import { accountHandle, sessionToken } from './account'
 import { track } from './analytics'
 import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/bank'
 import { createBot, botPick, type Bot } from './coop/bot'
@@ -60,13 +60,19 @@ export const coopUrl = (): string | null => (import.meta.env.DEV ? local.get(URL
 
 export const setCoopUrl = (url: string | null) => (url ? local.set(URL_KEY, url) : local.remove(URL_KEY))
 
-/** The name teammates see: the profile's when signed in, else the one kept on this device. */
+/**
+ * The name teammates see: the account's @handle (unique, the one the boards
+ * show; co-op is for signed-in players). Only dev builds, whose relay seats
+ * guests, fall back to a name kept on the device; bots bring their own.
+ */
 export const coopName = () => {
-  const s = accountState()
-  if (s.kind === 'signedIn' && s.name) return s.name
+  const handle = accountHandle()
+  if (handle) return `@${handle}`
+  // No handle yet (the shell asks for one before co-op): never shown in practice.
+  if (!import.meta.env.DEV) return '?'
   const kept = local.get(NAME_KEY)
   if (kept) return kept
-  const name = `Treinador ${Math.floor(1000 + Math.random() * 9000)}`
+  const name = `Dev ${Math.floor(1000 + Math.random() * 9000)}`
   local.set(NAME_KEY, name)
   return name
 }
