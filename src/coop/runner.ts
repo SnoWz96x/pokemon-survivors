@@ -91,12 +91,19 @@ export type Runner = {
   /**
    * Where the run ended in this simulation (sent as `over`), and whether the
    * relay confirmed it. The runner keeps stepping (and hashing) after its
-   * `over` until `ended`: a client that ended wrongly is still healed.
+   * `over` until `ended`: a client that ended wrongly is still healed. Once
+   * the relay confirms, a client still behind steps on to the end's tick
+   * (`endedAt`) and stops there.
    */
   over: { tick: number; h: string } | null
   ended: boolean
+  endedAt: number | null
   /** Events of the ticks simulated, in order, for the shell (drained after every tick, so the state hashes alike everywhere). */
   events: GameEvent[]
+  /** Who was acting (`g.player.slot`) when each of `events` was pushed: a player's own events are theirs to see and hear. */
+  actors: number[]
+  /** Slots recorded as the game pushes its events (`watchEvents`), drained with them. */
+  pushedBy: number[]
   /** This seat's last stick stamped and simulated: the tick and the input sample it carried (prediction anchors on it). */
   anchor: { tick: number; sample: number } | null
   /** A heal under way: when it was asked (ms) and its tick. */
@@ -117,7 +124,28 @@ export type RunnerDeps = {
 
 const newStats = (): RunnerStats => ({ ticks: 0, underruns: 0, syncs: [], heals: [], snapshots: [], hashes: 0, maxRun: 0, maxFrameMs: 0 })
 
-const linkGame = (r: Pick<Runner, 'game' | 'slot'>) => setLocalSlot(r.game.players, r.slot)
+/**
+ * Records who was acting as each event is pushed: the game's `events` array
+ * behind a proxy that notes `g.player.slot` on every append. Draw-side only:
+ * the simulation never reads it, and the array stays an array (the proxy
+ * passes everything through, and the events are drained before any hash).
+ */
+const watchEvents = (r: Pick<Runner, 'game' | 'pushedBy'>) => {
+  const g = r.game
+  const raw = g.events
+  g.events = new Proxy(raw, {
+    set: (target, key, value, receiver) => {
+      if (typeof key === 'string' && key !== 'length' && Number(key) >= target.length) r.pushedBy.push(g.player.slot)
+      return Reflect.set(target, key, value, receiver)
+    },
+  })
+}
+
+const linkGame = (r: Pick<Runner, 'game' | 'slot' | 'pushedBy'>) => {
+  setLocalSlot(r.game.players, r.slot)
+  r.pushedBy.length = 0
+  watchEvents(r)
+}
 
 /** A runner for a run starting at tick 0 (the relay's `start`, or a sync from the seed). */
 export const createRunner = (start: RunStart, room: string, seat: number): Runner => {
@@ -145,7 +173,10 @@ export const createRunner = (start: RunStart, room: string, seat: number): Runne
     uploader: false,
     over: null,
     ended: false,
+    endedAt: null,
     events: [],
+    actors: [],
+    pushedBy: [],
     anchor: null,
     healing: null,
     before: { players: [], ex: new Map(), ey: new Map() },
@@ -304,7 +335,12 @@ export const stepOne = (r: Runner, deps: RunnerDeps) => {
   r.next++
   r.stats.ticks++
   // Drained every tick on every client, so the events never sit in the state that's hashed.
-  for (const e of g.events.splice(0)) r.events.push(e)
+  const by = r.pushedBy
+  g.events.splice(0).forEach((e, i) => {
+    r.events.push(e)
+    r.actors.push(by[i] ?? 0)
+  })
+  by.length = 0
   const n = r.next
   if (n % HASH_EVERY === 0) {
     const h = stateHash(g)
@@ -329,7 +365,7 @@ export const stepOne = (r: Runner, deps: RunnerDeps) => {
  * due, within the budget. Returns how many ticks ran.
  */
 export const advance = (r: Runner, dt: number, deps: RunnerDeps): number => {
-  if (r.pending || r.ended) return 0
+  if (r.pending || (r.endedAt !== null && r.next >= r.endedAt)) return 0
   const now = deps.now()
   updateHold(r.hold, now)
   r.acc += dt
@@ -353,7 +389,8 @@ export const advance = (r: Runner, dt: number, deps: RunnerDeps): number => {
       want -= 1
     }
   }
-  const run = Math.min(have, want)
+  // The run ended at `endedAt`: nothing past it is simulated.
+  const run = Math.min(have, want, r.endedAt === null ? Infinity : r.endedAt - r.next)
   // Starved: the buffer is empty when a tick is due (the frames stopped coming: a slow link, a stall). One
   // underrun per episode, and the clock doesn't bank the wait. A long frame of our own isn't one: it runs what it has.
   if (have === 0 && due > 0 && r.next >= r.tailTo) {
@@ -385,7 +422,8 @@ export const advance = (r: Runner, dt: number, deps: RunnerDeps): number => {
   return ran
 }
 
-/** The relay confirmed the end (`ended`). */
-export const onEnded = (r: Runner) => {
+/** The relay confirmed the end at `tick` (`ended`): a client behind still plays up to it. */
+export const onEnded = (r: Runner, tick: number) => {
   r.ended = true
+  r.endedAt = tick
 }

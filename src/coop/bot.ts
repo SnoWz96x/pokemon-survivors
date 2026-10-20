@@ -129,7 +129,7 @@ export const createBot = (deps: CoopDeps, opts: { seed: number; vote?: boolean }
     const ran = client.frame(dt)
     // Bots play no sounds: the events go.
     const r = client.state().runner
-    if (r) r.events.length = 0
+    if (r) r.events.length = r.actors.length = 0
     return ran
   }
 

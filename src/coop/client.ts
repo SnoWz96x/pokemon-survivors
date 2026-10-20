@@ -377,6 +377,8 @@ export const createCoopClient = (deps: CoopDeps) => {
       case 'sync': {
         emit({ kind: 'sync', reason: m.reason, from: m.from, to: m.to, base: m.base?.tick ?? null })
         const before = s.runner
+        // The relay may order the same heal again for hashes sent before the first reached us: one restore is enough.
+        if (m.reason === 'heal' && before && before.healing && m.base && before.stats.syncs.at(-1)?.base === m.base.tick && before.start.id === m.run.id) return
         const next = onSync(before, m, s.code ?? '', s.seat ?? 0, runnerDeps)
         if (next === 'rejoin') {
           s.fresh = true
@@ -409,7 +411,7 @@ export const createCoopClient = (deps: CoopDeps) => {
         return
       case 'ended': {
         const r = s.runner
-        if (r && r.start.id === m.run) onEnded(r)
+        if (r && r.start.id === m.run) onEnded(r, m.tick)
         return emit({ kind: 'ended', run: m.run, tick: m.tick })
       }
       case 'denied':

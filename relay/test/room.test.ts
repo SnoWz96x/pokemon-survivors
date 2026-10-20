@@ -304,6 +304,23 @@ describe('hashes, snapshots and the end', () => {
     expect(flood.some((e) => e.k === 'save')).toBe(false)
   })
 
+  it('heals a diverged seat once, not again for the hashes it sent before the heal reached it', () => {
+    const { state, t0 } = playing(3)
+    alive(state, 3, t0 + 12_090)
+    tick(state, t0 + 12_100)
+    for (const c of ['c0', 'c1', 'c2']) say(state, c, { t: 'hash', tick: 600, h: 'good' }, t0 + 12_100)
+    for (let part = 0; part < 2; part++) say(state, 'c0', { t: 'snap', tick: 600, h: 'good', part, parts: 2, data: 'AAAA' }, t0 + 12_100)
+    // c2 diverged and reported two ticks before its teammates did: both get decided after the first heal.
+    say(state, 'c2', { t: 'hash', tick: 660, h: 'y' }, t0 + 12_100)
+    say(state, 'c2', { t: 'hash', tick: 720, h: 'y' }, t0 + 12_100)
+    say(state, 'c0', { t: 'hash', tick: 660, h: 'x' }, t0 + 12_100)
+    const first = say(state, 'c1', { t: 'hash', tick: 660, h: 'x' }, t0 + 12_100)
+    expect(of(sent(first, 'c2'), 'heal')).toHaveLength(1)
+    say(state, 'c0', { t: 'hash', tick: 720, h: 'z' }, t0 + 12_100)
+    const second = say(state, 'c1', { t: 'hash', tick: 720, h: 'z' }, t0 + 12_100)
+    expect(of(sent(second, 'c2'), 'heal')).toHaveLength(0)
+  })
+
   it("doesn't agree on a snapshot whose hash the majority didn't report", () => {
     const { state, t0 } = playing(3)
     alive(state, 3, t0 + 10_990)

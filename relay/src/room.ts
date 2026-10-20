@@ -733,7 +733,8 @@ const decide = (state: State, room: Room, run: Run, tick: number): Effect[] => {
   const bySeat = Object.fromEntries(reports)
   const out: Effect[] = [{ k: 'hashes', run: run.start.id, tick, bySeat }]
   for (const [seat, v] of reports) if (v === h) live.healing.delete(seat)
-  const minority = [...reports].filter(([, v]) => v !== h).map(([seat]) => seat)
+  // A seat told to heal after this tick reported it before the heal reached it: it's already being healed.
+  const minority = [...reports].filter(([seat, v]) => v !== h && !((live.healing.get(seat) ?? -1) > tick)).map(([seat]) => seat)
   if (minority.length > 0) out.push(...heal(state, room, run, minority, tick, bySeat, h))
   const up = live.upload
   if (up && up.tick === tick && up.got.size === up.parts) {

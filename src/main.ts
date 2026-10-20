@@ -163,6 +163,7 @@ import { bugReportForm, crashPrompt } from './ui/bugReport'
 import { localPlayer, phaseOf } from './game/players'
 import { addBots, bankCoopRun, botCount, coopClient, coopEventFor, coopUrl, linkedRoom, linkRoom, removeBots, reportHeal, setCoopUrl } from './coopShell'
 import type { CoopClient } from './coop/client'
+import { coopDriver, type CoopDriver } from './coop/driver'
 import { createDrawView, updateDrawView, type DrawView } from './coop/view'
 import { createPrediction, predict, type Prediction } from './coop/predict'
 import type { Runner } from './coop/runner'
@@ -300,8 +301,8 @@ type CoopRun = {
   view: DrawView
   prediction: Prediction
   hud: CoopHud
-  /** Real time not yet sampled into the stick (s). */
-  stickAcc: number
+  /** What steps the run: the stick and buttons in, the lockstep out (`coop/driver.ts`, PR 7's UI drives it too). */
+  driver: CoopDriver
   /** A pick sent on the screen of this round: the screen closes until the round moves on. */
   sent: number | null
   /** The pause menu is open (the run goes on; the stick reads still). */
@@ -1833,7 +1834,7 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
     view,
     prediction: createPrediction(),
     hud: createCoopHud(ui),
-    stickAcc: 0,
+    driver: coopDriver(client, () => showTitle()),
     sent: null,
     menu: false,
     banked: { victory: false, over: false },
@@ -1880,7 +1881,7 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
 const mateName = (g: Game, slot: number) => (slot === localPlayer(g).slot ? t().coop.you : g.coop?.names[slot] || PLAYABLE[g.players[slot]?.starter ?? 'pichu'].name)
 
 /** The co-op events of the simulation the shell shows its own way: teammates fainting, reviving, going away, leaving. */
-const coopEvent = (r: Run, c: CoopRun, e: GameEvent) => {
+const coopEvent = (r: Run, c: CoopRun, e: GameEvent, actor: number) => {
   const g = c.view.game
   const m = t().coop
   switch (e.kind) {
@@ -1903,7 +1904,7 @@ const coopEvent = (r: Run, c: CoopRun, e: GameEvent) => {
     case 'voted':
       return
     default:
-      if (coopEventFor(g, e)) handleEvent(r, e)
+      if (coopEventFor(g, e, actor)) handleEvent(r, e)
   }
 }
 
@@ -1974,26 +1975,19 @@ const coopFrame = (r: Run, c: CoopRun, dt: number, t: number) => {
   const g = c.runner.game
   r.game = g
   const me = localPlayer(g)
-  // The stick: sampled 60 times a second of real time, still while a menu or a screen is up.
+  // The stick reads still while a menu or a screen is up.
   const still = c.menu || phaseOf(g, me) !== 'playing'
-  c.stickAcc += dt
-  while (c.stickAcc >= STEP) {
-    c.stickAcc -= STEP
-    client.stick(still ? { x: 0, y: 0 } : input.readMove())
-  }
-  if (specialQueued) client.input({ k: 'special' })
-  if (megaQueued) client.input({ k: 'mega' })
-  if (lungeQueued) client.input({ k: 'lunge' })
+  c.driver.advance(g, dt, { move: still ? { x: 0, y: 0 } : input.readMove(), special: specialQueued, mega: megaQueued, lunge: lungeQueued })
   specialQueued = megaQueued = lungeQueued = false
-  client.frame(dt)
   const runner = c.runner
   const st = client.state()
-  const drawn = predict(c.prediction, runner, st.history, st.sample, c.stickAcc / STEP, dt)
+  const drawn = predict(c.prediction, runner, st.history, st.sample, c.driver.frac(), dt)
   const shown = updateDrawView(c.view, runner, drawn, view, runner.acc / STEP)
   const conn = client.connection()
   // Sounds and toasts wait out a sync (the run is replaying, not happening now).
   const quiet = conn.syncing !== null
-  for (const e of runner.events.splice(0)) if (!quiet) coopEvent(r, c, e)
+  const actors = runner.actors.splice(0)
+  runner.events.splice(0).forEach((e, i) => !quiet && coopEvent(r, c, e, actors[i] ?? 0))
   if (run !== r) return
   // Banks at the victory and at the end (deltas: a reload or a second time pays nothing).
   if (!c.banked.victory && runner.game.phase === 'victory') {

@@ -120,55 +120,20 @@ export const bankCoopRun = (g: Game, room: string, run: number, slot: number, wi
 /** Reports a heal to PostHog: when, where and how long it took. */
 export const reportHeal = (room: string, tick: number, ms: number) => track('coop_heal', { room, tick, ms: Math.round(ms) })
 
+/** Events that are one player's own: only their client shows and plays them (the runner notes who pushed each). */
+const PERSONAL: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>([
+  'cast', 'moveSound', 'heal', 'hurt', 'special', 'stance', 'megaChoice', 'megaStone', 'megaStart', 'mega', 'megaEnd', 'megaReady',
+  'shinyPlayer', 'evolve', 'branchChoice', 'ability', 'evolved', 'moveEvolved', 'duoFused', 'curse', 'pokeball', 'shinyOffer',
+  'tm', 'tmLearned', 'tmMastered', 'banish', 'consumable', 'revive', 'riftFall', 'guard',
+])
+
 /**
- * Whether an event of the simulation is this player's to hear and see. The
- * world's (a boss, the biome, a level-up the team shares) are everyone's;
- * a player's own (an evolution, a Mega, a TM, a curse) carry no slot, so
- * they're told by this player's state; the rest stay quiet in co-op (PR 7
- * attributes them).
+ * Whether an event of the simulation is this client's to see and hear: the
+ * world's (a boss, the biome, the level-up the team shares) are everyone's;
+ * a player's own (`PERSONAL`) only theirs, by `actor`, the slot acting when
+ * the game pushed it.
  */
-export const coopEventFor = (g: Game, e: GameEvent): boolean => {
-  const me = localPlayer(g)
-  switch (e.kind) {
-    case 'evolve':
-    case 'branchChoice':
-      return me.evolution !== null || me.phase === 'branch'
-    case 'evolved':
-      return me.evolution === null && me.phase !== 'evolving' && me.stage > 0
-    case 'special':
-      return me.special.charge > 0 || me.special.active > 0
-    case 'megaStart':
-    case 'mega':
-      return me.mega.intro > 0 || me.mega.active > 0
-    case 'megaEnd':
-      return me.mega.active <= 0 && me.mega.count > 0
-    case 'hurt':
-      return me.hurt > 0.25
-    case 'tmLearned':
-      return me.moves.some((m) => m.id === e.move)
-    case 'shinyPlayer':
-    case 'megaChoice':
-    case 'megaStone':
-    case 'megaReady':
-    case 'stance':
-    case 'ability':
-    case 'moveEvolved':
-    case 'duoFused':
-    case 'curse':
-    case 'pokeball':
-    case 'shinyOffer':
-    case 'tm':
-    case 'tmMastered':
-    case 'banish':
-    case 'consumable':
-    case 'heal':
-    case 'revive':
-    case 'riftFall':
-      return false
-    default:
-      return true
-  }
-}
+export const coopEventFor = (g: Game, e: GameEvent, actor: number) => !PERSONAL.has(e.kind) || actor === localPlayer(g).slot
 
 /** Dev: bots in this tab, each a full client of its own (its own socket, game and guest id). */
 const bots: Bot[] = []

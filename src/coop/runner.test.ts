@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { NO_RANKS } from '../game/meta'
-import { stateHash } from '../game/snapshot'
+import { restore, snapshot, stateHash } from '../game/snapshot'
 import type { ClientMessage, Entry, Frame, RunStart } from '../net/protocol'
 import { advance, createRunner, onFrame, SYNC_FAR, type RunnerDeps } from './runner'
 
@@ -46,6 +46,15 @@ describe('the lockstep runner', () => {
     while (b.next < 600) advance(b, 1 / 60, h.deps)
     expect(stateHash(a.game)).toBe(stateHash(b.game))
     expect(h.sent.filter((m) => m.t === 'hash').length).toBe(20)
+    // Who pushed each event is noted on the side; the game's state (events drained) snapshots as plain data.
+    expect(a.actors.length).toBe(a.events.length)
+    a.game.player = a.game.players[1]!
+    a.game.events.push({ kind: 'coin' })
+    a.game.player = a.game.players[0]!
+    expect(a.pushedBy).toEqual([1])
+    a.game.events.length = 0
+    a.pushedBy.length = 0
+    expect(stateHash(restore(snapshot(a.game)))).toBe(stateHash(a.game))
   })
 
   it('keeps its hold in hand, and catches up smoothly when behind: faster, never all at once', () => {
