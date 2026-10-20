@@ -64,7 +64,7 @@ import { CALM_PERIOD, HURT_TINT, type Flashes } from './flashes'
 import { detail } from './quality'
 import { localPlayer } from '../game/players'
 import { riftDomain } from '../game/rift'
-import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, showsPlain } from './team'
+import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, flushTeamAttacks, showsPlain, teamAttackLayer } from './team'
 
 type Ctx = CanvasRenderingContext2D
 
@@ -901,7 +901,11 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
 
   drawTerrainGround(ctx, g, look, camX, camY)
   // Ground marks far off screen (trails left behind, lingering fields) are skipped; the margin covers the widest of them.
-  for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, Math.max(200, reachOf(a.shape)))) drawGroundAttack(ctx, a, t)
+  const me = localPlayer(g)
+  // Co-op: teammates' hitboxes go through a see-through layer, so your own read first (`teamAttackLayer`).
+  let team = g.coop ? teamAttackLayer(w, h, camX, camY) : null
+  for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, Math.max(200, reachOf(a.shape)))) drawGroundAttack(team && a.owner !== me.slot ? team : ctx, a, t)
+  if (team) flushTeamAttacks(ctx, camX, camY)
   drawVerbGround(ctx, g, t)
   drawTmGround(ctx, g, t)
   drawShopTm2Ground(ctx, g, t)
@@ -934,7 +938,6 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   // A wave legendary's scene draws it itself (its arrival, its capture).
   const hiddenBoss = sceneHides(g)
   for (const e of g.enemies) if (visible(e.x, e.y) && e.id !== hiddenBoss) drawables.push(e)
-  const me = localPlayer(g)
   drawables.push('player')
   const mates = opts.mates ?? []
   for (let i = 0; i < mates.length; i++) {
@@ -1019,7 +1022,9 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   drawLegendScene(ctx, g, t)
   if (g.coop) drawTeamAir(ctx, g, me, t)
 
-  for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, 200)) drawAttack(ctx, a, t)
+  team = g.coop ? teamAttackLayer(w, h, camX, camY) : null
+  for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, 200)) drawAttack(team && a.owner !== me.slot ? team : ctx, a, t)
+  if (team) flushTeamAttacks(ctx, camX, camY)
   drawVerbAir(ctx, g, t, visible)
   drawTmAir(ctx, g, t, visible)
   drawShopTmAir(ctx, g, t, visible)

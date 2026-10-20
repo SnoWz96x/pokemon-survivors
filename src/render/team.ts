@@ -1,4 +1,4 @@
-import { blitCentered, blitRotated, ellipse, ring, textSprite } from '../engine/pixelart'
+import { blitCentered, blitRotated, context2d, createCanvas, ellipse, onCanvasReset, ring, textSprite } from '../engine/pixelart'
 import { TAU } from '../engine/math'
 import { COOP } from '../data/coop'
 import { formAt } from '../game/branch'
@@ -25,7 +25,7 @@ import { dashedRing } from './strokes'
 type Ctx = CanvasRenderingContext2D
 
 /** One color per seat, the same on every screen: name tags, feet rings, arrows, the HUD's cards. Picked to read on grass, cave and snow. */
-export const SLOT_COLORS = ['#58b8f8', '#f8d030', '#f870c0', '#78e878'] as const
+export const SLOT_COLORS = ['#58b8f8', '#f8d030', '#f870c0', '#f89038'] as const
 
 export const slotColor = (slot: number): string => SLOT_COLORS[slot % SLOT_COLORS.length]!
 
@@ -183,7 +183,7 @@ export const drawTeamGround = (ctx: Ctx, g: Game, t: number) => {
     const color = slotColor(p.slot)
     if (fainted(p)) {
       const r = COOP.revive.radius
-      dashedRing(ctx, p.x, p.y, r, t * 1.5, [color, '#ffffff'], 0.4)
+      dashedRing(ctx, p.x, p.y, r, t * 1.5, [color, '#ffffff', color], 0.6)
       if (p.revive > 0) reviveArc(ctx, p.x, p.y, r - 2, Math.min(1, p.revive / COOP.revive.time), '#f8e050')
       continue
     }
@@ -230,11 +230,13 @@ export const drawTeamAir = (ctx: Ctx, g: Game, me: Player, t: number) => {
     const busy = busyWith(p)
     if (!busy) continue
     const bubbles = TEAM_FX.bubbles()
-    // The "…" types itself out, a dot at a time.
-    const icon = busy === 'dots3' ? (['dots1', 'dots2', 'dots3'] as const)[Math.floor(t * 3) % 3]! : busy
-    blitCentered(ctx, bubbles[icon], side, top - 11)
+    // The "…" types itself out, a dot at a time. The bubble's tail points down at the tag.
+    const icon = busy === 'dots3' ? DOTS[Math.floor(t * 3) % 3]! : busy
+    blitCentered(ctx, bubbles[icon], p.x, top - 16)
   }
 }
+
+const DOTS = ['dots1', 'dots2', 'dots3'] as const
 
 /** Where an edge marker goes (`edgeSpot` fills it, so drawing allocates nothing). */
 export type EdgeSpot = { x: number; y: number; angle: number }
@@ -294,4 +296,40 @@ export const drawTeamMarkers = (ctx: Ctx, g: Game, me: Player, camX: number, cam
     blitCentered(ctx, tag, tx, ty)
     if (down) blitCentered(ctx, textSprite(dist, '#ffffff'), tx, ty + (sin > 0.5 ? -7 : 7))
   }
+}
+
+/* ---------------- Teammates' hitboxes ---------------- */
+
+/** How opaque teammates' hitboxes draw: there, but quieter than your own. */
+const TEAM_ATTACK_ALPHA = 0.6
+
+let layer: HTMLCanvasElement | null = null
+let layerCtx: Ctx | null = null
+onCanvasReset(() => {
+  layer = null
+  layerCtx = null
+})
+
+/**
+ * A cleared view-sized layer in world coordinates (top-left at the camera)
+ * that teammates' hitboxes draw into, then `flushTeamAttacks` lays it over the
+ * world see-through. One canvas, reused every frame.
+ */
+export const teamAttackLayer = (w: number, h: number, camX: number, camY: number): Ctx => {
+  if (!layer || !layerCtx || layer.width !== w || layer.height !== h) {
+    layer = createCanvas(w, h)
+    layerCtx = context2d(layer)
+  }
+  layerCtx.setTransform(1, 0, 0, 1, 0, 0)
+  layerCtx.clearRect(0, 0, w, h)
+  layerCtx.setTransform(1, 0, 0, 1, -camX, -camY)
+  return layerCtx
+}
+
+/** Draws the teammates' layer onto the world (`ctx` translated to the camera). */
+export const flushTeamAttacks = (ctx: Ctx, camX: number, camY: number) => {
+  if (!layer) return
+  ctx.globalAlpha = TEAM_ATTACK_ALPHA
+  ctx.drawImage(layer, camX, camY)
+  ctx.globalAlpha = 1
 }
