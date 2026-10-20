@@ -1,0 +1,374 @@
+/**
+ * The co-op wire protocol, shared by the game and the room relay (`relay/`, a
+ * Cloudflare Worker with one Durable Object per room). Co-op runs in
+ * deterministic lockstep: every player simulates the whole run from the same
+ * seed, and the relay owns the clock. It stamps each input into the next 60 Hz
+ * tick it hasn't sent yet and broadcasts frames of ticks, never waiting for
+ * anyone. It also keeps the run's input log, the latest snapshot the players
+ * agreed on and their state hashes, so a reconnecting or diverged client resumes
+ * from a snapshot plus a short tail instead of replaying the run.
+ *
+ * This file must import nothing: the relay bundles it alone, so it never carries
+ * game code and game deploys never touch it. Inputs, loadouts and settings are
+ * opaque to the relay (small JSON the game reads), so a new move or pick needs no
+ * relay change. JSON over one WebSocket per player.
+ */
+
+/** Bumped with any incompatible change; a client and relay of different versions refuse each other. */
+export const PROTOCOL = 2
+
+/** Simulation ticks per second. Tick `t` covers `[t, t + 1) / TICK_HZ` s of the run's clock. */
+export const TICK_HZ = 60
+
+export const MAX_PLAYERS = 4
+
+/** Clients send `hash` at every tick that is a multiple of this (once a second). */
+export const HASH_EVERY = 60
+
+/** The snapshot uploader sends one at every tick that is a multiple of this (every 10 s). */
+export const SNAPSHOT_EVERY = 600
+
+/** Room codes: 5 letters and digits without the look-alikes (0/O, 1/I/L). 31^5 ≈ 28.6 million codes. */
+export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+export const ROOM_CODE_LENGTH = 5
+
+/** The room code in a shared link (`/?sala=K7QF2`). */
+export const ROOM_PARAM = 'sala'
+
+/** Input kinds where a newer input replaces an older one from the same seat in the same tick (the stick). */
+export const COALESCED_KINDS = ['move'] as const
+
+/** Entry kinds only the relay stamps: a seat went silent, came back, or left the run for good. */
+export const SYSTEM_KINDS = ['away', 'back', 'leave'] as const
+export type SystemKind = (typeof SYSTEM_KINDS)[number]
+
+export const LIMITS = {
+  /** Any text message but a snapshot chunk, in UTF-16 code units. */
+  message: 4096,
+  /** A snapshot chunk message (base64 data plus its envelope). */
+  chunkMessage: 270_000,
+  /** Base64 characters in one snapshot chunk (192 KiB of bytes). */
+  chunk: 262_144,
+  /** Chunks in one snapshot (4.5 MiB of compressed state at most). */
+  parts: 24,
+  name: 24,
+  /** A loadout or the room settings, as JSON. */
+  loadout: 1024,
+  settings: 512,
+  /** Values after an input's kind. */
+  inputValues: 8,
+  /** Characters of a string input value or input kind. */
+  inputString: 24,
+  build: 40,
+  hash: 32,
+  /** A Clerk session token. */
+  token: 4096,
+} as const
+
+/* ---------------- Shared shapes ---------------- */
+
+export type Json = string | number | boolean | null | readonly Json[] | { readonly [key: string]: Json }
+
+/** What a player brings into the run (their Pokémon and so on). The relay only stores and relays it; the game reads it. */
+export type Loadout = { readonly [key: string]: Json }
+
+/** Run options the host picks in the lobby (difficulty and so on). Opaque to the relay, like `Loadout`. */
+export type Settings = { readonly [key: string]: Json }
+
+export type Scalar = number | string | boolean
+
+/**
+ * Something that happened to a seat at a tick, applied before that tick's step:
+ * a client input (`[seat, kind, ...values]`, as the client sent it) or one the
+ * relay stamped (`SystemKind`: away, back, leave).
+ */
+export type Entry = readonly [seat: number, kind: string, ...values: Scalar[]]
+
+/** One tick's entries, in the order the relay stamped them. */
+export type TickEntries = readonly [tick: number, entries: readonly Entry[]]
+
+/**
+ * Ticks `from` to `to - 1`. Only ticks with entries are listed (in order); the
+ * rest are empty. Live frames list at most tick `from`; catch-up frames many.
+ */
+export type Frame = { t: 'frame'; from: number; to: number; ticks: readonly TickEntries[] }
+
+/** A snapshot the relay holds: the state at `tick` (after ticks `0..tick - 1`), whose hash a majority agreed on. */
+export type SnapshotRef = { tick: number; h: string; parts: number }
+
+/** Who a seat belongs to: a signed-in Clerk user (verified by the relay) or a guest id kept by the device. */
+export type Auth = { kind: 'clerk'; token: string } | { kind: 'guest'; id: string }
+
+export type Phase = 'lobby' | 'playing' | 'ended'
+
+export type Member = {
+  seat: number
+  name: string
+  /** Signed in (a verified Clerk account) rather than a guest. */
+  account: boolean
+  host: boolean
+  online: boolean
+  /** In a run: silent long enough to be stamped `away`. */
+  away: boolean
+  ready: boolean
+  loadout: Loadout | null
+}
+
+/** The room as everyone sees it, sent on every change. */
+export type RoomView = {
+  code: string
+  phase: Phase
+  members: readonly Member[]
+  settings: Settings
+  /** The current (or last) run's id, 0 before the first. */
+  run: number
+}
+
+export type RunPlayer = { seat: number; name: string; account: boolean; loadout: Loadout }
+
+/** Everything a client needs to start the run's simulation at tick 0. */
+export type RunStart = {
+  id: number
+  seed: number
+  build: string
+  settings: Settings
+  /** By seat. A seat's entries name it by `seat`. */
+  players: readonly RunPlayer[]
+}
+
+/* ---------------- HTTP ---------------- */
+
+/**
+ * Where a new room's relay runs (Durable Object location hints). `auto` picks
+ * the region nearest the host. There are no Durable Objects in South America:
+ * `sam` lands in Miami most of the time (or New Jersey), the closest to Brazil.
+ */
+export const REGIONS = ['auto', 'sam', 'enam', 'wnam', 'weur', 'eeur', 'apac', 'oc'] as const
+export type Region = (typeof REGIONS)[number]
+
+/** `POST /rooms`: reserves a room for the host, who then joins it like anyone (`GET /rooms/<code>/ws`, then `hello`). */
+export type CreateRequest = { v: number; build: string; region?: Region }
+export type CreateResponse = { code: string; region: Region } | { error: 'version' | 'invalid' | 'rate' | 'busy' }
+
+/* ---------------- Client → relay ---------------- */
+
+export type Hello = {
+  t: 'hello'
+  v: number
+  /** The client's build id; a room only takes the build it was created with. */
+  build: string
+  room: string
+  auth: Auth
+  /** The seat secret the relay gave this device for this room (`welcome`), kept in localStorage by room code. */
+  secret: string | null
+  name: string
+  /** The run this client has state for, and the tick that state is at (it applied every tick below `from`). */
+  resume: { run: number; from: number } | null
+}
+
+export type ClientMessage =
+  | Hello
+  /** Lobby (or after a run): what you bring, whether you're ready. */
+  | { t: 'loadout'; loadout: Loadout }
+  | { t: 'ready'; ready: boolean }
+  /** Host only, outside a run. */
+  | { t: 'settings'; settings: Settings }
+  | { t: 'kick'; seat: number }
+  | { t: 'start' }
+  /** An input, stamped into the next tick. `k` is its kind (never a `SystemKind`), `d` its values. */
+  | { t: 'in'; k: string; d: readonly Scalar[] }
+  /** Nothing to send for a while but still here (keeps the seat from going `away`). */
+  | { t: 'hb' }
+  /** The full-state hash at `tick` (a multiple of `HASH_EVERY`). */
+  | { t: 'hash'; tick: number; h: string }
+  /**
+   * A chunk of the compressed snapshot at `tick` (a multiple of `SNAPSHOT_EVERY`), only from the client told to
+   * upload them (`role`). Serialize it with `t` first: the relay picks the bigger size limit from that prefix.
+   */
+  | { t: 'snap'; tick: number; h: string; part: number; parts: number; data: string }
+  /** The run ended in this client's simulation at `tick`, with this state hash. */
+  | { t: 'over'; tick: number; h: string }
+  | { t: 'leave' }
+  | { t: 'ping'; at: number }
+
+/* ---------------- Relay → client ---------------- */
+
+/**
+ * Why the relay refused a `hello`. `unavailable` covers every reason a room
+ * can't be joined (no such room, full, already playing, kicked), so codes
+ * can't be probed; `build` says the room runs another build (update the game).
+ */
+export type Refusal = 'version' | 'build' | 'unavailable' | 'auth' | 'invalid'
+
+/** Why the relay closed the socket (after the matching message). */
+export type CloseReason = 'replaced' | 'kicked' | 'left' | 'refused' | 'abuse' | 'expired'
+
+/**
+ * The WebSocket close code of each reason. A client reconnects after any other
+ * close (a network drop, a relay restart), never after one of these.
+ */
+export const CLOSE_CODES = {
+  replaced: 4001,
+  kicked: 4002,
+  left: 4003,
+  refused: 4004,
+  expired: 4005,
+  abuse: 4008,
+} as const satisfies Record<CloseReason, number>
+
+export type ServerMessage =
+  /** You hold `seat`; keep `secret` (by room code) to take it back from any tab. */
+  | { t: 'welcome'; seat: number; secret: string; room: RoomView }
+  | { t: 'refused'; code: Refusal }
+  | { t: 'room'; room: RoomView }
+  /** A run starts: its tick 0 goes out in `startsIn` ms. */
+  | { t: 'start'; run: RunStart; startsIn: number }
+  /**
+   * You are (re)joining a run: bring your state to tick `from` (restore `base`,
+   * whose chunks follow as `snapPart`; from the run's seed when `base` is null
+   * and `from` is 0; or keep your own state when resuming), then frames up to
+   * `to` follow, then live frames.
+   */
+  | { t: 'sync'; reason: 'join' | 'resume' | 'heal'; run: RunStart; from: number; to: number; base: SnapshotRef | null }
+  | { t: 'snapPart'; tick: number; part: number; data: string }
+  | Frame
+  /** Your hash at `tick` disagreed with the majority's: a `sync` with the agreed state follows. */
+  | { t: 'heal'; tick: number }
+  /** Whether you upload snapshots (`snap`). */
+  | { t: 'role'; snapshots: boolean }
+  /** The run is over, confirmed by a majority of the connected players. */
+  | { t: 'ended'; run: number; tick: number; h: string }
+  /** The host's `start` was turned down: not the host, or someone online isn't ready (or has no loadout). */
+  | { t: 'denied'; what: 'start'; why: 'notHost' | 'notReady' }
+  /** Some of your inputs were dropped for coming too fast (said once per socket). */
+  | { t: 'slow' }
+  | { t: 'pong'; at: number; tick: number }
+  /** Sent right before the relay closes the socket. */
+  | { t: 'bye'; reason: CloseReason }
+
+/* ---------------- Parsing ---------------- */
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+
+const isWhole = (v: unknown, max: number): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= max
+
+const isScalar = (v: unknown): v is Scalar =>
+  typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v.length <= LIMITS.inputString)
+
+const oneOf = <T extends string>(v: unknown, options: readonly T[]): v is T => options.some((o) => o === v)
+
+const MAX_TICK = 2 ** 31
+
+const isJson = (v: unknown, depth = 0): v is Json => {
+  if (v === null || typeof v === 'string' || typeof v === 'boolean') return true
+  if (typeof v === 'number') return Number.isFinite(v)
+  if (depth > 4) return false
+  if (Array.isArray(v)) return v.every((x) => isJson(x, depth + 1))
+  return isRecord(v) && Object.values(v).every((x) => isJson(x, depth + 1))
+}
+
+/** A small JSON object (a loadout or settings) within `max` characters, or null. */
+const parseObject = (v: unknown, max: number): { readonly [key: string]: Json } | null =>
+  isRecord(v) && isJson(v) && JSON.stringify(v).length <= max ? v : null
+
+export const parseRoomCode = (v: unknown): string | null => {
+  if (typeof v !== 'string') return null
+  const code = v.trim().toUpperCase()
+  return code.length === ROOM_CODE_LENGTH && [...code].every((c) => ROOM_CODE_ALPHABET.includes(c)) ? code : null
+}
+
+/** A display name: control characters out, spaces collapsed, 1 to `LIMITS.name` characters. */
+export const parseName = (v: unknown): string | null => {
+  if (typeof v !== 'string') return null
+  const name = [...v.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim()]
+  return name.length > 0 ? name.slice(0, LIMITS.name).join('') : null
+}
+
+const parseBuild = (v: unknown) => (typeof v === 'string' && /^[\w.-]{1,40}$/.test(v) ? v : null)
+
+const parseHash = (v: unknown) => (typeof v === 'string' && /^[0-9a-zA-Z_-]{1,32}$/.test(v) ? v : null)
+
+const parseAuth = (v: unknown): Auth | null => {
+  if (!isRecord(v)) return null
+  if (v.kind === 'clerk') return typeof v.token === 'string' && v.token.length > 0 && v.token.length <= LIMITS.token ? { kind: 'clerk', token: v.token } : null
+  if (v.kind === 'guest') return typeof v.id === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(v.id) ? { kind: 'guest', id: v.id } : null
+  return null
+}
+
+const parseSecret = (v: unknown) => (typeof v === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(v) ? v : null)
+
+const parseResume = (v: unknown): Hello['resume'] =>
+  isRecord(v) && isWhole(v.run, MAX_TICK) && isWhole(v.from, MAX_TICK) ? { run: v.run, from: v.from } : null
+
+const parseHello = (m: Record<string, unknown>): Hello | null => {
+  const build = parseBuild(m.build)
+  const room = parseRoomCode(m.room)
+  const auth = parseAuth(m.auth)
+  const name = parseName(m.name)
+  if (!isWhole(m.v, 1e6) || !build || !room || !auth || !name) return null
+  return { t: 'hello', v: m.v, build, room, auth, secret: parseSecret(m.secret), name, resume: parseResume(m.resume) }
+}
+
+/** The kind of the message in `raw`, cheaply, to pick its size limit before parsing. */
+const isChunkMessage = (raw: string) => raw.startsWith('{"t":"snap"')
+
+/** The size limit of a raw message (snapshot chunks are bigger). */
+export const messageLimit = (raw: string) => (isChunkMessage(raw) ? LIMITS.chunkMessage : LIMITS.message)
+
+/** A client message from an untrusted string, or null when it is too big or its shape is wrong. */
+export const parseClientMessage = (raw: string): ClientMessage | null => {
+  if (raw.length > messageLimit(raw)) return null
+  let m: unknown
+  try {
+    m = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!isRecord(m)) return null
+  switch (m.t) {
+    case 'hello':
+      return parseHello(m)
+    case 'loadout': {
+      const loadout = parseObject(m.loadout, LIMITS.loadout)
+      return loadout ? { t: 'loadout', loadout } : null
+    }
+    case 'ready':
+      return { t: 'ready', ready: m.ready === true }
+    case 'settings': {
+      const settings = parseObject(m.settings, LIMITS.settings)
+      return settings ? { t: 'settings', settings } : null
+    }
+    case 'kick':
+      return isWhole(m.seat, MAX_PLAYERS - 1) ? { t: 'kick', seat: m.seat } : null
+    case 'in': {
+      const k = m.k
+      const d = m.d
+      if (typeof k !== 'string' || !/^[A-Za-z][\w-]{0,23}$/.test(k) || oneOf(k, SYSTEM_KINDS)) return null
+      if (!Array.isArray(d) || d.length > LIMITS.inputValues || !d.every(isScalar)) return null
+      return { t: 'in', k, d }
+    }
+    case 'hash': {
+      const h = parseHash(m.h)
+      return h && isWhole(m.tick, MAX_TICK) && m.tick % HASH_EVERY === 0 ? { t: 'hash', tick: m.tick, h } : null
+    }
+    case 'snap': {
+      const h = parseHash(m.h)
+      const { tick, part, parts, data } = m
+      if (!h || !isWhole(tick, MAX_TICK) || tick % SNAPSHOT_EVERY !== 0 || !isWhole(parts, LIMITS.parts) || parts < 1) return null
+      if (!isWhole(part, parts - 1) || typeof data !== 'string' || data.length > LIMITS.chunk || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) return null
+      return { t: 'snap', tick, h, part, parts, data }
+    }
+    case 'over': {
+      const h = parseHash(m.h)
+      return h && isWhole(m.tick, MAX_TICK) ? { t: 'over', tick: m.tick, h } : null
+    }
+    case 'ping':
+      return typeof m.at === 'number' && Number.isFinite(m.at) ? { t: 'ping', at: m.at } : null
+    case 'start':
+    case 'hb':
+    case 'leave':
+      return { t: m.t }
+    default:
+      return null
+  }
+}
