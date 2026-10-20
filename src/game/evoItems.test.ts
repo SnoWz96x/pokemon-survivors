@@ -73,14 +73,14 @@ describe('the Everstone', () => {
   const levelled = (bag: ReplayStart['bag']): { g: Game; phases: Set<string> } => {
     const g = startGame({ ...START, bag })
     const phases = new Set<string>()
-    chooseOffer(g, g.offers[0]!)
+    chooseOffer(g, g.player.offers[0]!)
     g.player.level = 40
-    g.pendingLevelUps = 1
+    g.player.pendingLevelUps = 1
     advancePhase(g)
     for (let i = 0; i < 50 && g.phase !== 'playing'; i++) {
       phases.add(g.phase)
       if (g.phase === 'evolving') g.phase = 'playing'
-      else chooseOffer(g, g.offers[0]!)
+      else chooseOffer(g, g.player.offers[0]!)
     }
     return { g, phases }
   }
@@ -90,8 +90,8 @@ describe('the Everstone', () => {
     expect(g.player.stage).toBe(0)
     expect(phases.has('evolving')).toBe(false)
     expect(phases.has('ability')).toBe(true)
-    expect(g.ability.id).not.toBeNull()
-    expect(g.everstone).toBe(true)
+    expect(g.player.ability.id).not.toBeNull()
+    expect(g.player.everstone).toBe(true)
     expect(g.player.level).toBeGreaterThan(PLAYABLE.charmander.line[1].evolveAt!)
     const plain = startGame(START)
     expect(startGame({ ...START, bag: ['everstone'] }).player.stats.maxHp).toBe(Math.round(plain.player.stats.maxHp * 1.15))

@@ -133,18 +133,27 @@ export const callWeather = (g: Game, id: WeatherId, seconds: number) => {
   return true
 }
 
+/** The weather's wear on the acting player, unless they're immune; it never takes them under `WEATHER_CHIP.playerFloor`. */
+const chipPlayer = (g: Game, color: string) => {
+  const p = g.player
+  if (!weatherChips(g.weather.id, playerForm(g).types) || abilityImmune(g, 'chip')) return
+  const floor = p.stats.maxHp * WEATHER_CHIP.playerFloor
+  const dmg = Math.min(Math.round(p.stats.maxHp * WEATHER_CHIP.player) || 1, Math.floor(p.hp - floor))
+  if (dmg > 0) {
+    p.hp -= dmg
+    floatText(g, p.x, p.y - 28, String(dmg), color, true)
+  }
+}
+
 /** Sandstorm and snow wear: a slice of max HP every few seconds to everyone who isn't immune (by type, or by ability: Sand Veil, Magic Guard). */
 const chip = (g: Game) => {
   const color = WEATHER[g.weather.id].color
-  const p = g.player
-  if (weatherChips(g.weather.id, playerForm(g).types) && !abilityImmune(g, 'chip')) {
-    const floor = p.stats.maxHp * WEATHER_CHIP.playerFloor
-    const dmg = Math.min(Math.round(p.stats.maxHp * WEATHER_CHIP.player) || 1, Math.floor(p.hp - floor))
-    if (dmg > 0) {
-      p.hp -= dmg
-      floatText(g, p.x, p.y - 28, String(dmg), color, true)
-    }
+  const before = g.player
+  for (const p of g.players) {
+    g.player = p
+    chipPlayer(g, color)
   }
+  g.player = before
   for (const e of g.enemies) {
     if (e.dying >= 0 || !weatherChips(g.weather.id, e.types)) continue
     // No damage numbers: on a full horde they'd bury the screen. A puff of weather says it instead.

@@ -6,6 +6,7 @@ import { pokeballIcon } from '../render/art'
 import { t } from '../i18n'
 import { h } from './dom'
 import { hint, menu, offerTile, type Screen } from './screens'
+import { localPlayer } from '../game/players'
 
 /** Taps this soon after the ball opens are ignored: a thumb still on the joystick can't decide for the player. */
 const GUARD_MS = 650
@@ -20,16 +21,16 @@ const PICK_MS = 280
  */
 export const pokeballPick = (root: HTMLElement, input: Input, g: Game, onChoose: (offer: Offer) => void): Screen => {
   const m = t().pokeballPick
-  const [prize] = g.offers
-  const p = g.player
+  const [prize] = localPlayer(g).offers
+  const p = localPlayer(g)
   const slot = prize?.kind === 'item' ? m.itemSlot(p.items.length, MAX_ITEMS) : m.moveSlot(p.moves.length, MAX_MOVES)
-  const buttons = g.offers.map((o) =>
+  const buttons = localPlayer(g).offers.map((o) =>
     h('button', { class: o.kind === 'pass' ? 'btn ball-leave' : 'btn ball-take', type: 'button' }, o.kind === 'pass' ? m.leave : m.take),
   )
   const openedAt = performance.now()
   let done = false
   const nav = menu(input, buttons, (i) => {
-    const picked = g.offers[i]
+    const picked = localPlayer(g).offers[i]
     if (done || !picked || performance.now() - openedAt < GUARD_MS) return
     done = true
     const take = picked.kind !== 'pass'

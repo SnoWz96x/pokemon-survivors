@@ -12,8 +12,8 @@ export const legendDevTools = (game: () => Game | undefined, start: (id: LegendI
   legend: (id?: string) => (isLegend(id) ? start(id) : `Legends: ${LEGEND_IDS.join(', ')}`),
   awaken: () => {
     const g = game()
-    if (!g?.legend || g.phase !== 'playing') return 'Start a Legend-mode run (and close menus) first: ps.legend("kyogre")'
-    const at = AWAKEN_AT[g.legend.awakened]
+    if (!g?.player.legend || g.phase !== 'playing') return 'Start a Legend-mode run (and close menus) first: ps.legend("kyogre")'
+    const at = AWAKEN_AT[g.player.legend.awakened]
     if (at === undefined) return 'Already fully awakened'
     g.player.level = Math.max(g.player.level, at)
     g.player.xp = 0

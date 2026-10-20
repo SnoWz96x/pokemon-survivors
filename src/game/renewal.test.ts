@@ -4,7 +4,7 @@ import { createTraitState } from './traits'
 import { isRenewable, oldestRenewable, RENEWAL } from './renewal'
 import type { Enemy } from './types'
 
-const camera = { x: 0, y: 0 }
+const camera = [{ screen: { x: 0, y: 0 } }]
 const view = { w: 300, h: 200 }
 const NOW = 100
 const OFF = 300 + RENEWAL.margin + 1

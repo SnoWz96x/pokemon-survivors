@@ -18,7 +18,8 @@ import { makeElite, makeRunner } from './horde'
 import { makeSpitter } from './spitters'
 import { isHeld } from './status'
 import { featuresNear, groundAt } from './terrain'
-import type { Enemy, Game, Hazard } from './types'
+import { actAs, nearestPlayer, standing } from './players'
+import type { Enemy, Game, Hazard, Player } from './types'
 import { HAZARD_TYPES } from './weather'
 import * as dm from '../engine/dmath'
 
@@ -32,9 +33,8 @@ export const spawnHazard = (g: Game, init: HazardInit) => {
 /** How long a strike keeps hurting after it lands. */
 const STRIKE_WINDOW = 0.15
 
-/** A boss's attack, pressed by its fight's difficulty (`attackCount`, `telegraph`); a rift legendary in the old arena passes no fight. */
-const fire = (g: Game, boss: Enemy, written: BossPattern, fight: BossFight | null) => {
-  const p = g.player
+/** A boss's attack at player `p`, pressed by its fight's difficulty (`attackCount`, `telegraph`); a rift legendary in the old arena passes no fight. */
+const fire = (g: Game, boss: Enemy, written: BossPattern, fight: BossFight | null, p: Player) => {
   // Judgment takes the biome's plate.
   const pattern = written.plate && 'visual' in written ? { ...written, visual: JUDGMENT_PLATE[g.biome.id] } : written
   switch (pattern.kind) {
@@ -140,19 +140,19 @@ const fire = (g: Game, boss: Enemy, written: BossPattern, fight: BossFight | nul
       return
     }
     case 'beam':
-      return fireBeams(g, boss, pattern, fight)
+      return fireBeams(g, boss, pattern, fight, p)
     case 'summon':
       return summon(g, boss, pattern)
     case 'dash': {
       if (!fight) return
       fight.motion = { kind: 'dash', wait: 0, left: 0, vx: 0, vy: 0, more: pattern.count, speed: pattern.speed, width: pattern.width, damage: pattern.damage, windup: telegraph(pattern.windup, fight), hit: false, reach: 0 }
-      return aimDash(g, boss, fight)
+      return aimDash(g, boss, fight, p)
     }
     case 'swoop': {
       if (!fight) return
       burst(g, boss.x, boss.y - boss.radius, { colors: IMPACT.dragon!.colors, count: 30, speed: 160, ttl: 0.45, size: 2 })
       fight.motion = { kind: 'dash', wait: 0, left: 0, vx: 0, vy: 0, more: pattern.count, speed: pattern.speed, width: pattern.width, damage: pattern.damage, windup: telegraph(pattern.windup, fight), hit: false, reach: pattern.reach }
-      return aimDash(g, boss, fight)
+      return aimDash(g, boss, fight, p)
     }
     case 'dive': {
       if (!fight) return
@@ -175,7 +175,7 @@ const fire = (g: Game, boss: Enemy, written: BossPattern, fight: BossFight | nul
     case 'blast': {
       if (!fight) return
       const windup = telegraph(pattern.windup, fight)
-      const spots = pattern.safe === 'spots' ? shelters(g, pattern.spots ?? 3) : []
+      const spots = pattern.safe === 'spots' ? shelters(g, pattern.spots ?? 3, p) : []
       const radius = pattern.radius ?? (pattern.safe === 'spots' ? SHELTER.radius : 90)
       fight.blast = { left: windup, total: windup, x: boss.x, y: boss.y, damage: pattern.damage, safe: pattern.safe, radius, visual: pattern.visual, spots }
       return
@@ -226,15 +226,14 @@ const fire = (g: Game, boss: Enemy, written: BossPattern, fight: BossFight | nul
       return
     }
     case 'phantoms':
-      return phantoms(g, boss, pattern, fight)
+      return phantoms(g, boss, pattern, fight, p)
     case 'guard':
       return raiseGuard(g, boss, pattern, fight)
   }
 }
 
-/** Fires `phantoms`: phantoms of the boss streak one after another along marked lanes through where the player stands. */
-const phantoms = (g: Game, boss: Enemy, pattern: Extract<BossPattern, { kind: 'phantoms' }>, fight: BossFight | null) => {
-  const p = g.player
+/** Fires `phantoms`: phantoms of the boss streak one after another along marked lanes through where player `p` stands. */
+const phantoms = (g: Game, boss: Enemy, pattern: Extract<BossPattern, { kind: 'phantoms' }>, fight: BossFight | null, p: Player) => {
   const count = attackCount(pattern.count, fight)
   const windup = telegraph(pattern.windup, fight)
   const offset = range(g.rng, 0, TAU)
@@ -316,11 +315,10 @@ const angleGap = (a: number, b: number) => {
   return d > Math.PI ? d - TAU : d < -Math.PI ? d + TAU : d
 }
 
-/** A `spots` blast's shelters: `radius` px circles `near`..`far` px around the player, evenly spread at a random turn (always one within reach of its warning). */
+/** A `spots` blast's shelters: `radius` px circles `near`..`far` px around its target player, evenly spread at a random turn (always one within reach of its warning). */
 export const SHELTER = { radius: 16, near: 52, far: 92 } as const
 
-const shelters = (g: Game, count: number) => {
-  const p = g.player
+const shelters = (g: Game, count: number, p: Player) => {
   const offset = range(g.rng, 0, TAU)
   return Array.from({ length: count }, (_, i) => {
     const a = offset + (i / count) * TAU
@@ -395,12 +393,11 @@ export const safeAt = (g: Game, blast: Pick<BossBlast, 'x' | 'y' | 'safe' | 'rad
   }
 }
 
-/** Whether the player stands where a blast spares them. */
-export const blastSpares = (g: Game, blast: Pick<BossBlast, 'x' | 'y' | 'safe' | 'radius' | 'spots'>) => safeAt(g, blast, g.player.x, g.player.y, g.player.radius)
+/** Whether player `p` stands where a blast spares them. */
+export const blastSpares = (g: Game, blast: Pick<BossBlast, 'x' | 'y' | 'safe' | 'radius' | 'spots'>, p: Player) => safeAt(g, blast, p.x, p.y, p.radius)
 
-/** Fires a beam pattern: out of the boss (aimed, maybe sweeping or stopped by cover) or parallel lances from past the screen's edge. */
-const fireBeams = (g: Game, boss: Enemy, pattern: Extract<BossPattern, { kind: 'beam' }>, fight: BossFight | null) => {
-  const p = g.player
+/** Fires a beam pattern at player `p`: out of the boss (aimed, maybe sweeping or stopped by cover) or parallel lances from past the screen's edge. */
+const fireBeams = (g: Game, boss: Enemy, pattern: Extract<BossPattern, { kind: 'beam' }>, fight: BossFight | null, p: Player) => {
   const count = attackCount(pattern.count, fight)
   const windup = telegraph(pattern.windup, fight)
   const timing = { armAt: windup, disarmAt: windup + pattern.duration, ttl: windup + pattern.duration + 0.25 }
@@ -465,14 +462,13 @@ const summon = (g: Game, boss: Enemy, pattern: Extract<BossPattern, { kind: 'sum
 }
 
 /**
- * Marks a dash's lane through where the player stands now (a telegraph beam
+ * Marks a dash's lane through where player `p` stands now (a telegraph beam
  * that never burns) and starts its windup. A swoop's pass first puts the boss
- * `reach` px from the player on a random side, and its lane runs as far past them.
+ * `reach` px from them on a random side, and its lane runs as far past them.
  */
-const aimDash = (g: Game, boss: Enemy, fight: BossFight) => {
+const aimDash = (g: Game, boss: Enemy, fight: BossFight, p: Player) => {
   const m = fight.motion
   if (m?.kind !== 'dash') return
-  const p = g.player
   if (m.reach > 0) {
     const side = range(g.rng, 0, TAU)
     boss.x = p.x + dm.cos(side) * m.reach
@@ -491,11 +487,13 @@ const aimDash = (g: Game, boss: Enemy, fight: BossFight) => {
   spawnHazard(g, { kind: 'beam', visual: 'slam', x: boss.x, y: boss.y, r: m.width / 2, damage: 0, angle: a, len, armAt: m.windup, disarmAt: m.windup, ttl: m.windup })
 }
 
-/** Runs a boss's scripted motion: a dash's windup and rush, a dive's wake, a teleport's wait. */
+/**
+ * Runs a boss's scripted motion: a dash's windup and rush (hitting the first
+ * player it runs into), a dive's wake (after the nearest player), a teleport's wait.
+ */
 const updateMotion = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
   const m = fight.motion
   if (!m) return
-  const p = g.player
   if (m.kind === 'dash') {
     if (m.wait > 0) {
       m.wait -= dt
@@ -504,13 +502,16 @@ const updateMotion = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
     boss.x += m.vx * dt
     boss.y += m.vy * dt
     m.left -= dt
-    if (!m.hit && dm.sq(boss.x - p.x) + dm.sq(boss.y - p.y) < dm.sq(boss.radius + p.radius)) {
+    for (const p of g.players) {
+      if (m.hit || !standing(g, p) || dm.sq(boss.x - p.x) + dm.sq(boss.y - p.y) >= dm.sq(boss.radius + p.radius)) continue
       m.hit = true
+      const before = actAs(g, p)
       hurtPlayer(g, m.damage, boss)
+      actAs(g, before)
     }
     if (g.rng() < 0.5) burst(g, boss.x, boss.y - 2, { colors: ['#ffffff', '#d8d0c0'], count: 1, speed: 30, ttl: 0.3 })
     if (m.left > 0) return
-    if (m.more > 0) return aimDash(g, boss, fight)
+    if (m.more > 0) return aimDash(g, boss, fight, nearestPlayer(g, boss.x, boss.y))
     fight.motion = null
     // A swoop's last pass ends off the arena: the boss lands back at its home.
     if (m.reach > 0) {
@@ -522,8 +523,9 @@ const updateMotion = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
   }
   m.left -= dt
   if (m.kind === 'dive') {
-    // The wake follows the player, then stops and shows where the boss bursts out.
+    // The wake follows the nearest player, then stops and shows where the boss bursts out.
     if (m.left > m.lock) {
+      const p = nearestPlayer(g, m.x, m.y)
       const d = dm.hypot(p.x - m.x, p.y - m.y)
       const step = Math.min(d, DIVE_WAKE * dt)
       if (d > 0) {
@@ -547,7 +549,7 @@ const updateMotion = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
 /** How fast a dive's wake follows the player, px/s (a bit slower than they walk, so it can be outrun). */
 const DIVE_WAKE = 58
 
-/** Lands a charged blast: anyone not in a safe spot is hit. */
+/** Lands a charged blast: any player not in a safe spot is hit. */
 const updateBlast = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
   const b = fight.blast
   if (!b) return
@@ -555,12 +557,17 @@ const updateBlast = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
   if (b.left > 0) return
   fight.blast = null
   const colors = IMPACT[b.visual]?.colors ?? ['#ffffff']
-  burst(g, g.player.x, g.player.y - 10, { colors, count: 40, speed: 200, ttl: 0.5, size: 2 })
+  for (const p of g.players) burst(g, p.x, p.y - 10, { colors, count: 40, speed: 200, ttl: 0.5, size: 2 })
   burst(g, boss.x, boss.y - boss.radius, { colors, count: 50, speed: 260, ttl: 0.6, size: 2 })
   g.shake = Math.max(g.shake, 9)
   g.flash = Math.max(g.flash, 0.35)
   g.events.push({ kind: 'quake' })
-  if (!blastSpares(g, b)) hurtPlayer(g, b.damage, undefined, HAZARD_TYPES[b.visual], 'hazard')
+  for (const p of g.players) {
+    if (!standing(g, p) || blastSpares(g, b, p)) continue
+    const before = actAs(g, p)
+    hurtPlayer(g, b.damage, undefined, HAZARD_TYPES[b.visual], 'hazard')
+    actAs(g, before)
+  }
 }
 
 /**
@@ -606,8 +613,8 @@ const enterPhase = (g: Game, e: Enemy, fight: BossFight, next: number) => {
 /** The least share of its HP a boss enters the phase before its rebirth with, however hard the hit that took it there. */
 const REBIRTH_FLOOR = 0.12
 
-/** Plays a phase's ultimate: announced as it begins, then its steps fire in turn. True while it plays (the other patterns wait). */
-const updateUltimate = (g: Game, e: Enemy, fight: BossFight, dt: number) => {
+/** Plays a phase's ultimate: announced as it begins, then its steps fire in turn at player `p`. True while it plays (the other patterns wait). */
+const updateUltimate = (g: Game, e: Enemy, fight: BossFight, dt: number, p: Player) => {
   const ultimate = phasesOf(e.kind)?.[fight.phase]?.ultimate
   if (!ultimate) return false
   if (!fight.ult) {
@@ -621,7 +628,7 @@ const updateUltimate = (g: Game, e: Enemy, fight: BossFight, dt: number) => {
   }
   const u = fight.ult
   u.t += dt
-  while (u.step < ultimate.steps.length && ultimate.steps[u.step]!.at <= u.t) fire(g, e, ultimate.steps[u.step++]!.pattern, fight)
+  while (u.step < ultimate.steps.length && ultimate.steps[u.step]!.at <= u.t) fire(g, e, ultimate.steps[u.step++]!.pattern, fight, p)
   if (u.t < ultimateLength(ultimate.steps)) return true
   fight.ult = null
   fight.ultLeft = ultimate.every
@@ -633,13 +640,13 @@ const FLEE_SPEED = 260
 
 /**
  * A new wave's boss arrives at `at`: earlier wave bosses still around run off
- * (`fleesFrom`). They leave play at once, glide away from the player in a puff
+ * (`fleesFrom`). They leave play at once, glide away from the nearest player in a puff
  * of dust and drop nothing; the shell toasts it.
  */
 export const chaseOffBosses = (g: Game, at: number) => {
-  const p = g.player
   for (const e of g.enemies) {
     if (!e.boss || e.dying >= 0 || !fleesFrom(e.kind, at)) continue
+    const p = nearestPlayer(g, e.x, e.y)
     const d = dirTo(p.x, p.y, e.x, e.y)
     e.dying = 0
     e.fled = true
@@ -652,17 +659,17 @@ export const chaseOffBosses = (g: Game, at: number) => {
   }
 }
 
-/** The finale boss arrives: a psychic shockwave from the player blasts the horde back (`FINALE.push`). */
+/** The finale boss arrives: a psychic shockwave from the players blasts the horde back (`FINALE.push`). */
 export const finaleEntrance = (g: Game) => {
   blastHorde(g, FINALE.push)
-  burst(g, g.player.x, g.player.y - 8, { colors: ['#f85888', '#f8b0d0', '#ffffff'], count: 90, speed: 320, ttl: 0.55, size: 2, drag: 2 })
+  for (const p of g.players) burst(g, p.x, p.y - 8, { colors: ['#f85888', '#f8b0d0', '#ffffff'], count: 90, speed: 320, ttl: 0.55, size: 2, drag: 2 })
   g.shake = Math.max(g.shake, 10)
 }
 
 /**
- * How far from the player a boss attacks from (and counts as in the fight,
- * `bossInFight`). In a rift the arena bounds the fight, which is bigger than
- * a phone's screen: there it attacks from anywhere.
+ * How far from its target player a boss attacks from (and counts as in the
+ * fight, `bossInFight`). In a rift the arena bounds the fight, which is
+ * bigger than a phone's screen: there it attacks from anywhere.
  */
 export const bossReach = (g: Game) => (g.rift.arena ? Infinity : dm.hypot(g.view.w, g.view.h) * 0.6)
 
@@ -728,10 +735,11 @@ export const updateBosses = (g: Game, tick: number) => {
     }
     // Stunned, asleep or frozen bosses hold their attacks (paralysis and the Poké Flute pay off here); so does one mid-script.
     if (e.status.stun > 0 || isHeld(e.status) || bossAway(fight)) continue
-    const dist = dm.hypot(e.x - g.player.x, e.y - g.player.y)
+    const target = nearestPlayer(g, e.x, e.y)
+    const dist = dm.hypot(e.x - target.x, e.y - target.y)
     const near = dist < reach
     // An ultimate only comes due while the boss is close enough to be seen (always, in an arena).
-    if (fight && phases && (near || fight.ult) && updateUltimate(g, e, fight, dt)) continue
+    if (fight && phases && (near || fight.ult) && updateUltimate(g, e, fight, dt, target)) continue
     if (fight?.motion || fight?.blast) continue
     if (e.cooldowns.length !== patterns.length) e.cooldowns = patterns.map((pt) => pt.every * 0.5)
     if (fight && tickStance(fight, dt, g.rng)) {
@@ -752,7 +760,7 @@ export const updateBosses = (g: Game, tick: number) => {
         e.cooldowns[i] = 0
         return
       }
-      fire(g, e, pattern, fight)
+      fire(g, e, pattern, fight, target)
       e.cooldowns[i]! += attackWait(pattern, fight)
       if (!fight?.enraged || pattern.kind === 'trail' || !chance(g.rng, chainChance(fight))) return
       const next = chainTarget(patterns, fight, i)
@@ -800,6 +808,14 @@ export const beamDistance = (h: Pick<Hazard, 'x' | 'y' | 'angle' | 'len'>, x: nu
   return dm.hypot(x - (h.x + dx * along), y - (h.y + dy * along))
 }
 
+/** Whether an armed hazard touches the acting player (`p`); Air Lock keeps the world's attacks (the weather's and the biome's) off them. */
+const hazardHits = (g: Game, h: Hazard, p: Player) => {
+  if (h.world && abilityImmune(g, 'weather')) return false
+  if (h.kind === 'beam') return beamDistance(h, p.x, p.y - 6) < h.r + p.radius * 0.6
+  const reach = h.r + p.radius * 0.7
+  return dm.sq(h.x - p.x) + dm.sq(h.y - p.y) < reach * reach
+}
+
 /** How many times as fast the fight's hazards run: a hasted phase's boss (`BossPhase.haste`) speeds them all. */
 const hazardHaste = (g: Game) => {
   if (g.bossId === null) return 1
@@ -807,9 +823,8 @@ const hazardHaste = (g: Game) => {
   return boss && boss.dying < 0 ? hasteOf(boss.kind, boss.fight) : 1
 }
 
-/** Wind on the player: a whirlpool draws them to its eye, a gust shoves them along its flight (`Hazard.pull`). */
-const blowPlayer = (g: Game, h: Hazard, dt: number) => {
-  const p = g.player
+/** Wind on player `p`: a whirlpool draws them to its eye, a gust shoves them along its flight (`Hazard.pull`). */
+const blowPlayer = (h: Hazard, p: Player, dt: number) => {
   if (p.hidden) return
   const dx = h.x - p.x
   const dy = h.y - p.y
@@ -827,9 +842,8 @@ const blowPlayer = (g: Game, h: Hazard, dt: number) => {
   }
 }
 
-/** Moves enemy hazards, plays impacts as telegraphs land and hurts the player on contact. */
+/** Moves enemy hazards, plays impacts as telegraphs land and hurts the players they touch (a shot only the first). */
 export const updateHazards = (g: Game, tick: number) => {
-  const p = g.player
   const dt = tick * hazardHaste(g)
   for (const h of g.hazards) {
     const before = h.age
@@ -851,18 +865,18 @@ export const updateHazards = (g: Game, tick: number) => {
 
     if (h.age < h.armAt || h.age > h.disarmAt) continue
     if (h.cover > 0) h.len = rayToCover(g, h.x, h.y + 6, dm.cos(h.angle), dm.sin(h.angle), h.cover)
-    if (h.pull !== 0) blowPlayer(g, h, dt)
+    if (h.pull !== 0) for (const p of g.players) if (standing(g, p)) blowPlayer(h, p, dt)
     if (h.damage <= 0) continue
-    // Air Lock: the world's attacks (the weather's and the biome's) can't touch the player.
-    if (h.world && abilityImmune(g, 'weather')) continue
-    if (h.kind === 'beam') {
-      if (beamDistance(h, p.x, p.y - 6) >= h.r + p.radius * 0.6) continue
-    } else {
-      const reach = h.r + p.radius * 0.7
-      if (dm.sq(h.x - p.x) + dm.sq(h.y - p.y) >= reach * reach) continue
+    for (const p of g.players) {
+      if (!standing(g, p)) continue
+      const before = actAs(g, p)
+      const hit = hazardHits(g, h, p)
+      if (hit) hurtPlayer(g, h.damage, undefined, HAZARD_TYPES[h.visual], h.kind === 'shot' ? 'shot' : 'hazard')
+      actAs(g, before)
+      if (!hit || !h.vanishOnHit) continue
+      h.age = h.ttl
+      break
     }
-    hurtPlayer(g, h.damage, undefined, HAZARD_TYPES[h.visual], h.kind === 'shot' ? 'shot' : 'hazard')
-    if (h.vanishOnHit) h.age = h.ttl
   }
   retain(g.hazards, (h) => h.age < h.ttl)
 }

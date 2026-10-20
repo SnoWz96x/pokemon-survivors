@@ -20,6 +20,7 @@ import { awardEgg, dropCoins } from './pickups'
 import { isAlive } from './queries'
 import { countNotice } from './tally'
 import { clearSpot } from './terrain'
+import { anchorPlayer, nearestPlayer, playerWithin } from './players'
 import type { Enemy, Game } from './types'
 import * as dm from '../engine/dmath'
 
@@ -111,7 +112,13 @@ const reward = (g: Game, ev: MapEventOf<FieldMissionKind>, x: number, y: number,
   g.shake = Math.max(g.shake, 3)
   notify(g, { kind: 'missionDone', mission: ev.kind, coins: coins.reduce((a, b) => a + b, 0), egg: hatched })
   ev.gone = 0
-  openPrizeLevelUp(g, 'mission', r.shinyCard)
+  // The whole team earned it: everyone gets the prize level-up.
+  const actor = g.player
+  for (const p of g.players) {
+    g.player = p
+    openPrizeLevelUp(g, 'mission', r.shinyCard)
+  }
+  g.player = actor
 }
 
 const fail = (g: Game, ev: MapEventOf<FieldMissionKind>) => {
@@ -123,7 +130,8 @@ const fail = (g: Game, ev: MapEventOf<FieldMissionKind>) => {
 /** Missions skip the regular director (`from: Infinity`): `directMissions` places them. */
 const unscheduled = { from: Infinity, weight: () => 0, max: 1, lifetime: 60, distance: FIELD.distance } as const
 
-const within = (g: Game, x: number, y: number, r: number) => dm.sq(g.player.x - x) + dm.sq(g.player.y - y) < r * r
+/** Whether some player stands within `r` px of (x, y). */
+const within = (g: Game, x: number, y: number, r: number) => playerWithin(g, x, y, r) !== null
 
 export const FIELD_MISSIONS: { [K in FieldMissionKind]: MapEventDef<K> } = {
   defense: {
@@ -184,9 +192,8 @@ export const FIELD_MISSIONS: { [K in FieldMissionKind]: MapEventDef<K> } = {
     update: (g, ev) => {
       const t = tuningOf(g).collect
       const s = ev.state
-      const reach = BALLS.reach + g.player.radius
       for (const b of s.balls) {
-        if (b.got || !within(g, b.x, b.y, reach)) continue
+        if (b.got || playerWithin(g, b.x, b.y, BALLS.reach, true) === null) continue
         b.got = true
         s.got++
         dropCoins(g, b.x, b.y - 4, [COIN_VALUES[0]])
@@ -197,7 +204,8 @@ export const FIELD_MISSIONS: { [K in FieldMissionKind]: MapEventDef<K> } = {
         }
       }
       if (s.got < s.balls.length || g.phase !== 'playing') return
-      reward(g, ev, g.player.x, g.player.y, false)
+      const p = nearestPlayer(g, ev.x, ev.y)
+      reward(g, ev, p.x, p.y, false)
     },
     expire: fail,
   },
@@ -215,7 +223,8 @@ export const FIELD_MISSIONS: { [K in FieldMissionKind]: MapEventDef<K> } = {
     update: (g, ev, dt) => {
       const t = tuningOf(g).escort
       const s = ev.state
-      const p = g.player
+      // Togepi follows the player nearest to it.
+      const p = nearestPlayer(g, ev.x, ev.y)
       s.flash = Math.max(0, s.flash - dt)
       if (!s.following && within(g, ev.x, ev.y, ESCORT.leash * 0.6)) {
         s.following = true
@@ -238,7 +247,12 @@ export const FIELD_MISSIONS: { [K in FieldMissionKind]: MapEventDef<K> } = {
         return fail(g, ev)
       }
       if (dm.sq(ev.x - s.home.x) + dm.sq(ev.y - s.home.y) > dm.sq(ESCORT.arrive) || g.phase !== 'playing') return
-      healPlayer(g, p.stats.maxHp * 0.3)
+      const before = g.player
+      for (const q of g.players) {
+        g.player = q
+        healPlayer(g, q.stats.maxHp * 0.3)
+      }
+      g.player = before
       floatText(g, s.home.x, s.home.y - 24, '♥', '#f878a8')
       dropItem(g, s.home.x + 10, s.home.y, rollDrop(DROP_TABLES.itemBall, g.time, g.rng))
       reward(g, ev, s.home.x, s.home.y, false)
@@ -268,7 +282,8 @@ export const directMissions = (g: Game, place: (g: Game, kind: FieldMissionKind,
     return
   }
   const taken = [...g.mapEvents.list, ...g.props]
-  const spot = spawnSpot(g.rng, g.player.x, g.player.y, FIELD.distance, taken, DIRECTOR.spacing)
+  const p = anchorPlayer(g)
+  const spot = spawnSpot(g.rng, p.x, p.y, FIELD.distance, taken, DIRECTOR.spacing)
   if (!spot) {
     s.next = g.time + FIELD.retry
     return

@@ -13,6 +13,7 @@ import { DIFFICULTIES, type Difficulty } from './difficulty'
 import { finaleAlive } from './spawner'
 import { isAirborne } from './traits'
 import { weatherHere } from './weather'
+import { anchorPlayer, playerWithin } from './players'
 import type { Game, Hazard } from './types'
 import * as dm from '../engine/dmath'
 import { roomOf } from './room'
@@ -68,7 +69,7 @@ const paceNow = (g: Game) => {
   let fight = false
   for (const e of g.enemies) {
     if (!e.boss || e.dying >= 0) continue
-    const near = dm.sq(e.x - g.player.x) + dm.sq(e.y - g.player.y) < reach * reach
+    const near = playerWithin(g, e.x, e.y, reach) !== null
     if (e.alpha) {
       fight ||= near && e.alpha.phase !== 'walk'
       continue
@@ -95,9 +96,9 @@ const zonesAlive = (g: Game) => {
   return n
 }
 
-/** Fires one world attack of `pattern` at the player. Exported for the dev console (`ps.hazard`). */
+/** Fires one world attack of `pattern` at a player (they take turns, `anchorPlayer`). Exported for the dev console (`ps.hazard`). */
 export const fireWorldHazard = (g: Game, pattern: WorldPatternId) => {
-  const p = g.player
+  const p = anchorPlayer(g)
   const flavor = hazardFlavor(weatherHere(g), g.biome.id)
   const delay = hazardTelegraph(g.difficulty)
   const damage = hazardDamage(g.difficulty, g.time)

@@ -14,18 +14,23 @@ import { makeShiny, rollShiny, SHINY_ODDS } from './shiny'
 import { surgeSize, TENSION_PEAK, tensionMods } from './tension'
 import { spawnPoint, updateTension } from './tensionSystem'
 import { isSpitter, makeSpitter, SPITTERS } from './spitters'
+import { anchorPlayer, playerWithin } from './players'
 import type { Game } from './types'
 import * as dm from '../engine/dmath'
 
-/** Just outside the visible area, in a random direction around the player. */
+/** Just outside the visible area, in a random direction around a player. */
 const ringDistance = (g: Game) => dm.hypot(g.view.w, g.view.h) / 2 + 12
 
-/** Off screen in a random direction: on the far ring, or `near` of the way to just past the screen edge (tension). */
-const offscreen = (g: Game, near = 0) => spawnPoint(g, range(g.rng, 0, TAU), ringDistance(g), near)
+/**
+ * Off a player's screen in a random direction (the players take turns,
+ * `anchorPlayer`): on the far ring, or `near` of the way to just past the
+ * screen edge (tension).
+ */
+const offscreen = (g: Game, near = 0) => spawnPoint(g, anchorPlayer(g), range(g.rng, 0, TAU), ringDistance(g), near)
 
-/** A closing circle of `count` × `species` around the player. The endless mode reuses it. */
+/** A closing circle of `count` × `species` around a player (`anchorPlayer`). The endless mode reuses it. */
 export const spawnRing = (g: Game, species: EnemyId, count: number) => {
-  const p = g.player
+  const p = anchorPlayer(g)
   const d = ringDistance(g) - 20
   for (let i = 0; i < count; i++) {
     const a = (i / count) * TAU
@@ -33,9 +38,9 @@ export const spawnRing = (g: Game, species: EnemyId, count: number) => {
   }
 }
 
-/** A flock of `count` × `species` that enters from one side and crosses the screen through the player's area. The endless mode reuses it. */
+/** A flock of `count` × `species` that enters from one side and crosses the screen through a player's area (`anchorPlayer`). The endless mode reuses it. */
 export const spawnSwarm = (g: Game, species: EnemyId, count: number) => {
-  const p = g.player
+  const p = anchorPlayer(g)
   const heading = range(g.rng, 0, TAU)
   const d = ringDistance(g)
   const speed = ENEMIES[species].speed * 1.7
@@ -120,7 +125,7 @@ const surge = (g: Game, pool: StagePool, level: number) => {
 
 /** Retires one long-lived off-screen enemy per tick (`RENEWAL.maxAge`), cap or not; the spawner refills the room. */
 const retireOld = (g: Game) => {
-  const old = oldestRenewable(g.enemies, g.camera, g.view, g.now)
+  const old = oldestRenewable(g.enemies, g.players, g.view, g.now)
   if (old >= 0 && g.now - g.enemies[old]!.bornAt >= RENEWAL.maxAge) despawnEnemy(g.enemies[old]!)
 }
 
@@ -157,7 +162,7 @@ export const updateSpawner = (g: Game, dt: number) => {
     if (e.dying >= 0) continue
     if (e.boss) {
       if (!bossNear && g.now - e.bornAt < BOSS_FIGHT.duration && bossWaveAt(e.kind) !== null) {
-        bossNear = dm.sq(e.x - g.player.x) + dm.sq(e.y - g.player.y) < reach * reach
+        bossNear = playerWithin(g, e.x, e.y, reach) !== null
       }
       continue
     }
@@ -190,7 +195,7 @@ export const updateSpawner = (g: Game, dt: number) => {
     g.spawnBudget--
     if (regular >= cap) {
       // At the cap, swap the oldest off-screen enemy for the fresh pick so the horde keeps turning over.
-      const old = oldestRenewable(g.enemies, g.camera, g.view, g.now)
+      const old = oldestRenewable(g.enemies, g.players, g.view, g.now)
       if (old < 0) continue
       const gone = g.enemies[old]!
       if (hasTrait(gone.kind)) traitsAlive--
@@ -207,7 +212,8 @@ export const updateSpawner = (g: Game, dt: number) => {
       // Shinies pop in just inside the screen edge so their sparkle entrance is seen.
       const a = range(g.rng, 0, TAU)
       const d = Math.min(g.view.w, g.view.h) / 2 - 16
-      makeShiny(g, spawnEnemy(g, kind, g.player.x + dm.cos(a) * d, g.player.y + dm.sin(a) * d))
+      const p = anchorPlayer(g)
+      makeShiny(g, spawnEnemy(g, kind, p.x + dm.cos(a) * d, p.y + dm.sin(a) * d))
     } else {
       const pos = offscreen(g, tension.near)
       const e = spawnEnemy(g, kind, pos.x, pos.y)

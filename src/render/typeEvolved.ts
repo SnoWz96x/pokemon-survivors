@@ -5,6 +5,7 @@ import type { Attack, Game } from '../game/types'
 import { art, FX } from './art'
 import { dashedRing } from './strokes'
 import * as A from './typeEvolvedArt'
+import { localPlayer } from '../game/players'
 
 /**
  * Visuals of the moves the newer type items (and a few generic ones) evolve
@@ -499,7 +500,7 @@ export const drawTypeEvolvedAttack = (ctx: Ctx, a: Attack, t: number) => {
  * of life flowing back. Drawn after the attacks (they need the player).
  */
 export const drawDrainVines = (ctx: Ctx, g: Game, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   for (const a of g.attacks) {
     if (a.visual !== 'gigaDrain' || a.age < 0) continue
     const x0 = p.x

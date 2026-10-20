@@ -53,10 +53,10 @@ export const guardHit = (g: Game, w: MoveWindow, from?: Enemy) => {
 
 /** Runs a hook with the move's fork mods stamped on what it spawns, like a cast (`castMove` in `game.ts`). */
 const withMods = (g: Game, s: CastStats, run: (s: CastStats) => void) => {
-  const before = g.castMods
-  g.castMods = s.mods
+  const before = g.player.castMods
+  g.player.castMods = s.mods
   run(s)
-  g.castMods = before
+  g.player.castMods = before
 }
 
 /**

@@ -25,6 +25,7 @@ import { awakeningDeltas } from './legend'
 import { applyDeltas, BASE_STATS, boostStats, type StatDelta } from './stats'
 import { bagDeltas } from './bag'
 import { BAG_ITEMS } from '../data/shop'
+import { ownAttack, setPhase } from './players'
 import type { Game, Offer, OwnedItem, OwnedMove, PrizeSource, Rarity } from './types'
 
 export const MAX_MOVES = 6
@@ -43,7 +44,7 @@ export const gainXp = (g: Game, amount: number) => {
     p.xp -= p.xpNext
     p.level++
     p.xpNext = xpFor(p.level)
-    g.pendingLevelUps++
+    g.player.pendingLevelUps++
   }
 }
 
@@ -68,14 +69,14 @@ export type Loadout = {
 }
 
 export const loadout = (g: Game): Loadout => ({
-  starter: g.starter,
+  starter: g.player.starter,
   moves: g.player.moves,
   items: g.player.items,
   stage: g.player.stage,
-  branch: g.branch,
-  fresh: g.freshMoves > 0,
-  banished: g.banished,
-  curses: g.curses.held,
+  branch: g.player.branch,
+  fresh: g.player.freshMoves > 0,
+  banished: g.player.banished,
+  curses: g.player.curses.held,
 })
 
 /** Every upgrade the player could pick right now, with selection weights. */
@@ -163,10 +164,10 @@ export const withRarity = (offer: Offer, roll: number, shinyOdds: number, rare =
  * call) and, with `shinyFirst`, the first card is shiny (a free pick).
  */
 export const openPrizeLevelUp = (g: Game, source: PrizeSource, shinyFirst = false) => {
-  g.offers = rollOffers(loadout(g), g.rng, 3, { forks: false }).map((o, i) => withRarity(o, 0, shinyFirst && i === 0 ? 1 : 0))
-  g.pendingLevelUps++
-  g.phase = 'levelup'
-  g.prize = source
+  g.player.offers = rollOffers(loadout(g), g.rng, 3, { forks: false }).map((o, i) => withRarity(o, 0, shinyFirst && i === 0 ? 1 : 0))
+  g.player.pendingLevelUps++
+  setPhase(g, 'levelup')
+  g.player.prize = source
   g.events.push({ kind: 'levelup' })
 }
 
@@ -238,20 +239,20 @@ export const recomputeStats = (g: Game) => {
   const p = g.player
   const before = p.stats.maxHp
   const deltas = applyDeltas(BASE_STATS, [
-    ...starterDeltas(g.starter, p.stage, g.branch),
-    ...(g.legend ? awakeningDeltas(g.legend.id, g.legend.awakened) : []),
-    ...rankDeltas(g.ranks),
+    ...starterDeltas(p.starter, p.stage, p.branch),
+    ...(p.legend ? awakeningDeltas(p.legend.id, p.legend.awakened) : []),
+    ...rankDeltas(p.ranks),
     ...p.items.flatMap((i) => ITEMS[i.id].levels.slice(0, i.level)),
-    ...buffDeltas(g.buffs),
-    ...wingDeltas(g.place.wings),
+    ...buffDeltas(p.buffs),
+    ...wingDeltas(p.wings),
     ...g.player.moveBuffs.map((b) => b.stats),
     ...abilityDeltas(g, MAX_ITEMS - p.items.length),
-    ...(g.mega.active > 0 && g.mega.stone ? [MEGAS[g.mega.stone].stats] : []),
-    ...g.curses.held.map((id) => CURSES[id].stats),
-    ...bagDeltas(g.bag),
+    ...(p.mega.active > 0 && p.mega.stone ? [MEGAS[p.mega.stone].stats] : []),
+    ...p.curses.held.map((id) => CURSES[id].stats),
+    ...bagDeltas(p.bag),
   ])
   // A held evolution (no item for any branch yet) is as strong as with an Everstone.
-  p.stats = boostStats(stanceStats(deltas, g.special.stance), g.boost + (g.evoHeld ? BAG_ITEMS.everstone.effect.everstone : 0))
+  p.stats = boostStats(stanceStats(deltas, p.special.stance), p.boost + (p.evoHeld ? BAG_ITEMS.everstone.effect.everstone : 0))
   if (p.stats.maxHp > before) p.hp += p.stats.maxHp - before
   p.hp = Math.min(p.hp, p.stats.maxHp)
 }
@@ -304,7 +305,7 @@ const evolveMove = (g: Game, from: MoveId, to: MoveId) => {
   owned.path = 0
   owned.echo = 0
   // Drop lingering hitboxes of the old move (e.g. Whirlpool's permanent aura).
-  retain(g.attacks, (a) => a.move !== from)
+  retain(g.attacks, (a) => !ownAttack(g, a) || a.move !== from)
   const colors = [TYPE_COLORS[MOVES[to].type], '#ffffff', '#ffd830']
   burst(g, p.x, p.y - 10, { colors, count: 70, speed: 170, ttl: 0.9, size: 2, drag: 3 })
   burst(g, p.x, p.y - 10, { colors: ['#ffffff', '#fff8c0'], count: 30, speed: 60, ttl: 1.2, gravity: -50 })
@@ -324,12 +325,12 @@ const fuseMoves = (g: Game, from: readonly [MoveId, MoveId], to: MoveId) => {
   Object.assign(slot, { id: to, level: 1, cooldown: 0.4, path: 0, echo: 0, stacks: 0 })
   retain(p.moves, (m) => m.id !== from[1])
   for (const id of from) {
-    g.banished.add(id)
+    g.player.banished.add(id)
     const base = evolvedFrom(id)?.from
-    if (base) g.banished.add(base)
+    if (base) g.player.banished.add(base)
   }
   // Their lingering hitboxes, timed effects and windows go with them.
-  retain(g.attacks, (a) => a.move !== from[0] && a.move !== from[1])
+  retain(g.attacks, (a) => !ownAttack(g, a) || (a.move !== from[0] && a.move !== from[1]))
   retain(p.moveBuffs, (b) => b.move !== from[0] && b.move !== from[1])
   if (p.guard && from.includes(p.guard.move)) p.guard = null
   recomputeStats(g)
@@ -345,9 +346,9 @@ const fuseMoves = (g: Game, from: readonly [MoveId, MoveId], to: MoveId) => {
 /** The next evolution, if the player's level has reached it (into the branch picked, for a branching one; `advancePhase` asks where, or holds it without items). */
 export const pendingEvolution = (g: Game) => {
   const p = g.player
-  // An Everstone holds the run in its first form.
-  if (g.everstone || p.stage + 1 >= PLAYABLE[g.starter].line.length) return null
-  const stage = formAt(g.starter, g.branch, p.stage)
-  const next = formAt(g.starter, g.branch, p.stage + 1)
+  // An Everstone holds the Pokémon in its first form.
+  if (p.everstone || p.stage + 1 >= PLAYABLE[p.starter].line.length) return null
+  const stage = formAt(p.starter, p.branch, p.stage)
+  const next = formAt(p.starter, p.branch, p.stage + 1)
   return stage.evolveAt !== undefined && p.level >= stage.evolveAt ? { from: stage.dex, to: next.dex } : null
 }

@@ -8,14 +8,16 @@ import { placePool, rollWing, type PlaceInteriorOf } from './place'
 import { markCleared, notifyPlace, spawnInPlace } from './placeKit'
 import { spawnSwarm } from './spawner'
 import { playerTypes } from './terrain'
+import { actAs, anchorPlayer, nearestPlayer } from './players'
 import type { Game } from './types'
 import * as dm from '../engine/dmath'
 
 /**
- * Above the clouds, where only a Flying type can ride the updraft: the player
+ * Above the clouds, where only Flying types can ride the updraft: the team
  * flies free (with a tailwind), only flying Pokémon come, flocks cross the
- * sky, and wings drift on the wind. Each wing picked up raises a stat for the
- * rest of the run (`WINGS`). When the wind calms, the player glides back down.
+ * sky, and wings drift on the wind. Each wing picked up raises its taker's
+ * stat for the rest of the run (`WINGS`). When the wind calms, the team glides
+ * back down.
  */
 
 /** A wing drifting on the wind, in world px. */
@@ -35,8 +37,21 @@ export type SkyState = {
 
 type SkyInside = PlaceInteriorOf<'sky'>
 
-/** Whether the player's Pokémon flies right now (the updraft only carries Flying types). */
+/** Whether the acting player's Pokémon flies right now (the updraft only carries Flying types). */
 export const isFlyer = (g: Game) => playerTypes(g).includes('flying')
+
+/** Whether every player's Pokémon flies right now: the updraft carries the team only then. Solo, `isFlyer`. */
+export const teamFlies = (g: Game) => {
+  if (g.players.length === 1) return isFlyer(g)
+  const before = g.player
+  let all = true
+  for (const p of g.players) {
+    g.player = p
+    if (!isFlyer(g)) all = false
+  }
+  g.player = before
+  return all
+}
 
 export const buildSky = (g: Game, _x: number, _y: number) => {
   const a = range(g.rng, 0, TAU)
@@ -60,7 +75,7 @@ const releaseWing = (g: Game, inside: SkyInside) => {
   })
 }
 
-/** Picks a wing up: its stat for the rest of the run (or its ₽). */
+/** The acting player picks a wing up: its stat for the rest of their run (or its ₽, the team's). */
 const takeWing = (g: Game, inside: SkyInside, w: Wing) => {
   const p = g.player
   if (w.wing === 'prettyWing') {
@@ -68,7 +83,7 @@ const takeWing = (g: Game, inside: SkyInside, w: Wing) => {
     g.coins += coins
     floatText(g, p.x, p.y - 30, `₽${coins}`, '#f8d030')
   } else {
-    g.place.wings[w.wing] = (g.place.wings[w.wing] ?? 0) + 1
+    p.wings[w.wing] = (p.wings[w.wing] ?? 0) + 1
     recomputeStats(g)
   }
   inside.state.got++
@@ -76,12 +91,12 @@ const takeWing = (g: Game, inside: SkyInside, w: Wing) => {
   notifyPlace(g, 'sky', { kind: 'wing', wing: w.wing })
 }
 
-/** Wings drift with the wind and flutter side to side; the magnet pulls them in like any pickup. */
+/** Wings drift with the wind and flutter side to side; the nearest player's magnet pulls them in like any pickup, and they go to whoever they reach. */
 const driftWings = (g: Game, inside: SkyInside, dt: number) => {
-  const p = g.player
   const { wind } = inside.state
-  const reach = p.radius + SKY.wings.radius
   for (const w of inside.state.wings) {
+    const p = nearestPlayer(g, w.x, w.y)
+    const reach = p.radius + SKY.wings.radius
     w.age += dt
     const d2 = dm.sq(w.x - p.x) + dm.sq(w.y - (p.y - 6))
     if (!w.attracted && d2 < dm.sq(p.stats.magnet)) w.attracted = true
@@ -95,7 +110,9 @@ const driftWings = (g: Game, inside: SkyInside, dt: number) => {
       w.y += (wind.y * SKY.wings.speed + wind.x * flutter) * dt
     }
     if (dm.sq(w.x - p.x) + dm.sq(w.y - (p.y - 6)) < reach * reach) {
+      const before = actAs(g, p)
       takeWing(g, inside, w)
+      actAs(g, before)
       w.age = -1
     }
   }
@@ -103,11 +120,12 @@ const driftWings = (g: Game, inside: SkyInside, dt: number) => {
   retain(inside.state.wings, (w) => w.age >= 0 && dm.sq(w.x - inside.x) + dm.sq(w.y - inside.y) < dm.sq(SKY.radius + 40))
 }
 
-/** Just past the screen's edge, like the horde outside. */
+/** Just past a player's screen edge (they take turns, `anchorPlayer`), like the horde outside. */
 const ringSpot = (g: Game) => {
+  const p = anchorPlayer(g)
   const a = range(g.rng, 0, TAU)
   const d = dm.hypot(g.view.w, g.view.h) / 2 + 12
-  return { x: g.player.x + dm.cos(a) * d, y: g.player.y + dm.sin(a) * d }
+  return { x: p.x + dm.cos(a) * d, y: p.y + dm.sin(a) * d }
 }
 
 /** Every tick in the sky: wings, flocks, the flyers that chase and the calm drawing near. */
@@ -130,7 +148,7 @@ export const updateSky = (g: Game, inside: SkyInside, dt: number) => {
   spawnInPlace(g, inside, dt, ringSpot)
 }
 
-/** The wind calms and the player glides back down: a flight with any wing picked up counts as cleared. */
+/** The wind calms and the team glides back down: a flight with any wing picked up counts as cleared. */
 export const calmSky = (g: Game, inside: SkyInside) => {
   if (inside.state.got > 0) markCleared(g, 'sky')
   notifyPlace(g, 'sky', { kind: 'landed', wings: inside.state.got })

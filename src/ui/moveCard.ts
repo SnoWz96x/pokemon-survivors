@@ -8,6 +8,7 @@ import { itemIcon, moveIcon } from '../render/art'
 import { h } from './dom'
 import { typeBadge } from './screens'
 import { uiViewport, uiZoom } from './uiScale'
+import { localPlayer } from '../game/players'
 
 /** How long a finger rests on a move before its card opens. */
 const HOLD_MS = 280
@@ -70,7 +71,7 @@ const evolutionLine = (g: Game, id: MoveId, level: number) => {
   const evo = evolutionOf(id)
   if (!evo) return null
   const maxed = level >= maxMoveLevel(id)
-  const held = g.player.items.some((i) => i.id === evo.item)
+  const held = localPlayer(g).items.some((i) => i.id === evo.item)
   return h(
     'div',
     { class: 'card-evo' },
@@ -107,7 +108,7 @@ export const moveCard = (g: Game, id: MoveId, { level, from, path, describe = fa
     h(
       'div',
       { class: 'card-stats' },
-      ...moveSheet(id, level, g.player.stats, from, path).flatMap((row) => [
+      ...moveSheet(id, level, localPlayer(g).stats, from, path).flatMap((row) => [
         h('span', {}, rowLabel(row, def)),
         h(
           'b',

@@ -8,6 +8,7 @@ import { AURORA, dischargeCharge, ICE_BEAM } from '../game/tmMoves'
 import type { Attack, Game, Pickup } from '../game/types'
 import { tmDisc, TM_FX } from './tmArt'
 import { dashedRing } from './strokes'
+import { localPlayer } from '../game/players'
 
 /**
  * Art of the TM moves (`game/tmMoves.ts`) and the TM discs on the ground.
@@ -246,7 +247,7 @@ const drawYawnBubble = (ctx: Ctx, a: Attack, t: number) => {
 
 /** Beams made of orbit slices (Ice Beam, Aurora Beam), layer by layer over every slice so they join into one. */
 const drawBeams = (ctx: Ctx, g: Game, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   for (let layer = 0; layer < 3; layer++) {
     for (const a of g.attacks) {
       const m = a.motion
@@ -575,7 +576,7 @@ export const drawTmAir = (ctx: Ctx, g: Game, t: number, visible: (x: number, y: 
 
 /** Iron Head's iron body: a plated steel shell with rivets and a glint sweeping across, brighter while the block is up. */
 const drawIronBody = (ctx: Ctx, g: Game, a: Attack, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const r = radiusOf(a)
   const guarding = p.guard?.move === 'ironHead'
   const cy = p.y - 10
@@ -601,7 +602,7 @@ const drawIronBody = (ctx: Ctx, g: Game, a: Attack, t: number) => {
 }
 
 export const drawTmPlayer = (ctx: Ctx, g: Game, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   for (const a of g.attacks) if (a.visual === 'ironHead' && a.age >= 0) drawIronBody(ctx, g, a, t)
   // Discharge's charge crackles around the player as they walk.
   const discharge = p.moves.find((m) => m.id === 'discharge')

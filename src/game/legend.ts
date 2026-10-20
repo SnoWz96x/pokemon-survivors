@@ -21,7 +21,7 @@ import type { Enemy, Game } from './types'
  * its Clone at the end.
  */
 
-/** A Legend-mode run's own state; `Game.legend` is null in every other run. */
+/** A Legend-mode player's own state (`Player.legend`); null for everyone else. */
 export type LegendState = {
   id: LegendId
   /** Awakenings so far (0, 1 or 2). */
@@ -35,11 +35,21 @@ export type LegendState = {
 export const createLegendState = (starter: PlayableId): LegendState | null =>
   isLegend(starter) ? { id: starter, awakened: 0, stride: 0, multitype: null } : null
 
+/**
+ * The legend the world plays against: the first player's who plays one (the
+ * Legend mode's Pressure, its lifted horde, the rifts and bosses it never
+ * meets), or null when nobody does. Solo it's the player's.
+ */
+export const teamLegend = (g: Game): LegendState | null => {
+  for (const p of g.players) if (p.legend) return p.legend
+  return null
+}
+
 /* ---------------- Awakenings ---------------- */
 
-/** The awakening the player's level has reached and not had yet (1 or 2), or 0. */
+/** The awakening the acting player's level has reached and not had yet (1 or 2), or 0. */
 export const pendingAwakening = (g: Game) => {
-  const s = g.legend
+  const s = g.player.legend
   if (!s || s.awakened >= AWAKEN_AT.length) return 0
   return g.player.level >= AWAKEN_AT[s.awakened]! ? s.awakened + 1 : 0
 }
@@ -56,13 +66,13 @@ export const formAfter = (id: LegendId, awakened: number): LegendDef['form'] | n
   return awakened >= 2 ? (def.form ?? null) : null
 }
 
-/** The sprite form the player wears now: the awakened form, else Deoxys's forme (its stance). */
+/** The sprite form the acting player wears now: the awakened form, else Deoxys's forme (its stance). */
 export const legendLook = (g: Game): LegendForm | undefined => {
-  const s = g.legend
+  const s = g.player.legend
   if (!s) return undefined
   const form = formAfter(s.id, s.awakened)
   if (form) return form.key
-  const stance = g.special.stance
+  const stance = g.player.special.stance
   return stance === 'attack' || stance === 'defense' || stance === 'speed' ? stance : undefined
 }
 
@@ -146,8 +156,8 @@ export const legendMods = (difficulty: Difficulty): DifficultyMods => {
   return mods
 }
 
-/** The multipliers this run plays with: its difficulty's, pressed harder in the Legend mode. */
-export const runMods = (g: Game): DifficultyMods => (g.legend ? legendMods(g.difficulty) : DIFFICULTIES[g.difficulty])
+/** The multipliers this run plays with: its difficulty's, pressed harder in the Legend mode (`teamLegend`). */
+export const runMods = (g: Game): DifficultyMods => (teamLegend(g) ? legendMods(g.difficulty) : DIFFICULTIES[g.difficulty])
 
 /* ---------------- The legend's horde ---------------- */
 
@@ -189,7 +199,7 @@ export const LEGEND_SCALE: readonly HordeScale[] = STAGES.map((s) => {
 })
 
 /** The scale of a regular enemy spawning now: `LEGEND_SCALE` in the Legend mode, else its species' own stats. */
-export const hordeScale = (g: Game): HordeScale => (g.legend ? LEGEND_SCALE[stageIndexAt(g.time)]! : OWN)
+export const hordeScale = (g: Game): HordeScale => (teamLegend(g) ? LEGEND_SCALE[stageIndexAt(g.time)]! : OWN)
 
 /* ---------------- Never facing yourself ---------------- */
 
@@ -213,8 +223,8 @@ export const avoidLegend = (roster: Roster, legend: PlayableId, events: readonly
   }
 }
 
-/** A boss of the player's own species (Mewtwo's finale for a Mewtwo, Arceus's reaper for an Arceus): its dark Clone. */
-export const isClone = (g: Game, e: Enemy) => g.legend !== null && e.boss && e.kind === g.legend.id
+/** A boss of a player's own species (Mewtwo's finale for a Mewtwo, Arceus's reaper for an Arceus): its dark Clone. */
+export const isClone = (g: Game, e: Enemy) => e.boss && g.players.some((p) => p.legend !== null && e.kind === p.legend.id)
 
 /* ---------------- Presence ---------------- */
 
@@ -222,14 +232,14 @@ export const isClone = (g: Game, e: Enemy) => g.legend !== null && e.boss && e.k
 export const STEP = { every: 22, heavy: 40 } as const
 
 /**
- * Per tick: every `STEP.every` px walked a legend's step raises dust (and a
- * small tremor under the big ones), and Arceus's type follows the biome. True
- * when the stats need rebuilding (Multitype changed type).
+ * Per tick, for the acting player: every `STEP.every` px walked a legend's
+ * step raises dust (and a small tremor under the big ones), and Arceus's type
+ * follows the biome. True when the stats need rebuilding (Multitype changed type).
  */
 export const updateLegend = (g: Game) => {
-  const s = g.legend
-  if (!s) return false
   const p = g.player
+  const s = p.legend
+  if (!s) return false
   if (p.walked - s.stride >= STEP.every) {
     s.stride = p.walked
     burst(g, p.x, p.y, { colors: ['#c8b898', '#a89878', '#e8e0c8'], count: 5, speed: 30, ttl: 0.35, gravity: 30 })

@@ -7,6 +7,7 @@ import type { Prop } from '../game/props'
 import type { Game } from '../game/types'
 import { art, itemArt, lazy } from './art'
 import { drawJack } from './halloweenArt'
+import { localPlayer } from '../game/players'
 
 /**
  * Pixel art and drawing for item sources (props), consumables on the floor,
@@ -133,9 +134,9 @@ export const drawProps = (ctx: Ctx, g: Game, t: number, biome: BiomeId) => {
   const skin = PROP_SKINS()[biome]
   for (const prop of g.props) if (near(g, prop.x, prop.y)) drawProp(ctx, prop, t, skin)
 
-  const repel = g.buffs.find((b) => b.id === 'maxRepel')
+  const repel = localPlayer(g).buffs.find((b) => b.id === 'maxRepel')
   if (repel && (repel.left > 1.5 || Math.floor(t * 8) % 2 === 0)) {
-    const p = g.player
+    const p = localPlayer(g)
     ctx.globalAlpha = 0.7 + Math.sin(t * 6) * 0.2
     blitEllipse(ctx, REPEL_RADIUS, Math.round(REPEL_RADIUS * 0.5), 'rgba(88,216,120,0.3)', p.x, p.y)
     blitRing(ctx, REPEL_RADIUS - 4 + Math.round(Math.sin(t * 4) * 2), 1, '#b0f0a0', p.x, p.y - 8)

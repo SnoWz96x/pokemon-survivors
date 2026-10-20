@@ -72,9 +72,9 @@ describe('a challenge replay', () => {
     let angle = 0
     while (g.time < 30 && g.phase !== 'gameover') {
       if (g.phase === 'levelup') {
-        const i = Math.floor(bot() * g.offers.length)
+        const i = Math.floor(bot() * g.player.offers.length)
         recordEvent(rec, ['offer', i])
-        chooseOffer(g, g.offers[i]!)
+        chooseOffer(g, g.player.offers[i]!)
         continue
       }
       angle += (bot() - 0.5) * 0.2
@@ -84,7 +84,7 @@ describe('a challenge replay', () => {
     }
     const replay = parseReplay(JSON.parse(JSON.stringify(rec.replay)))!
     expect(challengeProblem(replay.start, DAY)).toBeNull()
-    expect(resimulate(replay)).toEqual({ time: g.time, kills: g.kills, level: g.player.level, branch: g.branch, phase: g.phase, stuck: false })
+    expect(resimulate(replay)).toEqual({ time: g.time, kills: g.kills, level: g.player.level, branch: g.player.branch, phase: g.phase, stuck: false })
   })
 })
 

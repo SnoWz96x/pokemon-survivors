@@ -9,7 +9,8 @@ import { healPlayer, killEnemy } from './combat'
 import { burst, damageText, floatText } from './effects'
 import { gainXp, recomputeStats } from './leveling'
 import { dropPickup } from './pickups'
-import { inView, isAlive } from './queries'
+import { inSight, isAlive } from './queries'
+import { eachPlayer } from './players'
 import { applyStatus, type StatusSpec } from './status'
 import type { Enemy, Game } from './types'
 import * as dm from '../engine/dmath'
@@ -34,7 +35,7 @@ const heal = (g: Game, amount: number) => {
 }
 
 const buff = (id: BuffId) => (g: Game) => {
-  addBuff(g.buffs, id, BUFFS[id].duration)
+  addBuff(g.player.buffs, id, BUFFS[id].duration)
   recomputeStats(g)
   const colors = id === 'xAttack' ? ['#f85838', '#ffd0a0'] : id === 'xSpeed' ? ['#58a0f8', '#d0e8ff'] : ['#58d878', '#e0ffe0']
   burst(g, g.player.x, g.player.y - 10, { colors, count: 20, speed: 90, ttl: 0.6, gravity: -60 })
@@ -44,7 +45,7 @@ const FLUTE: StatusSpec = { kind: 'sleep', chance: 1, duration: FLUTE_SLEEP, pow
 
 const sleepOnScreen = (g: Game) => {
   for (const e of g.enemies) {
-    if (!isAlive(e) || !inView(g, e.x, e.y, 16)) continue
+    if (!isAlive(e) || !inSight(g, e.x, e.y, 16)) continue
     applyStatus(e.status, FLUTE, 0, e.boss, null)
     e.kx = 0
     e.ky = 0
@@ -55,7 +56,7 @@ const sleepOnScreen = (g: Game) => {
 /** Voltorb's Explosion: faints every regular enemy on screen and chunks bosses for 10% of their HP. */
 const explode = (g: Game) => {
   for (const e of g.enemies) {
-    if (!isAlive(e) || !inView(g, e.x, e.y, 16)) continue
+    if (!isAlive(e) || !inSight(g, e.x, e.y, 16)) continue
     const dmg = e.boss ? Math.round(e.maxHp * 0.1) : Math.ceil(e.hp)
     e.hp -= dmg
     e.flash = 0.3
@@ -96,8 +97,8 @@ export const CONSUMABLES = {
     name: 'Revive',
     sfx: 'item',
     apply: (g) => {
-      if (g.revives > 0) heal(g, g.player.stats.maxHp * 0.5)
-      else g.revives = 1
+      if (g.player.revives > 0) heal(g, g.player.stats.maxHp * 0.5)
+      else g.player.revives = 1
     },
   },
 } as const satisfies Record<string, ConsumableDef>
@@ -122,9 +123,9 @@ export const useConsumable = (g: Game, id: ConsumableId) => {
 
 /** Called when HP hits 0: spends a held Revive to get back up at 50% HP. */
 export const tryRevive = (g: Game) => {
-  if (g.revives <= 0) return false
+  if (g.player.revives <= 0) return false
   const p = g.player
-  g.revives--
+  g.player.revives--
   p.hp = Math.round(p.stats.maxHp * 0.5)
   p.iframes = 2
   burst(g, p.x, p.y - 10, { colors: ['#f8d830', '#fff8c0', '#ffffff'], count: 40, speed: 120, ttl: 0.8, gravity: -40 })
@@ -134,9 +135,9 @@ export const tryRevive = (g: Game) => {
 
 /** Called when HP hits 0, before a held Revive: spends the Bag's Max Revive (once a run) to get back up. */
 export const tryMaxRevive = (g: Game) => {
-  if (!g.maxRevive) return false
+  if (!g.player.maxRevive) return false
   const p = g.player
-  g.maxRevive = false
+  g.player.maxRevive = false
   p.hp = Math.round(p.stats.maxHp * BAG_ITEMS.maxRevive.effect.revive)
   p.iframes = 2
   burst(g, p.x, p.y - 10, { colors: ['#f8d830', '#fff8c0', '#88d8ff', '#ffffff'], count: 56, speed: 140, ttl: 0.9, gravity: -40 })
@@ -159,12 +160,17 @@ const repel = (g: Game) => {
   }
 }
 
-/** Per-tick upkeep: buff timers, Max Repel and the screen flash. */
+/** A player's buff timers and Max Repel. */
+const updateBuffs = (g: Game, dt: number) => {
+  if (tickBuffs(g.player.buffs, dt).length > 0) recomputeStats(g)
+  if (hasBuff(g.player.buffs, 'maxRepel')) repel(g)
+}
+
+/** Per-tick upkeep: every player's buffs and Max Repel, and the screen flash. */
 export const updateConsumables = (g: Game, dt: number) => {
-  if (tickBuffs(g.buffs, dt).length > 0) recomputeStats(g)
-  if (hasBuff(g.buffs, 'maxRepel')) repel(g)
+  eachPlayer(g, updateBuffs, dt)
   g.flash = Math.max(0, g.flash - dt * 2.5)
 }
 
 /** Max Repel makes the player untouchable while it lasts. */
-export const isRepelled = (g: Game) => hasBuff(g.buffs, 'maxRepel')
+export const isRepelled = (g: Game) => hasBuff(g.player.buffs, 'maxRepel')

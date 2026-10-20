@@ -134,9 +134,9 @@ export const rankable = (r: RunResult) => r.outcome !== 'quit' || r.time >= 60
 
 /** The result a run reports right now. */
 export const runResult = (g: Game, version: string): RunResult => ({
-  starter: g.starter,
+  starter: g.player.starter,
   stage: g.player.stage,
-  branch: g.branch,
+  branch: g.player.branch,
   difficulty: g.difficulty,
   time: g.time,
   outcome: wonRun(g) ? 'victory' : g.phase === 'gameover' ? 'death' : 'quit',

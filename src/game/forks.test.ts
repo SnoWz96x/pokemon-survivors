@@ -9,6 +9,7 @@ import { spawnAttack } from './spawn'
 import { forkAt, isLegendary, maxMoveLevel, MOVE_IDS, moveStats, withBranch } from './moves'
 import { parseReplay, recordEvent, recordStep, resimulate, startGame, startRecording, TICK, type ReplayStart } from './replay'
 import { BASE_STATS } from './stats'
+import { setPhase } from './players'
 
 /** A path taking `a` at the Lv 4 fork and `b` at the Lv 7 one. */
 const path = (a: 0 | 1, b: 0 | 1) => withBranch(withBranch(0, 4, a), 7, b)
@@ -108,23 +109,23 @@ describe('forks and shiny cards in a run', () => {
   it('opens the branches from a move card on a fork, and only the branch spends the level-up', () => {
     const g = createGame('charmander', { w: 480, h: 270 }, 3)
     g.player.moves[0]!.level = 3
-    g.phase = 'levelup'
-    g.pendingLevelUps = 1
+    setPhase(g, 'levelup')
+    g.player.pendingLevelUps = 1
     chooseOffer(g, { kind: 'move', id: 'ember', level: 4 })
     expect(g.phase).toBe('levelup')
-    expect(g.offers.map((o) => o.kind)).toEqual(['branch', 'branch'])
-    chooseOffer(g, g.offers[1]!)
+    expect(g.player.offers.map((o) => o.kind)).toEqual(['branch', 'branch'])
+    chooseOffer(g, g.player.offers[1]!)
     expect(g.player.moves[0]).toMatchObject({ level: 4, path: path(1, 0) })
     expect(g.phase).toBe('playing')
   })
 
   it('picks again after a shiny card', () => {
     const g = createGame('charmander', { w: 480, h: 270 }, 3)
-    g.phase = 'levelup'
-    g.pendingLevelUps = 1
+    setPhase(g, 'levelup')
+    g.player.pendingLevelUps = 1
     chooseOffer(g, { kind: 'move', id: 'ember', level: 2, rarity: 'shiny' })
     expect(g.phase).toBe('levelup')
-    expect(g.pendingLevelUps).toBe(1)
+    expect(g.player.pendingLevelUps).toBe(1)
   })
 })
 
@@ -134,11 +135,11 @@ describe('Esquecer', () => {
   it('spends a charge, forgets the card and draws its slot again', () => {
     const g = startGame(START)
     expect(g.phase).toBe('levelup')
-    const forgotten = offerSubject(g.offers[0]!)
+    const forgotten = offerSubject(g.player.offers[0]!)
     banishOffer(g, 0)
-    expect(g.banishes).toBe(1)
-    expect(g.banished.has(forgotten!)).toBe(true)
-    expect(g.offers.map(offerSubject)).not.toContain(forgotten)
+    expect(g.player.banishes).toBe(1)
+    expect(g.player.banished.has(forgotten!)).toBe(true)
+    expect(g.player.offers.map(offerSubject)).not.toContain(forgotten)
   })
 
   it('re-simulates a run that forgot cards to the same result', () => {
@@ -151,15 +152,15 @@ describe('Esquecer', () => {
     let banished = 0
     while (g.time < 30) {
       if (g.phase === 'levelup') {
-        const i = Math.floor(bot() * g.offers.length)
-        if (g.banishes > 0 && canBanish(g.offers[i]!) && bot() < 0.6) {
+        const i = Math.floor(bot() * g.player.offers.length)
+        if (g.player.banishes > 0 && canBanish(g.player.offers[i]!) && bot() < 0.6) {
           recordEvent(rec, ['banish', i])
           banishOffer(g, i)
           banished++
           continue
         }
         recordEvent(rec, ['offer', i])
-        chooseOffer(g, g.offers[i]!)
+        chooseOffer(g, g.player.offers[i]!)
         continue
       }
       angle += (bot() - 0.5) * 0.2
@@ -169,7 +170,7 @@ describe('Esquecer', () => {
     const staged = startGame(START)
     gainXp(staged, 400)
     const again = resimulate(parseReplay(JSON.parse(JSON.stringify(rec.replay)))!, staged)
-    expect(again).toEqual({ time: g.time, kills: g.kills, level: g.player.level, branch: g.branch, phase: g.phase, stuck: false })
+    expect(again).toEqual({ time: g.time, kills: g.kills, level: g.player.level, branch: g.player.branch, phase: g.phase, stuck: false })
   })
 })
 
@@ -190,9 +191,9 @@ describe('mods', () => {
 describe('hit-time mods', () => {
   const g = createGame('charmander', { w: 480, h: 270 }, 3)
   const hitbox = (bits: number, init: { drain?: number; execute?: number } = {}) => {
-    g.castMods = bits
+    g.player.castMods = bits
     const a = spawnAttack(g, { move: 'ember', type: 'fire', visual: 'ember', x: 0, y: 0, shape: { kind: 'circle', r: 4 }, motion: { kind: 'static' }, damage: 10, ttl: 1, ...init })
-    g.castMods = 0
+    g.player.castMods = 0
     return a
   }
 
@@ -207,9 +208,9 @@ describe('hit-time mods', () => {
 
   it('refreshes a long-lived hitbox with the mods of the cast, and children inherit all but the dropped ones', () => {
     const aura = hitbox(0)
-    g.castMods = modBits(['drain', 'trail'])
+    g.player.castMods = modBits(['drain', 'trail'])
     refreshMods(g, aura)
-    g.castMods = 0
+    g.player.castMods = 0
     expect(aura.drain).toBe(MOD.drain.share)
     expect(hasMod(inheritMods(aura, ['trail']).mod!.bits, 'trail')).toBe(false)
     expect(hasMod(inheritMods(aura).mod!.bits, 'drain')).toBe(true)

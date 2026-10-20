@@ -13,6 +13,7 @@ import { tmDisc } from '../render/tmArt'
 import { h } from './dom'
 import { stepGrid } from './gridNav'
 import { hint, menu, typeBadge, type Screen } from './screens'
+import { localPlayer } from '../game/players'
 
 /**
  * The TM screen (`Phase` 'tm', `game/tms.ts`): a disc's or a Move Tutor's
@@ -71,7 +72,7 @@ const tmCard = (g: Game, offer: Extract<Offer, { kind: 'tm' }>, i: number) => {
 }
 
 const forgetCard = (g: Game, offer: Extract<Offer, { kind: 'forget' }>, i: number) => {
-  const owned = g.player.moves.find((mv) => mv.id === offer.id)
+  const owned = localPlayer(g).moves.find((mv) => mv.id === offer.id)
   const def: MoveDef = MOVES[offer.id]
   return h(
     'button',
@@ -123,21 +124,21 @@ const poof = (stage: HTMLElement, g: Game, offer: Extract<Offer, { kind: 'forget
 /** The TM screen for the offers on the table (cards and "pass", or the moves to forget and "keep"). */
 export const tmPick = (root: HTMLElement, input: Input, g: Game, onChoose: (offer: Offer) => void): Screen => {
   const m = t().tm
-  const forgetting = g.offers.some((o) => o.kind === 'forget')
-  const first = g.offers.find((o): o is Extract<Offer, { kind: 'tm' | 'forget' }> => o.kind === 'tm' || o.kind === 'forget')
+  const forgetting = localPlayer(g).offers.some((o) => o.kind === 'forget')
+  const first = localPlayer(g).offers.find((o): o is Extract<Offer, { kind: 'tm' | 'forget' }> => o.kind === 'tm' || o.kind === 'forget')
   const tm = first?.kind === 'forget' ? first.tm : first
   const source: TmSource = tm?.source ?? 'boss'
   const who = playerForm(g).name
-  const buttons = g.offers.map((offer, i) => {
+  const buttons = localPlayer(g).offers.map((offer, i) => {
     if (offer.kind === 'tm') return tmCard(g, offer, i)
     if (offer.kind === 'forget') return forgetCard(g, offer, i)
     return h('button', { class: 'btn tm-pass' }, forgetting && tm ? m.keep(MOVES[tm.id].name) : source === 'tutor' ? m.passTutor : m.pass)
   })
-  const cards = buttons.filter((_, i) => g.offers[i]?.kind !== 'pass')
-  const pass = buttons.find((_, i) => g.offers[i]?.kind === 'pass')
+  const cards = buttons.filter((_, i) => localPlayer(g).offers[i]?.kind !== 'pass')
+  const pass = buttons.find((_, i) => localPlayer(g).offers[i]?.kind === 'pass')
   const color = source === 'tutor' ? '#3868b8' : tm ? TYPE_COLORS[MOVES[tm.id].type] : '#78c0f8'
   const sub =
-    forgetting && tm ? (isManual(tm.id) && g.player.moves.some((mv) => isManual(mv.id)) ? m.forgetManual : m.forgetFull(who))
+    forgetting && tm ? (isManual(tm.id) && localPlayer(g).moves.some((mv) => isManual(mv.id)) ? m.forgetManual : m.forgetFull(who))
     : source === 'tutor' ? m.subTutor(tm?.price === 0)
     : source === 'legendary' ? m.subLegendary
     : m.subBoss
@@ -163,7 +164,7 @@ export const tmPick = (root: HTMLElement, input: Input, g: Game, onChoose: (offe
   let stopPoof: (() => void) | null = null
   const openedAt = performance.now()
   const nav = menu(input, buttons, (i) => {
-    const offer = g.offers[i]
+    const offer = localPlayer(g).offers[i]
     if (done || !offer || performance.now() - openedAt < GUARD_MS) return
     if ((offer.kind === 'tm' && offer.price > g.coins) || (offer.kind === 'forget' && offer.tm.price > g.coins)) return playSfx('denied')
     done = true

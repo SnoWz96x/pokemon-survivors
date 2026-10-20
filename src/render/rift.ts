@@ -9,6 +9,7 @@ import type { Game } from '../game/types'
 import { art, lazy } from './art'
 import { shade, type Ramp } from './sculpt'
 import { dashedRing } from './strokes'
+import { localPlayer } from '../game/players'
 
 type Ctx = CanvasRenderingContext2D
 
@@ -462,8 +463,8 @@ export const drawRiftFallGround = (ctx: Ctx, g: Game, camX: number, camY: number
   ctx.fillRect(camX, camY, g.view.w, g.view.h)
   // The tear's beam falls behind the player, so their silhouette reads against it.
   if (k < 0.4 || k > 0.92) return
-  const x = Math.round(g.player.x)
-  const top = Math.round(g.player.y - TEAR_RISE)
+  const x = Math.round(localPlayer(g).x)
+  const top = Math.round(localPlayer(g).y - TEAR_RISE)
   ctx.fillStyle = 'rgba(200,168,248,0.3)'
   ctx.fillRect(x - 4, top, 9, TEAR_RISE)
   ctx.fillStyle = 'rgba(255,255,255,0.5)'
@@ -474,7 +475,7 @@ export const drawRiftFallGround = (ctx: Ctx, g: Game, camX: number, camY: number
 export const drawRiftFallAir = (ctx: Ctx, g: Game, t: number) => {
   const k = fallProgress(g)
   if (k === null) return
-  const p = g.player
+  const p = localPlayer(g)
   const x = Math.round(p.x)
   const cy = Math.round(p.y - TEAR_RISE)
   const open = clamp01((k - 0.2) / 0.25) * (1 - clamp01((k - 0.92) / 0.08))

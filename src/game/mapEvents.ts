@@ -23,7 +23,8 @@ import { clearSpot } from './terrain'
 import { createFieldMissions, directMissions, FIELD_MISSIONS, type FieldMissionNotice, type FieldMissionState, type FieldMissionStates } from './fieldMissions'
 import { openTutor } from './tms'
 import { TUTOR, tutorWeight } from './tmRules'
-import type { Game } from './types'
+import { actAs, anchorPlayer, mostHurt, nearestPlayer, playerWithin, standing } from './players'
+import type { Game, Player } from './types'
 import * as dm from '../engine/dmath'
 
 /**
@@ -130,15 +131,17 @@ const spend = (ev: { gone: number }) => {
   ev.gone = 0
 }
 
-const within = (g: Game, x: number, y: number, r: number) => dm.sq(g.player.x - x) + dm.sq(g.player.y - y) < r * r
+/** Whether some player stands within `r` px of (x, y). */
+const within = (g: Game, x: number, y: number, r: number) => playerWithin(g, x, y, r) !== null
 
 const neighbors: number[] = []
 
 /**
  * Trap damage on everything within `r` of (x, y): wild Pokémon take `damage`
- * (bosses a slice of their max HP) and get shoved out, the player takes `player`.
+ * (bosses a slice of their max HP) and get shoved out, each player caught
+ * `playerShare` of their max HP.
  */
-const trapHit = (g: Game, x: number, y: number, r: number, damage: number, bossShare: number, player: number) => {
+const trapHit = (g: Game, x: number, y: number, r: number, damage: number, bossShare: number, playerShare: number) => {
   for (const i of query(g.grid, x, y, r + 16, neighbors)) {
     const e = g.enemies[i]
     if (!e || !isAlive(e) || dm.sq(e.x - x) + dm.sq(e.y - y) > dm.sq(r + e.radius)) continue
@@ -151,7 +154,12 @@ const trapHit = (g: Game, x: number, y: number, r: number, damage: number, bossS
     damageText(g, e, dmg, '#f8a040')
     if (e.hp <= 0) killEnemy(g, e)
   }
-  if (within(g, x, y, r + g.player.radius)) hurtPlayer(g, player, undefined, [], 'trap')
+  const before = g.player
+  for (const p of g.players) {
+    g.player = p
+    if (standing(g, p) && dm.sq(p.x - x) + dm.sq(p.y - y) < dm.sq(r + p.radius)) hurtPlayer(g, p.stats.maxHp * playerShare, undefined, [], 'trap')
+  }
+  g.player = before
 }
 
 /** A ring of wild Pokémon from the current wave closing in on the chest. */
@@ -166,31 +174,41 @@ const ambush = (g: Game, x: number, y: number) => {
   }
 }
 
+/** A fountain's draw weight: more likely the more hurt `p` is. */
+const fountainWeight = (p: Player) => 1 + 3 * (1 - p.hp / p.stats.maxHp)
+
 export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
   altar: {
     spawn: { from: 20, weight: () => 3, max: 1, lifetime: 50, distance: [150, 260] },
     marker: true,
-    create: (g) => ({ buff: rollAltarBuff(g.rng, g.buffs) }),
+    create: (g) => ({ buff: rollAltarBuff(g.rng, g.player.buffs) }),
     update: (g, ev) => {
-      if (!within(g, ev.x, ev.y, ALTAR.radius + g.player.radius)) return
+      // The first player to step on it gets the buff.
+      const p = playerWithin(g, ev.x, ev.y, ALTAR.radius, true)
+      if (!p) return
       const { buff } = ev.state
-      addBuff(g.buffs, buff, altarDuration(buff))
+      addBuff(p.buffs, buff, altarDuration(buff))
+      const before = actAs(g, p)
       recomputeStats(g)
+      actAs(g, before)
       burst(g, ev.x, ev.y - 14, { colors: ['#ffffff', '#f8e8a0', '#c8a8f8'], count: 40, speed: 110, ttl: 0.8, gravity: -80 })
       notify(g, { kind: 'altar', buff })
       spend(ev)
     },
   },
   fountain: {
-    // Shows up more often when the player is hurt.
-    spawn: { from: 60, weight: (g) => 1 + 3 * (1 - g.player.hp / g.player.stats.maxHp), max: 1, lifetime: 60, distance: [150, 260] },
+    // Shows up more often when a player is hurt.
+    spawn: { from: 60, weight: (g) => fountainWeight(mostHurt(g)), max: 1, lifetime: 60, distance: [150, 260] },
     marker: true,
     create: () => ({ charges: FOUNTAIN.charges, timer: 0, visited: false }),
     update: (g, ev, dt) => {
-      const p = g.player
+      // Whoever stands in it drinks (the first player solo, standing in it or not).
+      const p = playerWithin(g, ev.x, ev.y, FOUNTAIN.radius, true) ?? g.players[0]!
       const s = ev.state
-      if (!fountainSip(s, within(g, ev.x, ev.y, FOUNTAIN.radius + p.radius), p.hp < p.stats.maxHp - 0.5, dt)) return
+      if (!fountainSip(s, dm.sq(p.x - ev.x) + dm.sq(p.y - ev.y) < dm.sq(FOUNTAIN.radius + p.radius), p.hp < p.stats.maxHp - 0.5, dt)) return
+      const before = actAs(g, p)
       const heal = Math.round(healPlayer(g, p.stats.maxHp * FOUNTAIN.heal))
+      actAs(g, before)
       floatText(g, p.x, p.y - 30, `+${heal}`, '#58e858')
       burst(g, ev.x, ev.y - 8, { colors: ['#a8d8f8', '#ffffff', '#58a8f0'], count: 10, speed: 50, ttl: 0.6, gravity: -50 })
       notify(g, { kind: s.visited ? 'sip' : 'fountain' })
@@ -206,7 +224,8 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
     create: () => ({ progress: 0, ambushed: false }),
     update: (g, ev, dt) => {
       const s = ev.state
-      const inside = within(g, ev.x, ev.y, CHEST.radius)
+      const opener = playerWithin(g, ev.x, ev.y, CHEST.radius)
+      const inside = opener !== null
       if (inside && !s.ambushed) {
         s.ambushed = true
         ambush(g, ev.x, ev.y)
@@ -227,8 +246,10 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
       g.shake = Math.max(g.shake, 3)
       notify(g, { kind: 'chestOpen', coins: coins.reduce((a, b) => a + b, 0) })
       spend(ev)
-      // Sometimes there's a cursed item at the bottom: take it or leave it.
+      // Sometimes there's a cursed item at the bottom: take it or leave it (whoever opened it).
+      const actor = actAs(g, opener ?? g.players[0]!)
       openCursedChest(g, ev.x, ev.y)
+      actAs(g, actor)
     },
   },
   spikes: {
@@ -240,7 +261,7 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
       const rising = phase === 'up' && ev.state.phase !== 'up'
       ev.state.phase = phase
       if (!rising) return
-      trapHit(g, ev.x, ev.y, SPIKES.radius, SPIKES.damage * enemyScale(g).hp, 0.01, g.player.stats.maxHp * SPIKES.playerDamage)
+      trapHit(g, ev.x, ev.y, SPIKES.radius, SPIKES.damage * enemyScale(g).hp, 0.01, SPIKES.playerDamage)
       if (within(g, ev.x, ev.y, 260)) notify(g, { kind: 'spikes' })
     },
   },
@@ -252,7 +273,7 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
       const s = ev.state
       if (s.fuse < 0) {
         const lit =
-          within(g, ev.x, ev.y, BOMB.trigger + g.player.radius) ||
+          playerWithin(g, ev.x, ev.y, BOMB.trigger, true) !== null ||
           query(g.grid, ev.x, ev.y, BOMB.trigger, neighbors).some((i) => {
             const e = g.enemies[i]
             return e !== undefined && isAlive(e) && dm.sq(e.x - ev.x) + dm.sq(e.y - ev.y) < dm.sq(BOMB.trigger)
@@ -265,7 +286,7 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
       }
       s.fuse += dt
       if (s.fuse < BOMB.fuse) return
-      trapHit(g, ev.x, ev.y, BOMB.radius, BOMB.damage * enemyScale(g).hp, BOMB.bossDamage, g.player.stats.maxHp * BOMB.playerDamage)
+      trapHit(g, ev.x, ev.y, BOMB.radius, BOMB.damage * enemyScale(g).hp, BOMB.bossDamage, BOMB.playerDamage)
       burst(g, ev.x, ev.y - 6, { colors: ['#ffffff', '#f8e858', '#f87830', '#e83030', '#484848'], count: 50, speed: 180, ttl: 0.6 })
       g.shake = Math.max(g.shake, 6)
       notify(g, { kind: 'boom' })
@@ -278,7 +299,8 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
     create: (g) => ({ hp: MEOWTH.hp, dir: 0, flash: 0, hitCooldown: 0, seed: range(g.rng, 0, TAU) }),
     enter: (g) => notify(g, { kind: 'meowth' }),
     update: (g, ev, dt) => {
-      const p = g.player
+      // It runs from the nearest player.
+      const p = nearestPlayer(g, ev.x, ev.y)
       const s = ev.state
       const dist = dm.hypot(ev.x - p.x, ev.y - p.y)
       // Left far behind: it escapes right away (`expire`).
@@ -313,22 +335,26 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
   },
   tutor: {
     // Once around minute 3 and maybe again by minute 9 (`tutorWeight`), so the first move from outside the learnset comes early.
-    spawn: { from: TUTOR.first.from, weight: (g) => tutorWeight(g.tm.tutors, g.time), max: 1, lifetime: TUTOR.lifetime, distance: [150, 240] },
+    spawn: { from: TUTOR.first.from, weight: (g) => tutorWeight(g.tutors, g.time), max: 1, lifetime: TUTOR.lifetime, distance: [150, 240] },
     marker: true,
     create: () => ({ stand: 0 }),
     enter: (g) => {
-      g.tm.tutors++
+      g.tutors++
       notify(g, { kind: 'tutor' })
     },
     update: (g, ev, dt) => {
       const s = ev.state
-      const inside = within(g, ev.x, ev.y, TUTOR.radius + g.player.radius)
-      s.stand = Math.max(0, Math.min(TUTOR.stand, s.stand + (inside ? dt : -dt)))
+      const pupil = playerWithin(g, ev.x, ev.y, TUTOR.radius, true)
+      s.stand = Math.max(0, Math.min(TUTOR.stand, s.stand + (pupil ? dt : -dt)))
       if (s.stand > 0) ev.ttl = Math.max(ev.ttl, ev.age + 3)
       // One lesson at a time: it waits while another screen is open.
       if (s.stand < TUTOR.stand || g.phase !== 'playing') return
       burst(g, ev.x, ev.y - 12, { colors: ['#ffffff', '#f8e8a0', '#78c0f8', '#f87878'], count: 30, speed: 90, ttl: 0.7, gravity: -40 })
-      if (!openTutor(g)) notify(g, { kind: 'tutorEmpty' })
+      // The lesson is for whoever stands in the tent (the first player solo).
+      const before = actAs(g, pupil ?? g.players[0]!)
+      const opened = openTutor(g)
+      actAs(g, before)
+      if (!opened) notify(g, { kind: 'tutorEmpty' })
       spend(ev)
     },
     expire: (g) => notify(g, { kind: 'tutorLeft' }),
@@ -362,7 +388,7 @@ const live = (g: Game, kind?: MapEventKind) => {
   return n
 }
 
-/** Every ~30 s, maybe places a new event around the player: weighted by kind, never crowding the map. */
+/** Every ~30 s, maybe places a new event around a player (`anchorPlayer`): weighted by kind, never crowding the map. */
 const direct = (g: Game) => {
   const s = g.mapEvents
   if (g.time < s.next) return
@@ -375,22 +401,28 @@ const direct = (g: Game) => {
   if (choices.length === 0) return
   const kind = weightedPick(g.rng, choices)
   const taken = [...s.list, ...g.props]
-  const spot = spawnSpot(g.rng, g.player.x, g.player.y, MAP_EVENTS[kind].spawn.distance, taken)
+  const p = anchorPlayer(g)
+  const spot = spawnSpot(g.rng, p.x, p.y, MAP_EVENTS[kind].spawn.distance, taken)
   if (!spot) return
   // Events stand on open ground, never in a lake or against a rock.
   const open = clearSpot(g, spot, 18)
   spawnMapEvent(g, kind, Math.round(open.x), Math.round(open.y))
 }
 
-/** Runs the director, every live event's interaction, and clears faded or far-away events. */
+/** Whether some player is within `DIRECTOR.despawn` px (Manhattan) of (x, y). */
+const nearSomeone = (g: Game, x: number, y: number) => {
+  for (const p of g.players) if (Math.abs(x - p.x) + Math.abs(y - p.y) < DIRECTOR.despawn) return true
+  return false
+}
+
+/** Runs the director, every live event's interaction, and clears faded events and the ones far from everyone. */
 export const updateMapEvents = (g: Game, dt: number) => {
   direct(g)
   directMissions(g, spawnMapEvent)
-  const p = g.player
   for (const ev of g.mapEvents.list) {
     ev.age += dt
     if (ev.gone >= 0) ev.gone += dt
     else tick(g, ev, dt)
   }
-  retain(g.mapEvents.list, (ev) => ev.gone < FADE && Math.abs(ev.x - p.x) + Math.abs(ev.y - p.y) < DIRECTOR.despawn)
+  retain(g.mapEvents.list, (ev) => ev.gone < FADE && nearSomeone(g, ev.x, ev.y))
 }

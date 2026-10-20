@@ -52,7 +52,7 @@ const SCENARIOS = {
     stage: (g) => {
       g.time = 600
       g.nextEvent = 99
-      g.revives = 1
+      g.player.revives = 1
       enterArena(g, 'groudon', g.player.x, g.player.y)
       g.player.hp = 1
     },
@@ -65,7 +65,7 @@ const SCENARIOS = {
       g.time = 360
       g.nextEvent = 99
       g.worldHazards.charge = 0.99
-      g.revives = 3
+      g.player.revives = 3
       gainXp(g, 1500)
       spawnAlpha(g, pickAlpha(g.rng, g.roster.stages[0]!)!, g.player.x + 120, g.player.y)
     },
@@ -77,7 +77,7 @@ const SCENARIOS = {
     stage: (g) => {
       g.time = 299
       g.nextEvent = EVENTS.findIndex((e) => e.kind === 'boss' && 'enemy' in e && e.enemy === 'snorlax')
-      g.revives = 2
+      g.player.revives = 2
       gainXp(g, 1200)
     },
   },
@@ -88,7 +88,7 @@ const SCENARIOS = {
     stage: (g) => {
       g.time = 360
       g.nextEvent = 99
-      g.revives = 2
+      g.player.revives = 2
       g.player.hp = 1
     },
   },
@@ -104,7 +104,7 @@ const SCENARIOS = {
     stage: (g) => {
       g.time = 360
       g.nextEvent = 99
-      g.revives = 2
+      g.player.revives = 2
       gainXp(g, 1500)
       g.player.moves.push(
         { id: 'payDay', level: 5, cooldown: 0.2, path: 0 },
@@ -127,7 +127,7 @@ const SCENARIOS = {
     stage: (g) => {
       g.time = 150
       g.nextEvent = 99
-      g.revives = 2
+      g.player.revives = 2
       gainXp(g, 1200)
       g.player.moves.push(
         { id: 'rainDance', level: 5, cooldown: 0.2, path: withBranch(0, 4, 1) },
@@ -152,7 +152,7 @@ const SCENARIOS = {
     stage: (g) => {
       g.time = 240
       g.nextEvent = 99
-      g.revives = 2
+      g.player.revives = 2
       gainXp(g, 2500)
       const boss = spawnWaveBoss(g, 'onix', g.time)
       Object.assign(boss, { x: g.player.x + 30, y: g.player.y, hp: 1 })
@@ -172,7 +172,7 @@ const SCENARIOS = {
     stage: (g) => {
       g.time = 240
       g.nextEvent = 99
-      g.revives = 2
+      g.player.revives = 2
       gainXp(g, 6000)
       const boss = spawnWaveBoss(g, 'onix', g.time)
       Object.assign(boss, { x: g.player.x + 30, y: g.player.y, hp: 1 })
@@ -187,7 +187,7 @@ const SCENARIOS = {
     stage: (g) => {
       g.time = 150
       g.nextEvent = 99
-      g.revives = 2
+      g.player.revives = 2
       for (const m of g.player.moves) if (m.id === 'sketch') m.level = 5
       const boss = spawnWaveBoss(g, 'onix', g.time)
       Object.assign(boss, { x: g.player.x + 60, y: g.player.y })
@@ -235,7 +235,7 @@ const PICKS: ReadonlySet<Game['phase']> = new Set(['levelup', 'branch', 'ability
 /** What a run looks like at a moment: the clock, the player, every enemy and pickup, bit for bit. */
 const snapshot = (g: Game): Array<number | string> => {
   const p = g.player
-  const values: Array<number | string> = [g.phase, g.time, g.kills, g.coins, g.revives, p.level, p.xp, p.hp, p.x, p.y, p.stage, g.enemies.length, g.pickups.length]
+  const values: Array<number | string> = [g.phase, g.time, g.kills, g.coins, g.player.revives, p.level, p.xp, p.hp, p.x, p.y, p.stage, g.enemies.length, g.pickups.length]
   for (const e of g.enemies) values.push(e.kind, e.x, e.y, e.hp)
   for (const k of g.pickups) values.push(k.kind, k.x, k.y)
   return values
@@ -262,9 +262,9 @@ const record = ({ start, seconds, stage }: Scenario) => {
   let dir = 0
   while (g.time < end && g.phase !== 'gameover' && g.phase !== 'victory') {
     if (PICKS.has(g.phase)) {
-      const i = Math.floor(bot() * g.offers.length)
+      const i = Math.floor(bot() * g.player.offers.length)
       recordEvent(rec, ['offer', i])
-      chooseOffer(g, g.offers[i]!)
+      chooseOffer(g, g.player.offers[i]!)
       continue
     }
     if (rec.tick % TRAIL_EVERY === 0) trail.push(...snapshot(g))
@@ -320,15 +320,15 @@ describe(`the simulation under RULES_VERSION ${RULES_VERSION}`, () => {
   it('plays each scenario through what it covers, and its replay lands on the same ending', () => {
     const { levelUps, mega, riftFall, alphaHazards, bag, shopTms2, evoGate, porygonGate, sketch } = endings
     expect(levelUps.live.player.level).toBeGreaterThan(10)
-    expect(mega.live.mega.count).toBe(1)
+    expect(mega.live.player.mega.count).toBe(1)
     expect(riftFall.live.events.map((e) => e.kind)).toEqual(expect.arrayContaining(['riftFall', 'riftExit', 'revive', 'gameover']))
     expect(alphaHazards.live.worldHazards.fired).toBeGreaterThan(0)
     expect(alphaHazards.live.events.some((e) => e.kind === 'alpha' && e.moment === 'charge')).toBe(true)
     expect(bag.live.events.some((e) => e.kind === 'maxRevive')).toBe(true)
     expect(shopTms2.live.weather.held).not.toBeNull()
     expect(shopTms2.live.player.moves.find((m) => m.id === 'swordsDance')?.stacks).toBeGreaterThan(1)
-    expect([evoGate.live.player.stage, evoGate.live.evoFound.length, evoGate.live.evoHeld]).toEqual([1, 1, false])
-    expect([porygonGate.live.player.stage, porygonGate.live.evoFound.toSorted(), porygonGate.live.evoHeld]).toEqual([2, ['dubiousDisc', 'upgrade'], false])
+    expect([evoGate.live.player.stage, evoGate.live.player.evoFound.length, evoGate.live.player.evoHeld]).toEqual([1, 1, false])
+    expect([porygonGate.live.player.stage, porygonGate.live.player.evoFound.toSorted(), porygonGate.live.player.evoHeld]).toEqual([2, ['dubiousDisc', 'upgrade'], false])
     expect(sketch.live.player.moves.find((m) => m.id === 'sketch')?.sketch).toBeDefined()
     expect(sketch.live.kills).toBeGreaterThan(0)
     for (const e of Object.values(endings)) expect(e.sameEnd).toBe(true)

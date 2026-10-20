@@ -47,7 +47,7 @@ export const damageEnemy = (g: Game, e: Enemy, attack: Attack) => {
   if (disguiseTakes(e, dmg)) return bustDisguise(g, e)
   e.hp -= dmg
   e.flash = 0.16
-  g.damageByMove[attack.move] = (g.damageByMove[attack.move] ?? 0) + dmg
+  g.player.damageByMove[attack.move] = (g.player.damageByMove[attack.move] ?? 0) + dmg
   if (breakOnHit(e.status)) shatter(g, e, 'freeze')
 
   // Vines push sideways; everything else pushes away from the hitbox center.
@@ -114,7 +114,7 @@ export const bumpDamage = (g: Game, e: Enemy, amount: number, move: DamageSource
   const dmg = Math.max(1, Math.round(amount))
   e.hp -= dmg
   e.flash = 0.16
-  if (move) g.damageByMove[move] = (g.damageByMove[move] ?? 0) + dmg
+  if (move) g.player.damageByMove[move] = (g.player.damageByMove[move] ?? 0) + dmg
   damageText(g, e, dmg, TEXT_COLORS.normal)
   g.events.push({ kind: 'hit', effective: 1 })
   if (e.hp <= 0) killEnemy(g, e, move)
@@ -139,7 +139,7 @@ const spreadSeed = (g: Game, e: Enemy) => {
 export const dotDamage = (g: Game, e: Enemy, amount: number, move: DamageSource | null, kind: StatusKind) => {
   const dmg = Math.max(1, Math.round(amount))
   e.hp -= dmg
-  if (move) g.damageByMove[move] = (g.damageByMove[move] ?? 0) + dmg
+  if (move) g.player.damageByMove[move] = (g.player.damageByMove[move] ?? 0) + dmg
   damageText(g, e, dmg, STATUS_RULES[kind].color)
   if (e.hp <= 0) killEnemy(g, e, move)
 }
@@ -156,7 +156,7 @@ export const killEnemy = (g: Game, e: Enemy, source?: DamageSource | null) => {
   e.hp = 0
   g.kills++
   noteKill(g, e)
-  if (source === 'special' || g.special.chaining) g.special.kills++
+  if (source === 'special' || g.player.special.chaining) g.player.special.kills++
   countKill(g.tally, e, weatherHere(g), g.biome.id, g.outbreak)
   abilityKill(g, e)
   const big = e.boss || e.shiny
@@ -178,8 +178,8 @@ export const killEnemy = (g: Game, e: Enemy, source?: DamageSource | null) => {
   if (e.alpha) {
     alphaDown(g, e)
   } else if (e.boss) {
-    // Every boss defeated earns an Esquecer charge (`banishOffer`).
-    g.banishes++
+    // Every boss defeated earns everyone an Esquecer charge (`banishOffer`).
+    for (const p of g.players) p.banishes++
     // A legendary's defeat counts toward capturing it (the save's side, `legendBeaten`).
     const def: EnemyDef = ENEMIES[e.kind]
     if (def.legendary) {

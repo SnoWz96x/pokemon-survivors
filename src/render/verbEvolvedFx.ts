@@ -6,6 +6,7 @@ import { AXE, KOWTOW, SEED_FLARE, SWIPE, UPPER } from '../game/verbEvolutions'
 import type { Attack, Game } from '../game/types'
 import { dashedRing } from './strokes'
 import { VE } from './verbEvolvedArt'
+import { localPlayer } from '../game/players'
 
 /**
  * Art of the verb moves' evolutions (`game/verbEvolutions.ts`). `draw.ts`
@@ -118,7 +119,7 @@ const drawFuryBlaze = (ctx: Ctx, a: Attack, t: number) => {
 
 /** Raging Fury's cloak, the floor half: a hot glow around the feet while walking. */
 const drawFuryGlow = (ctx: Ctx, g: Game, a: Attack, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const r = radiusOf(a)
   if (!p.moving) {
     blitEllipse(ctx, Math.round(r * 0.7), Math.max(1, Math.round(r * 0.3)), 'rgba(168,32,16,0.25)', p.x, p.y)
@@ -135,7 +136,7 @@ const drawFuryGlow = (ctx: Ctx, g: Game, a: Attack, t: number) => {
 
 /** The ring of tall flames round the feet: the back half (`front` false) goes under the player, the front half over. */
 const cloakFlames = (ctx: Ctx, g: Game, a: Attack, t: number, front: boolean) => {
-  const p = g.player
+  const p = localPlayer(g)
   const r = radiusOf(a)
   const spin = p.walked * 0.09 + t * 2.5
   const frames = VE.furyFlame()
@@ -215,7 +216,7 @@ const drawHoleVoid = (ctx: Ctx, a: Attack, t: number) => {
 
 /** Oblivion Wing's wings, behind the player: they sweep open from the shoulders, beat once, and fold away. */
 const drawWings = (ctx: Ctx, g: Game, a: Attack) => {
-  const p = g.player
+  const p = localPlayer(g)
   const open = Math.min(1, a.age / 0.1)
   const k = open * (0.35 + 0.65 * fadeOut(a, 0.25))
   const [left, right] = VE.wings()
@@ -275,7 +276,7 @@ const drawFrostStreak = (ctx: Ctx, a: Attack) => {
 
 /** Water Spout's geyser on the player: a column bursting up, foaming at the top. */
 const drawSpout = (ctx: Ctx, g: Game, a: Attack, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const k = a.age / a.ttl
   const h = Math.round(64 * Math.sin(Math.min(1, k * 1.5) * Math.PI))
   if (h <= 0) return
@@ -365,7 +366,7 @@ export const drawVerbEvolvedGround = (ctx: Ctx, g: Game, t: number) => {
 
 /** Raging Fury's cloak: tall flames whirling round the feet while walking; embers while still. */
 const drawFuryCloak = (ctx: Ctx, g: Game, a: Attack, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const r = radiusOf(a)
   if (!p.moving) {
     // Smouldering: a few embers round the feet.
@@ -431,7 +432,7 @@ const drawSeedSun = (ctx: Ctx, a: Attack, t: number) => {
 
 /** Seed Flare's rays, drawn layer by layer over all their slices so each ray reads as one solid beam. */
 const drawSeedRays = (ctx: Ctx, g: Game, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const layers = [
     { k: 1.6, color: 'rgba(248,216,80,0.45)', flick: true },
     { k: 1, color: '#f8f8b0', flick: false },
@@ -607,7 +608,7 @@ const drawBlast = (ctx: Ctx, a: Attack, t: number, big: boolean) => {
 
 /** Oblivion Wing's beam: from the player's chest to the foe, dark red with a white heart, feathers at the hit. */
 const drawOblivionBeam = (ctx: Ctx, g: Game, a: Attack, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const sx = p.x
   const sy = p.y - 16
   const k = a.age / a.ttl
@@ -840,7 +841,7 @@ const drawImpressionBurst = (ctx: Ctx, a: Attack, t: number) => {
 const drawSwipe = (ctx: Ctx, g: Game, a: Attack) => {
   const m = a.motion
   if (m.kind !== 'orbit') return
-  const p = g.player
+  const p = localPlayer(g)
   const r = radiusOf(a) * 0.85
   const swept = Math.min(SWIPE.spin, a.age) * m.spin
   const trail = Math.sign(m.spin) * Math.min(Math.abs(swept), Math.PI * 1.4)

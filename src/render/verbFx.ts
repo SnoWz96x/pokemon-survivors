@@ -8,6 +8,7 @@ import { gyroMult, roostSettle } from '../game/moveVerbRules'
 import type { Attack, Game } from '../game/types'
 import { VERB_FX } from './art'
 import { dashedRing } from './strokes'
+import { localPlayer } from '../game/players'
 
 /**
  * Art of the verb moves (`game/moveVerbs.ts`). `draw.ts` calls the two passes
@@ -54,7 +55,7 @@ const spokes = (ctx: Ctx, x: number, y: number, inner: number, outer: number, co
   }
 }
 
-const ownedOf = (g: Game, id: 'roost' | 'focusPunch' | 'suckerPunch') => g.player.moves.find((m) => m.id === id)
+const ownedOf = (g: Game, id: 'roost' | 'focusPunch' | 'suckerPunch') => localPlayer(g).moves.find((m) => m.id === id)
 
 /* ---------------- Ground pass ---------------- */
 
@@ -80,7 +81,7 @@ const drawFlameTrail = (ctx: Ctx, a: Attack, t: number) => {
 
 /** Flame Wheel's carrier: a wheel of fire rolling around the player's feet while they walk; embers waiting while still. */
 const drawFlameWheel = (ctx: Ctx, g: Game, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const spin = p.walked * 0.12
   const lit = p.moving
   const n = 8
@@ -136,7 +137,7 @@ const drawFutureMark = (ctx: Ctx, a: Attack, t: number) => {
 /** Roost: a ring filling up while the player keeps still, then a nest of feathers on the floor once settled. */
 const drawRoostGround = (ctx: Ctx, g: Game, t: number) => {
   const owned = ownedOf(g, 'roost')
-  const p = g.player
+  const p = localPlayer(g)
   if (!owned || p.moving || p.hidden) return
   const settle = roostSettle(owned)
   const k = Math.min(1, p.still / settle)
@@ -163,7 +164,7 @@ const drawRoostGround = (ctx: Ctx, g: Game, t: number) => {
 const drawSuckerZone = (ctx: Ctx, g: Game, t: number) => {
   const owned = ownedOf(g, 'suckerPunch')
   if (!owned) return
-  const p = g.player
+  const p = localPlayer(g)
   const area = moveStats('suckerPunch', owned.level, p.stats, owned.path).area
   ctx.globalAlpha = 0.45
   dashedRing(ctx, p.x, p.y - 2, (SUCKER.reach + p.radius) * area, t * 1.5, ['#382838', '#6a5068'], 0.3, 0.45)
@@ -173,7 +174,7 @@ const drawSuckerZone = (ctx: Ctx, g: Game, t: number) => {
 /** Focus Punch charging, on the floor: a ring under the feet that widens and brightens with the charge. */
 const drawFocusGround = (ctx: Ctx, g: Game, t: number) => {
   const owned = ownedOf(g, 'focusPunch')
-  const p = g.player
+  const p = localPlayer(g)
   if (!owned || p.hidden) return
   const k = Math.min(1, Math.max(0, stacksOf(owned)) / focusCharge(owned))
   if (k <= 0) return
@@ -250,7 +251,7 @@ const drawSolarCharge = (ctx: Ctx, g: Game, a: Attack, t: number) => {
   // Where the sweep will go: the dormant tip of the same beam tells how long it is.
   const tip = g.attacks.find((o) => o.move === 'solarBeam' && o.flip && o.age < 0 && o.motion.kind === 'orbit' && Math.abs(o.motion.angle - m.angle) < 1e-6)
   const length = tip && tip.motion.kind === 'orbit' ? tip.motion.radius : SOLAR.length
-  const p = g.player
+  const p = localPlayer(g)
   ctx.globalAlpha = 0.25 + 0.35 * k
   const dots = 18
   for (let i = 0; i <= dots; i++) {
@@ -282,7 +283,7 @@ const drawSolarCharge = (ctx: Ctx, g: Game, a: Attack, t: number) => {
  * slice covers the gap to its neighbors.
  */
 const drawSolarBeams = (ctx: Ctx, g: Game, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const layers = [
     { k: 1.5, color: 'rgba(120,200,80,0.6)', flick: true },
     { k: 0.95, color: '#d8f8a0', flick: false },
@@ -419,7 +420,7 @@ const drawRoostGust = (ctx: Ctx, a: Attack) => {
 /** Roost while settled: feathers drifting down around the player, green motes rising. */
 const drawRoostAir = (ctx: Ctx, g: Game, t: number) => {
   const owned = ownedOf(g, 'roost')
-  const p = g.player
+  const p = localPlayer(g)
   if (!owned || p.moving || p.hidden || p.still < roostSettle(owned)) return
   const feather = VERB_FX.feather()
   for (let i = 0; i < 3; i++) {
@@ -435,7 +436,7 @@ const drawRoostAir = (ctx: Ctx, g: Game, t: number) => {
 /** Focus Punch charging: sparks rising around the body, more and brighter as the charge fills, blazing once full. */
 const drawFocusAura = (ctx: Ctx, g: Game, t: number) => {
   const owned = ownedOf(g, 'focusPunch')
-  const p = g.player
+  const p = localPlayer(g)
   if (!owned || p.hidden) return
   const k = Math.min(1, Math.max(0, stacksOf(owned)) / focusCharge(owned))
   if (k <= 0) return
@@ -484,7 +485,7 @@ const drawFocusShock = (ctx: Ctx, a: Attack) => {
 
 /** Gyro Ball's gear: spinning faster and throwing sparks the harder it grinds. */
 const drawGear = (ctx: Ctx, g: Game, a: Attack, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const grind = gyroMult(Math.hypot(p.vx, p.vy))
   const frames = VERB_FX.gear()
   const r = radiusOf(a)
@@ -579,7 +580,7 @@ const drawUTurn = (ctx: Ctx, a: Attack) => {
 const drawDragonTail = (ctx: Ctx, g: Game, a: Attack) => {
   const m = a.motion
   if (m.kind !== 'orbit') return
-  const p = g.player
+  const p = localPlayer(g)
   const r = radiusOf(a) * 0.8
   const swept = Math.min(TAIL.swing, a.age) * m.spin
   const start = m.angle - swept

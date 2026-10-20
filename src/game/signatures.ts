@@ -8,6 +8,7 @@ import { addMoveBuff, TIRED_SLOW, TIRED_TIME } from './signatureMoves'
 import { recoilFor, snipeScale } from './signatureRules'
 import { inheritMods } from './mods'
 import { spawnAttack } from './spawn'
+import { ownAttack } from './players'
 import type { Attack, Enemy, Game } from './types'
 import * as dm from '../engine/dmath'
 
@@ -112,6 +113,7 @@ export const updateSignatures = (g: Game, dt: number) => {
   updateMoveBuffs(g, dt)
   const p = g.player
   for (const a of g.attacks) {
+    if (!ownAttack(g, a)) continue
     switch (a.visual) {
       case 'thrash': {
         if (a.age < 0) break

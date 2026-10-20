@@ -19,7 +19,7 @@ const STILL = { move: { x: 0, y: 0 }, special: false }
 const atEvolution = (starter: PlayableId, start: Partial<ReplayStart> = {}, stage = 0): Game => {
   const g = startGame({ ...START, ...start, starter })
   // Past the opening draft first.
-  if (g.phase === 'levelup') chooseOffer(g, g.offers[0]!)
+  if (g.phase === 'levelup') chooseOffer(g, g.player.offers[0]!)
   const from: EvolutionStage = PLAYABLE[starter].line[stage]!
   g.player.stage = stage
   g.player.level = from.evolveAt!
@@ -29,7 +29,7 @@ const atEvolution = (starter: PlayableId, start: Partial<ReplayStart> = {}, stag
 
 /** Picks the first card of every screen that waits on one (the Ability's), until the run plays on. */
 const settle = (g: Game) => {
-  for (let i = 0; i < 20 && (g.phase === 'ability' || g.phase === 'levelup'); i++) chooseOffer(g, g.offers[0]!)
+  for (let i = 0; i < 20 && (g.phase === 'ability' || g.phase === 'levelup'); i++) chooseOffer(g, g.player.offers[0]!)
 }
 
 describe('item-locked branches', () => {
@@ -37,7 +37,7 @@ describe('item-locked branches', () => {
     const g = atEvolution('ralts', {}, 1)
     advancePhase(g)
     expect(g.phase).toBe('evolving')
-    expect(g.branch).toBe('gardevoir')
+    expect(g.player.branch).toBe('gardevoir')
     expect(g.events.some((e) => e.kind === 'branchChoice')).toBe(false)
   })
 
@@ -45,7 +45,7 @@ describe('item-locked branches', () => {
     const g = atEvolution('ralts', { evo: ['dawnStone'] }, 1)
     advancePhase(g)
     expect(g.phase).toBe('branch')
-    expect(g.offers).toEqual([{ kind: 'form', id: 'gardevoir', favor: null }, { kind: 'form', id: 'gallade', favor: 'item' }])
+    expect(g.player.offers).toEqual([{ kind: 'form', id: 'gardevoir', favor: null }, { kind: 'form', id: 'gallade', favor: 'item' }])
   })
 
   it('open with a found item too, for that run only', () => {
@@ -56,9 +56,9 @@ describe('item-locked branches', () => {
     expect(missingEvoItems(g)).toEqual([])
     advancePhase(g)
     expect(g.phase).toBe('branch')
-    expect(g.offers).toContainEqual({ kind: 'form', id: 'froslass', favor: 'item' })
+    expect(g.player.offers).toContainEqual({ kind: 'form', id: 'froslass', favor: 'item' })
     // The next run starts without it: only owned items ride in the replay's start.
-    expect(startGame({ ...START, starter: 'snorunt' }).evoFound).toEqual([])
+    expect(startGame({ ...START, starter: 'snorunt' }).player.evoFound).toEqual([])
   })
 })
 
@@ -69,20 +69,20 @@ describe('a family with no free branch (Scyther, Charcadet)', () => {
     settle(g)
     expect(g.phase).toBe('playing')
     expect(g.player.stage).toBe(0)
-    expect(g.evoHeld).toBe(true)
-    expect(g.ability.id).not.toBeNull()
+    expect(g.player.evoHeld).toBe(true)
+    expect(g.player.ability.id).not.toBeNull()
     expect(g.events).toContainEqual({ kind: 'evoHeld', items: ['metalCoat', 'blackAugurite'] })
     const held = g.player.stats.maxHp
-    g.evoHeld = false
+    g.player.evoHeld = false
     recomputeStats(g)
     expect(held).toBe(Math.round(g.player.stats.maxHp * 1.15))
-    g.evoHeld = true
+    g.player.evoHeld = true
     recomputeStats(g)
     // Further level-ups keep it waiting, without telling again.
-    g.pendingLevelUps = 1
+    g.player.pendingLevelUps = 1
     advancePhase(g)
     settle(g)
-    expect([g.player.stage, g.evoHeld, g.events.filter((e) => e.kind === 'evoHeld').length]).toEqual([0, true, 1])
+    expect([g.player.stage, g.player.evoHeld, g.events.filter((e) => e.kind === 'evoHeld').length]).toEqual([0, true, 1])
   })
 
   it('evolves as soon as an item turns up, and loses the bonus', () => {
@@ -93,8 +93,8 @@ describe('a family with no free branch (Scyther, Charcadet)', () => {
     collectEvoItem(g, 'auspiciousArmor')
     step(g, STILL, TICK)
     expect(g.phase).toBe('evolving')
-    expect(g.branch).toBe('armarouge')
-    expect(g.evoHeld).toBe(false)
+    expect(g.player.branch).toBe('armarouge')
+    expect(g.player.evoHeld).toBe(false)
     for (let i = 0; i < 600 && g.phase === 'evolving'; i++) step(g, STILL, TICK)
     expect(g.player.stage).toBe(1)
     const evolved = g.player.stats.maxHp
@@ -106,7 +106,7 @@ describe('a family with no free branch (Scyther, Charcadet)', () => {
     collectEvoItem(g, 'blackAugurite')
     advancePhase(g)
     expect(g.phase).toBe('branch')
-    expect(g.offers.map((o) => o.kind === 'form' && o.id)).toEqual(['scizor', 'kleavor'])
+    expect(g.player.offers.map((o) => o.kind === 'form' && o.id)).toEqual(['scizor', 'kleavor'])
   })
 })
 
@@ -122,8 +122,8 @@ describe('line steps that need an item (Porygon, Exeggcute)', () => {
     expect(missingEvoItems(g)).toEqual(['upgrade'])
     advancePhase(g)
     settle(g)
-    expect([g.phase, g.player.stage, g.evoHeld]).toEqual(['playing', 0, true])
-    expect(g.ability.id).not.toBeNull()
+    expect([g.phase, g.player.stage, g.player.evoHeld]).toEqual(['playing', 0, true])
+    expect(g.player.ability.id).not.toBeNull()
     expect(g.events).toContainEqual({ kind: 'evoHeld', items: ['upgrade'] })
   })
 
@@ -132,16 +132,16 @@ describe('line steps that need an item (Porygon, Exeggcute)', () => {
     advancePhase(g)
     expect(g.phase).toBe('evolving')
     evolveOut(g)
-    expect([g.player.stage, g.evoHeld]).toEqual([1, false])
+    expect([g.player.stage, g.player.evoHeld]).toEqual([1, false])
     // Lv 28: the second step waits on its disc.
     g.player.level = 28
     advancePhase(g)
     settle(g)
-    expect([g.phase, g.player.stage, g.evoHeld]).toEqual(['playing', 1, true])
+    expect([g.phase, g.player.stage, g.player.evoHeld]).toEqual(['playing', 1, true])
     expect(missingEvoItems(g)).toEqual(['dubiousDisc'])
     collectEvoItem(g, 'dubiousDisc')
     step(g, STILL, TICK)
-    expect([g.phase, g.evoHeld]).toEqual(['evolving', false])
+    expect([g.phase, g.player.evoHeld]).toEqual(['evolving', false])
     evolveOut(g)
     expect(g.player.stage).toBe(2)
     expect(missingEvoItems(g)).toEqual([])
@@ -163,7 +163,7 @@ describe('line steps that need an item (Porygon, Exeggcute)', () => {
     expect(missingEvoItems(held)).toEqual(['leafStone'])
     advancePhase(held)
     settle(held)
-    expect([held.player.stage, held.evoHeld]).toEqual([0, true])
+    expect([held.player.stage, held.player.evoHeld]).toEqual([0, true])
     const g = atEvolution('exeggcute', { evo: ['leafStone'] })
     advancePhase(g)
     expect(g.phase).toBe('evolving')
@@ -198,7 +198,7 @@ describe('Eevee', () => {
       const g = atEvolution('eevee', { seed })
       advancePhase(g)
       expect(g.phase).toBe('evolving')
-      seen.add(g.branch!)
+      seen.add(g.player.branch!)
     }
     expect([...seen].every((id) => ['vaporeon', 'jolteon', 'flareon'].includes(id))).toBe(true)
     expect(seen.size).toBeGreaterThan(1)
@@ -209,7 +209,7 @@ describe('Eevee', () => {
     collectEvoItem(g, 'shinyStone')
     advancePhase(g)
     expect(g.phase).toBe('branch')
-    const offers = g.offers.flatMap((o) => (o.kind === 'form' ? [o] : []))
+    const offers = g.player.offers.flatMap((o) => (o.kind === 'form' ? [o] : []))
     expect(offers.filter((o) => o.favor === 'item').map((o) => o.id)).toEqual(['jolteon', 'espeon', 'sylveon'])
     expect(offers).toHaveLength(4)
     expect(['vaporeon', 'flareon']).toContain(offers.find((o) => o.favor !== 'item')!.id)
@@ -236,7 +236,7 @@ describe('evolution items dropped by bosses', () => {
 
   it("drop nothing once nothing is missing: a branch taken, an Everstone, a family without item branches", () => {
     const branched = startGame({ ...START, starter: 'ralts' })
-    branched.branch = 'gardevoir'
+    branched.player.branch = 'gardevoir'
     const everstone = startGame({ ...START, starter: 'ralts', bag: ['everstone'] })
     const owned = startGame({ ...START, starter: 'ralts', evo: ['dawnStone'] })
     for (const g of [branched, everstone, owned, startGame({ ...START, starter: 'charmander' })]) expect(missingEvoItems(g)).toEqual([])
@@ -257,10 +257,10 @@ describe('evolution items dropped by bosses', () => {
     // The boss's Poké Ball and TM disc open their screens on the way: the first card, like a tap.
     for (let i = 0; i < 240 && g!.phase !== 'evolving' && g!.phase !== 'branch'; i++) {
       if (g!.phase === 'playing') step(g!, STILL, TICK)
-      else chooseOffer(g!, g!.offers[0]!)
+      else chooseOffer(g!, g!.player.offers[0]!)
     }
-    expect(g!.evoFound).toHaveLength(1)
+    expect(g!.player.evoFound).toHaveLength(1)
     expect(['evolving', 'branch']).toContain(g!.phase)
-    expect(g!.evoHeld).toBe(false)
+    expect(g!.player.evoHeld).toBe(false)
   }, 30_000)
 })

@@ -9,6 +9,7 @@ import { FX } from './art'
 import { SIG_FX } from './signatureArt'
 import { sprites } from './sprites'
 import { dashedRing } from './strokes'
+import { localPlayer } from '../game/players'
 
 /**
  * Visuals of the starter signature moves (`game/signatureMoves.ts`). Like
@@ -560,7 +561,7 @@ const STAR = ['#f8e030', '#fff8a0'] as const
 
 /** What a move leaves on the player: dizzy stars (Petal Dance), a sweat drop (Thrash's tiredness), Aqua Step's splashes. */
 export const drawSignaturePlayer = (ctx: Ctx, g: Game, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   if (p.moveBuffs.length === 0) return
   const head = p.y - sprites(playerDex(g)).bodyH - 3
   for (const b of p.moveBuffs) {

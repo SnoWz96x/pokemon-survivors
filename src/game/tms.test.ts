@@ -24,7 +24,7 @@ const START: ReplayStart = { seed: 11, starter: 'squirtle', difficulty: 'normal'
 /** A run past the opening draft, playing. */
 const run = (): Game => {
   const g = startGame(START)
-  chooseOffer(g, g.offers[0]!)
+  chooseOffer(g, g.player.offers[0]!)
   return g
 }
 
@@ -129,10 +129,10 @@ describe('TMs in a run', () => {
     dropTm(g, g.player.x, g.player.y, 'iceBeam', 'boss')
     collectTm(g, g.pickups.find((k) => k.kind === 'tm')! as Extract<Game['pickups'][number], { kind: 'tm' }>)
     expect(g.phase).toBe('tm')
-    chooseOffer(g, g.offers[0]!)
+    chooseOffer(g, g.player.offers[0]!)
     expect(g.phase).toBe('tm')
-    expect(g.offers.filter((o) => o.kind === 'forget')).toHaveLength(MAX_MOVES)
-    chooseOffer(g, g.offers.find((o) => o.kind === 'forget' && o.id === 'gust')!)
+    expect(g.player.offers.filter((o) => o.kind === 'forget')).toHaveLength(MAX_MOVES)
+    chooseOffer(g, g.player.offers.find((o) => o.kind === 'forget' && o.id === 'gust')!)
     expect(g.phase).toBe('playing')
     expect(g.player.moves.map((m) => m.id)).toEqual(['waterGun', 'whirlpool', 'swift', 'thunder', 'sludgeBomb', 'iceBeam'])
     expect(g.events.some((e) => e.kind === 'tmLearned' && e.forgot === 'gust')).toBe(true)
@@ -143,8 +143,8 @@ describe('TMs in a run', () => {
     g.player.moves = SIX.map((m) => ({ ...m }))
     dropTm(g, 0, 0, 'yawn', 'boss')
     collectTm(g, g.pickups[g.pickups.length - 1]! as Extract<Game['pickups'][number], { kind: 'tm' }>)
-    chooseOffer(g, g.offers[0]!)
-    chooseOffer(g, g.offers.find((o) => o.kind === 'pass')!)
+    chooseOffer(g, g.player.offers[0]!)
+    chooseOffer(g, g.player.offers.find((o) => o.kind === 'pass')!)
     expect(g.phase).toBe('playing')
     expect(g.player.moves.map((m) => m.id)).toEqual(SIX.map((m) => m.id))
   })
@@ -170,8 +170,8 @@ describe('TMs in a run', () => {
     dropLegendaryTm(g, 'lugia', 0, 0)
     collectTm(g, g.pickups.find((k) => k.kind === 'tm')! as Extract<Game['pickups'][number], { kind: 'tm' }>)
     g.pickups.length = 0
-    chooseOffer(g, g.offers[0]!)
-    expect(g.tm.legendary).toBe(true)
+    chooseOffer(g, g.player.offers[0]!)
+    expect(g.player.tm.legendary).toBe(true)
     dropLegendaryTm(g, 'kyogre', 0, 0)
     expect(g.pickups.some((k) => k.kind === 'tm')).toBe(false)
   })
@@ -185,17 +185,17 @@ describe('TMs in a run', () => {
 
   it('charge a tutor lesson from the run’s ₽, and ignore one the player can’t pay', () => {
     const g = run()
-    g.tm.lessons = 1
+    g.player.tm.lessons = 1
     g.coins = 10
     expect(openTutor(g)).toBe(true)
-    const card = g.offers[0]!
+    const card = g.player.offers[0]!
     chooseOffer(g, card)
     expect(g.phase).toBe('tm')
     g.coins = 1000
     chooseOffer(g, card)
     expect(g.phase).toBe('playing')
     expect(g.coins).toBe(1000 - TUTOR.price)
-    expect(g.tm.lessons).toBe(2)
+    expect(g.player.tm.lessons).toBe(2)
   })
 })
 
@@ -203,7 +203,7 @@ describe('TM picks in a replay', () => {
   /** A run with six moves and two TM discs at the player's feet: both open, one after the other. */
   const staged = () => {
     const g = startGame(START)
-    chooseOffer(g, g.offers[0]!)
+    chooseOffer(g, g.player.offers[0]!)
     g.player.moves = SIX.map((m) => ({ ...m }))
     dropTm(g, g.player.x, g.player.y, 'discharge', 'boss')
     dropTm(g, g.player.x + 2, g.player.y, 'heatWave', 'boss')
@@ -218,10 +218,10 @@ describe('TM picks in a replay', () => {
     while (g.time < 30 && g.phase !== 'gameover') {
       if (g.phase !== 'playing' && g.phase !== 'evolving') {
         // Learn, forgetting the first move offered; level-ups pick at random.
-        const forgets = g.offers.flatMap((o, i) => (o.kind === 'forget' ? [i] : []))
-        const i = g.phase === 'tm' ? (forgets[0] ?? 0) : Math.floor(bot() * g.offers.length)
+        const forgets = g.player.offers.flatMap((o, i) => (o.kind === 'forget' ? [i] : []))
+        const i = g.phase === 'tm' ? (forgets[0] ?? 0) : Math.floor(bot() * g.player.offers.length)
         recordEvent(rec, ['offer', i])
-        chooseOffer(g, g.offers[i]!)
+        chooseOffer(g, g.player.offers[i]!)
         continue
       }
       angle += (bot() - 0.5) * 0.3

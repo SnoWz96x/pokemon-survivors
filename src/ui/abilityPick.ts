@@ -19,6 +19,7 @@ import { t } from '../i18n'
 import { h } from './dom'
 import { shopIcon } from './shopIcons'
 import { hint, menu, typeBadge, type Screen } from './screens'
+import { localPlayer } from '../game/players'
 
 /**
  * The two picks evolutions bring (`game/game.ts`): where a branching
@@ -84,7 +85,7 @@ const pickNav = (input: Input, cards: HTMLElement[], onPick: (i: number) => void
 const branchCard = (g: Game, offer: Extract<Offer, { kind: 'form' }>, i: number) => {
   const m = t()
   const def: BranchDef = BRANCHES[offer.id]
-  const special = resolveSpecial(g.starter, def.stage, null, offer.id)
+  const special = resolveSpecial(localPlayer(g).starter, def.stage, null, offer.id)
   const own: Partial<Record<BranchId, AbilitySet>> = BRANCH_ABILITIES
   const abilities = own[offer.id]
   const item = offer.favor === 'item' ? evoItemFor(offer.id) : null
@@ -103,7 +104,7 @@ const branchCard = (g: Game, offer: Extract<Offer, { kind: 'form' }>, i: number)
     h('span', { class: 'offer-key' }, i + 1),
     favor && h('span', { class: 'evo-card-favor' }, h('img', { src: sparkleIcon(), alt: '' }), m.branch.favored(favor)),
     item && h('span', { class: 'evo-card-favor item' }, shopIcon(item), m.branch.unlocked(EVO_ITEMS[item].name)),
-    h('div', { class: 'evo-card-art' }, h('img', { class: 'evo-card-portrait', src: portraitUrl(def.dex, g.player.shiny), alt: '' })),
+    h('div', { class: 'evo-card-art' }, h('img', { class: 'evo-card-portrait', src: portraitUrl(def.dex, localPlayer(g).shiny), alt: '' })),
     h('div', { class: 'evo-card-name' }, def.name),
     h('div', { class: 'types' }, ...def.types.map(typeBadge)),
     h('div', { class: 'evo-card-stats' }, ...statLines(def.bonus).map((line) => h('span', {}, line))),
@@ -121,9 +122,9 @@ const branchCard = (g: Game, offer: Extract<Offer, { kind: 'form' }>, i: number)
 /** Where a branching evolution goes: a card per option, with what it changes. */
 export const branchPick = (root: HTMLElement, input: Input, g: Game, onChoose: (offer: Offer) => void): Screen => {
   const m = t()
-  const cards = g.offers.map((offer, i) => (offer.kind === 'form' ? branchCard(g, offer, i) : h('span')))
+  const cards = localPlayer(g).offers.map((offer, i) => (offer.kind === 'form' ? branchCard(g, offer, i) : h('span')))
   const off = pickNav(input, cards, (i) => {
-    const offer = g.offers[i]
+    const offer = localPlayer(g).offers[i]
     if (offer) onChoose(offer)
   })
   const el = h(
@@ -157,9 +158,9 @@ const abilityCard = (id: AbilityId, hidden: boolean, i: number) => {
 /** The ability the first evolution awakens: three cards, the Hidden one in its own frame. */
 export const abilityPick = (root: HTMLElement, input: Input, g: Game, onChoose: (offer: Offer) => void): Screen => {
   const m = t()
-  const cards = g.offers.map((offer, i) => (offer.kind === 'ability' ? abilityCard(offer.id, offer.hidden, i) : h('span')))
+  const cards = localPlayer(g).offers.map((offer, i) => (offer.kind === 'ability' ? abilityCard(offer.id, offer.hidden, i) : h('span')))
   const off = pickNav(input, cards, (i) => {
-    const offer = g.offers[i]
+    const offer = localPlayer(g).offers[i]
     if (offer) onChoose(offer)
   })
   const form = playerForm(g)
@@ -169,7 +170,7 @@ export const abilityPick = (root: HTMLElement, input: Input, g: Game, onChoose: 
     h(
       'div',
       { class: 'evo-pick-head' },
-      h('img', { class: 'ability-pick-portrait', src: portraitUrl(form.dex, g.player.shiny), alt: '' }),
+      h('img', { class: 'ability-pick-portrait', src: portraitUrl(form.dex, localPlayer(g).shiny), alt: '' }),
       h('div', {}, h('div', { class: 'evo-pick-title' }, m.ability.title(form.name)), h('p', { class: 'evo-pick-sub' }, m.ability.subtitle)),
     ),
     h('div', { class: 'ability-cards' }, ...cards),

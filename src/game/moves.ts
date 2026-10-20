@@ -9,6 +9,7 @@ import {
   CHAIN_JUMP, CHAIN_RANGE, chainDamage, chainTargets, HEX_BONUS, LUNGE_IFRAMES, LUNGE_MIN_COOLDOWN, LUNGE_OVERSHOOT,
   LUNGE_SEEK, LUNGE_TIME, lungeLength, lungeTarget, mineCap,
 } from './moveRules'
+import { ownAttack } from './players'
 import type { Attack, Enemy, Game, OwnedMove, Visual } from './types'
 import type { PlayerStats } from './stats'
 import { modBits, modHit, refreshMods, type ModId } from './mods'
@@ -217,7 +218,7 @@ const chain = (g: Game, s: CastStats, look: Look, bonus: readonly DamageBonus[] 
 const mine = (g: Game, s: CastStats, look: Look, blastVisual: Visual) => {
   const p = g.player
   const mines: Attack[] = []
-  for (const a of g.attacks) if (a.move === look.move && a.blast > 0 && a.pierce > 0) mines.push(a)
+  for (const a of g.attacks) if (ownAttack(g, a) && a.move === look.move && a.blast > 0 && a.pierce > 0) mines.push(a)
   // Attacks stay in spawn order, so the first ones are the oldest: they expire now.
   const extra = mines.length + s.amount - mineCap(s.amount)
   for (let i = 0; i < extra && i < mines.length; i++) mines[i]!.ttl = mines[i]!.age
@@ -407,7 +408,7 @@ export const MOVES = {
     // Persistent aura: each "cast" refreshes the single live hitbox with current stats.
     fire: (g, s) => {
       const radius = 34 * s.area
-      const aura = g.attacks.find((a) => a.move === 'whirlpool')
+      const aura = g.attacks.find((a) => ownAttack(g, a) && a.move === 'whirlpool')
       if (aura) {
         aura.shape = { kind: 'circle', r: radius }
         aura.damage = s.damage

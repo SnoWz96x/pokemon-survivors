@@ -9,6 +9,7 @@ import { mineArmed, mineBlast, TURRET_RANGE } from './moveRules'
 import { nearestEnemy } from './queries'
 import { spawnAttack } from './spawn'
 import { typeEvolvedTrail } from './typeEvolutions'
+import { ownerOf } from './players'
 import type { Attack, Enemy, Game, Motion, Trailer, Turret } from './types'
 import * as dm from '../engine/dmath'
 
@@ -274,20 +275,23 @@ const landsAt = (a: Attack) => (a.activeFrom === Infinity ? 0 : a.activeFrom)
 /** Motions that fly free of the player: a boss's time stop (`timeStop`) holds these still in mid-air. */
 const FLYING: ReadonlySet<Motion['kind']> = new Set(['linear', 'homing', 'boomerang', 'drift', 'return'])
 
-/** Whether the fight's boss holds the player's shots still now (Dialga's Roar of Time). */
+/** Whether the fight's boss holds the players' shots still now (Dialga's Roar of Time). */
 const shotsHeld = (g: Game) => {
   if (g.bossId === null) return false
   const boss = g.enemies.find((e) => e.id === g.bossId)
   return boss !== undefined && boss.dying < 0 && holdsShots(boss.fight)
 }
 
+/** Moves every hitbox and lands its hits, each as the player who cast it (`Attack.owner`). */
 export const updateAttacks = (g: Game, dt: number) => {
   const held = shotsHeld(g)
+  const actor = g.player
   for (const a of g.attacks) {
     // Held in a time stop: it neither moves, ages nor hits until time flows again.
     if (held && a.age >= 0 && FLYING.has(a.motion.kind)) continue
     a.age += dt
     if (a.age < 0) continue
+    g.player = ownerOf(g, a.owner)
     move(g, a, a.motion, dt)
     if (a.grow > 0 && a.shape.kind === 'circle') a.shape = { kind: 'circle', r: a.shape.r + a.grow * dt }
     trail(g, a)
@@ -301,5 +305,6 @@ export const updateAttacks = (g: Game, dt: number) => {
     if (active && (a.blast === 0 || mineArmed(a.age))) collide(g, a)
     if (a.blast > 0 && a.pierce > 0 && a.age >= a.ttl) detonate(g, a, true)
   }
+  g.player = actor
   retain(g.attacks, (a) => a.age < a.ttl && a.pierce > 0)
 }

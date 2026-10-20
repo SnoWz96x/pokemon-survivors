@@ -45,14 +45,14 @@ const beat = (g: Game, a: Attack, s: CastStats, owned: OwnedMove) => {
       shape: { kind: 'circle', r }, motion: { kind: 'static' }, damage: 0, ttl: WEATHER_CALL.fall, activeFrom: Infinity, mod: null,
     })
     // The hit carries the fork's mods, like a cast's (`castMods`).
-    const before = g.castMods
-    g.castMods = s.mods
+    const before = g.player.castMods
+    g.player.castMods = s.mods
     spawnAttack(g, {
       move: owned.id, type: def.type, visual, x: e.x, y: e.y - e.radius,
       shape: { kind: 'circle', r }, motion: { kind: 'static' },
       damage: s.damage, knockback: s.knockback, age: -WEATHER_CALL.fall, ttl: WEATHER_CALL.linger, activeUntil: 0.08,
     })
-    g.castMods = before
+    g.player.castMods = before
   }
   // Scorching Sun: the foes standing in the sun-lit ring catch fire.
   if (owned.id === 'sunnyDay' && took(owned, 4, 1)) {

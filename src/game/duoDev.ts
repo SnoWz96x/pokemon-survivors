@@ -8,6 +8,7 @@ import { decideCurse } from './curseSystem'
 import { advancePhase } from './game'
 import { applyOffer } from './leveling'
 import { maxMoveLevel, MOVE_IDS, MOVES } from './moves'
+import { setPhase } from './players'
 import type { Game } from './types'
 
 /** The first plain base move of a type (no duo, no evolved one), to stage a recipe. */
@@ -39,13 +40,13 @@ export const duoDevTools = (game: () => Game | undefined) => ({
       if (owned) owned.level = Math.max(owned.level, maxMoveLevel(move))
       else p.moves.push({ id: move, level: maxMoveLevel(move), cooldown: 0 })
     }
-    const ready = readyDuos(p.moves, legendSignature(g.starter)).find((d) => d.to === id) ?? readyDuos(p.moves, legendSignature(g.starter))[0]
+    const ready = readyDuos(p.moves, legendSignature(g.player.starter)).find((d) => d.to === id) ?? readyDuos(p.moves, legendSignature(g.player.starter))[0]
     if (!ready) return console.warn('ps: no fusion ready (one duo per run: already fused one?)')
     // Fused on the spot, it's the duo asked for even when the recipe would make its twin (Flare and Bolt).
     if (when === 'now') applyOffer(g, { kind: 'duo', from: ready.from, to: id })
     else if (g.phase === 'playing') {
       g.player.level++
-      g.pendingLevelUps++
+      g.player.pendingLevelUps++
       advancePhase(g)
     }
     return p.moves.map((m) => `${m.id}:${m.level}`)
@@ -53,12 +54,12 @@ export const duoDevTools = (game: () => Game | undefined) => ({
   curse: (id?: CurseId, when: 'chest' | 'take' = 'chest') => {
     const g = game()
     if (!g) return console.warn('ps: start a run first')
-    const pick = id ?? CURSE_IDS.find((c) => !g.curses.held.includes(c))
+    const pick = id ?? CURSE_IDS.find((c) => !g.player.curses.held.includes(c))
     if (!pick || !CURSE_IDS.includes(pick)) return console.warn(`ps: cursed items: ${CURSE_IDS.join(', ')}`)
     if (when === 'take') return decideCurse(g, pick, true)
     if (g.phase !== 'playing') return console.warn('ps: close menus first')
-    g.phase = 'curse'
-    g.offers = [{ kind: 'curse', id: pick, take: true }, { kind: 'curse', id: pick, take: false }]
+    setPhase(g, 'curse')
+    g.player.offers = [{ kind: 'curse', id: pick, take: true }, { kind: 'curse', id: pick, take: false }]
     g.events.push({ kind: 'curse', id: pick, moment: 'found' })
   },
 })

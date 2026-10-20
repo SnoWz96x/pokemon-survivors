@@ -7,6 +7,7 @@ import type { Attack, Game } from '../game/types'
 import { EGG3_FX } from './eggMove3Art'
 import { sprites } from './sprites'
 import { dashedRing } from './strokes'
+import { localPlayer } from '../game/players'
 
 /**
  * Visuals of the third batch of egg signatures (`game/eggMoves3.ts`). Both
@@ -499,7 +500,7 @@ export const egg3PlayerLook = (g: Game) => {
 
 /** The might boost (red arrows rising, like a stat raise), Fury Swipes' frenzy (an anger mark) and Avalanche's payback (snowflakes). */
 export const drawEgg3Player = (ctx: Ctx, g: Game, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const boosted = p.moveBuffs.some((b) => b.move === 'fieryDance' || b.move === 'chargeBeam')
   const frenzy = p.moves.find((m) => m.id === 'furySwipes')?.stacks ?? 0
   const payback = (p.moves.find((m) => m.id === 'avalanche')?.stacks ?? 0) > 0

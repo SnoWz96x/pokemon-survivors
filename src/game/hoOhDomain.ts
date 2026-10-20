@@ -2,6 +2,7 @@ import { range } from '../engine/rng'
 import { HO_OH_DOMAIN } from '../data/domains/hoOh'
 import { spawnHazard } from './bosses'
 import type { DomainHooks } from './domainHooks'
+import { anchorPlayer } from './players'
 import { burst } from './effects'
 
 /**
@@ -34,7 +35,8 @@ export const HO_OH_HOOKS: DomainHooks = {
     d.memo[1] = (d.memo[1] ?? 0) + 1
     let fires = 0
     for (const h of g.hazards) if (h.kind === 'zone' && h.visual === 'fire') fires++
-    const p = g.player
+    // Aimed at a player: they take turns (`anchorPlayer`).
+    const p = anchorPlayer(g)
     // Every other beam falls in the hall ahead instead, so the fire spreads up the tower.
     const ahead = d.memo[1] % 2 === 0
     const x = ahead ? p.x + range(g.rng, -60, 60) : p.x + p.vx * HO_OH_FALL.lead

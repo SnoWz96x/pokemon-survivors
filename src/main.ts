@@ -105,7 +105,7 @@ import { playsShiny } from './game/shinyPicks'
 import { canWalkWith, companionForm, isSupporter, SUPPORTER_TIERS, TIER_GIFTS, type CompanionId, type SupporterTier } from './game/supporters'
 import { createCompanion, stepCompanion, type CompanionView } from './render/companion'
 import { MOVES } from './game/moves'
-import type { Game, GameEvent, Offer, Phase } from './game/types'
+import type { Game, GameEvent, Offer, Phase, Player } from './game/types'
 import { setWeather } from './game/weather'
 import { render, warmScenery } from './render/draw'
 import { createGovernor, detail, observeFrame } from './render/quality'
@@ -160,6 +160,7 @@ import { creditsLine, supportersScreen } from './ui/supporters'
 import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, tickToasts, toast } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
+import { localPlayer, phaseOf } from './game/players'
 
 /** Fixed simulation step: the replays the ranking re-simulates count on it. */
 const STEP = TICK
@@ -237,7 +238,7 @@ type Run = {
   hud: Hud
   overlay: Screen | null
   /** Phase + offers snapshot the overlay was built for. */
-  shown: { phase: Phase; offers: Game['offers'] } | null
+  shown: { phase: Phase; offers: Player['offers'] } | null
   closeText: (() => void) | null
   /** ₽ of this run already in the wallet: a victory banks right away and again if the run goes on endless. */
   paid: number
@@ -381,7 +382,7 @@ const queueMega = () => {
 }
 
 /** The player's name right now: its stage's, or its Mega form's while that lasts. */
-const playerName = (g: Game) => (g.mega.active > 0 && heldMega(g)?.name) || playerForm(g).name
+const playerName = (g: Game) => (localPlayer(g).mega.active > 0 && heldMega(g)?.name) || playerForm(g).name
 
 /** Classes every screen shares, which say nothing about which one it is. */
 const SCREEN_CLASSES = new Set(['screen', 'shell', 'dim', 'pop', 'hidden'])
@@ -411,11 +412,11 @@ describeWith(() => {
     view,
     perf,
     run: {
-      partner: g.starter,
+      partner: localPlayer(g).starter,
       form: playerName(g),
       difficulty: g.difficulty,
       time: Math.floor(g.time),
-      level: g.player.level,
+      level: localPlayer(g).level,
       phase: g.phase,
       biome: g.biome.id,
       enemies: g.enemies.length,
@@ -428,7 +429,7 @@ describeWith(() => {
 })
 
 /** The player's cry right now: its Mega form's own while that lasts. */
-const playerCry = (g: Game) => cryUrl(playerDex(g), g.mega.active > 0 ? heldMega(g)?.form : undefined)
+const playerCry = (g: Game) => cryUrl(playerDex(g), localPlayer(g).mega.active > 0 ? heldMega(g)?.form : undefined)
 
 const queueSpecial = () => {
   unlockAudio()
@@ -613,7 +614,7 @@ const showGifts = () => {
 /** Moves the run's steps and new eggs into the incubator, once each (a victory banks, then endless banks again). */
 const bankHatchery = (r: Run) => {
   const g = r.game
-  const steps = toSteps(g.player.walked)
+  const steps = toSteps(localPlayer(g).walked)
   const fresh = g.eggs.found.slice(r.hatchery.eggs).map((e) => ({ tier: e.tier, steps: steps - toSteps(e.at) }))
   if (steps === r.hatchery.steps && fresh.length === 0) return
   const { converted } = bankEggs(steps - r.hatchery.steps, fresh)
@@ -678,20 +679,20 @@ const reportRun = (r: Run, faint: Extract<GameEvent, { kind: 'gameover' }> | nul
   if (r.reported) return
   r.reported = true
   const g = r.game
-  const p = g.player
+  const p = localPlayer(g)
   track('run_end', {
-    starter: g.starter,
+    starter: p.starter,
     difficulty: g.difficulty,
-    mode: runMode(g.starter),
+    mode: runMode(p.starter),
     outcome: g.endless ? 'endless' : g.phase === 'victory' || g.phase === 'gameover' ? g.phase : 'quit',
     minute: Math.floor(g.time / 60),
     level: p.level,
     kills: g.kills,
     stage: p.stage,
-    branch: g.branch,
-    ability: g.ability.id,
-    mega: g.mega.stone,
-    megas: g.mega.count,
+    branch: p.branch,
+    ability: p.ability.id,
+    mega: p.mega.stone,
+    megas: p.mega.count,
     moves: p.moves.map((m) => `${m.id}:${m.level}`),
     items: p.items.map((i) => `${i.id}:${i.level}`),
     bosses: g.tally.bossKills,
@@ -726,7 +727,7 @@ const errorContext = (): ErrorContext => {
   const r = run
   if (!r) return { in_run: false }
   const g = r.game
-  return { in_run: true, starter: g.starter, phase: g.phase, minute: Math.floor(g.time / 60), tick: r.recorder.tick, replay: JSON.stringify(r.recorder.replay) }
+  return { in_run: true, starter: localPlayer(g).starter, phase: g.phase, minute: Math.floor(g.time / 60), tick: r.recorder.tick, replay: JSON.stringify(r.recorder.replay) }
 }
 
 const endRun = () => {
@@ -906,12 +907,13 @@ const startRun = async (starter: PlayableId, daily: ChallengeRun | null = null) 
   }
   // Created like a replay is re-simulated (the roster drawn ahead is the same one).
   const game = startGame(start, view)
+  const me = localPlayer(game)
   // The 1/64 roll unlocks this Pokémon's shiny for good (Normal/Shiny on the select screen).
-  if (game.player.luckyShiny) updateSave((s) => ({ ...s, shinyStarters: unlockShinyStarter(s.shinyStarters, starter) }))
+  if (me.luckyShiny) updateSave((s) => ({ ...s, shinyStarters: unlockShinyStarter(s.shinyStarters, starter) }))
   // A shiny run must not start in normal colors.
-  if (game.player.shiny) await preloadShinies(familyDex(starter))
+  if (me.shiny) await preloadShinies(familyDex(starter))
   // Alternate forms (Aegislash's Blade Forme) stream in behind; until then the normal form stands in.
-  void preloadForms(familyDex(starter), game.player.shiny)
+  void preloadForms(familyDex(starter), me.shiny)
   loading.remove()
   run = {
     game,
@@ -936,7 +938,7 @@ const startRun = async (starter: PlayableId, daily: ChallengeRun | null = null) 
     rank: null,
     bestBefore: save.achievements.lifetime.bestTime,
     challenge: daily ? { day: daily.challenge.day, official: daily.official, attempt: false } : null,
-    companion: runCompanion(game.player),
+    companion: runCompanion(me),
     // The run's own roster: a legend's (`avoidLegend`) may have swapped a boss.
     sprites: { needs: castNeeds(game.roster, EXTRAS), always: [...familyDex(starter), playerDex(game), ENEMIES[plan.outbreak].dex] },
   }
@@ -1007,39 +1009,42 @@ const runSettings = (r: Run, back: () => void) => {
   })
 }
 
-/** Rebuilds the modal overlay whenever the simulation phase (or offer set) changes. */
+/** Rebuilds the modal overlay whenever the simulation phase (or this player's offer set) changes. */
 const syncOverlay = (r: Run) => {
   const g = r.game
-  if (r.shown?.phase === g.phase && r.shown.offers === g.offers) return
+  const me = localPlayer(g)
+  // This player's own pick screen while the world waits on picks; the world's phase otherwise.
+  const phase = phaseOf(g, me)
+  if (r.shown?.phase === phase && r.shown.offers === me.offers) return
   r.overlay?.dispose()
   r.overlay = null
-  r.shown = { phase: g.phase, offers: g.offers }
-  r.hud.setMenuOpen(g.phase !== 'playing' && g.phase !== 'evolving')
-  switch (g.phase) {
+  r.shown = { phase, offers: me.offers }
+  r.hud.setMenuOpen(phase !== 'playing' && phase !== 'evolving')
+  switch (phase) {
     case 'levelup':
-      r.overlay = levelUp(ui, input, g, (offer) => (recordEvent(r.recorder, ['offer', g.offers.indexOf(offer)]), chooseOffer(g, offer)), {
+      r.overlay = levelUp(ui, input, g, (offer) => (recordEvent(r.recorder, ['offer', me.offers.indexOf(offer)]), chooseOffer(g, offer)), {
         reroll: () => (recordEvent(r.recorder, ['reroll']), rerollOffers(g)),
         skip: () => (recordEvent(r.recorder, ['skip']), skipLevelUp(g)),
         banish: (i) => (recordEvent(r.recorder, ['banish', i]), banishOffer(g, i)),
       })
       break
     case 'branch':
-      r.overlay = branchPick(ui, input, g, (offer) => (recordEvent(r.recorder, ['offer', g.offers.indexOf(offer)]), chooseOffer(g, offer)))
+      r.overlay = branchPick(ui, input, g, (offer) => (recordEvent(r.recorder, ['offer', me.offers.indexOf(offer)]), chooseOffer(g, offer)))
       break
     case 'ability':
-      r.overlay = abilityPick(ui, input, g, (offer) => (recordEvent(r.recorder, ['offer', g.offers.indexOf(offer)]), chooseOffer(g, offer)))
+      r.overlay = abilityPick(ui, input, g, (offer) => (recordEvent(r.recorder, ['offer', me.offers.indexOf(offer)]), chooseOffer(g, offer)))
       break
     case 'tm': {
-      const choose = (offer: Offer) => (recordEvent(r.recorder, ['offer', g.offers.indexOf(offer)]), chooseOffer(g, offer))
+      const choose = (offer: Offer) => (recordEvent(r.recorder, ['offer', me.offers.indexOf(offer)]), chooseOffer(g, offer))
       // A TM raising an owned move to a fork shows the fork's two branches, as a level-up would.
-      r.overlay = g.offers.some((o) => o.kind === 'branch') ? levelUp(ui, input, g, choose) : tmPick(ui, input, g, choose)
+      r.overlay = me.offers.some((o) => o.kind === 'branch') ? levelUp(ui, input, g, choose) : tmPick(ui, input, g, choose)
       break
     }
     case 'curse':
-      r.overlay = cursePick(ui, input, g, (offer) => (recordEvent(r.recorder, ['offer', g.offers.indexOf(offer)]), chooseOffer(g, offer)))
+      r.overlay = cursePick(ui, input, g, (offer) => (recordEvent(r.recorder, ['offer', me.offers.indexOf(offer)]), chooseOffer(g, offer)))
       break
     case 'pokeball':
-      r.overlay = pokeballPick(ui, input, g, (offer) => (recordEvent(r.recorder, ['offer', g.offers.indexOf(offer)]), chooseOffer(g, offer)))
+      r.overlay = pokeballPick(ui, input, g, (offer) => (recordEvent(r.recorder, ['offer', me.offers.indexOf(offer)]), chooseOffer(g, offer)))
       break
     case 'paused':
       r.overlay = pauseMenu(ui, input, g, {
@@ -1068,11 +1073,11 @@ const syncOverlay = (r: Run) => {
           eggs: { converted: r.convertedEggs, ready: loadSave().eggs.filter(isReady).length },
           news: dexNews(r.dexBase, g.dexLog),
           ranking: rankingEnabled
-            ? { panel: rankPanel(r.rank, r.challenge !== null, runMode(g.starter)), open: (back) => rankingScreen(ui, input, back, { difficulty: g.difficulty, mode: runMode(g.starter), challenge: r.challenge !== null }) }
+            ? { panel: rankPanel(r.rank, r.challenge !== null, runMode(me.starter)), open: (back) => rankingScreen(ui, input, back, { difficulty: g.difficulty, mode: runMode(me.starter), challenge: r.challenge !== null }) }
             : null,
           share: {
             open: (back) => sharePreview(ui, input, runShare(g, r.dexBase, r.challenge && r.rank ? r.rank.then((o) => (o.kind === 'ranked' ? o.challenge : null)) : null), back),
-            glow: g.player.shiny || g.dexLog.shinies.size > 0 || wonRun(g) || g.time > r.bestBefore,
+            glow: me.shiny || g.dexLog.shinies.size > 0 || wonRun(g) || g.time > r.bestBefore,
           },
           credits: g.phase === 'victory' && rankingEnabled ? creditsLine() : null,
         },
@@ -1083,7 +1088,7 @@ const syncOverlay = (r: Run) => {
 
 /** Level-ups that took the Oran Berry on their own (`takeBerryLevelUps`): the level reached and how many at once. */
 const berryToast = (g: Game, count: number) =>
-  toast(ui, h('span', { class: 'item-toast' }, h('img', { src: berryIcon(), alt: '' }), rich(t().levelUp.autoBerry(g.player.level, count))), 2200, 'autoBerry')
+  toast(ui, h('span', { class: 'item-toast' }, h('img', { src: berryIcon(), alt: '' }), rich(t().levelUp.autoBerry(localPlayer(g).level, count))), 2200, 'autoBerry')
 
 /** An evolution item's toast: its icon, a line and a hint under it. */
 const evoItemToast = (items: readonly EvoItemId[], line: string, hint: string, key: string) =>
@@ -1091,10 +1096,11 @@ const evoItemToast = (items: readonly EvoItemId[], line: string, hint: string, k
 
 /** After a branching evolution: the paths it left closed for lack of an item, with their items' icons (none: no toast). */
 const closedPathsToast = (g: Game) => {
-  const branch = g.branch
-  if (!branch || !branchesAt(g.starter, g.player.stage).includes(branch)) return
+  const me = localPlayer(g)
+  const branch = me.branch
+  if (!branch || !branchesAt(me.starter, me.stage).includes(branch)) return
   const held = runEvoItems(g)
-  const missing = branchesAt(g.starter, g.player.stage).flatMap((b) => {
+  const missing = branchesAt(me.starter, me.stage).flatMap((b) => {
     const item = branchNeeds(b)
     return b !== branch && item && !held.includes(item) ? [item] : []
   })
@@ -1105,7 +1111,8 @@ const closedPathsToast = (g: Game) => {
 
 /** After an evolution: what the new form can learn now (`unlockedAt`), each move with its icon. */
 const learnsToast = (g: Game) => {
-  const moves = unlockedAt(g.starter, g.branch, g.player.stage)
+  const me = localPlayer(g)
+  const moves = unlockedAt(me.starter, me.branch, me.stage)
   if (moves.length === 0) return
   const chips = moves.map((id) => h('span', { class: 'learn-move', style: `--type:${TYPE_COLORS[MOVES[id].type]}` }, h('img', { src: moveIcon(id), alt: '' }), MOVES[id].name))
   toast(ui, h('span', { class: 'learn-toast' }, h('span', {}, t().toast.learns(playerForm(g).name)), h('span', { class: 'learn-moves' }, ...chips)), 5000, 'learns')
@@ -1134,7 +1141,7 @@ const abilityFeedback = (g: Game, id: AbilityId, moment: 'picked' | 'proc') => {
     return toast(ui, icon(m.stack(name, abilityStacks(g))), 2200, 'ability')
   }
   if (kind === 'moody') {
-    const mood = m.moods[g.ability.mood]
+    const mood = m.moods[localPlayer(g).ability.mood]
     return mood && toast(ui, icon(m.mood(name, mood)), 1800, 'ability')
   }
   if (kind === 'timer') playSfx('item')
@@ -1217,15 +1224,16 @@ const handleEvent = (r: Run, e: GameEvent) => {
       return toast(ui, rich(t().toast.used(playerName(g), e.name)), 1600, 'special')
     }
     case 'megaChoice': {
-      const [a, b] = megasOf(g.starter).map((id) => MEGAS[id].stone)
+      const [a, b] = megasOf(localPlayer(g).starter).map((id) => MEGAS[id].stone)
       playSfx('unlock')
       return a && b && toast(ui, rich(t().mega.choose(a, b)), 4200, 'mega')
     }
     case 'megaStone': {
       const def = heldMega(g)
       if (!def) return
-      const line = PLAYABLE[g.starter].line
-      const final = g.player.stage >= line.length - 1
+      const me = localPlayer(g)
+      const line = PLAYABLE[me.starter].line
+      const final = me.stage >= line.length - 1
       playSfx('unlock')
       return toast(
         ui,
@@ -1265,7 +1273,7 @@ const handleEvent = (r: Run, e: GameEvent) => {
         playCry(sprites(def.dex).cry, 0.7)
         flashScreen(ui)
         // A legend meets its dark Clone (`isClone`), never itself.
-        return banner(ui, rich(t().toast.legendary(g.legend?.id === e.enemy ? t().legend.clone(def.name) : def.name)))
+        return banner(ui, rich(t().toast.legendary(localPlayer(g).legend?.id === e.enemy ? t().legend.clone(def.name) : def.name)))
       }
       playSfx('boss')
       playCry(sprites(def.dex).cry, 0.5)
@@ -1311,7 +1319,7 @@ const handleEvent = (r: Run, e: GameEvent) => {
     }
     case 'shinyPlayer': {
       playSfx('shiny')
-      return toast(ui, rich(t().toast.shinyPlayer(PLAYABLE[g.starter].name)), 3600)
+      return toast(ui, rich(t().toast.shinyPlayer(PLAYABLE[localPlayer(g).starter].name)), 3600)
     }
     case 'branchChoice':
       playCry(playerCry(g), 0.6)
@@ -1335,7 +1343,7 @@ const handleEvent = (r: Run, e: GameEvent) => {
       playCry(cryUrl(playerDex(g), e.form ?? undefined))
       r.closeText?.()
       r.closeText = null
-      const name = PLAYABLE[g.starter].name
+      const name = PLAYABLE[localPlayer(g).starter].name
       return toast(ui, rich(e.form ? t().legend.awakenedForm(name, playerForm(g).name) : t().legend.awakened(name)), 3500)
     }
     // Banked toward capturing it right away (`ui/capture.ts`), so the capture scene reads it.
@@ -1353,9 +1361,10 @@ const handleEvent = (r: Run, e: GameEvent) => {
       r.closeText?.()
       r.closeText = null
       // The Trainer Card wears the branch this family took last.
-      const branch = g.branch
-      if (branch) updateSave((s) => ({ ...s, branches: { ...s.branches, [g.starter]: branch } }))
-      toast(ui, t().toast.evolved(formAt(g.starter, g.branch, g.player.stage - 1).name, playerForm(g).name), 3500)
+      const me = localPlayer(g)
+      const branch = me.branch
+      if (branch) updateSave((s) => ({ ...s, branches: { ...s.branches, [me.starter]: branch } }))
+      toast(ui, t().toast.evolved(formAt(me.starter, me.branch, me.stage - 1).name, playerForm(g).name), 3500)
       learnsToast(g)
       return closedPathsToast(g)
     }
@@ -1753,7 +1762,7 @@ const frame = (now: number) => {
       tickToasts(ui, dt, g.phase !== 'playing')
       // Redraw only when the simulation advanced: halves the work on 120 Hz phones and
       // idles the GPU while a menu is open over a frozen frame.
-      if (r.companion && steps > 0) stepCompanion(r.companion, g.player, steps * STEP)
+      if (r.companion && steps > 0) stepCompanion(r.companion, localPlayer(g), steps * STEP)
       if (steps > 0 || dirty) {
         dirty = false
         render(ctx, g, t, { ...settings(), companion: r.companion })
@@ -1962,14 +1971,14 @@ boot()
 /** Dev: places a map event `dx`, `dy` px from the player, e.g. `ps.event('chest')`. */
 const devEvent = (kind: MapEventKind, dx = 70, dy = 0) => {
   if (!run || !MAP_EVENT_KINDS.includes(kind)) return `Kinds: ${MAP_EVENT_KINDS.join(', ')}`
-  const p = run.game.player
+  const p = localPlayer(run.game)
   return spawnMapEvent(run.game, kind, Math.round(p.x + dx), Math.round(p.y + dy))
 }
 
 /** Dev: starts a field mission of `kind` about `dx` px to the right of the player, e.g. `ps.field('defense')`. */
 const devField = (kind: FieldMissionKind = 'defense', dx = 120) => {
   if (!run || !FIELD_MISSION_KINDS.includes(kind)) return `Kinds: ${FIELD_MISSION_KINDS.join(', ')}`
-  const p = run.game.player
+  const p = localPlayer(run.game)
   return spawnMapEvent(run.game, kind, Math.round(p.x + dx), Math.round(p.y))
 }
 
@@ -1978,7 +1987,7 @@ const devField = (kind: FieldMissionKind = 'defense', dx = 120) => {
 const devSpawn = (kind: EnemyId, count = 1, shiny = false) => {
   const g = run?.game
   if (!g) return
-  const p = g.player
+  const p = localPlayer(g)
   const base = Math.atan2(p.facing.y, p.facing.x)
   for (let i = 0; i < count; i++) {
     const a = base + (i - (count - 1) / 2) * 0.35
@@ -1996,7 +2005,7 @@ const devAlpha = (kind?: EnemyId) => {
   if (!g) return 'ps: start a run first'
   const id = kind ?? pickAlpha(g.rng, g.roster.stages[stageIndexAt(g.time)] ?? [])
   if (!id) return 'ps: no species for an Alpha in this stage'
-  const p = g.player
+  const p = localPlayer(g)
   return spawnAlpha(g, id, p.x + p.facing.x * 120, p.y + p.facing.y * 120)
 }
 
@@ -2008,20 +2017,20 @@ const devAlpha = (kind?: EnemyId) => {
  */
 const devMega = (mode: 'now' | 'ready' | 'stone' = 'now', mega?: MegaId) => {
   const g = run?.game
-  const ids = g ? megasOf(g.starter) : []
+  const ids = g ? megasOf(localPlayer(g).starter) : []
   if (!g || !ids[0]) return `Start a run with a Mega line: ${MEGA_LINES.join(', ')}`
-  const p = g.player
+  const p = localPlayer(g)
   if (mode === 'stone') return dropMegaStones(g, p.x + 40, p.y)
-  if (mega && !ids.includes(mega)) return `${PLAYABLE[g.starter].name}'s Megas: ${ids.join(', ')}`
+  if (mega && !ids.includes(mega)) return `${PLAYABLE[localPlayer(g).starter].name}'s Megas: ${ids.join(', ')}`
   const pick = mega ?? ids[0]
   // A branch's Mega (Gallade's) needs its branch.
-  g.branch = MEGA_BRANCH[pick] ?? g.branch
-  p.stage = PLAYABLE[g.starter].line.length - 1
+  localPlayer(g).branch = MEGA_BRANCH[pick] ?? localPlayer(g).branch
+  p.stage = PLAYABLE[localPlayer(g).starter].line.length - 1
   p.radius = Math.max(6, Math.round(bodyOf(playerDex(g)).bodyW * 0.3))
   recomputeStats(g)
-  g.mega.stone = null
+  localPlayer(g).mega.stone = null
   grantStone(g, pick)
-  g.mega.charge = 0
+  localPlayer(g).mega.charge = 0
   if (mode === 'now') queueMega()
 }
 
@@ -2032,12 +2041,12 @@ const devMega = (mode: 'now' | 'ready' | 'stone' = 'now', mega?: MegaId) => {
 const devEvolve = (branch?: BranchId) => {
   const g = run?.game
   if (!g || g.phase !== 'playing') return 'Start a run (and close menus) first'
-  const stage = formAt(g.starter, g.branch, g.player.stage)
+  const stage = formAt(localPlayer(g).starter, localPlayer(g).branch, localPlayer(g).stage)
   if (stage.evolveAt === undefined) return 'Already at the final stage'
-  if (branch) g.branch = branch
-  g.player.level = Math.max(g.player.level, stage.evolveAt)
-  g.player.xp = 0
-  g.player.xpNext = xpFor(g.player.level)
+  if (branch) localPlayer(g).branch = branch
+  localPlayer(g).level = Math.max(localPlayer(g).level, stage.evolveAt)
+  localPlayer(g).xp = 0
+  localPlayer(g).xpNext = xpFor(localPlayer(g).level)
   advancePhase(g)
 }
 
@@ -2048,7 +2057,7 @@ const devAbility = (id?: AbilityId) => {
   if (!id) return offerAbilities(g)
   grantAbility(g, id)
   recomputeStats(g)
-  return g.ability
+  return localPlayer(g).ability
 }
 
 /** Dev: eggs and hatching, to stage the incubator and the hatching scene. */
@@ -2157,8 +2166,8 @@ const devOtherDevice = (coins = 1000, time = 754) => {
  */
 const devTerrain = (g: Game, kind: SolidKind | 'lake' = 'cliff', dy = 70) => {
   const C = TERRAIN.cell
-  const pcx = Math.floor(g.player.x / C)
-  const pcy = Math.floor(g.player.y / C)
+  const pcx = Math.floor(localPlayer(g).x / C)
+  const pcy = Math.floor(localPlayer(g).y / C)
   for (let r = 0; r < 30; r++) {
     for (let cy = pcy - r; cy <= pcy + r; cy++) {
       for (let cx = pcx - r; cx <= pcx + r; cx++) {
@@ -2166,9 +2175,9 @@ const devTerrain = (g: Game, kind: SolidKind | 'lake' = 'cliff', dy = 70) => {
         const f = featureAt(g.terrain.seed, cx, cy)
         const spot = kind === 'lake' ? f?.lake : f?.solids.find((s) => s.kind === kind)
         if (!spot) continue
-        const at = clearSpot(g, { x: spot.x, y: spot.y + dy }, g.player.radius + 2)
-        g.player.x = at.x
-        g.player.y = at.y
+        const at = clearSpot(g, { x: spot.x, y: spot.y + dy }, localPlayer(g).radius + 2)
+        localPlayer(g).x = at.x
+        localPlayer(g).y = at.y
         return f
       }
     }
@@ -2320,7 +2329,7 @@ if (import.meta.env.DEV) {
       landmark: (id?: LandmarkId, dy?: number) => (run ? devLandmark(run.game, id, dy) : console.warn('ps: start a run first')),
       weather: (id: WeatherId) => withRun((g) => setWeather(g, id)),
       /** `ps.ball(3)` drops Poké Balls 20 px to the right of the player (inside the magnet), side by side. */
-      ball: (n = 1) => withRun((g) => Array.from({ length: n }, (_, i) => dropPickup(g, g.player.x + 20 + i * 6, g.player.y, 'pokeball'))),
+      ball: (n = 1) => withRun((g) => Array.from({ length: n }, (_, i) => dropPickup(g, localPlayer(g).x + 20 + i * 6, localPlayer(g).y, 'pokeball'))),
       ...riftDevTools(() => run?.game),
       ...placeDevTools(() => run?.game),
       ...levelUpDevTools(() => run?.game),

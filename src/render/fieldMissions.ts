@@ -8,6 +8,7 @@ import { art, lazy, PICKUPS, SPARKLE, toIconUrl } from './art'
 import { drawPokemon, loadedSprites } from './sprites'
 import { dashedRing } from './strokes'
 import { HURT_TINT } from './flashes'
+import { localPlayer } from '../game/players'
 
 /**
  * Field missions on the ground (the nest and its egg, the lost Poké Balls,
@@ -119,7 +120,7 @@ export const drawFieldMission = (ctx: Ctx, g: Game, ev: MissionEvent, t: number,
 /** Where a mission's arrow points: the nearest ball left, Togepi's nest once it follows, else the event. */
 export const missionSpot = (g: Game, ev: MissionEvent): Vec => {
   if (ev.kind === 'collect') {
-    const p = g.player
+    const p = localPlayer(g)
     let best: Vec = ev
     let d = Infinity
     for (const b of ev.state.balls) {

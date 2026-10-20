@@ -9,6 +9,7 @@ import { enemiesInView, isAlive, nearestEnemy } from './queries'
 import { spawnAttack } from './spawn'
 import type { StatusSpec } from './status'
 import { forkTargets, siblingStatus, TRI_ELEMENTS } from './evolvedRules'
+import { ownAttack } from './players'
 import type { Attack, Enemy, Game, Visual } from './types'
 import type { CastStats, MoveId } from './moves'
 import * as dm from '../engine/dmath'
@@ -57,7 +58,7 @@ const ornament = (g: Game, look: Look, ttl: number, oy: number, age = 0) =>
 
 /** Keeps one ornament of a kind alive while the move keeps casting, instead of stacking them. */
 const keepOrnament = (g: Game, look: Look, ttl: number, oy: number) => {
-  const live = g.attacks.find((a) => a.visual === look.visual && a.move === look.move)
+  const live = g.attacks.find((a) => ownAttack(g, a) && a.visual === look.visual && a.move === look.move)
   if (live) live.ttl = Math.max(live.ttl, live.age + ttl)
   else ornament(g, look, ttl, oy)
 }
@@ -400,7 +401,7 @@ export const castFlamethrower = (g: Game, s: CastStats) => {
 export const castBarbBarrage = (g: Game, s: CastStats) => {
   const p = g.player
   const mines: Attack[] = []
-  for (const a of g.attacks) if (a.move === 'barbBarrage' && a.blast > 0 && a.pierce > 0) mines.push(a)
+  for (const a of g.attacks) if (ownAttack(g, a) && a.move === 'barbBarrage' && a.blast > 0 && a.pierce > 0) mines.push(a)
   const extra = mines.length + s.amount - mineCap(s.amount)
   for (let i = 0; i < extra && i < mines.length; i++) mines[i]!.ttl = mines[i]!.age
   const spin = g.time * 1.3

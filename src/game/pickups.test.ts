@@ -3,6 +3,7 @@ import { chooseOffer, createGame } from './game'
 import { dropXp, MAX_XP_PICKUPS, pokeballAsks, updatePickups } from './pickups'
 import type { Game } from './types'
 import * as dm from '../engine/dmath'
+import { setPhase } from './players'
 
 const DT = 1 / 60
 
@@ -82,15 +83,15 @@ describe('Poké Ball prizes', () => {
   it('leave a new item behind on a pass, or put it in on a take', () => {
     const g = createGame('charmander', { w: 400, h: 240 }, 3)
     const ball = () => {
-      g.phase = 'pokeball'
-      g.offers = [{ kind: 'item', id: 'muscleBand', level: 1 }, { kind: 'pass' }]
+      setPhase(g, 'pokeball')
+      g.player.offers = [{ kind: 'item', id: 'muscleBand', level: 1 }, { kind: 'pass' }]
     }
     ball()
-    chooseOffer(g, g.offers[1]!)
+    chooseOffer(g, g.player.offers[1]!)
     expect(g.phase).toBe('playing')
     expect(g.player.items).toEqual([])
     ball()
-    chooseOffer(g, g.offers[0]!)
+    chooseOffer(g, g.player.offers[0]!)
     expect(g.player.items).toEqual([{ id: 'muscleBand', level: 1 }])
   })
 })
