@@ -19,7 +19,7 @@ import { xpTier } from '../game/pickups'
 import { isHeld } from '../game/status'
 import { inSolid, overTerrain, type Solid } from '../game/terrain'
 import { isAirborne, traitPace } from '../game/traits'
-import type { Attack, Enemy, Game, Hazard, Player } from '../game/types'
+import type { Attack, Enemy, Game, Hazard } from '../game/types'
 import { FX, HAZARD_FX, hostile, PICKUPS, SPARKLE, SPIT_FX } from './art'
 import { drawEvolvedAttack, drawEvolvedGround, drawFrost, drawPuff, drawShard } from './evolved'
 import { drawMapEventMarkers, drawMapEvents, markerInsets } from './mapEvents'
@@ -64,7 +64,7 @@ import { CALM_PERIOD, HURT_TINT, type Flashes } from './flashes'
 import { detail } from './quality'
 import { localPlayer } from '../game/players'
 import { riftDomain } from '../game/rift'
-import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, flushTeamAttacks, showsPlain, teamAttackLayer } from './team'
+import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, flushTeamAttacks, showsPlain, showsStanding, teamAttackLayer } from './team'
 
 type Ctx = CanvasRenderingContext2D
 
@@ -970,12 +970,15 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   const hidden = playerUnderground(g)
   for (const d of inDepth) {
     if (aloft) break
+    // A fainted co-op player's Poké Ball casts its own.
     if (d === 'player') {
       if (hidden) continue
-      const body = playerSprites(g).bodyW
-      shadow(ctx, localPlayer(g).x, localPlayer(g).y, body)
-      drawWading(ctx, g, body, t)
-      drawLegendAura(ctx, g, t, calm)
+      if (!g.coop || showsStanding(me)) {
+        const body = playerSprites(g).bodyW
+        shadow(ctx, localPlayer(g).x, localPlayer(g).y, body)
+        drawWading(ctx, g, body, t)
+        drawLegendAura(ctx, g, t, calm)
+      }
     }
     else if (d === 'companion') companion && shadow(ctx, companion.x, companion.y, sprites(companion.dex).bodyW)
     // Drawing lean, the regular horde goes without: a shadow each is a draw call each.
@@ -986,8 +989,8 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   }
   drawAfterimages(ctx, g, calm)
   for (const d of inDepth) {
-    // Co-op: a player fainted, away or wrapped up in a moment of their own draws its own way (`render/team.ts`).
-    if (d === 'player') !hidden && (g.coop && !showsPlain(me) ? drawTeammate(ctx, g, me, t, calm) : drawPlayer(ctx, g, calm))
+    // Co-op: a player fainted, away or wrapped up in a moment of their own draws its own way (`render/team.ts`); this one only when fainted (their screen says the rest).
+    if (d === 'player') !hidden && (g.coop && !showsStanding(me) ? drawTeammate(ctx, g, me, t, calm) : drawPlayer(ctx, g, calm))
     else if (d === 'companion') companion && drawCompanion(ctx, companion, t)
     else if (isMate(d)) showsPlain(localPlayer(d.mate)) ? drawPlayer(ctx, d.mate, calm) : drawTeammate(ctx, d.mate, localPlayer(d.mate), t, calm)
     else if (isSolid(d)) drawSolid(ctx, g, d, look)

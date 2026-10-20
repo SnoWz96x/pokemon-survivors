@@ -8,9 +8,10 @@ import type { Runner } from './runner'
  * screens holding it see it live) has
  * - this client as "the player" (`g.player`, `localPlayer`), drawn where the
  *   prediction puts it, with its hitboxes glued to it (auras, orbits) moved along;
- * - the drawn camera around it (or where a legendary's scene pans its screen)
- *   and the shell's own view size, while the
- *   simulation keeps its fixed 480×270 view for everyone;
+ * - the drawn camera around it (or where a legendary's scene pans its screen;
+ *   the shell's team camera, `render/teamCamera.ts`, moves it to a teammate
+ *   while this player lies fainted) and the shell's own view size, while the
+ *   simulation keeps its fixed view (`COOP.view`) for everyone;
  * - teammates and enemies between the last two ticks (`alpha`), so the world
  *   moves at the display's rate, 60 or 120 Hz, without stepping in jumps;
  * - each teammate as their own copy (`mates`), for the renderer to draw them.

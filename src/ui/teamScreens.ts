@@ -7,7 +7,7 @@ import { TYPE_COLORS } from '../data/types'
 import { formAt } from '../game/branch'
 import { coopPayout, coopStats, type PlayerStats } from '../game/coop'
 import { MOVES } from '../game/moves'
-import { phaseOf } from '../game/players'
+import { localPlayer, phaseOf } from '../game/players'
 import { resolveSpecial } from '../game/special'
 import type { DamageSource, Game, GameEvent, Player } from '../game/types'
 import { formatNumber, formatPokeDollars, locale, LOCALES, t } from '../i18n'
@@ -151,8 +151,14 @@ export const spectatorBanner = (root: HTMLElement, next: () => void) => {
 
 /* ---------------- The end: endless vote and results ---------------- */
 
-/** What the end screen does: vote on the endless offer (sent as a tick entry), play again with the same team, or back to the lobby. */
-export type EndActions = { vote: (endless: boolean) => void; playAgain: () => void; lobby: () => void }
+/** Where "Jogar de novo" stands: whether this player asked for it, and how many of the room's members online are ready. */
+export type AgainState = { asked: boolean; host: boolean; ready: number; total: number }
+
+/**
+ * What the end screen does: vote on the endless offer (sent as a tick entry),
+ * play again with the same team (`again` says how far that got), or back to the lobby.
+ */
+export type EndActions = { vote: (endless: boolean) => void; playAgain: () => void; lobby: () => void; again: () => AgainState }
 
 /** How long the end screen ignores confirms (the fight's last presses), as the solo results do. */
 const END_GUARD_MS = 900
@@ -295,6 +301,18 @@ const resultsView = (input: Input, g: Game, me: Player, actions: EndActions) => 
   const again = h('button', { class: 'btn confirm' }, m.playAgain)
   const lobby = h('button', { class: 'btn' }, m.lobby)
   const nav = menu(input, [again, lobby], (i) => (playSfx('select'), later(i === 0 ? actions.playAgain : actions.lobby)), { horizontal: true, guard: END_GUARD_MS })
+  // After "Jogar de novo": who's ready, and who starts it.
+  const status = h('p', { class: 'team-again hidden' })
+  let said = ''
+  const update = () => {
+    const a = actions.again()
+    again.classList.toggle('picked', a.asked)
+    const text = a.asked ? (a.host ? m.againHost(a.ready, a.total) : m.againGuest) : ''
+    if (text === said) return
+    said = text
+    status.classList.toggle('hidden', text === '')
+    setText(status, text)
+  }
   const joined = g.coop?.joined ?? g.players.length
   const el = h(
     'div',
@@ -312,8 +330,10 @@ const resultsView = (input: Input, g: Game, me: Player, actions: EndActions) => 
     h('div', { class: `team-grid n${stats.players.length}` }, ...stats.players.map((s, i) => resultCard(g, s, me, awards[i] ? names[awards[i]!] : null, stats.total.damage))),
     h('p', { class: 'team-split' }, h('img', { src: coinIcon(2), alt: '' }), m.split(formatPokeDollars(stats.coins), joined, formatPokeDollars(Math.floor(stats.coins / Math.max(1, joined))))),
     h('div', { class: 'buttons result-buttons' }, again, lobby),
+    status,
   )
-  return { el, dispose: () => nav.off() }
+  update()
+  return { el, update, dispose: () => nav.off() }
 }
 
 /**
@@ -365,5 +385,26 @@ export const teamFeedback = (root: HTMLElement, g: Game, me: Player, e: Extract<
       return playSfx('select')
     case 'voted':
       return playSfx(e.outcome === 'endless' ? 'evolve' : 'item')
+  }
+}
+
+/**
+ * A teammate's own big moments (`slot` pushed it), as a short toast with
+ * their face and name, quieter than the solo ones (their sounds stay
+ * theirs): an evolution, a Mega Evolution, a duo move.
+ */
+export const teamMoment = (root: HTMLElement, g: Game, slot: number, e: GameEvent) => {
+  const p = g.players[slot]
+  if (!p || p.slot === localPlayer(g).slot) return
+  const m = t().team.toast
+  const name = seatName(g, slot)
+  const say = (text: string) => toast(root, h('span', { class: 'item-toast team-moment' }, face(p), rich(text)), 3000)
+  switch (e.kind) {
+    case 'evolved':
+      return say(m.evolved(name, formAt(p.starter, p.branch, p.stage - 1).name, formAt(p.starter, p.branch, p.stage).name))
+    case 'mega':
+      return say(m.mega(name, e.name))
+    case 'duoFused':
+      return say(m.duo(name, MOVES[e.to].name))
   }
 }

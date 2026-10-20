@@ -39,11 +39,11 @@ const hpClass = (ratio: number) => (ratio > 0.5 ? 'hp-high' : ratio > 0.2 ? 'hp-
 /**
  * In-run heads-up display. `update` is called every frame and only touches what changed.
  * `onSpecial`, `onMega` and `onLunge` fire when the touch special, Mega and lunge buttons are pressed;
- * `onPause` backs the on-screen pause button (phones have no Esc key); `isHeld` (the input's)
+ * `onPause` backs the on-screen pause button (phones have no Esc key; `menu`: co-op's menu button); `isHeld` (the input's)
  * lights the desktop WASD keys. Hovering or holding a move slot opens its card (`withMoveCard`). Labels are
  * read at creation: rebuild the HUD after a language switch.
  */
-export const createHud = (root: HTMLElement, onSpecial: () => void, onMega: () => void, onLunge: () => void, onPause: () => void, isHeld: (code: string) => boolean) => {
+export const createHud = (root: HTMLElement, onSpecial: () => void, onMega: () => void, onLunge: () => void, onPause: () => void, isHeld: (code: string) => boolean, menu = false) => {
   const movePad = createMovePad(isHeld)
   const special = createSpecialControls(onSpecial)
   const mega = createMegaControls(onMega)
@@ -86,7 +86,10 @@ export const createHud = (root: HTMLElement, onSpecial: () => void, onMega: () =
   const abilityCount = h('span', { class: 'ability-tag-count' })
   const ability = h('span', { class: 'ability-tag hidden' }, abilityImg, abilityName, abilityCount)
   // pointerdown (not click) feels instant on touch and never steals keyboard focus.
-  const pause = h('button', { class: 'pause-btn box', 'aria-label': t().hud.pause }, h('span'), h('span'))
+  // Co-op (`menu`) has no pause: the button opens a menu over the run, three bars instead of two.
+  const pause = menu
+    ? h('button', { class: 'pause-btn menu-btn box', 'aria-label': t().team.menu.title }, h('span'), h('span'), h('span'))
+    : h('button', { class: 'pause-btn box', 'aria-label': t().hud.pause }, h('span'), h('span'))
   pause.addEventListener('pointerdown', (e) => {
     e.preventDefault()
     onPause()

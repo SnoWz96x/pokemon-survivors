@@ -218,17 +218,10 @@ export const pt = {
     syncing: 'Sincronizando…',
     joining: 'Entrando na partida…',
     healed: 'Partida ressincronizada com o time',
-    waiting: (s: number) => `Esperando o time escolher… ${s}s`,
     slow: 'Conexão lenta: alguns comandos atrasaram',
     room: (code: string) => `Sala ${code}`,
     lobby: (code: string, n: number) => `Sala ${code}: ${n} ${n === 1 ? 'treinador' : 'treinadores'}. Esperando o anfitrião começar.`,
     joined: (name: string) => `${name} entrou na sala`,
-    fainted: (name: string) => `${name} desmaiou! Fique perto para reanimar`,
-    revived: (name: string, by: string) => `${by} reanimou ${name}!`,
-    away: (name: string) => `${name} está ausente`,
-    back: (name: string) => `${name} voltou`,
-    left: (name: string) => `${name} saiu da partida`,
-    you: 'Você',
     closed: {
       replaced: 'A partida foi aberta em outra aba ou aparelho.',
       build: 'Atualize o jogo para jogar junto: a sala usa outra versão.',
@@ -245,20 +238,6 @@ export const pt = {
       abuse: 'Conexão encerrada por excesso de mensagens.',
       offline: 'Sem conexão com o servidor do co-op.',
     },
-    end: {
-      over: 'Fim da partida',
-      victory: 'Vitória do time!',
-      time: 'Tempo',
-      kills: 'Derrotados',
-      damage: 'Dano',
-      revives: 'Reanimações',
-      coins: (n: string) => `Sua parte: ${n}`,
-      endless: 'Continuar no modo infinito',
-      stop: 'Encerrar',
-      voted: 'Voto enviado. Esperando o time…',
-      back: 'Voltar',
-    },
-    leave: 'Sair da partida',
   },
 
   levelUp: {
@@ -4890,6 +4869,16 @@ export const pt = {
     watching: (name: string) => `Assistindo *${name}*`,
     nextKeys: 'Tab: trocar',
     nextTouch: 'Toque para trocar',
+    /** Co-op's menu (the HUD's button): the run goes on behind it. */
+    menu: {
+      title: 'MENU',
+      note: 'A partida continua enquanto o menu está aberto.',
+      sound: (on: boolean) => `Som: ${on ? 'ligado' : 'desligado'}`,
+      leave: 'Sair da partida',
+      confirm: 'Sair da partida? Seu Pokémon deixa o campo e você leva sua parte do ₽ até agora.',
+      yes: 'Sair',
+      no: 'Ficar',
+    },
     toast: {
       fainted: (name: string) => `*${name}* desmaiou! Fique ao lado da _Poké Ball_ para reviver.`,
       revived: (name: string, by: string) => `*${by}* reviveu *${name}*!`,
@@ -4897,6 +4886,10 @@ export const pt = {
       left: (name: string) => `*${name}* saiu da partida.`,
       away: (name: string) => `*${name}* está ausente.`,
       back: (name: string) => `*${name}* voltou!`,
+      /** A teammate's own big moments. */
+      evolved: (name: string, from: string, to: string) => `*${name}*: ${from} evoluiu para *${to}*!`,
+      mega: (name: string, form: string) => `*${name}* Mega Evoluiu em *${form}*!`,
+      duo: (name: string, move: string) => `*${name}* fundiu um golpe duplo: *${move}*!`,
     },
     vote: {
       title: 'A equipe venceu Mewtwo!',
@@ -4923,10 +4916,13 @@ export const pt = {
       split: (total: string, n: number, each: string) => `Equipe: ${total} ÷ ${n} = ${each} cada, mais o bônus de cada um`,
       payout: (share: string, bonus: string) => `${share} da equipe + ${bonus} de bônus`,
       left: 'Saiu',
+      /** After "Jogar de novo": the host starts it once everyone is ready; a guest waits on the host. */
+      againHost: (ready: number, total: number) => `Começa quando todos estiverem prontos (${ready}/${total})`,
+      againGuest: 'Pronto! Esperando o anfitrião começar…',
       playAgain: 'Jogar de novo',
       lobby: 'Voltar ao lobby',
-      /** Superlatives, one per player at most (`ui/teamAwards.ts`). */
-      awards: { damage: 'Mais dano', kills: 'Mais derrotas', revives: 'Anjo da guarda', untouched: 'Intocável', tank: 'Tanque', comeback: 'Fênix' },
+      /** Superlatives, a distinct one for every player (`ui/teamAwards.ts`): the outright ones, then fallbacks (survivor on). */
+      awards: { damage: 'Mais dano', kills: 'Mais derrotas', revives: 'Anjo da guarda', untouched: 'Intocável', tank: 'Tanque', comeback: 'Fênix', survivor: 'Sobrevivente', specialist: 'Especialista', collector: 'Colecionador', loyal: 'Parceiro fiel' },
     },
   },
 } satisfies ContentTexts & Record<string, unknown>

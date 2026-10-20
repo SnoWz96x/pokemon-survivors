@@ -93,25 +93,3 @@ export const updateTeamCamera = (cam: TeamCamera, g: Game, me: Player, w: number
   cam.y += (ty - cam.y) * k
   return cam
 }
-
-/**
- * Draws a frame from the shell's camera and view: `draw` runs with
- * `g.camera` and `g.view` swapped for them (co-op simulates one shared view,
- * every client draws its own) and both are put back right after.
- */
-export const drawFrom = (g: Game, cam: TeamCamera, view: { w: number; h: number }, draw: () => void) => {
-  const camera = g.camera
-  const simView = g.view
-  const x = camera.x
-  const y = camera.y
-  camera.x = cam.x
-  camera.y = cam.y
-  g.view = view
-  try {
-    draw()
-  } finally {
-    camera.x = x
-    camera.y = y
-    g.view = simView
-  }
-}

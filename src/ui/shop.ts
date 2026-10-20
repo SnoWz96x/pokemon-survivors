@@ -55,7 +55,7 @@ import { dialogue, type Dialogue, type DialogueLine } from './dialogue'
 import { h, later, setText } from './dom'
 import { emptyCounter, kecleonSpeaker, levelUpLine, pickTrigger, thanks, visitLine, weekdayOf, type VisitContext } from './kecleon'
 import { loadSave, today, vitrineToday, writeSave } from './save'
-import { hint, menu, type Screen } from './screens'
+import { confirmDialog, hint, menu, type Screen } from './screens'
 import { capPips, shopIcon, tmPicture } from './shopIcons'
 import { nearestInDirection, type Direction } from './spatial'
 
@@ -1139,17 +1139,6 @@ const DIRECTIONS: Readonly<Record<string, Direction>> = {
   KeyD: 'right',
 }
 
-/** Yes/no dialog over the panel. Defaults to "no" so a stray Enter is harmless. */
-const confirmDialog = (root: HTMLElement, input: Input, text: string, onAnswer: (yes: boolean) => void): Screen => {
-  const yes = h('button', { class: 'btn' }, t().mart.yes)
-  const no = h('button', { class: 'btn' }, t().mart.no)
-  const nav = menu(input, [yes, no], (i) => onAnswer(i === 0), { horizontal: true, initial: 1 })
-  const offEsc = input.onKey((k) => (k === 'Escape' || k === 'Backspace') && onAnswer(false))
-  const el = h('div', { class: 'screen dim shop-confirm' }, h('div', { class: 'dialog box pop' }, h('div', { class: 'dialog-title' }, text), h('div', { class: 'buttons' }, yes, no)))
-  root.append(el)
-  return { el, dispose: () => (nav.off(), offEsc(), el.remove()) }
-}
-
 /**
  * Opens the shop over the plaza. Kecleon says its line for this visit (or,
  * camouflaged, waits to be talked to and pops out first); the visit counts
@@ -1384,11 +1373,17 @@ export const shop = (root: HTMLElement, input: Input, opts: { close: () => void;
       const question = card.confirm?.(loadSave())
       if (question) {
         later(() => {
-          confirm = confirmDialog(root, input, question, (yes) => {
-            confirm?.dispose()
-            confirm = null
-            if (yes) commit(card)
-          })
+          confirm = confirmDialog(
+            root,
+            input,
+            question,
+            (yes) => {
+              confirm?.dispose()
+              confirm = null
+              if (yes) commit(card)
+            },
+            { class: 'shop-confirm' },
+          )
         })
         return
       }
@@ -1430,15 +1425,21 @@ export const shop = (root: HTMLElement, input: Input, opts: { close: () => void;
     const askRefund = () => {
       if (totalSpent(save.ranks) === 0 || confirm) return playSfx('denied')
       later(() => {
-        confirm = confirmDialog(root, input, t().mart.refundConfirm(formatPokeDollars(totalSpent(save.ranks))), (yes) => {
-          confirm?.dispose()
-          confirm = null
-          if (!yes) return
-          save = refundAll(loadSave())
-          writeSave(save)
-          playSfx('buy')
-          refresh()
-        })
+        confirm = confirmDialog(
+          root,
+          input,
+          t().mart.refundConfirm(formatPokeDollars(totalSpent(save.ranks))),
+          (yes) => {
+            confirm?.dispose()
+            confirm = null
+            if (!yes) return
+            save = refundAll(loadSave())
+            writeSave(save)
+            playSfx('buy')
+            refresh()
+          },
+          { class: 'shop-confirm' },
+        )
       })
     }
 

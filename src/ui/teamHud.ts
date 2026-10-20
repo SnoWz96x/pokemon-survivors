@@ -65,15 +65,17 @@ export const createTeamHud = (root: HTMLElement) => {
     return made
   }
 
-  /** In the HUD's flow right under its top bar, so it follows the bar's height on every screen; the HUD is rebuilt on a language switch. */
+  /** The HUD's top bar the cards sit under (null until the HUD exists: it's made after the team layer, and again on a language switch). */
+  let under: Element | null = null
+  /** In the HUD's flow right under its top bar, so it follows the bar's height on every screen. */
   const place = () => {
-    const row = root.querySelector('.hud .hud-row')
-    if (row) row.after(el)
-    else root.append(el)
+    under = root.querySelector('.hud .hud-row')
+    if (under) under.after(el)
+    else if (!el.isConnected) root.append(el)
   }
 
   const update = (g: Game, me: Player) => {
-    if (!el.isConnected) place()
+    if (!under?.isConnected) place()
     for (const p of g.players) {
       if (p === me) continue
       const card = cardFor(g, p)

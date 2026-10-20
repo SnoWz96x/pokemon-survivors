@@ -168,8 +168,8 @@ import { createDrawView, updateDrawView, type DrawView } from './coop/view'
 import { createPrediction, predict, type Prediction } from './coop/predict'
 import type { Runner } from './coop/runner'
 import { coopOver } from './game/coop'
-import { onScreen, type PickScreen } from './game/lockstep'
-import { coopEnd, createCoopHud, type CoopHud } from './ui/coopHud'
+import { createTeamLayer, type TeamLayer } from './ui/teamLayer'
+import { teamFeedback, teamMoment } from './ui/teamScreens'
 
 /** Fixed simulation step: the replays the ranking re-simulates count on it. */
 const STEP = TICK
@@ -300,17 +300,16 @@ type CoopRun = {
   runner: Runner
   view: DrawView
   prediction: Prediction
-  hud: CoopHud
-  /** What steps the run: the stick and buttons in, the lockstep out (`coop/driver.ts`, PR 7's UI drives it too). */
+  /** What steps the run: the stick and buttons in, the lockstep out (`coop/driver.ts`). */
   driver: CoopDriver
-  /** A pick sent on the screen of this round: the screen closes until the round moves on. */
-  sent: number | null
-  /** The pause menu is open (the run goes on; the stick reads still). */
+  /** Everything co-op shows over the run: the team's cards, the connection, the spectator camera, the end (`ui/teamLayer.ts`). */
+  team: TeamLayer
+  /** The co-op menu is open (the run goes on; the stick reads still). */
   menu: boolean
   /** Banked at the victory and at the end (deltas; `coop/bank.ts` keeps it to once). */
   banked: { victory: boolean; over: boolean }
-  /** The endless vote was cast. */
-  voted: boolean
+  /** "Jogar de novo" was pressed: the host starts the next run as soon as everyone online is ready. */
+  again: boolean
 }
 
 let screen: Screen | null = null
@@ -1009,8 +1008,9 @@ const announceRun = (start: ReplayStart, challenge: Run['challenge']) => {
   for (const [i, id] of (start.tms ?? []).entries()) toast(ui, h('span', { class: 'item-toast' }, tmPicture(id), rich(t().toast.armedTm(MOVES[id].name, i))), 3200, `tm-${id}`)
 }
 
-const runHud = (game: Game, onPause: () => void = () => game.phase === 'playing' && (game.phase = 'paused')) => {
-  const hud = createHud(ui, queueSpecial, queueMega, queueLunge, onPause, input.isHeld)
+/** The run's HUD; `menu`: its pause button opens a menu over a run that goes on (co-op). */
+const runHud = (game: Game, onPause: () => void = () => game.phase === 'playing' && (game.phase = 'paused'), menu = false) => {
+  const hud = createHud(ui, queueSpecial, queueMega, queueLunge, onPause, input.isHeld, menu)
   requestAnimationFrame(syncMarkerInsets)
   return hud
 }
@@ -1025,7 +1025,9 @@ const syncMarkerInsets = () => {
   }
   const bottomOf = (sel: string) => rect(sel)?.bottom ?? box.top
   const topOf = (sel: string) => rect(sel)?.top ?? box.bottom
-  const top = bottomOf('.hud-row') - box.top
+  // Co-op: the team's cards in a row under the top bar (a phone held upright) take the top edge too.
+  const team = rect('.team-hud')
+  const top = Math.max(bottomOf('.hud-row'), team && team.width > box.width / 2 ? team.bottom : 0) - box.top
   const bottom = box.bottom - Math.min(topOf('.hud .status'), topOf('.special-button'))
   setMarkerInsets({ top: Math.max(0, top) / cssScale + 10, bottom: Math.max(0, bottom) / cssScale + 10, side: 14 })
 }
@@ -1036,7 +1038,7 @@ const runSettings = (r: Run, back: () => void) => {
   return openSettings(ui, input, () => {
     if (locale() !== before) {
       r.hud.dispose()
-      r.hud = runHud(r.game)
+      r.hud = r.coop ? coopRunHud(r.coop) : runHud(r.game)
     }
     // The joystick mode moves the status box and shows or hides the fixed stick.
     dirty = true
@@ -1051,39 +1053,31 @@ const syncOverlay = (r: Run) => {
   // Co-op shows its copy of the game: this player as "the player" (`coop/view.ts`).
   const g = c ? c.view.game : r.game
   const me = localPlayer(g)
-  if (c && c.sent !== null && c.sent !== me.round) c.sent = null
   // This player's own pick screen while the world waits on picks; the world's phase otherwise.
-  // Co-op: a pick sent closes its screen while it travels; the pause menu is the client's own.
-  const phase: Phase = c?.menu && !coopOver(g) && g.phase !== 'victory' ? 'paused' : c && c.sent !== null && onScreen(me) ? 'playing' : phaseOf(g, me)
+  // Co-op: a pick sent closes its screen while it travels; the co-op menu is the client's own.
+  const phase: Phase = c?.menu && !coopOver(g) && g.phase !== 'victory' ? 'paused' : c?.team.holding(me) ? 'playing' : phaseOf(g, me)
   if (r.shown?.phase === phase && r.shown.offers === me.offers) return
   r.overlay?.dispose()
   r.overlay = null
   r.shown = { phase, offers: me.offers }
   r.hud.setMenuOpen(phase !== 'playing' && phase !== 'evolving')
-  // A pick: solo it plays on the spot (and goes into the replay); co-op sends it with the screen's round, read now.
-  const pick = (offer: Offer) => {
-    if (!c) return (recordEvent(r.recorder, ['offer', me.offers.indexOf(offer)]), chooseOffer(g, offer))
-    const index = me.offers.indexOf(offer)
-    if (index < 0 || !onScreen(me)) return
-    c.client.input({ k: 'pick', screen: me.phase as PickScreen, round: me.round, index })
-    c.sent = me.round
-  }
-  const screenInput = (k: 'reroll' | 'skip') => {
-    if (!c) return k === 'reroll' ? (recordEvent(r.recorder, ['reroll']), rerollOffers(g)) : (recordEvent(r.recorder, ['skip']), skipLevelUp(g))
-    c.client.input({ k, round: me.round })
-    c.sent = me.round
-  }
+  // A pick: solo it plays on the spot (and goes into the replay); co-op sends it with the screen's round (`ui/teamLayer.ts`).
+  const pick = (offer: Offer) => (c ? c.team.pick(me, offer) : (recordEvent(r.recorder, ['offer', me.offers.indexOf(offer)]), chooseOffer(g, offer)))
   switch (phase) {
     case 'levelup':
-      r.overlay = levelUp(ui, input, g, pick, {
-        reroll: () => screenInput('reroll'),
-        skip: () => screenInput('skip'),
-        banish: (i) => {
-          if (!c) return (recordEvent(r.recorder, ['banish', i]), banishOffer(g, i))
-          c.client.input({ k: 'banish', round: me.round, index: i })
-          c.sent = me.round
-        },
-      })
+      r.overlay = levelUp(
+        ui,
+        input,
+        g,
+        pick,
+        c
+          ? c.team.levelUp(me)
+          : {
+              reroll: () => (recordEvent(r.recorder, ['reroll']), rerollOffers(g)),
+              skip: () => (recordEvent(r.recorder, ['skip']), skipLevelUp(g)),
+              banish: (i) => (recordEvent(r.recorder, ['banish', i]), banishOffer(g, i)),
+            },
+      )
       break
     case 'branch':
       r.overlay = branchPick(ui, input, g, pick)
@@ -1103,11 +1097,13 @@ const syncOverlay = (r: Run) => {
       break
     case 'paused':
       if (c) {
+        // The co-op menu: the run goes on behind it; leaving asks first.
         r.overlay = pauseMenu(ui, input, g, {
           resume: () => (c.menu = false),
           quit: () => leaveCoopRun(),
           settings: (back) => runSettings(r, back),
           report: bugReportsEnabled ? (back) => bugReportForm(ui, input, back) : null,
+          coop: { sound: () => (toggleMute(), !settings().muted), soundOn: !settings().muted },
         })
         break
       }
@@ -1122,12 +1118,7 @@ const syncOverlay = (r: Run) => {
     case 'gameover':
     case 'victory':
       if (c) {
-        const share = Math.floor(r.game.coins / Math.max(1, r.game.coop?.joined ?? 1))
-        const voting = g.phase === 'victory' && g.coop?.vote?.outcome === 'open' && !c.voted
-        r.overlay = coopEnd(ui, input, g, me.slot, share, {
-          vote: voting ? (endless) => ((c.voted = true), c.client.input({ k: 'endless', vote: endless })) : null,
-          back: () => leaveCoopRun(),
-        })
+        r.overlay = c.team.end(g, me)
         break
       }
       // For Play again: the run is over (endless mode goes on with the token it reported on).
@@ -1157,6 +1148,8 @@ const syncOverlay = (r: Run) => {
       )
       break
   }
+  // Co-op pick screens wear the auto-pick clock (and the level-up who already picked).
+  if (c && r.overlay) c.team.decorate(r.overlay, g, me, phase)
 }
 
 /** Level-ups that took the Oran Berry on their own (`takeBerryLevelUps`): the level reached and how many at once. */
@@ -1789,7 +1782,7 @@ const endCoopRun = (r: Run, c: CoopRun) => {
   r.overlay?.dispose()
   r.closeText?.()
   r.hud.dispose()
-  c.hud.dispose()
+  c.team.dispose()
   clearToasts(ui)
   run = null
   syncRunWatch()
@@ -1803,6 +1796,33 @@ const leaveCoopRun = () => {
   removeBots()
   linkRoom(null)
   showTitle()
+}
+
+/** The run's HUD in co-op: drawn from the draw copy, and its pause button opens the co-op menu (the run goes on). */
+const coopRunHud = (c: CoopRun) => runHud(c.view.game, () => (c.menu = true), true)
+
+/** Where "Jogar de novo" stands, for the end screen: who asked, and how many of the room online are ready (the host counts). */
+const againState = (c: CoopRun) => {
+  const st = c.client.state()
+  const online = st.room?.members.filter((m) => m.online) ?? []
+  return { asked: c.again, host: online.some((m) => m.seat === st.seat && m.host), ready: online.filter((m) => m.host || m.ready).length, total: online.length }
+}
+
+/**
+ * "Jogar de novo" once asked (`c.again`), each time the room changes: a
+ * guest gets ready, the host starts the next run once everyone online is
+ * (the driver does either). Waits out the run the relay hasn't closed yet,
+ * whose end resets everyone's ready.
+ */
+const playAgain = (c: CoopRun) => {
+  const st = c.client.state()
+  const room = st.room
+  if (!c.again || !room || room.phase === 'playing') return
+  const me = room.members.find((m) => m.seat === st.seat)
+  if (!me) return
+  if (!me.host && me.ready) return
+  if (me.host && !room.members.every((m) => m.host || !m.online || m.ready)) return
+  c.driver.playAgain()
 }
 
 /**
@@ -1828,22 +1848,27 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
   if (run) endRun()
   const save = loadSave()
   const view = createDrawView(live.game)
+  const driver = coopDriver(client, () => leaveCoopRun())
   const c: CoopRun = {
     client,
     runner: live,
     view,
     prediction: createPrediction(),
-    hud: createCoopHud(ui),
-    driver: coopDriver(client, () => showTitle()),
-    sent: null,
+    // "Voltar ao lobby" leaves the room for now (the room screen is the lobby's PR).
+    driver,
+    team: createTeamLayer(ui, input, driver, {
+      playAgain: () => ((c.again = true), playAgain(c)),
+      lobby: () => leaveCoopRun(),
+      again: () => againState(c),
+    }),
     menu: false,
     banked: { victory: false, over: false },
-    voted: false,
+    again: false,
   }
   const me = localPlayer(live.game)
   run = {
     game: live.game,
-    hud: runHud(view.game, () => (c.menu = true)),
+    hud: coopRunHud(c),
     overlay: null,
     shown: null,
     closeText: null,
@@ -1877,34 +1902,30 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
   track('run_start', { starter: me.starter, difficulty: live.game.difficulty, mode: 'standard' })
 }
 
-/** A co-op toast with a teammate's name (the shell's own player reads "You"). */
-const mateName = (g: Game, slot: number) => (slot === localPlayer(g).slot ? t().coop.you : g.coop?.names[slot] || PLAYABLE[g.players[slot]?.starter ?? 'pichu'].name)
-
-/** The co-op events of the simulation the shell shows its own way: teammates fainting, reviving, going away, leaving. */
+/**
+ * The simulation's events in co-op: the team's moments (a faint, a revive,
+ * someone away or gone, the vote) the team's way; the world's and this
+ * player's own as solo plays them; a teammate's own big moments (an
+ * evolution, a Mega, a duo move) as a short toast (`actor`: who pushed it).
+ */
 const coopEvent = (r: Run, c: CoopRun, e: GameEvent, actor: number) => {
   const g = c.view.game
-  const m = t().coop
   switch (e.kind) {
     case 'fainted':
-      playSfx('hurt')
-      return toast(ui, m.fainted(mateName(g, e.slot)), 2600)
     case 'revived':
-      playSfx('heal')
-      return toast(ui, m.revived(mateName(g, e.slot), mateName(g, e.by)), 2600)
-    case 'away':
-      return e.slot === c.runner.slot ? undefined : toast(ui, e.away ? m.away(mateName(g, e.slot)) : m.back(mateName(g, e.slot)), 2200)
     case 'left':
-      return toast(ui, m.left(mateName(g, e.slot)), 2600)
+    case 'away':
+    case 'vote':
+    case 'voted':
+      return teamFeedback(ui, g, localPlayer(g), e)
     case 'gameover':
       playSfx('gameOver')
       return playCry(playerCry(g))
     case 'victory':
       return playSfx('evolve')
-    case 'vote':
-    case 'voted':
-      return
     default:
       if (coopEventFor(g, e, actor)) handleEvent(r, e)
+      else teamMoment(ui, g, actor, e)
   }
 }
 
@@ -1934,6 +1955,7 @@ const watchCoop = (client: CoopClient) => {
       case 'slow':
         return toast(ui, t().coop.slow, 2200, 'coopSlow')
       case 'room':
+        if (c) playAgain(c)
         if (!run && e.room.phase !== 'playing') {
           const code = e.room.code
           toast(ui, t().coop.lobby(code, e.room.members.length), 3200, 'coopLobby')
@@ -2000,14 +2022,12 @@ const coopFrame = (r: Run, c: CoopRun, dt: number, t: number) => {
   }
   syncOverlay(r)
   tickToasts(ui, dt, false)
+  // The team's cards, the connection, the waits, and the camera: this player's, or a teammate's while fainted (`render/teamCamera.ts`).
+  c.team.frame(shown, localPlayer(shown), dt, view, conn, runner.pending !== null)
   render(ctx, shown, t, { ...settings(), companion: null, mates: c.view.mates })
   const stick = input.readStick()
   if (stick && shown.phase === 'playing') drawJoystick(ctx, stick, cssScale)
   r.hud.update(shown)
-  // The team waits on a teammate's level-up: whose timer, and how long it has.
-  const busy = shown.phase === 'levelup' && phaseOf(shown, localPlayer(shown)) === 'playing' ? shown.players.filter(onScreen) : []
-  const waiting = busy.length > 0 ? Math.max(...busy.map((p) => p.pickLeft)) : null
-  c.hud.update(conn, waiting, runner.pending !== null)
 }
 
 /* ---------------- Loop ---------------- */

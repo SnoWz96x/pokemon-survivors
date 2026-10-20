@@ -5,7 +5,7 @@ import type { Game } from '../game/types'
 import type { CoopClient } from './client'
 
 /**
- * What the shell (and PR 7's UI, `src/ui/teamLayer.ts`) drives a co-op run
+ * What the shell (`main.ts`, and its team layer, `src/ui/teamLayer.ts`) drives a co-op run
  * with: `advance` once per display frame with the stick and the buttons
  * pressed; `send` for anything the player picks (a tick entry of their own,
  * without the slot: the session knows its seat); `playAgain` after a run

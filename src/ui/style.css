@@ -14617,7 +14617,7 @@ button.hall-tile:hover {
 }
 
 
-/* ---------------- Co-op run (src/ui/coopHud.ts) ---------------- */
+/* ---------------- Co-op run: the connection (src/ui/coopHud.ts) ---------------- */
 
 .coop-hud {
   position: absolute;
@@ -14692,23 +14692,6 @@ button.hall-tile:hover {
   background: linear-gradient(#78d0f8 0 40%, #4898e8 40%);
 }
 
-.coop-waiting {
-  position: absolute;
-  left: 50%;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
-  transform: translateX(-50%);
-  padding: 8px 14px;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.coop-end .panel { display: flex; flex-direction: column; gap: 8px; align-items: center; max-width: min(92vw, 420px); }
-.coop-table { border-collapse: collapse; font-size: 13px; width: 100%; }
-.coop-table th, .coop-table td { padding: 3px 6px; text-align: right; }
-.coop-table th:first-child, .coop-table td:first-child { text-align: left; }
-.coop-table tr.me td { color: var(--accent, #3070d0); }
-.coop-end .buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.coop-voted { font-size: 12px; }
 
 /* ---------- Co-op in a run (ui/teamHud.ts, ui/teamScreens.ts) ---------- */
 
@@ -15377,8 +15360,21 @@ button.hall-tile:hover {
   .team-stat {
     font-size: 16px;
   }
+  /* The four totals in one row of equal columns, the difficulty on its own above them. */
   .team-summary {
-    gap: 4px 12px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px 6px;
+  }
+  .team-summary > .difficulty-tag {
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+  .team-summary small {
+    font-size: 15px;
+  }
+  .team-summary b {
+    font-size: 10px;
   }
   /* The white card and the name already say which one is yours. */
   .team-pay small {
@@ -15435,4 +15431,41 @@ button.hall-tile:hover {
     min-height: 36px;
     padding: 6px 14px;
   }
+}
+
+/* Co-op's menu button (no pause in co-op): three bars. */
+.pause-btn.menu-btn {
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pause-btn.menu-btn span {
+  width: 16px;
+  height: 3px;
+}
+
+.pause-note {
+  margin: -4px 0 0;
+  font-size: 16px;
+  color: #6878a8;
+  text-align: center;
+}
+
+/* After "Jogar de novo": who's ready, who starts it. */
+.team-again {
+  margin: 0;
+  font-size: 16px;
+  color: #6878a8;
+  text-align: center;
+}
+
+.team-results .result-buttons .btn.picked {
+  filter: brightness(0.92);
+  box-shadow: inset 0 0 0 2px var(--slot, #58b8f8);
+}
+
+/* A teammate's moment (an evolution, a Mega): their face framed in their seat color. */
+.team-moment .team-chip-face {
+  width: 22px;
+  height: 22px;
 }

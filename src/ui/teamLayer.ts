@@ -1,70 +1,64 @@
+import type { Connection } from '../coop/client'
+import type { CoopDriver } from '../coop/driver'
 import type { Input } from '../engine/input'
-import type { Vec } from '../engine/math'
-import type { PickScreen, TickEntry } from '../game/lockstep'
+import { onScreen, type PickScreen } from '../game/lockstep'
 import { phaseOf } from '../game/players'
 import type { Game, Offer, Phase, Player } from '../game/types'
 import { createTeamCamera, cycleWatched, spectating, updateTeamCamera, watched } from '../render/teamCamera'
+import { createCoopHud } from './coopHud'
 import type { Screen } from './screens'
 import { createTeamHud, seatName } from './teamHud'
-import { pickClock, spectatorBanner, teamEnd, teamWait } from './teamScreens'
-
-/** A tick entry as this client sends it: the session stamps its seat (`slot`). */
-export type SeatEntry = TickEntry extends infer E ? (E extends { slot: number } ? Omit<E, 'slot'> : never) : never
-
-/** This client's input for a frame: the stick and the buttons pressed since the last one. */
-export type SeatInput = { move: Vec; special: boolean; mega: boolean; lunge: boolean }
-
-/**
- * What runs a co-op game for the shell: the network session (PR 5) or the
- * one-tab dev run (`coopLocal.ts`). The shell calls `advance` every frame
- * instead of `step`, sends picks and votes through `send`, and wires the end
- * screen's buttons to `playAgain` (the same team, a new run) and `lobby`.
- */
-export type CoopDriver = {
-  /** Plays the ticks due this frame (`stepTick`) with this client's input; how many it played. */
-  advance: (g: Game, dt: number, input: SeatInput) => number
-  /** Queues one of this seat's entries for the next tick (a pick, a reroll, a vote). */
-  send: (entry: SeatEntry) => void
-  playAgain: () => void
-  lobby: () => void
-}
-
-/** The pick screens a player can be on (`PickScreen`), by their own phase. */
-const pickScreen = (p: Player): PickScreen | null => (p.phase === 'playing' || p.phase === 'evolving' ? null : p.phase)
+import { pickClock, spectatorBanner, teamEnd, teamWait, type EndActions } from './teamScreens'
 
 /**
  * The co-op layer over a run, everything the shell shows that solo doesn't:
- * the team's cards, the wait while teammates pick, the clock on this player's
- * pick screens, the spectator camera and its banner while fainted, and the
- * end (vote and results). The shell makes one per co-op run and calls:
- * `frame` every frame before drawing (then draws through `camera`, see
- * `drawFrom`), `decorate` on each pick overlay it opens, `end` for the
- * `victory`/`gameover` overlay, and `pick`/`levelUp` to act on its screens.
+ * the team's cards, the connection pip and the reconnecting veil, the wait
+ * while teammates pick, the clock on this player's pick screens, the
+ * spectator camera and its banner while fainted, and the end (vote and
+ * results). It reads the draw copy of the game (`coop/view.ts`) and acts
+ * through PR 5's driver (`coop/driver.ts`). The shell makes one per co-op run
+ * and calls `frame` every frame before drawing, `decorate` on each pick
+ * overlay it opens, `end` for the `victory`/`gameover` overlay, and
+ * `pick`/`levelUp` to act on its screens.
  */
-export const createTeamLayer = (root: HTMLElement, input: Input, driver: CoopDriver) => {
+export const createTeamLayer = (root: HTMLElement, input: Input, driver: CoopDriver, end: Omit<EndActions, 'vote'>) => {
   const camera = createTeamCamera()
   const hud = createTeamHud(root)
+  const net = createCoopHud(root)
   let me: Player | null = null
   let game: Game | null = null
   const cycle = () => game && me && cycleWatched(camera, game, me)
   const banner = spectatorBanner(root, cycle)
   let wait: ReturnType<typeof teamWait> | null = null
   let clock: { el: HTMLElement; update: () => void } | null = null
-  let end: Screen | null = null
+  let ending: Screen | null = null
+  /** The round of the screen a pick was sent on: the screen stays closed until the run moves it on. */
+  let sent: number | null = null
   // Tab, Q or the special (useless while fainted) switch whom the camera watches.
   const offKey = input.onKey((key) => {
     if (game && me && spectating(game, me) && (key === 'Tab' || key === 'KeyQ' || key === 'Space')) cycle()
   })
 
-  /** Every frame: the cards, the banners and the camera for a `view` (world px) of this client's. */
-  const frame = (g: Game, self: Player, dt: number, view: { w: number; h: number }) => {
+  /** Whether this player's pick is on its way: their screen shows as closed meanwhile. */
+  const holding = (self: Player) => {
+    if (sent !== null && (sent !== self.round || !onScreen(self))) sent = null
+    return sent !== null
+  }
+
+  /**
+   * Every frame, on the draw copy `g` (this player is `self`): the cards, the
+   * connection, the banners, and the camera for this client's `view` (world
+   * px), written into `g.camera` (the copy's own, never the simulation's).
+   */
+  const frame = (g: Game, self: Player, dt: number, view: { w: number; h: number }, conn: Connection, joining: boolean) => {
     game = g
     me = self
     hud.update(g, self)
+    net.update(conn, joining)
     // Fainted with someone to watch: the banner names them.
     banner.show(spectating(g, self) ? seatName(g, watched(camera, g, self).slot) : null)
-    // Held by teammates' level-ups after this player picked: who's still choosing.
-    const waiting = g.phase === 'levelup' && phaseOf(g, self) === 'playing' && !self.gone
+    // Held by teammates' level-ups after this player picked (or while their pick travels): who's still choosing.
+    const waiting = g.phase === 'levelup' && !self.gone && (phaseOf(g, self) === 'playing' || holding(self))
     if (waiting && !wait) wait = teamWait(hud.el, g, self)
     if (!waiting && wait) {
       wait.dispose()
@@ -73,8 +67,10 @@ export const createTeamLayer = (root: HTMLElement, input: Input, driver: CoopDri
     wait?.update()
     if (clock && !clock.el.isConnected) clock = null
     clock?.update()
-    end?.tick?.(0)
+    ending?.tick?.(0)
     updateTeamCamera(camera, g, self, view.w, view.h, dt)
+    g.camera.x = camera.x
+    g.camera.y = camera.y
   }
 
   /** Puts the auto-pick clock on a pick overlay the shell just opened (and, on the team's level-up, who already picked). */
@@ -94,34 +90,36 @@ export const createTeamLayer = (root: HTMLElement, input: Input, driver: CoopDri
   }
 
   /** The overlay for the run's end (victory or game over), ticked by `frame`. */
-  const showEnd = (g: Game, self: Player) => {
-    end = teamEnd(root, input, g, self, { vote: (endless) => driver.send({ kind: 'endless', vote: endless }), playAgain: driver.playAgain, lobby: driver.lobby })
-    const screen = end
-    return { ...screen, dispose: () => ((end = end === screen ? null : end), screen.dispose()) }
+  const showEnd = (g: Game, self: Player): Screen => {
+    const screen = teamEnd(root, input, g, self, { ...end, vote: (endless) => driver.send({ kind: 'endless', vote: endless }) })
+    ending = screen
+    return { ...screen, dispose: () => ((ending = ending === screen ? null : ending), screen.dispose()) }
   }
 
-  /** A card picked on this player's screen, sent as that screen's round. */
+  /** A card picked on this player's screen, sent with that screen's round (read now); the screen closes until the round moves. */
   const pick = (self: Player, offer: Offer) => {
-    const screen = pickScreen(self)
     const index = self.offers.indexOf(offer)
-    if (screen && index >= 0) driver.send({ kind: 'pick', screen, round: self.round, index })
+    if (index < 0 || !onScreen(self)) return
+    driver.send({ kind: 'pick', screen: self.phase as PickScreen, round: self.round, index })
+    sent = self.round
   }
 
-  /** The level-up screen's buttons (reroll, skip, Esquecer) as entries. */
+  /** The level-up screen's buttons (reroll, skip, Esquecer) as entries; each closes the screen until its new round. */
   const levelUp = (self: Player) => ({
-    reroll: () => driver.send({ kind: 'reroll', round: self.round }),
-    skip: () => driver.send({ kind: 'skip', round: self.round }),
-    banish: (index: number) => driver.send({ kind: 'banish', round: self.round, index }),
+    reroll: () => (driver.send({ kind: 'reroll', round: self.round }), (sent = self.round)),
+    skip: () => (driver.send({ kind: 'skip', round: self.round }), (sent = self.round)),
+    banish: (index: number) => (driver.send({ kind: 'banish', round: self.round, index }), (sent = self.round)),
   })
 
   const dispose = () => {
     offKey()
     hud.dispose()
+    net.dispose()
     banner.dispose()
     wait?.dispose()
   }
 
-  return { camera, driver, frame, decorate, end: showEnd, pick, levelUp, dispose }
+  return { camera, frame, holding, decorate, end: showEnd, pick, levelUp, dispose }
 }
 
 export type TeamLayer = ReturnType<typeof createTeamLayer>

@@ -621,7 +621,39 @@ const abilityPanel = (g: Game) => {
  * `back` once it closes. The pause menu hides meanwhile, then redraws
  * itself, in the new language if it changed.
  */
-type PauseActions = { resume: () => void; quit: () => void; settings: (back: () => void) => Screen; report: ((back: () => void) => Screen) | null }
+/**
+ * Yes/no dialog over a screen (the mart's purchases, co-op's "Sair da partida").
+ * Defaults to "no" so a stray Enter is harmless; Esc or Backspace answer no.
+ * `opts`: other button labels, a class for the backdrop (`shop-confirm`).
+ */
+export const confirmDialog = (
+  root: HTMLElement,
+  input: Input,
+  text: string,
+  onAnswer: (yes: boolean) => void,
+  opts: { yes?: string; no?: string; class?: string } = {},
+): Screen => {
+  const yes = h('button', { class: 'btn' }, opts.yes ?? t().mart.yes)
+  const no = h('button', { class: 'btn' }, opts.no ?? t().mart.no)
+  const nav = menu(input, [yes, no], (i) => onAnswer(i === 0), { horizontal: true, initial: 1 })
+  const offEsc = input.onKey((k) => (k === 'Escape' || k === 'Backspace') && onAnswer(false))
+  const el = h('div', { class: opts.class ? `screen dim ${opts.class}` : 'screen dim' }, h('div', { class: 'dialog box pop' }, h('div', { class: 'dialog-title' }, text), h('div', { class: 'buttons' }, yes, no)))
+  root.append(el)
+  return { el, dispose: () => (nav.off(), offEsc(), el.remove()) }
+}
+
+/**
+ * What the pause menu does. `coop`: it's co-op's menu instead, over a run
+ * that goes on: no pause in its title, a sound switch (`sound` toggles it and
+ * says whether it's on now), and leaving asks first.
+ */
+type PauseActions = {
+  resume: () => void
+  quit: () => void
+  settings: (back: () => void) => Screen
+  report: ((back: () => void) => Screen) | null
+  coop?: { sound: () => boolean; soundOn: boolean }
+}
 
 export const pauseMenu = (root: HTMLElement, input: Input, g: Game, actions: PauseActions): Screen => {
   const el = h('div', { class: 'screen dim pause-screen' })
@@ -648,30 +680,48 @@ export const pauseMenu = (root: HTMLElement, input: Input, g: Game, actions: Pau
     })
   }
 
+  const coop = actions.coop
+  let soundOn = coop?.soundOn ?? true
+  /** Co-op: "Sair da partida?" first; no keeps the menu where it was. */
+  const confirmLeave = (focus: number) => {
+    const m = t().team.menu
+    openSub((back) => {
+      const dialog = confirmDialog(root, input, m.confirm, (yes) => (dialog.dispose(), yes ? actions.quit() : back()), { yes: m.yes, no: m.no })
+      return dialog
+    }, focus)
+  }
+
   /** `opening` plays the pop-in; redraws after closing the settings don't. */
   const render = (focus: number, opening: boolean) => {
     const m = t().pause
+    const cm = t().team.menu
     const resume = h('button', { class: 'btn' }, m.resume)
+    const sound = coop && h('button', { class: 'btn' }, cm.sound(soundOn))
     const settingsButton = h('button', { class: 'btn' }, m.settings)
     const report = actions.report
     const reportButton = report && h('button', { class: 'btn' }, m.reportBug)
-    const quit = h('button', { class: 'btn' }, m.quit)
-    const buttons = [resume, settingsButton, ...(reportButton ? [reportButton] : []), quit]
+    const quit = h('button', { class: 'btn' }, coop ? cm.leave : m.quit)
+    const buttons = [resume, ...(sound ? [sound] : []), settingsButton, ...(reportButton ? [reportButton] : []), quit]
     nav?.off()
     nav = menu(input, buttons, (i) => {
       const pressed = buttons[i]
       if (pressed === resume) actions.resume()
+      if (sound && pressed === sound && coop) {
+        soundOn = coop.sound()
+        sound.textContent = cm.sound(soundOn)
+      }
       // Open after this key dispatch, or the new screen would receive the same Enter (or Space).
       if (pressed === settingsButton) later(() => openSub(actions.settings, i))
       if (pressed === reportButton && report) later(() => openSub(report, i))
       // Quitting opens the partner select, which would take that same press as its pick and start the run again.
-      if (pressed === quit) later(actions.quit)
+      if (pressed === quit) later(coop ? () => confirmLeave(i) : actions.quit)
     }, { initial: focus })
     el.replaceChildren(
       h(
         'div',
         { class: opening ? 'dialog box pop wide pause' : 'dialog box wide pause' },
-        h('div', { class: 'dialog-title' }, m.title),
+        h('div', { class: 'dialog-title' }, coop ? cm.title : m.title),
+        coop && h('p', { class: 'pause-note' }, cm.note),
         difficultyTag(g.difficulty),
         abilityPanel(g),
         h(

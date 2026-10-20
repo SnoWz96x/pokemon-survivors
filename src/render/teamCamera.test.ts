@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createLocalGame } from '../coopLocal'
+import type { PlayableId } from '../data/hatchlings'
+import { createCoopGame } from '../game/game'
+import { NO_RANKS } from '../game/meta'
 import { createTeamCamera, cycleWatched, spectating, updateTeamCamera, watched } from './teamCamera'
+
+const createLocalGame = (n: number, starters: readonly PlayableId[], seed: number) =>
+  createCoopGame(seed, starters.slice(0, n).map((starter, i) => ({ starter, ranks: NO_RANKS, shiny: false, name: `P${i + 1}` })), { draft: false })
 
 describe('team camera', () => {
   it('follows the client while they stand, and a standing teammate while they lie fainted', () => {
