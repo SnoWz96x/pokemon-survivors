@@ -57,8 +57,9 @@ export const createTeamLayer = (root: HTMLElement, input: Input, driver: CoopDri
     me = self
     hud.update(g, self)
     net.update(conn, joining)
-    // Fainted with someone to watch: the banner names them.
-    banner.show(spectating(g, self) ? seatName(g, watched(camera, g, self).slot) : null)
+    // Fainted with someone to watch: the banner names them (not over the end screen: an away teammate may still stand at a wipe).
+    const over = g.phase === 'gameover' || g.phase === 'victory'
+    banner.show(!over && spectating(g, self) ? seatName(g, watched(camera, g, self).slot) : null)
     // Held by teammates' level-ups after this player picked (or while their pick travels): who's still choosing.
     const waiting = g.phase === 'levelup' && !self.gone && (phaseOf(g, self) === 'playing' || holding(self))
     if (waiting && !wait) wait = teamWait(hud.el, g, self)
