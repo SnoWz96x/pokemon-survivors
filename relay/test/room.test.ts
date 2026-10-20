@@ -235,6 +235,17 @@ describe('hashes, snapshots and the end', () => {
     expect(sent(out, 'c0').some((m) => m.t === 'heal')).toBe(false)
   })
 
+  it('charges `over` a token like any message, and saves only a vote that changed', () => {
+    const { state, t0 } = playing(3)
+    alive(state, 3, t0 + 4990)
+    tick(state, t0 + 5000)
+    expect(say(state, 'c0', { t: 'over', tick: 290, h: 'end' }, t0 + 5000)).toContainEqual({ k: 'save' })
+    expect(say(state, 'c0', { t: 'over', tick: 290, h: 'end' }, t0 + 5000).some((e) => e.k === 'save')).toBe(false)
+    const flood = Array.from({ length: 200 }, () => say(state, 'c0', { t: 'over', tick: 290, h: 'end' }, t0 + 5000)).flat()
+    expect(of(sent(flood, 'c0'), 'slow')).toHaveLength(1)
+    expect(flood.some((e) => e.k === 'save')).toBe(false)
+  })
+
   it("doesn't agree on a snapshot whose hash the majority didn't report", () => {
     const { state, t0 } = playing(3)
     alive(state, 3, t0 + 10_990)

@@ -477,8 +477,8 @@ const refill = (conn: Conn, now: number) => {
 /** Takes a token for a message; past the bucket it is dropped (told once), and a flood closes the socket. */
 const admit = (state: State, conn: Conn, msg: ClientMessage | null, now: number): { ok: boolean; effects: Effect[] } => {
   refill(conn, now)
-  // Leaving and the end of the run always get through.
-  if (msg && (msg.t === 'leave' || msg.t === 'over')) return { ok: true, effects: [] }
+  // Leaving always gets through (the end of the run is said again until confirmed, so it pays like the rest).
+  if (msg?.t === 'leave') return { ok: true, effects: [] }
   if (conn.tokens >= 1 && msg) {
     conn.tokens -= 1
     return { ok: true, effects: [] }
@@ -552,10 +552,14 @@ export const message = (state: State, connId: ConnId, msg: ClientMessage | null,
       return live ? [...out, ...onHash(state, room, live, seat.seat, msg.tick, msg.h, now)] : out
     case 'snap':
       return live ? [...out, ...onSnap(state, room, live, seat.seat, msg)] : out
-    case 'over':
+    case 'over': {
       if (!live) return out
+      // Said again every couple of seconds until the relay confirms: only a vote that changed is saved.
+      const was = live.overs[seat.seat]
+      if (was && was.tick === msg.tick && was.h === msg.h) return out
       live.overs[seat.seat] = { tick: msg.tick, h: msg.h }
       return [...out, { k: 'save' }, ...evaluateOver(state, room)]
+    }
     case 'leave': {
       conn.seat = null
       out.push(send(connId, { t: 'bye', reason: 'left' }), { k: 'close', to: connId, reason: 'left' })
