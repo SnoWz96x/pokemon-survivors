@@ -161,7 +161,7 @@ import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, tickToasts, toast } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
 import { localPlayer, phaseOf } from './game/players'
-import { addBots, bankCoopRun, botCount, coopClient, coopEntry, coopEventFor, coopUrl, linkedRoom, linkRoom, onCoopEntry, refreshCoopEntry, removeBots, reportHeal, setCoopBeta, setCoopName, setCoopUrl, surrenderBots } from './coopShell'
+import { addBots, bankCoopRun, botCount, buildRefusal, coopClient, coopEntry, coopEventFor, coopUrl, linkedRoom, linkRoom, markBuildReload, onCoopEntry, refreshCoopEntry, removeBots, reportHeal, setCoopBeta, setCoopName, setCoopUrl, surrenderBots } from './coopShell'
 import type { CloseWhy, CoopClient } from './coop/client'
 import { freshInvites } from './coop/lobby'
 import { PROTOCOL } from './net/protocol'
@@ -2083,28 +2083,51 @@ const closedText = (why: CloseWhy) => t().coop.closed[why]
 /**
  * The co-op client closed for good (not by leaving): kicked, refused, the
  * room gone. A run or the room screen goes back to the title with a notice;
- * the hub says it in place (its join resolved with the same reason); a room
- * on another version of the game offers a reload, which rejoins by the link.
+ * the hub says it in place (its join resolved with the same reason). A room
+ * on a newer version of the game offers a reload, which rejoins by the link;
+ * one on an older version says so (`buildRefusal`): a reload couldn't reach it.
  */
 const coopClosed = (why: CloseWhy) => {
   track('coop', { step: 'fail', at: run?.coop ? 'run' : coopShown === 'room' ? 'room' : 'join', why })
   if (run?.coop) endRun()
   removeBots()
-  if (why === 'build' || why === 'version') {
-    // The link keeps the room, so the reload joins it again on the new version.
-    linkRoom(coopClient()?.state().code ?? null)
+  // The link keeps the room, so the reload joins it again on the new version.
+  const code = coopClient()?.state().code ?? null
+  if (why === 'version') {
+    linkRoom(code)
     return showCoopUpdate()
   }
+  if (why === 'build') {
+    void buildRefusal().then((advice) => {
+      if (advice === 'oldRoom') return closedNotice(t().coop.oldRoom)
+      linkRoom(code)
+      showCoopUpdate(markBuildReload)
+    })
+    return
+  }
+  closedNotice(closedText(why))
+}
+
+/** A close's notice: on the title (the hub says it in place), the room dropped from the link. */
+const closedNotice = (text: string) => {
   linkRoom(null)
   if (coopShown === 'hub') return
   if (!screen?.el.classList.contains('title-home')) showTitle()
-  later(() => toast(ui, closedText(why), 6000, 'coopClosed'))
+  later(() => toast(ui, text, 6000, 'coopClosed'))
 }
 
 /** "Atualize o jogo": a reload brings this build's newest version (and rejoins by the link); not now goes to the title. */
-const showCoopUpdate = () => {
+const showCoopUpdate = (beforeReload: () => void = () => {}) => {
   const m = t().coop.update
-  setScreen(confirmDialog(ui, input, m.title, (yes) => (yes ? location.reload() : (linkRoom(null), showTitle())), { yes: m.yes, no: m.no }))
+  const answer = (yes: boolean) => {
+    if (!yes) {
+      linkRoom(null)
+      return showTitle()
+    }
+    beforeReload()
+    location.reload()
+  }
+  setScreen(confirmDialog(ui, input, m.title, answer, { yes: m.yes, no: m.no }))
 }
 
 const signedIn = () => accountState().kind === 'signedIn'
@@ -2156,6 +2179,8 @@ const showCoopHub = (code: string | null = null) => {
           if (res.ok) abandon(code)
           return null
         }
+        // A room on an older version: no reload reaches it (a newer one's reload dialog replaces the hub).
+        if (!res.ok && res.why === 'build' && (await buildRefusal()) === 'oldRoom') return t().coop.oldRoom
         if (!res.ok) return closedText(res.why)
         showRoom()
         return null

@@ -145,6 +145,7 @@ export const es: Messages = {
     guestName: (n: number) => `Entrenador ${n}`,
     off: 'El co-op no está disponible en esta versión del juego.',
     update: { title: 'Actualiza el juego para jugar juntos: la sala usa otra versión.', yes: 'Actualizar', no: 'Ahora no' },
+    oldRoom: 'Esta sala usa una versión antigua del juego. Pide al anfitrión que cree una sala nueva.',
     createFailed: {
       version: 'Actualiza el juego para crear una sala.',
       invalid: 'No se pudo crear la sala.',

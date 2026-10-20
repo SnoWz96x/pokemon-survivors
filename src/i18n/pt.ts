@@ -245,6 +245,8 @@ export const pt = {
     off: 'O co-op não está disponível nesta versão do jogo.',
     /** A room that runs another version: reloading brings the new one. */
     update: { title: 'Atualize o jogo para jogar junto: a sala usa outra versão.', yes: 'Atualizar', no: 'Agora não' },
+    /** A room on an older version of the game than the site's: no reload reaches it. */
+    oldRoom: 'Essa sala usa uma versão antiga do jogo. Peça ao anfitrião para criar uma sala nova.',
     /** Creating a room didn't work (`POST /rooms`). */
     createFailed: {
       version: 'Atualize o jogo para criar uma sala.',

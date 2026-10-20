@@ -3,7 +3,7 @@ import { featureFlag, track } from './analytics'
 import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/bank'
 import { createBot, botPick, type Bot } from './coop/bot'
 import { createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
-import { betaOn } from './coop/lobby'
+import { betaOn, buildAdvice } from './coop/lobby'
 import { EGGS } from './game/eggs'
 import { coopPayout, playerDexLog } from './game/coop'
 import { mergeDex, recordRun, type Pokedex } from './game/dex'
@@ -170,6 +170,53 @@ export const setCoopBeta = (on: boolean | null) => {
   if (now !== before) betaListeners.forEach((fn) => fn(now))
   return now
 }
+
+/** The tab's own storage, for what must outlive a reload but not the tab. */
+const session = {
+  get: (k: string) => {
+    try {
+      return sessionStorage.getItem(k)
+    } catch {
+      return null
+    }
+  },
+  set: (k: string, v: string) => {
+    try {
+      sessionStorage.setItem(k, v)
+    } catch {
+      // Storage blocked: the guard lasts this page.
+    }
+  },
+}
+
+/** The room build this tab last reloaded for (a `build` refusal's "update"). */
+const RELOADED_KEY = 'ps:coopReloadedFor'
+
+/** The simulation build the site serves now (`/sim-build.json`, written by the build), or null when it can't tell. */
+const latestSimBuild = (): Promise<string | null> =>
+  fetch('/sim-build.json', { cache: 'no-store', signal: AbortSignal.timeout(4000) })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((v: unknown) => (typeof v === 'object' && v !== null && 'build' in v && typeof v.build === 'string' ? v.build : null))
+    .catch(() => null)
+
+let advice: { room: string | null; answer: Promise<'reload' | 'oldRoom'> } | null = null
+
+/**
+ * What the client's `build` refusal means (`buildAdvice`): a reload reaches
+ * the room, or the room is older than the site (ask the host for a new one).
+ * Asked once per room build.
+ */
+export const buildRefusal = () => {
+  const room = coopClient()?.state().roomBuild ?? null
+  if (advice?.room !== room) {
+    const answer = latestSimBuild().then((latest) => buildAdvice({ own: __SIM_BUILD__, room, latest, reloaded: session.get(RELOADED_KEY) === (room ?? '?') }))
+    advice = { room, answer }
+  }
+  return advice.answer
+}
+
+/** This tab reloads for the refusing room's build: the same refusal won't offer it again. */
+export const markBuildReload = () => session.set(RELOADED_KEY, coopClient()?.state().roomBuild ?? '?')
 
 /** Puts the room in the page's link, so a reload or the shared link comes back to it. */
 export const linkRoom = (code: string | null) => {

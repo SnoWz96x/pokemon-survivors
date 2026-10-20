@@ -27,6 +27,21 @@ export const readiness = (room: RoomView) => {
  */
 export const betaOn = (o: { dev: boolean; override: string | null; flag: boolean | null }) => (o.override === 'on' ? true : o.override === 'off' ? false : o.dev || o.flag === true)
 
+/**
+ * What a `build` refusal means for this page: the room runs `room` (null: a
+ * relay that doesn't say), this page `own`, the site serves `latest` now
+ * (null: couldn't tell). A room on the site's build means this page is behind
+ * and a reload brings it up; any other room is older than the site (or a
+ * preview's), so reloading can't help and the host needs a new room. A tab
+ * that already reloaded for this room's build (`reloaded`) is never offered
+ * another: a refusal can't loop.
+ */
+export const buildAdvice = (o: { own: string; room: string | null; latest: string | null; reloaded: boolean }): 'reload' | 'oldRoom' => {
+  if (o.reloaded) return 'oldRoom'
+  if (o.latest === null) return 'reload'
+  return (o.room ?? o.latest) === o.latest && o.own !== o.latest ? 'reload' : 'oldRoom'
+}
+
 /** Invites worth a banner now: not shown yet, not expired (by `now`, ms), and not into the room the player is already in. */
 export const freshInvites = (invites: readonly CoopInvite[], shown: ReadonlySet<string>, room: string | null, now: number) =>
   invites.filter((i) => !shown.has(i.id) && i.room !== room && Date.parse(i.expiresAt) > now)

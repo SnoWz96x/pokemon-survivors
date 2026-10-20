@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CoopInvite } from '../game/friends'
 import type { Member, RoomView } from '../net/protocol'
-import { betaOn, freshInvites, memberState, readiness } from './lobby'
+import { betaOn, buildAdvice, freshInvites, memberState, readiness } from './lobby'
 
 const member = (seat: number, o: Partial<Member> = {}): Member => ({
   seat,
@@ -66,5 +66,22 @@ describe('freshInvites', () => {
   it('skips what was shown, what expired and the room the player is in', () => {
     const list = [invite('a', 'AAAAA'), invite('b', 'BBBBB'), invite('c', 'CCCCC', '2026-10-20T12:04:00Z'), invite('d', 'K7QF2')]
     expect(freshInvites(list, new Set(['a']), 'K7QF2', now).map((i) => i.id)).toEqual(['b'])
+  })
+})
+
+describe('buildAdvice', () => {
+  it('reloads a page behind the room, never for a room behind the site, and never twice', () => {
+    const at = (o: Partial<Parameters<typeof buildAdvice>[0]>) => buildAdvice({ own: 'old', room: 'new', latest: 'new', reloaded: false, ...o })
+    expect(at({})).toBe('reload')
+    // The room is older than the site: whatever this page runs, a reload can't reach it.
+    expect(at({ own: 'new', room: 'old', latest: 'new' })).toBe('oldRoom')
+    expect(at({ own: 'older', room: 'old', latest: 'new' })).toBe('oldRoom')
+    // A relay that doesn't say: only a page behind the site reloads.
+    expect(at({ room: null })).toBe('reload')
+    expect(at({ own: 'new', room: null })).toBe('oldRoom')
+    // The site didn't answer: one reload per room build, then the room is called old.
+    expect(at({ latest: null })).toBe('reload')
+    expect(at({ latest: null, reloaded: true })).toBe('oldRoom')
+    expect(at({ reloaded: true })).toBe('oldRoom')
   })
 })
