@@ -53,4 +53,13 @@ export const COOP = {
   },
   /** Seconds the endless vote stays open on the victory screen. */
   voteTime: 20,
+  away: {
+    /**
+     * Seconds an away player still standing holds the world for the team (a
+     * locked phone, a dropped connection). Past that they stop holding it and
+     * count as down for the wipe, so a teammate who fainted isn't left
+     * waiting forever.
+     */
+    hold: 75,
+  },
 } as const

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { COOP } from '../data/coop'
 import { hurtPlayer } from './combat'
-import { coopPayout, coopStats } from './coop'
+import { awayHold, coopPayout, coopStats } from './coop'
 import { spawnEnemy } from './enemies'
 import { createCoopGame, createGame, type CoopLoadout } from './game'
 import { parseTickEntry, stepTick, type TickEntry } from './lockstep'
@@ -75,6 +75,38 @@ describe('co-op faint and revive', () => {
     expect(g.time).toBe(time)
     run(g, TICK, () => [{ slot: 1, kind: 'leave' }])
     expect([b.gone, g.phase]).toEqual([true, 'gameover'])
+  })
+
+  it('an away player holds the world for COOP.away.hold seconds, then counts as down and the wipe comes', () => {
+    const g = team()
+    calm(g)
+    const [a, b] = players(g)
+    b.x = a.x + 300
+    run(g, TICK, () => [{ slot: 1, kind: 'away' }])
+    knockOut(g, a)
+    const time = g.time
+    run(g, COOP.away.hold - 1)
+    expect([g.phase, g.time]).toEqual(['playing', time])
+    expect(awayHold(g)?.slot).toBe(1)
+    expect(awayHold(g)?.left).toBeCloseTo(1, 0)
+    run(g, 1.1)
+    expect(g.phase).toBe('gameover')
+    expect(awayHold(g)).toBeNull()
+  })
+
+  it('coming back starts the away clock over, and a teammate standing never waits on it', () => {
+    const g = team()
+    calm(g)
+    const [a, b] = players(g)
+    b.x = a.x + 300
+    run(g, COOP.away.hold + 5, (t) => (t === 0 ? [{ slot: 1, kind: 'away' }] : []))
+    expect([g.phase, awayHold(g)]).toEqual(['playing', null])
+    run(g, TICK, () => [{ slot: 1, kind: 'back' }])
+    run(g, TICK, () => [{ slot: 1, kind: 'away' }])
+    knockOut(g, a)
+    run(g, COOP.away.hold - 1)
+    expect(g.phase).toBe('playing')
+    expect(awayHold(g)?.slot).toBe(1)
   })
 
   it('a wipe ends the run in the simulation', () => {

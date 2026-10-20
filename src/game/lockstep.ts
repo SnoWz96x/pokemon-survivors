@@ -1,6 +1,6 @@
 import { COOP } from '../data/coop'
 import { MEGAS, type MegaId } from '../data/megas'
-import { castVote, leaveRun, setAway, updateVote, worldHeld } from './coop'
+import { castVote, countAway, leaveRun, setAway, updateVote, worldHeld } from './coop'
 import { continueEndless } from './endlessSystem'
 import { banishOffer, chooseOffer, openPendingPicks, rerollOffers, skipLevelUp, stepTeam, updateEvolution, type StepInput } from './game'
 import { nothingToChoose } from './leveling'
@@ -229,7 +229,7 @@ const inputsOf = (g: Game): StepInput[] => g.players.map(() => ({ move: moveOf(0
  * ignored), then plays the tick. Evolutions play for everyone, the world held
  * or not; while anyone has a pick screen open the world waits and the screens'
  * timers run; while nobody active stands (everyone left standing is away) the
- * world waits for them; otherwise the team steps. At the victory the endless
+ * world waits for them, up to `COOP.away.hold`; otherwise the team steps. At the victory the endless
  * vote runs instead. A no-op on a solo game.
  */
 export const stepTick = (g: Game, entries: readonly TickEntry[]) => {
@@ -243,6 +243,7 @@ export const stepTick = (g: Game, entries: readonly TickEntry[]) => {
   // `move` entries land in `held`; the step reads them this tick.
   for (const p of g.players) inputs[p.slot]!.move = moveOf(p.away || p.gone ? 0 : coop.held[p.slot] ?? 0)
   if (g.phase === 'gameover') return
+  countAway(g)
   if (g.phase === 'victory') {
     if (updateVote(g, TICK)) continueEndless(g)
     return

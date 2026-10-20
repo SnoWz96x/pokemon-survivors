@@ -9,6 +9,7 @@ import { inPlay, setPhase } from './players'
 import { createTally, summarizeRun, type RunSummary } from './tally'
 import type { Game, Player, PlayerRecord } from './types'
 import type { MoveId } from './moves'
+import { TICK } from './replay'
 import * as dm from '../engine/dmath'
 
 /**
@@ -21,7 +22,8 @@ import * as dm from '../engine/dmath'
  *   no moves, no heals. A teammate standing by them for `COOP.revive.time`
  *   gets them back up. The run ends when nobody who can still play stands.
  * - Away (tab hidden, connection lost): frozen and untargetable, picks are made
- *   for them at once, and they stop counting for the horde's scaling.
+ *   for them at once, and they stop counting for the horde's scaling. Still
+ *   standing, they hold the world for up to `COOP.away.hold` seconds.
  * - Gone (left for good): their Pokémon leaves the field and never comes back.
  * - The horde, bosses and ₽ scale with the active players (`coopScale`); every
  *   Exp. Candy reaches the whole team.
@@ -41,6 +43,8 @@ export type CoopState = {
   paused: number
   /** Set at the victory while the team votes on the endless mode. */
   vote: EndlessVote | null
+  /** Ticks each slot has been away in a row (0 while here), counted by `stepTick`. */
+  awayTicks: number[]
 }
 
 export const createCoopState = (players: number): CoopState => ({
@@ -49,6 +53,7 @@ export const createCoopState = (players: number): CoopState => ({
   names: Array.from({ length: players }, () => ''),
   paused: 0,
   vote: null,
+  awayTicks: Array.from({ length: players }, () => 0),
 })
 
 export const createRecord = (): PlayerRecord => ({ kills: 0, taken: 0, revives: 0, faints: 0, tally: createTally() })
@@ -85,25 +90,58 @@ export const faint = (g: Game, foe: EnemyId | null, hit: HitKind) => {
   checkWipe(g, foe, hit)
 }
 
+/** Ticks an away player still standing holds the world before counting as down (`COOP.away.hold`). */
+const awayHoldTicks = () => Math.round(COOP.away.hold / TICK)
+
+/** An away player who stands and still holds the world for the team: away for less than `COOP.away.hold`. */
+const holdsWorld = (g: Game, p: Player) => p.away && !p.gone && p.hp > 0 && (g.coop?.awayTicks[p.slot] ?? 0) < awayHoldTicks()
+
 /**
- * Ends the run when nobody can play on: every player still in the run who
- * isn't away has fainted, and no away player stands either (an away player
- * still standing holds the world instead, `worldHeld`, so a dropped connection
- * never costs the run). Returns whether it ended.
+ * Ends the run when nobody can play on: every player still in the run has
+ * fainted, or stands only while away past `COOP.away.hold` (an away player
+ * still standing holds the world for that long instead, `worldHeld`, so a
+ * dropped connection doesn't cost the run at once). Returns whether it ended.
  */
 export const checkWipe = (g: Game, foe: EnemyId | null = null, hit: HitKind = 'hazard') => {
   if (g.coop === null || g.phase === 'gameover' || g.phase === 'victory') return false
-  for (const p of g.players) if (!p.gone && p.hp > 0) return false
+  for (const p of g.players) if (!p.gone && p.hp > 0 && (!p.away || holdsWorld(g, p))) return false
   g.phase = 'gameover'
   g.events.push({ kind: 'gameover', foe, hit })
   return true
 }
 
-/** No active player stands (everyone left standing is away): the world waits for one to come back. */
+/** No active player stands, but an away one does and still holds the world: it waits for them to come back. */
 export const worldHeld = (g: Game) => {
   if (g.coop === null) return false
-  for (const p of g.players) if (!p.gone && !p.away && p.hp > 0) return false
-  return true
+  let held = false
+  for (const p of g.players) {
+    if (!p.gone && !p.away && p.hp > 0) return false
+    if (holdsWorld(g, p)) held = true
+  }
+  return held
+}
+
+/**
+ * While the world waits on away players (`worldHeld`): the one it waits on
+ * longest and the seconds left until they stop holding it, for the shell's
+ * "waiting for X" line. Null when the world isn't held by an away player.
+ */
+export const awayHold = (g: Game): { slot: number; left: number } | null => {
+  if (!worldHeld(g) || g.coop === null) return null
+  let best: { slot: number; left: number } | null = null
+  for (const p of g.players) {
+    if (!holdsWorld(g, p)) continue
+    const left = (awayHoldTicks() - (g.coop.awayTicks[p.slot] ?? 0)) * TICK
+    if (!best || left > best.left) best = { slot: p.slot, left }
+  }
+  return best
+}
+
+/** Counts every player's ticks away in a row (once a tick, from `stepTick`). */
+export const countAway = (g: Game) => {
+  const ticks = g.coop?.awayTicks
+  if (!ticks) return
+  for (const p of g.players) ticks[p.slot] = p.away && !p.gone ? (ticks[p.slot] ?? 0) + 1 : 0
 }
 
 /** Standing next to a fainted teammate fills their revive; walking off drains it. Up, they get `COOP.revive.hp` and i-frames. */
