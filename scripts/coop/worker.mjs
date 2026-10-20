@@ -140,6 +140,10 @@ parentPort.on('message', async (m) => {
         note('storm')
         bot.storm(m.n ?? 300)
         break
+      case 'surrender':
+        note('surrender')
+        bot.surrender()
+        break
       case 'bank':
         bankNow()
         break

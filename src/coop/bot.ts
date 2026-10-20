@@ -1,5 +1,5 @@
 import { STARTER_IDS } from '../data/starters'
-import { NO_RANKS } from '../game/meta'
+import { NO_RANKS, UPGRADE_IDS, UPGRADES, type Ranks } from '../game/meta'
 import { onScreen, type PickScreen } from '../game/lockstep'
 import { inPlay, localPlayer } from '../game/players'
 import { TICK } from '../game/replay'
@@ -24,10 +24,15 @@ export type Bot = {
   game: () => Game | null
   /** Picks every pending screen at once with rounds old and new, duplicates, nonsense: none of it may break the run. */
   storm: (n: number) => void
+  /** Stops kiting and stands still: the horde ends the run (the soak's way to a natural end on time). */
+  surrender: () => void
 }
 
+/** Every Poké Mart rank bought: a bot plays like a veteran, so a soak's runs last (a fresh save's bot falls in minutes). */
+const VETERAN: Ranks = UPGRADE_IDS.reduce((r, id) => ({ ...r, [id]: UPGRADES[id].maxRank }), NO_RANKS)
+
 /** A bot's Pokémon, by its number (a spread of species and sizes). */
-export const botPick = (n: number): CoopPick => ({ starter: STARTER_IDS[(n * 7 + 3) % STARTER_IDS.length]!, ranks: NO_RANKS, shiny: n % 5 === 0 })
+export const botPick = (n: number): CoopPick => ({ starter: STARTER_IDS[(n * 7 + 3) % STARTER_IDS.length]!, ranks: VETERAN, shiny: n % 5 === 0 })
 
 export const createBot = (deps: CoopDeps, opts: { seed: number; vote?: boolean }): Bot => {
   const client = createCoopClient(deps)
@@ -39,6 +44,7 @@ export const createBot = (deps: CoopDeps, opts: { seed: number; vote?: boolean }
   let pickAt: { round: number; at: number } | null = null
   let specialIn = 3 + random() * 5
   let angle = random() * Math.PI * 2
+  let surrendered = false
 
   const game = () => client.state().runner?.game ?? null
   const me = () => {
@@ -97,7 +103,7 @@ export const createBot = (deps: CoopDeps, opts: { seed: number; vote?: boolean }
     steerIn -= dt
     if (steerIn <= 0) {
       steerIn = 0.15 + random() * 0.2
-      stick = inPlay(p) ? steer(g, p) : p.hp <= 0 ? { x: 0, y: 0 } : stick
+      stick = surrendered ? { x: 0, y: 0 } : inPlay(p) ? steer(g, p) : p.hp <= 0 ? { x: 0, y: 0 } : stick
     }
     if (onScreen(p) && p.offers.length > 0) {
       if (!pickAt || pickAt.round !== p.round) pickAt = { round: p.round, at: now + 300 + random() * 1700 }
@@ -146,5 +152,5 @@ export const createBot = (deps: CoopDeps, opts: { seed: number; vote?: boolean }
     }
   }
 
-  return { client, frame, me, game, storm }
+  return { client, frame, me, game, storm, surrender: () => void (surrendered = true) }
 }

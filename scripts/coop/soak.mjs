@@ -18,6 +18,7 @@
  *   npm run soak -- --rooms=1 --bots=2 --minutes=3 --profiles=br
  *   npm run soak -- --relay=https://ps-coop-dev.pedrobarretto.workers.dev --rooms=1 --minutes=2 --no-restart
  *   npm run soak -- --json=soak.json               numbers for the PR
+ *   npm run soak -- --surrender=10                 the bots stop kiting at minute 10, so the horde ends the runs then
  */
 import { spawn } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -40,6 +41,7 @@ const PROFILE_SET = opt('profiles', 'br,us,mixed').split(',')
 const RELAY_PORT = Number(opt('port', 8796))
 const EXTERNAL = opt('relay', null)
 const CHAOS = !flag('no-chaos')
+const SURRENDER = opt('surrender', null) === null ? null : Number(opt('surrender', 0)) * 60_000
 const RESTART_AT = flag('no-restart') || EXTERNAL ? null : Number(opt('restart-at', 7)) * 60_000
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -182,6 +184,17 @@ const runChaos = async (room) => {
   }
 }
 if (CHAOS) for (const room of rooms) void runChaos(room)
+
+if (SURRENDER !== null) {
+  for (const room of rooms) {
+    void (async () => {
+      await sleep(room.startedAt + SURRENDER - Date.now())
+      if (room.done) return
+      log(`room ${room.r}: the bots stop kiting`)
+      for (const b of room.bots) await b.call('surrender')
+    })()
+  }
+}
 
 let restarts = 0
 if (RESTART_AT !== null) {
