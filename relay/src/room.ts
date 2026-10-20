@@ -272,7 +272,10 @@ const event = (room: Room, ev: string, data: Record<string, string | number | bo
   data: { code: room.code, ...data },
 })
 
-const refuse = (conn: ConnId, code: Refusal): Effect[] => [send(conn, { t: 'refused', code }), { k: 'close', to: conn, reason: 'refused' }]
+const refuse = (conn: ConnId, code: Refusal, build?: string): Effect[] => [
+  send(conn, build === undefined ? { t: 'refused', code } : { t: 'refused', code, build }),
+  { k: 'close', to: conn, reason: 'refused' },
+]
 
 /* ---------------- Room lifecycle ---------------- */
 
@@ -444,7 +447,7 @@ export const hello = (state: State, connId: ConnId, h: Hello, identity: Identity
   if (h.v !== PROTOCOL) return refuse(connId, 'version')
   if (!room || h.room !== room.code) return refuse(connId, 'unavailable')
   if (!identity) return refuse(connId, 'auth')
-  if (h.build !== room.build) return refuse(connId, 'build')
+  if (h.build !== room.build) return refuse(connId, 'build', room.build)
   const out: Effect[] = []
   let seat = room.seats.find((s) => s.identity === identity.id)
   if (seat) {

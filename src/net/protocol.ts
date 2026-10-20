@@ -224,7 +224,8 @@ export const CLOSE_CODES = {
 export type ServerMessage =
   /** You hold `seat`; keep `secret` (by room code) to take it back from any tab. */
   | { t: 'welcome'; seat: number; secret: string; room: RoomView }
-  | { t: 'refused'; code: Refusal }
+  /** `build`: with a `build` refusal, the build the room runs (the client tells whether it is older or newer). */
+  | { t: 'refused'; code: Refusal; build?: string }
   | { t: 'room'; room: RoomView }
   /** A run starts: its tick 0 goes out in `startsIn` ms. */
   | { t: 'start'; run: RunStart; startsIn: number }

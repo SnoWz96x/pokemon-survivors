@@ -86,7 +86,7 @@ describe('seats', () => {
     const build = join(state, 'c8', 'guest-8-xxxxxxxxxxxx', T0, { build: 'b2' })
     expect(of(sent(full, 'c9'), 'refused')).toEqual([{ t: 'refused', code: 'unavailable' }])
     expect(of(sent(missing, 'g'), 'refused')).toEqual([{ t: 'refused', code: 'unavailable' }])
-    expect(of(sent(build, 'c8'), 'refused')).toEqual([{ t: 'refused', code: 'build' }])
+    expect(of(sent(build, 'c8'), 'refused')).toEqual([{ t: 'refused', code: 'build', build: 'b1' }])
   })
 
   it('gives a seat back to its identity from any socket, and tells the old one it was replaced', () => {
