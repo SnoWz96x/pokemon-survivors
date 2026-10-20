@@ -1816,15 +1816,21 @@ const leaveCoopRun = () => {
   coopClient()?.leave()
   removeBots()
   linkRoom(null)
+  leftRun = null
   showTitle()
 }
 
-/** The run that "Voltar ao lobby" left: its late `run` events (a resume, a heal) don't pull this player back into it. */
-let leftRun: number | null = null
+/**
+ * The run that "Voltar ao lobby" left, by room code and run id (run ids
+ * count from 1 in every room): its late `run` events (a resume, a heal)
+ * don't pull this player back into it.
+ */
+let leftRun: { code: string; run: number } | null = null
 
 /** "Voltar ao lobby" on the end screen: the run screen goes (banked), the room stays, and its screen comes back. */
 const backToRoom = () => {
-  leftRun = run?.coop?.runner.start.id ?? null
+  const c = run?.coop
+  leftRun = c ? { code: c.runner.room, run: c.runner.start.id } : null
   endRun()
   showRoom()
 }
@@ -1975,7 +1981,7 @@ const watchCoop = (client: CoopClient) => {
           track('coop', { step: 'start', players: e.runner.game.players.length, difficulty: e.runner.game.difficulty })
         }
         // Back in the room after a run: that run's resume or heal stays behind the room screen.
-        if (!c && e.why !== 'start' && e.runner.start.id === leftRun) return
+        if (!c && e.why !== 'start' && e.runner.room === leftRun?.code && e.runner.start.id === leftRun.run) return
         if (e.why === 'start' || !c || c.runner.start.id !== e.runner.start.id) void startCoopRun(client, e.runner)
         else c.runner = e.runner
         return
@@ -2013,6 +2019,7 @@ const joinCoop = async (code: string, via: 'code' | 'link' | 'invite' | null) =>
   const client = coopClient()
   if (!client) return { ok: false as const, why: 'offline' as const }
   watchCoop(client)
+  leftRun = null
   const res = await client.join(code)
   if (!res.ok) return res
   if (via) track('coop', { step: 'join', via })
