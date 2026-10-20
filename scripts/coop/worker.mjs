@@ -85,8 +85,15 @@ const report = () => {
   }
 }
 
+/** Trouble the soak stages only on a run still going: a desync after the end has nothing left to heal it. */
+const live = () => {
+  const r = c.state().runner
+  return r && !r.over && !r.ended
+}
+
 parentPort.on('message', async (m) => {
   try {
+    if (['drop', 'fresh', 'hide', 'desync', 'storm'].includes(m.cmd) && !live()) return parentPort.postMessage({ id: m.id, ok: 'skipped' })
     switch (m.cmd) {
       case 'create': {
         const res = await c.create(m.region ?? 'auto')

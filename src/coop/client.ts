@@ -33,9 +33,14 @@ export const CONNECT = {
   /** No message for this long in a run: show "reconnecting" (frames stalled). */
   stalled: 1000,
   /** No message for this long: the socket is dead, open another. */
-  dead: 6000,
-  /** A ping unanswered this long while frames still come: the uplink stalled, open another. */
-  uplink: 3500,
+  dead: 8000,
+  /**
+   * A ping unanswered this long while frames still come: the uplink stalled, open another. Under the relay's
+   * 5 s `away`, past the 2.8–4.3 s single-socket stalls measured on home Wi-Fi (those ride out on the same socket).
+   */
+  uplink: 4500,
+  /** The run's end (`over`) is said again this often (ms) until the relay confirms it: one sent on a dying socket is lost. */
+  over: 2000,
   /** Pings and heartbeats (ms). The relay calls a seat silent for 5 s `away`. */
   ping: 500,
   heartbeat: 1500,
@@ -167,6 +172,8 @@ export type ClientState = {
   fresh: boolean
   /** A `role` that came before the run's runner. */
   uploader: boolean
+  /** When `over` last went out (ms). */
+  overAt: number
 }
 
 export const createCoopClient = (deps: CoopDeps) => {
@@ -194,6 +201,7 @@ export const createCoopClient = (deps: CoopDeps) => {
     stickSent: { code: -1, at: -Infinity },
     fresh: false,
     uploader: false,
+    overAt: -Infinity,
   }
   const listeners = new Set<(e: CoopEvent) => void>()
   const emit = (e: CoopEvent) => listeners.forEach((fn) => fn(e))
@@ -336,6 +344,14 @@ export const createCoopClient = (deps: CoopDeps) => {
     return r
   }
 
+  /** The room says the run is over (it ended while this client's socket was down, so it missed `ended`). */
+  const endedWhileAway = (room: RoomView) => {
+    const r = s.runner
+    if (!r || r.ended || room.phase === 'playing' || room.run !== r.start.id) return
+    onEnded(r, r.over?.tick ?? r.next)
+    emit({ kind: 'ended', run: r.start.id, tick: r.endedAt ?? r.next })
+  }
+
   const receive = (m: ServerMessage) => {
     const now = deps.now()
     switch (m.t) {
@@ -352,9 +368,7 @@ export const createCoopClient = (deps: CoopDeps) => {
         joining = null
         setStatus({ kind: m.room.phase === 'playing' ? 'playing' : 'room' })
         emit({ kind: 'room', room: m.room })
-        // The end of the run was reported but the relay may have lost it.
-        const r = s.runner
-        if (r?.over && !r.ended) send({ t: 'over', ...r.over })
+        endedWhileAway(m.room)
         return
       }
       case 'refused':
@@ -362,6 +376,7 @@ export const createCoopClient = (deps: CoopDeps) => {
         return
       case 'room': {
         s.room = m.room
+        endedWhileAway(m.room)
         const playing = m.room.phase === 'playing'
         if (s.status.kind === 'room' && playing) setStatus({ kind: 'playing' })
         if (s.status.kind === 'playing' && !playing) setStatus({ kind: 'room' })
@@ -531,7 +546,8 @@ export const createCoopClient = (deps: CoopDeps) => {
       const silent = now - s.lastMessageAt
       if (!s.welcomed && silent > CONNECT.hello) return (s.reconnects++, reconnect(), 0)
       if (s.welcomed && silent > CONNECT.dead) return (s.reconnects++, reconnect(), 0)
-      if (s.welcomed && s.pingAt !== null && now - s.pingAt > CONNECT.uplink) return (s.reconnects++, reconnect(), 0)
+      // Not while syncing: a client busy catching up answers its own pongs late.
+      if (s.welcomed && s.pingAt !== null && now - s.pingAt > CONNECT.uplink && !s.runner?.syncing) return (s.reconnects++, reconnect(), 0)
       if (s.welcomed) {
         if (now - s.lastPingAt >= CONNECT.ping) {
           s.lastPingAt = now
@@ -541,6 +557,11 @@ export const createCoopClient = (deps: CoopDeps) => {
         // Only what the socket can take: a stalled one keeps the stick coalesced instead of piling up.
         if (ws.buffered() < 64 * 1024) for (const msg of due(s.outbox, now, s.rtt)) send(msg)
         if (now - s.lastSentAt >= CONNECT.heartbeat) send({ t: 'hb' })
+        const r = s.runner
+        if (r?.over && !r.ended && now - s.overAt >= CONNECT.over) {
+          s.overAt = now
+          send({ t: 'over', ...r.over })
+        }
       }
     }
     const r = s.runner
