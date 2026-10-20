@@ -2121,38 +2121,53 @@ const showCoopHub = (code: string | null = null) => {
   if (!client) return toast(ui, t().coop.off, 4000, 'coopOff')
   endRun()
   watchCoop(client)
-  setScreen(
-    coopHub(
-      ui,
-      input,
-      {
-        create: async () => {
-          const made = await client.create()
-          if (!made.ok) {
-            track('coop', { step: 'fail', at: 'create', why: made.why })
-            return t().coop.createFailed[made.why]
-          }
-          const res = await joinCoop(made.code, null)
-          if (!res.ok) return closedText(res.why)
-          track('coop', { step: 'create' })
-          client.setSettings({ difficulty: loadSave().difficulty })
-          showRoom()
+  // "Voltar" while a room is being made or joined: the hub is gone, so the room it got is left, never shown.
+  const up = () => screen === hub
+  const abandon = (code: string) => {
+    if (client.state().code !== code) return
+    client.leave()
+    linkRoom(null)
+  }
+  const hub = coopHub(
+    ui,
+    input,
+    {
+      create: async () => {
+        const made = await client.create()
+        if (!up()) return null
+        if (!made.ok) {
+          track('coop', { step: 'fail', at: 'create', why: made.why })
+          return t().coop.createFailed[made.why]
+        }
+        const res = await joinCoop(made.code, null)
+        if (!up()) {
+          if (res.ok) abandon(made.code)
           return null
-        },
-        join: async (code) => {
-          const res = await joinCoop(code, 'code')
-          if (!res.ok) return closedText(res.why)
-          showRoom()
-          return null
-        },
-        rename: setCoopName,
-        friends: signedIn() ? () => showFriends(() => showCoopHub()) : null,
-        signIn: accountsEnabled && !signedIn() ? () => void signIn() : null,
-        back: () => showTitle({ focus: 'coop' }),
+        }
+        if (!res.ok) return closedText(res.why)
+        track('coop', { step: 'create' })
+        client.setSettings({ difficulty: loadSave().difficulty })
+        showRoom()
+        return null
       },
-      code,
-    ),
+      join: async (code) => {
+        const res = await joinCoop(code, 'code')
+        if (!up()) {
+          if (res.ok) abandon(code)
+          return null
+        }
+        if (!res.ok) return closedText(res.why)
+        showRoom()
+        return null
+      },
+      rename: setCoopName,
+      friends: signedIn() ? () => showFriends(() => showCoopHub()) : null,
+      signIn: accountsEnabled && !signedIn() ? () => void signIn() : null,
+      back: () => showTitle({ focus: 'coop' }),
+    },
+    code,
   )
+  setScreen(hub)
   coopShown = 'hub'
 }
 
