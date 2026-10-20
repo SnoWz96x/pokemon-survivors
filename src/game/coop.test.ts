@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { COOP } from '../data/coop'
-import { seedFrom } from '../engine/rng'
 import { hurtPlayer } from './combat'
 import { coopPayout, coopStats } from './coop'
 import { spawnEnemy } from './enemies'
@@ -9,6 +8,7 @@ import { parseTickEntry, stepTick, type TickEntry } from './lockstep'
 import { NO_RANKS } from './meta'
 import { actAs } from './players'
 import { moveCode, TICK } from './replay'
+import { restore, snapshot, stateHash } from './snapshot'
 import { applyStatus } from './status'
 import { updateStatuses } from './statusSystem'
 import type { Game, Player } from './types'
@@ -225,27 +225,26 @@ describe('co-op entries', () => {
     const b = team(2, 9)
     run(a, 3, () => junk)
     run(b, 3)
-    expect(fingerprint(a)).toBe(fingerprint(b))
+    expect(stateHash(a)).toBe(stateHash(b))
   })
 })
 
-/** A hash of the whole state as JSON (Sets and Maps as arrays); PR 2 brings a real `stateHash`. */
-const fingerprint = (g: Game) =>
-  seedFrom(JSON.stringify(g, (_, v: unknown) => (v instanceof Set ? [...v] : v instanceof Map ? [...v.entries()] : v))).toString(16)
+
+/** Bot entries for a scripted co-op run: sticks, specials, picks on whatever screen is up, and a player away for a while. */
+const script = (g: Game) => (t: number): TickEntry[] => {
+  const out: TickEntry[] = []
+  for (const p of g.players) {
+    if (t % 40 === p.slot * 9) out.push({ slot: p.slot, kind: 'move', code: moveCode({ x: Math.cos(t / 90 + p.slot), y: Math.sin(t / 70 + p.slot) }) })
+    if (t % 150 === 30 + p.slot) out.push({ slot: p.slot, kind: 'special' })
+    if (p.phase !== 'playing' && p.phase !== 'evolving' && (t + p.slot * 13) % 45 === 0) out.push({ slot: p.slot, kind: 'pick', screen: p.phase, round: p.round, index: t % Math.max(1, p.offers.length) })
+  }
+  if (t === 2400) out.push({ slot: 2, kind: 'away' })
+  if (t === 4800) out.push({ slot: 2, kind: 'back' })
+  return out
+}
 
 describe('co-op lockstep', () => {
   it('keeps two clients fed the same entries identical, bit for bit', () => {
-    const script = (g: Game) => (t: number): TickEntry[] => {
-      const out: TickEntry[] = []
-      for (const p of g.players) {
-        if (t % 40 === p.slot * 9) out.push({ slot: p.slot, kind: 'move', code: moveCode({ x: Math.cos(t / 90 + p.slot), y: Math.sin(t / 70 + p.slot) }) })
-        if (t % 150 === 30 + p.slot) out.push({ slot: p.slot, kind: 'special' })
-        if (p.phase !== 'playing' && p.phase !== 'evolving' && (t + p.slot * 13) % 45 === 0) out.push({ slot: p.slot, kind: 'pick', screen: p.phase, round: p.round, index: t % Math.max(1, p.offers.length) })
-      }
-      if (t === 2400) out.push({ slot: 2, kind: 'away' })
-      if (t === 4800) out.push({ slot: 2, kind: 'back' })
-      return out
-    }
     const a = team(3, 77)
     const b = team(3, 77)
     const feedA = script(a)
@@ -253,10 +252,26 @@ describe('co-op lockstep', () => {
       const entries = feedA(t)
       stepTick(a, entries)
       stepTick(b, entries)
-      if (t % 1800 === 0) expect(fingerprint(b)).toBe(fingerprint(a))
+      if (t % 1800 === 0) expect(stateHash(b)).toBe(stateHash(a))
     }
     expect(a.time).toBeGreaterThan(60)
     expect(a.kills).toBeGreaterThan(50)
-    expect(fingerprint(b)).toBe(fingerprint(a))
+    expect(stateHash(b)).toBe(stateHash(a))
+  }, 60_000)
+
+  it('survives snapshot, restore and play on with the same hashes as the run that never stopped', () => {
+    const a = team(3, 78)
+    const feed = script(a)
+    let t = 0
+    for (; t < 60 / TICK; t++) stepTick(a, feed(t))
+    // Mid-pick, mid-revive and away states ride along: the held sticks and the screens' rounds are in the state.
+    const b = restore(snapshot(a))
+    expect(stateHash(b)).toBe(stateHash(a))
+    for (; t < 120 / TICK; t++) {
+      const entries = feed(t)
+      stepTick(a, entries)
+      stepTick(b, entries)
+    }
+    expect(stateHash(b)).toBe(stateHash(a))
   }, 60_000)
 })
