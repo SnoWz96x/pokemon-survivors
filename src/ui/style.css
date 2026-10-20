@@ -15415,11 +15415,23 @@ button.hall-tile:hover {
   }
   .team-stats {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 6px;
   }
+  /* Four cards side by side: a long label gives way before a number runs off the card. */
   .team-stat {
-    font-size: 16px;
+    min-width: 0;
+    gap: 3px;
+    font-size: 14px;
+  }
+  .team-stat span {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .team-stat b {
+    flex: none;
   }
   .team-move:nth-child(n + 2) {
     display: none;

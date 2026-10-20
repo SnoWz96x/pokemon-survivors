@@ -4649,6 +4649,7 @@ export const es: Messages = {
       fainted: (name) => `¡*${name}* se debilitó! Quédate junto a la _Poké Ball_ para revivirlo.`,
       revived: (name, by) => `¡*${by}* revivió a *${name}*!`,
       revivedYou: (by) => `¡*${by}* te revivió!`,
+      youRevived: (name) => `¡Reviviste a *${name}*!`,
       left: (name) => `*${name}* salió de la partida.`,
       away: (name) => `*${name}* está ausente.`,
       back: (name) => `¡*${name}* volvió!`,

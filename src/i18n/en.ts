@@ -4648,6 +4648,7 @@ export const en: Messages = {
       fainted: (name) => `*${name}* fainted! Stand by the _Poké Ball_ to revive them.`,
       revived: (name, by) => `*${by}* revived *${name}*!`,
       revivedYou: (by) => `*${by}* revived you!`,
+      youRevived: (name) => `You revived *${name}*!`,
       left: (name) => `*${name}* left the run.`,
       away: (name) => `*${name}* is away.`,
       back: (name) => `*${name}* is back!`,

@@ -4883,6 +4883,7 @@ export const pt = {
       fainted: (name: string) => `*${name}* desmaiou! Fique ao lado da _Poké Ball_ para reviver.`,
       revived: (name: string, by: string) => `*${by}* reviveu *${name}*!`,
       revivedYou: (by: string) => `*${by}* te reviveu!`,
+      youRevived: (name: string) => `Você reviveu *${name}*!`,
       left: (name: string) => `*${name}* saiu da partida.`,
       away: (name: string) => `*${name}* está ausente.`,
       back: (name: string) => `*${name}* voltou!`,

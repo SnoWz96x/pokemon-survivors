@@ -374,7 +374,7 @@ export const teamFeedback = (root: HTMLElement, g: Game, me: Player, e: Extract<
     case 'revived':
       playSfx('heal')
       playSfx('unlock')
-      return toast(root, rich(e.slot === me.slot ? m.revivedYou(seatName(g, e.by)) : m.revived(seatName(g, e.slot), seatName(g, e.by))), 2600, `fainted${e.slot}`)
+      return toast(root, rich(e.slot === me.slot ? m.revivedYou(seatName(g, e.by)) : e.by === me.slot ? m.youRevived(seatName(g, e.slot)) : m.revived(seatName(g, e.slot), seatName(g, e.by))), 2600, `fainted${e.slot}`)
     case 'left':
       playSfx('escaped')
       return toast(root, rich(m.left(seatName(g, e.slot))), 3000)
