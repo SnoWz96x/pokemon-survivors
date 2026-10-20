@@ -73,6 +73,8 @@ const gameVersion = () => {
 // One page per language for the game (index.html, en/index.html, es/index.html); the site pages are added by `sitePages`.
 export default defineConfig({
   plugins: [sitePages()],
+  // The co-op relay (`relay/`) is its own package with its own Workers test runner.
+  test: { exclude: ['**/node_modules/**', '**/.git/**', 'relay/**'] },
   define: { __GAME_VERSION__: JSON.stringify(gameVersion()) },
   // PostHog's proxy, as vercel.json has it, to try analytics locally (`ps:analytics` set to `on` in localStorage).
   server: { proxy: { '/ingest': { target: 'https://us.i.posthog.com', changeOrigin: true, rewrite: (path) => path.replace(/^\/ingest/, '') } } },
