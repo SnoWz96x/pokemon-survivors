@@ -237,7 +237,9 @@ export const pt = {
       expired: 'A sala expirou.',
       left: 'Você saiu da sala.',
       version: 'Atualize o jogo para jogar junto.',
-      auth: 'Não deu para confirmar sua conta. Entre de novo e tente outra vez.',
+      // A token the relay found expired is most often a device clock that's off.
+      auth: 'Não deu para confirmar sua conta. Confira se o relógio do aparelho está certo, entre de novo e tente outra vez.',
+      signIn: 'Entre na sua conta para jogar junto.',
       invalid: 'Não deu para entrar na sala.',
       refused: 'Não deu para entrar na sala.',
       abuse: 'Conexão encerrada por excesso de mensagens.',

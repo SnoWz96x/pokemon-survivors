@@ -15,7 +15,9 @@ import { loadoutOf, settingsOf, type CoopPick, type CoopSettings } from './start
  * the soak bots pass Node's. Nothing here ever blocks solo play.
  *
  * - Identity: a signed-in player sends a fresh Clerk token on every
- *   (re)connect; a guest a persistent id. The seat secret the relay gives is
+ *   (re)connect (co-op is for accounts: a production relay refuses guests
+ *   with `signIn`); a guest, on the dev and local relays only (bots, the
+ *   soak, dev builds), a persistent id. The seat secret the relay gives is
  *   kept by room code, so any tab opened from the link takes the same seat.
  * - Reconnects on its own with backoff and jitter, resuming from the last tick
  *   it knows (`resume.from`), keeping its state. It rides out TCP stalls:
@@ -52,7 +54,7 @@ export const CONNECT = {
   jump: 1800,
 } as const
 
-/** Why a client stopped for good. `build`: the room runs another version of the game (update to play together). */
+/** Why a client stopped for good. `build`: the room runs another version of the game (update to play together); `signIn`: the relay takes accounts only. */
 export type CloseWhy = CloseReason | Exclude<Refusal, 'unavailable'> | 'unavailable' | 'offline'
 
 export type Status =
@@ -133,7 +135,7 @@ export type CoopDeps = {
   socket: (url: string, on: SocketHandlers) => SocketLike
   fetch: (url: string, init: { method: string; body: string; headers: Record<string, string> }) => Promise<{ json: () => Promise<unknown> }>
   store: Store
-  /** A fresh Clerk session token when signed in, else null (a guest). */
+  /** A fresh Clerk session token when signed in (asked on every connect), else null (a guest: dev and local relays only). */
   token: () => Promise<string | null>
   name: () => string
   now: () => number
