@@ -1,4 +1,4 @@
-import { accountHandle, accountState, sessionToken } from './account'
+import { accountHandle, accountsEnabled, sessionToken } from './account'
 import { featureFlag, track } from './analytics'
 import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/bank'
 import { createBot, botPick, type Bot } from './coop/bot'
@@ -9,9 +9,10 @@ import { coopPayout, playerDexLog } from './game/coop'
 import { mergeDex, recordRun, type Pokedex } from './game/dex'
 import { localPlayer } from './game/players'
 import type { Game, GameEvent } from './game/types'
-import { ROOM_PARAM, parseName, parseRoomCode } from './net/protocol'
+import { ROOM_PARAM, parseRoomCode } from './net/protocol'
+import { REF_PARAM } from './game/referral'
 import { ROUTES } from './site/routes'
-import { locale, t } from './i18n'
+import { locale } from './i18n'
 import { bankEggs, depositPokeDollars, recordRunProgress, updateSave } from './ui/save'
 
 /**
@@ -58,8 +59,15 @@ const local: Store = {
   },
 }
 
-/** Where the relay is: the build's, a dev override, or the dev relay in dev builds. Null: co-op is off in this build. */
-export const coopUrl = (): string | null => (import.meta.env.DEV ? local.get(URL_KEY) : null) ?? import.meta.env.VITE_COOP_URL ?? (import.meta.env.DEV ? DEV_RELAY : null)
+/**
+ * Where the relay is: the build's, a dev override, or the dev relay in dev
+ * builds. Null: co-op is off in this build, as in any build without accounts
+ * (co-op is for signed-in players); dev builds keep it, as guests on the dev relay.
+ */
+export const coopUrl = (): string | null => {
+  if (!accountsEnabled && !import.meta.env.DEV) return null
+  return (import.meta.env.DEV ? local.get(URL_KEY) : null) ?? import.meta.env.VITE_COOP_URL ?? (import.meta.env.DEV ? DEV_RELAY : null)
+}
 
 export const setCoopUrl = (url: string | null) => (url ? local.set(URL_KEY, url) : local.remove(URL_KEY))
 
@@ -77,13 +85,6 @@ export const coopName = () => {
   if (kept) return kept
   const name = `Dev ${Math.floor(1000 + Math.random() * 9000)}`
   local.set(NAME_KEY, name)
-  return name
-}
-
-/** Sets the name teammates see, for a guest (a signed-in player shows the profile's). Null: it didn't take (empty). */
-export const setCoopName = (raw: string) => {
-  const name = parseName(raw)
-  if (name) local.set(NAME_KEY, name)
   return name
 }
 
@@ -119,8 +120,15 @@ export const coopClient = (): CoopClient | null => {
 /** The room code in the page's link (`?sala=K7QF2`), if any. */
 export const linkedRoom = () => parseRoomCode(new URLSearchParams(location.search).get(ROOM_PARAM))
 
-/** The room's link to share: the game's page with `?sala=CODE` (this site, so a dev or preview build shares itself). */
-export const roomLink = (code: string) => `${location.origin}${ROUTES.play[locale()]}?${ROOM_PARAM}=${code}`
+/**
+ * The room's link to share: the game's page with `?sala=CODE` (this site, so
+ * a dev or preview build shares itself) and who sends it (`&ref=`, this
+ * player's handle), so the invited player sees who asked and the referral counts.
+ */
+export const roomLink = (code: string) => {
+  const handle = accountHandle()
+  return `${location.origin}${ROUTES.play[locale()]}?${ROOM_PARAM}=${code}${handle ? `&${REF_PARAM}=${encodeURIComponent(handle)}` : ''}`
+}
 
 /* ---------------- The beta's gate ---------------- */
 

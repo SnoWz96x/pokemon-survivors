@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CoopInvite } from '../game/friends'
 import type { Member, RoomView } from '../net/protocol'
-import { betaOn, buildAdvice, freshInvites, memberState, readiness } from './lobby'
+import { betaOn, buildAdvice, coopAccess, freshInvites, memberState, readiness } from './lobby'
 
 const member = (seat: number, o: Partial<Member> = {}): Member => ({
   seat,
@@ -83,5 +83,17 @@ describe('buildAdvice', () => {
     expect(at({ latest: null })).toBe('reload')
     expect(at({ latest: null, reloaded: true })).toBe('oldRoom')
     expect(at({ reloaded: true })).toBe('oldRoom')
+  })
+})
+
+describe('coopAccess', () => {
+  it('opens co-op to an account with a handle only, where the build has accounts', () => {
+    expect(coopAccess(true, { kind: 'signedIn', handle: 'ash' })).toBe('open')
+    expect(coopAccess(true, { kind: 'guest' })).toBe('signIn')
+    expect(coopAccess(true, { kind: 'signedIn', handle: null })).toBe('handle')
+    expect(coopAccess(true, { kind: 'signedIn', handle: undefined })).toBe('wait')
+    expect(coopAccess(true, { kind: 'busy' })).toBe('wait')
+    // A dev build without accounts plays as a guest on the dev relay.
+    expect(coopAccess(false, { kind: 'guest' })).toBe('open')
   })
 })

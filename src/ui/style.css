@@ -3069,6 +3069,12 @@ button {
   color: #e83838;
 }
 
+/* The co-op gate's lead: who sent the room's link (or its code). */
+.account-lead {
+  font-weight: bold;
+  color: #e83838;
+}
+
 /* The Discord screen: the logo in the title, and Discord's blurple on its main button. */
 .discord-title {
   display: flex;
@@ -15630,12 +15636,6 @@ button.hall-tile:hover {
   font-size: 18px;
   letter-spacing: 4px;
   text-transform: uppercase;
-}
-
-.coop-guest {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 .coop-hub.busy .btn,

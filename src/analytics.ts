@@ -107,9 +107,11 @@ type AnalyticsEvents = {
   /**
    * Co-op's beta, one event per step: a room created, a room joined (by a typed code, a link or a friend's
    * invite), a run started (by the host, once per run), a run ended for this player (how, how long, how many),
-   * and a failure to create, join or stay (`why`: the client's `CloseWhy` or the create refusal).
+   * a failure to create, join or stay (`why`: the client's `CloseWhy` or the create refusal), and a guest
+   * stopped at the door to sign in (`gate`: from the lobby's tile or a room's link).
    */
   coop:
+    | { step: 'gate'; via: 'tile' | 'link' }
     | { step: 'create' }
     | { step: 'join'; via: 'code' | 'link' | 'invite' }
     | { step: 'start'; players: number; difficulty: Difficulty }

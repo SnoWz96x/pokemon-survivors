@@ -1,14 +1,13 @@
-import { accountState } from '../account'
 import { playSfx } from '../engine/audio'
 import type { Input } from '../engine/input'
 import { PLAYABLE } from '../data/hatchlings'
 import type { CoopClient } from '../coop/client'
 import { memberState, readiness } from '../coop/lobby'
 import { parseLoadout, parseSettings } from '../coop/start'
-import { coopName, roomLink } from '../coopShell'
+import { roomLink } from '../coopShell'
 import { DIFFICULTY_IDS, type Difficulty } from '../game/difficulty'
 import { t } from '../i18n'
-import { parseRoomCode, ROOM_CODE_LENGTH, MAX_PLAYERS, LIMITS, type Member } from '../net/protocol'
+import { parseRoomCode, ROOM_CODE_LENGTH, MAX_PLAYERS, type Member } from '../net/protocol'
 import { coopIcon, crownIcon, pokeballIcon } from '../render/art'
 import { slotColor } from '../render/team'
 import { portraitUrl } from '../render/sprites'
@@ -70,15 +69,6 @@ const field = (label: string, control: HTMLElement) => h('label', { class: 'fiel
 /** The beta's tag beside a co-op screen's title. */
 const betaTitle = (text: string) => h('div', { class: 'dialog-title coop-title' }, h('img', { src: coopIcon(), alt: '' }), h('span', {}, text), h('em', { class: 'coop-beta' }, t().coop.beta))
 
-/** A text field for the name teammates see (guests): kept to the relay's length. */
-const nameField = (label: string, onName: (name: string) => string | null) => {
-  const input = h('input', { class: 'field-input', type: 'text', maxlength: LIMITS.name, autocomplete: 'nickname', spellcheck: 'false', enterkeyhint: 'done' })
-  input.value = coopName()
-  input.addEventListener('change', () => (input.value = onName(input.value) ?? coopName()))
-  input.addEventListener('keydown', (e) => e.key === 'Enter' && input.blur())
-  return field(label, input)
-}
-
 /* ---------------- The hub ---------------- */
 
 export type HubActions = {
@@ -86,19 +76,14 @@ export type HubActions = {
   create: () => Promise<string | null>
   /** Joins room `code` the same way. */
   join: (code: string) => Promise<string | null>
-  /** The guest's name for the team (null: it didn't take). */
-  rename: (name: string) => string | null
-  /** Friends (signed in), or null. */
+  /** Friends (signed in), or null (a dev build without accounts). */
   friends: (() => void) | null
-  /** Signing in (a guest, where accounts exist), or null. */
-  signIn: (() => void) | null
   back: () => void
 }
 
-/** Jogar junto: create a room, or join one by its code (`code` prefills it). */
+/** Jogar junto (signed in: the team sees the account's @handle): create a room, or join one by its code (`code` prefills it). */
 export const coopHub = (root: HTMLElement, input: Input, actions: HubActions, code: string | null = null): Screen => {
   const m = t().coop.hub
-  const signedIn = accountState().kind === 'signedIn'
   const codeInput = h('input', { class: 'field-input coop-code-input', type: 'text', maxlength: ROOM_CODE_LENGTH, autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', enterkeyhint: 'go', placeholder: 'K7QF2' })
   if (code) codeInput.value = code
   const status = h('p', { class: 'field-message coop-status', role: 'status' })
@@ -150,12 +135,11 @@ export const coopHub = (root: HTMLElement, input: Input, actions: HubActions, co
         'div',
         { class: 'invite-body coop-body' },
         h('p', { class: 'invite-tip' }, m.intro),
-        signedIn ? null : nameField(m.name, actions.rename),
         navButton('create', m.create, () => void attempt(m.creating, actions.create), 'btn confirm coop-create'),
         h('p', { class: 'coop-or' }, m.or),
         h('div', { class: 'coop-join' }, field(m.code, codeInput), navButton('join', m.join, join)),
         status,
-        actions.friends ? navButton('friends', m.friends, actions.friends) : actions.signIn ? h('div', { class: 'coop-guest' }, h('p', { class: 'invite-tip' }, m.guest), navButton('signIn', m.signIn, actions.signIn)) : null,
+        actions.friends ? navButton('friends', m.friends, actions.friends) : null,
       ),
       h('div', { class: 'buttons' }, navButton('back', m.back, actions.back)),
       hint(m.hintKeys, m.hintTouch),
@@ -178,8 +162,6 @@ export type RoomActions = {
   leave: () => void
   /** Back into the run the team is playing (this player left its screen). Null: none to go back to. */
   rejoin: (() => void) | null
-  /** A guest's new name (null: it didn't take); signed-in players show the profile's. */
-  rename: ((name: string) => string | null) | null
 }
 
 /** Phones and tablets share through the system sheet; computers copy. */
@@ -246,8 +228,6 @@ export const coopRoom = (root: HTMLElement, input: Input, client: CoopClient, ac
   const confirmLeave = () => ask(t().coop.lobby.leaveConfirm, t().coop.lobby.leave, actions.leave)
 
   let nav = keyNav(input, el, confirmLeave)
-  // Made once, so a redraw while the player types keeps the field (and its caret).
-  const renameField = actions.rename && nameField(t().coop.lobby.rename, actions.rename)
 
   const render = () => {
     if (sub) return
@@ -328,7 +308,6 @@ export const coopRoom = (root: HTMLElement, input: Input, client: CoopClient, ac
           ),
           h('div', { class: 'coop-seats' }, ...seats),
           h('div', { class: 'coop-settings' }, h('span', { class: 'field-label' }, m.difficulty), difficulty),
-          renameField && lobby ? renameField : null,
           h('p', { class: 'invite-tip coop-rules' }, `${t().coop.hub.intro} ${m.rules}`),
         ),
         h('p', { class: `coop-wait${notice && notice.until > performance.now() ? ' error' : ''}`, role: 'status' }, said),

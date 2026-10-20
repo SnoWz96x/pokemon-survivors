@@ -42,6 +42,22 @@ export const buildAdvice = (o: { own: string; room: string | null; latest: strin
   return (o.room ?? o.latest) === o.latest && o.own !== o.latest ? 'reload' : 'oldRoom'
 }
 
+/** What co-op needs before it opens: nothing, an account (`signIn`), its @handle (`handle`), or a moment while the account is settling (`wait`). */
+export type CoopAccess = 'open' | 'signIn' | 'handle' | 'wait'
+
+/**
+ * Co-op is for signed-in players with a handle (the name teammates see).
+ * `accounts`: the build has them; a build without (only dev builds keep
+ * co-op then, as guests on the dev relay) opens as it is. `handle`
+ * undefined: the API hasn't said yet.
+ */
+export const coopAccess = (accounts: boolean, account: { kind: 'guest' | 'busy' | 'signedIn'; handle?: string | null }): CoopAccess => {
+  if (!accounts) return 'open'
+  if (account.kind === 'guest') return 'signIn'
+  if (account.kind === 'busy' || account.handle === undefined) return 'wait'
+  return account.handle === null ? 'handle' : 'open'
+}
+
 /** Invites worth a banner now: not shown yet, not expired (by `now`, ms), and not into the room the player is already in. */
 export const freshInvites = (invites: readonly CoopInvite[], shown: ReadonlySet<string>, room: string | null, now: number) =>
   invites.filter((i) => !shown.has(i.id) && i.room !== room && Date.parse(i.expiresAt) > now)

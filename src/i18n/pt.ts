@@ -239,8 +239,6 @@ export const pt = {
     /** The lobby's dock tile, and the tag the co-op screens wear while it's a beta. */
     entry: 'Co-op',
     beta: 'BETA',
-    /** A guest's name for the team until they pick one (kept on the device). */
-    guestName: (n: number) => `Treinador ${n}`,
     /** The game has no co-op server in this build (a room link opened anyway). */
     off: 'O co-op não está disponível nesta versão do jogo.',
     /** A room that runs another version: reloading brings the new one. */
@@ -256,6 +254,14 @@ export const pt = {
       offline: 'Sem conexão com o servidor do co-op.',
     },
     denied: { notHost: 'Só o anfitrião pode começar.', notReady: 'Espere todos ficarem prontos.' },
+    /** "Entre para jogar junto": co-op is for accounts (the team sees the @handle). */
+    gate: {
+      title: 'JOGAR JUNTO',
+      pitch: 'Entre para jogar junto.',
+      note: 'O co-op usa sua conta: a equipe vê o seu @ e o seu ₽ fica salvo nela. Entrar também cria a conta.',
+      invited: (who: string) => `${who} te chamou para jogar junto!`,
+      room: (code: string) => `Sala ${code}`,
+    },
     /** The hub: create a room or join one by code. */
     hub: {
       title: 'JOGAR JUNTO',
@@ -267,11 +273,7 @@ export const pt = {
       join: 'Entrar',
       joining: 'Entrando na sala…',
       badCode: 'O código tem 5 letras e números, como K7QF2.',
-      name: 'Seu nome no time',
       friends: 'Amigos',
-      /** Guests: friends and invites need an account; co-op itself doesn't. */
-      guest: 'Entre na sua conta para adicionar amigos e convidar. Para jogar junto, basta o código ou o link.',
-      signIn: 'Entrar na conta',
       back: 'Voltar',
       hintKeys: '↑ ↓ escolher · ENTER confirmar · ESC voltar',
       hintTouch: 'Toque para escolher',
@@ -310,8 +312,6 @@ export const pt = {
       playing: 'A equipe está numa partida.',
       rejoin: 'Voltar para a partida',
       rules: 'Co-op não vale para o ranking, o Surto do dia nem os itens da Bolsa.',
-      /** Guests rename themselves here (the name teammates see). */
-      rename: 'Seu nome',
       hintKeys: '← → escolher · ENTER confirmar · ESC sair',
       hintTouch: 'Toque para escolher',
       /** The partner select, picking for the room. */

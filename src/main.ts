@@ -34,7 +34,7 @@ import { nextIsOfficial } from './game/attempt'
 import { challengeStart, type Challenge } from './game/challenge'
 import { HATCHLING_IDS, HATCHLINGS, PLAYABLE, PLAYABLE_IDS, type HatchlingId, type PlayableId } from './data/hatchlings'
 import { isLegend } from './data/legends'
-import { accountHandle, accountState, accountsEnabled, accountUserId, backFromSignIn, giftInbox, onAccountChange, signIn, stageGifts, stageSyncedSave, startAccount, syncSave } from './account'
+import { accountHandle, accountState, accountsEnabled, accountUserId, backFromSignIn, giftInbox, onAccountChange, stageGifts, stageSyncedSave, startAccount, syncSave } from './account'
 import { identify, startAnalytics, track, type ErrorContext } from './analytics'
 import { BAG_ITEMS, useArmed, type BagItem } from './game/bag'
 import { armedTms, tmLimit } from './game/tmShelf'
@@ -126,7 +126,7 @@ import { setActivePad } from './ui/inputLabels'
 import { captureRef, flushRuns, onRulesBehind, prefetchRanked, PROFILE_PARAM, rankingEnabled, stageInvite, startRanked, type RankedRun, type RankOutcome } from './ranking'
 import { DISCORD_GIFT, parseGiftContent, type GiftKind, type GiftReason } from './game/gifts'
 import { giftScreen } from './ui/gifts'
-import { playGate } from './ui/account'
+import { coopGate, playGate } from './ui/account'
 import { trainerCardScreen } from './ui/trainer'
 import { discordScreen } from './ui/discord'
 import { createHud, type Hud } from './ui/hud'
@@ -161,10 +161,11 @@ import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, tickToasts, toast } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
 import { localPlayer, phaseOf } from './game/players'
-import { addBots, bankCoopRun, botCount, buildRefusal, coopClient, coopEntry, coopEventFor, coopUrl, linkedRoom, linkRoom, markBuildReload, onCoopEntry, refreshCoopEntry, removeBots, reportHeal, setCoopBeta, setCoopName, setCoopUrl, surrenderBots } from './coopShell'
+import { addBots, bankCoopRun, botCount, buildRefusal, coopClient, coopEntry, coopEventFor, coopUrl, linkedRoom, linkRoom, markBuildReload, onCoopEntry, refreshCoopEntry, removeBots, reportHeal, setCoopBeta, setCoopUrl, surrenderBots } from './coopShell'
 import type { CloseWhy, CoopClient } from './coop/client'
-import { freshInvites } from './coop/lobby'
-import { PROTOCOL } from './net/protocol'
+import { coopAccess, freshInvites } from './coop/lobby'
+import { REF_PARAM } from './game/referral'
+import { PROTOCOL, parseRoomCode } from './net/protocol'
 import { isRecord } from './game/parse'
 import type { CoopInvite } from './game/friends'
 import { dismissInvite, onPresence, setActivity } from './net/friends'
@@ -540,7 +541,7 @@ const showTitle = (opts: { intro?: boolean; focus?: LobbyFocus; shop?: ShopTrip;
       ideas: rankingEnabled ? (focus) => suggestionsScreen(ui, input, () => showTitle({ focus })) : undefined,
       supporters: (focus, open) => supportersScreen(ui, input, { play: (id) => void startRun(id), onClose: () => showTitle({ focus }) }, open),
       invites: (focus) => invitesScreen(ui, input, () => showTitle({ focus })),
-      coop: coopEntry() ? () => showCoopHub() : undefined,
+      coop: coopEntry() ? () => enterCoop({ room: null, invitedBy: null }) : undefined,
       meadow,
     }, opts),
   )
@@ -2138,6 +2139,70 @@ const coopRoomCode = () => {
   return st && (st.status.kind === 'room' || st.status.kind === 'playing' || st.status.kind === 'connecting') ? st.code : null
 }
 
+/* ---------------- Co-op's door: an account with a handle ---------------- */
+
+/** Where co-op is headed: the hub (`room` null), or a room's link, with the @handle that sent it. */
+type CoopDest = { room: string | null; invitedBy: string | null }
+
+/** Where co-op was headed when it left to sign in: the provider brings the player back to a bare page. Tab only (sessionStorage). */
+const COOP_RETURN = 'ps:coopReturn'
+
+const keepCoopReturn = (dest: CoopDest | null) => {
+  try {
+    if (dest) sessionStorage.setItem(COOP_RETURN, JSON.stringify(dest))
+    else sessionStorage.removeItem(COOP_RETURN)
+  } catch {
+    // Storage blocked: back from signing in, the player opens co-op again.
+  }
+}
+
+/** Where a sign in for co-op left from, read once (null: none). */
+const takeCoopReturn = (): CoopDest | null => {
+  try {
+    const raw = sessionStorage.getItem(COOP_RETURN)
+    sessionStorage.removeItem(COOP_RETURN)
+    const v: unknown = raw ? JSON.parse(raw) : null
+    return isRecord(v) ? { room: parseRoomCode(v.room), invitedBy: parseHandle(v.invitedBy) } : null
+  } catch {
+    return null
+  }
+}
+
+/** Co-op past its door: the hub, or that room (joined and shown; in a run, entered by snapshot). */
+const openCoop = (dest: CoopDest) => {
+  if (!dest.room) return showCoopHub()
+  void joinCoop(dest.room, 'link').then((res) => res.ok && res.room.phase !== 'playing' && !run && showRoom())
+}
+
+/**
+ * Opens co-op toward `dest` (the Co-op tile: the hub; a room link: that
+ * room). Co-op is for accounts with a handle, the name teammates see: a guest
+ * signs in first ("Entre para jogar junto", `coopGate`; the link keeps
+ * `?sala`, and the sign in's round trip comes back here, `COOP_RETURN`), and
+ * an account without a handle picks one (`profileEditor`). Then it goes on.
+ */
+const enterCoop = (dest: CoopDest) => {
+  const access = coopAccess(accountsEnabled, accountState())
+  if (access === 'open') return openCoop(dest)
+  if (access === 'handle') return setScreen(profileEditor(ui, input, (saved) => (saved ? enterCoop(dest) : leaveCoopDoor())))
+  if (access === 'signIn') track('coop', { step: 'gate', via: dest.room ? 'link' : 'tile' })
+  linkRoom(dest.room)
+  keepCoopReturn(dest)
+  setScreen(
+    coopGate(ui, input, dest, {
+      play: () => (keepCoopReturn(null), enterCoop(dest)),
+      back: leaveCoopDoor,
+    }),
+  )
+}
+
+/** Turned back at co-op's door: nothing kept, the room's link dropped, the lobby. */
+const leaveCoopDoor = () => {
+  keepCoopReturn(null)
+  linkRoom(null)
+  showTitle({ focus: 'coop' })
+}
+
 /** Jogar junto from the lobby's tile: create a room or join one by code (`code` prefills it). */
 const showCoopHub = (code: string | null = null) => {
   const client = coopClient()
@@ -2185,9 +2250,7 @@ const showCoopHub = (code: string | null = null) => {
         showRoom()
         return null
       },
-      rename: setCoopName,
       friends: signedIn() ? () => showFriends(() => showCoopHub()) : null,
-      signIn: accountsEnabled && !signedIn() ? () => void signIn() : null,
       back: () => showTitle({ focus: 'coop' }),
     },
     code,
@@ -2213,14 +2276,6 @@ const showRoom = () => {
         leftRun = null
         void startCoopRun(client, runner)
       },
-      // A new name reaches the team on the next hello: the socket reconnects with it, on the same seat.
-      rename: signedIn()
-        ? null
-        : (name) => {
-            const kept = setCoopName(name)
-            if (kept) client.drop()
-            return kept
-          },
     }),
   )
   coopShown = 'room'
@@ -2561,14 +2616,15 @@ const boot = () => {
   promptProfile()
   // Coming back to the game syncs again, but not mid-run: a run syncs when it ends.
   startAccount(() => run === null)
-  // A co-op link (`?sala=K7QF2`), beta or not: join that room and show it; in a run, by snapshot, on the same seat after a reload.
+  // A co-op link (`?sala=K7QF2`, maybe `&ref=` who sent it), beta or not: join that room and show it (signed in first:
+  // `enterCoop`); in a run, by snapshot, on the same seat after a reload. Or back from signing in to play co-op.
+  const back = takeCoopReturn()
   const room = linkedRoom()
-  if (room && !coopUrl()) {
+  const dest = room ? { room, invitedBy: parseHandle(new URLSearchParams(location.search).get(REF_PARAM)) } : back
+  if (dest && !coopUrl()) {
     linkRoom(null)
     later(() => toast(ui, t().coop.off, 5000, 'coopOff'))
-  } else if (room) {
-    void joinCoop(room, 'link').then((res) => res.ok && res.room.phase !== 'playing' && !run && showRoom())
-  }
+  } else if (dest) enterCoop(dest)
   // The beta's flag: the lobby's tile shows (or goes) once it answers, and again for the account signed in.
   refreshCoopEntry()
   onCoopEntry(() => {

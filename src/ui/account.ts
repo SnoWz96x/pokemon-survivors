@@ -7,26 +7,40 @@ import { hint, menu, type Screen } from './screens'
 
 type Action = { label: string; run: () => void }
 
+/** What a gate says: its title, the pitch, a note under it, and (with a guest option) the guest's note. */
+type GateText = { title: string; pitch: string; note: string; guestNote: string | null }
+
+type GateActions = {
+  play: () => void
+  /** Playing as a guest instead, or null where only an account will do (co-op). */
+  guest: (() => void) | null
+  back: () => void
+  /** Whether a signed-in account can go on (co-op waits for its @handle); until then the gate says it's busy. */
+  ready?: (s: AccountState) => boolean
+}
+
 /**
- * Asked when a guest taps Play (accounts on): sign in with Google or Discord,
- * which also creates the account, or play as a guest. Signing in leaves for the provider; an
- * account already open in another tab links right away and goes on to `play`.
- * Back, Esc or Backspace call `onBack`.
+ * A sign-in gate: Google or Discord (which also creates the account), and,
+ * with `guest`, playing as a guest. `lead` lines go above the pitch. Signing
+ * in leaves for the provider; an account already open in another tab links
+ * right away and goes on to `play` once `ready`. Back, Esc or Backspace call `back`.
  */
-export const playGate = (root: HTMLElement, input: Input, actions: { play: () => void; guest: () => void; back: () => void }): Screen => {
+const gate = (root: HTMLElement, input: Input, text: GateText, actions: GateActions, lead: readonly string[] = []): Screen => {
   const el = h('div', { class: 'screen dim' })
   let nav: ReturnType<typeof menu> | null = null
+  const ready = actions.ready ?? ((s: AccountState) => s.kind === 'signedIn')
+  const guest = actions.guest
 
   const build = (s: AccountState, opening: boolean) => {
     const m = t().account
-    const busy = s.kind === 'busy'
+    const busy = s.kind === 'busy' || (s.kind === 'signedIn' && !ready(s))
     const failed = s.kind === 'guest' && s.failed
     const all: Action[] = busy
       ? [{ label: m.back, run: () => leave(actions.back) }]
       : [
           { label: m.google, run: () => void signIn() },
           { label: t().discord.signIn, run: () => void signIn('discord') },
-          { label: m.playAsGuest, run: () => leave(actions.guest) },
+          ...(guest ? [{ label: m.playAsGuest, run: () => leave(guest) }] : []),
         ]
     const buttons = all.map((a) => h('button', { class: 'btn' }, a.label))
     nav?.off()
@@ -36,18 +50,19 @@ export const playGate = (root: HTMLElement, input: Input, actions: { play: () =>
       h(
         'div',
         { class: opening ? 'dialog box pop account' : 'dialog box account' },
-        h('div', { class: 'dialog-title' }, m.gateTitle),
-        busy ? line(m.busy, 'blink') : line(m.gatePitch),
+        h('div', { class: 'dialog-title' }, text.title),
+        ...lead.map((l) => line(l, 'account-lead')),
+        busy ? line(m.busy, 'blink') : line(text.pitch),
         ...(failed ? [line(m.failed, 'account-error')] : []),
-        ...(busy ? [] : [line(m.gateNewAccount, 'account-note')]),
+        ...(busy ? [] : [line(text.note, 'account-note')]),
         h('div', { class: 'buttons account-buttons' }, ...buttons),
-        ...(busy ? [] : [line(m.gateGuestNote, 'account-note')]),
+        ...(busy || text.guestNote === null ? [] : [line(text.guestNote, 'account-note')]),
         hint(m.hintKeys, m.hintTouch),
       ),
     )
   }
 
-  const offState = onAccountChange((s) => (s.kind === 'signedIn' ? leave(actions.play) : build(s, false)))
+  const offState = onAccountChange((s) => (s.kind === 'signedIn' && ready(s) ? leave(actions.play) : build(s, false)))
   const offKeys = input.onKey((key) => (key === 'Escape' || key === 'Backspace') && (playSfx('select'), leave(actions.back)))
 
   const dispose = () => (nav?.off(), offState(), offKeys(), el.remove())
@@ -64,4 +79,28 @@ export const playGate = (root: HTMLElement, input: Input, actions: { play: () =>
   build(accountState(), true)
   root.append(el)
   return { el, dispose }
+}
+
+/**
+ * Asked when a guest taps Play (accounts on): sign in with Google or Discord,
+ * which also creates the account, or play as a guest. Signing in leaves for the provider; an
+ * account already open in another tab links right away and goes on to `play`.
+ * Back, Esc or Backspace call `onBack`.
+ */
+export const playGate = (root: HTMLElement, input: Input, actions: { play: () => void; guest: () => void; back: () => void }): Screen => {
+  const m = t().account
+  return gate(root, input, { title: m.gateTitle, pitch: m.gatePitch, note: m.gateNewAccount, guestNote: m.gateGuestNote }, actions)
+}
+
+/**
+ * "Entre para jogar junto": co-op is for accounts, so a guest opening the
+ * Co-op tile or a room link (`room`, and `invitedBy`: the @handle that sent
+ * it) signs in here, with no guest option. It goes on to `play` once the
+ * account is in and its handle is known (the shell asks for one if it has
+ * none). Leaving for the provider, the shell keeps where to come back.
+ */
+export const coopGate = (root: HTMLElement, input: Input, where: { room: string | null; invitedBy: string | null }, actions: { play: () => void; back: () => void }): Screen => {
+  const m = t().coop.gate
+  const lead = where.invitedBy ? [m.invited(`@${where.invitedBy}`)] : where.room ? [m.room(where.room)] : []
+  return gate(root, input, { title: m.title, pitch: m.pitch, note: m.note, guestNote: null }, { ...actions, guest: null, ready: (s) => s.kind === 'signedIn' && s.handle !== undefined }, lead)
 }
