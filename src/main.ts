@@ -321,6 +321,13 @@ type CoopRun = {
 
 let screen: Screen | null = null
 let run: Run | null = null
+
+/**
+ * The game as this player sees it: solo the run's; co-op the draw copy, whose
+ * "player" is this client (the runner's game has slot 0 as `g.player`, which
+ * `playerForm`, `heldMega`, `gameSpecial` and the like read).
+ */
+const shownGame = (r: Run) => (r.coop ? r.coop.view.game : r.game)
 /** Special attack press (Space, touch button, gamepad A), consumed by the next simulation step. */
 let specialQueued = false
 /** Mega Evolution press (E, the Mega button, gamepad Y), consumed like the special. */
@@ -445,7 +452,7 @@ const perfNow = (): BugPerf => ({
 describeWith(() => {
   const view = [...ui.querySelectorAll(':scope > .screen:not(.bug-screen)')].map((el) => [...el.classList].filter((c) => !SCREEN_CLASSES.has(c)).join('.')).join(' > ')
   const perf = perfNow()
-  const g = run?.game
+  const g = run && shownGame(run)
   if (!g || g.phase === 'gameover' || g.phase === 'victory') return { view, run: null, perf }
   const boss = g.bossId === null ? undefined : g.enemies.find((e) => e.id === g.bossId)
   return {
@@ -1270,8 +1277,9 @@ const TRAIT_SFX: Record<TraitId, Record<'warn' | 'fire', Sfx | null>> = {
   spitter: { warn: null, fire: 'spit' },
 }
 
+/** The sounds and toasts of a simulation event, read off the game as shown (`shownGame`: this player's cries, form, special and Mega in co-op). */
 const handleEvent = (r: Run, e: GameEvent) => {
-  const g = r.game
+  const g = shownGame(r)
   switch (e.kind) {
     case 'hit': return playSfx(e.effective > 1 ? 'superHit' : 'hit', 45)
     case 'kill': return playSfx('kill', 50)
