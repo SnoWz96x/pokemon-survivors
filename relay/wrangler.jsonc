@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // The dev relay. A production one gets its own name (and a custom domain); see README.md.
+  "name": "ps-coop-dev",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "RoomObject" },
+      { "name": "VAULT", "class_name": "Vault" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomObject", "Vault"] }],
+  // Per IP, per Cloudflare location. Generous: a whole carrier NAT can sit behind one IP.
+  "ratelimits": [
+    { "name": "CREATE_LIMIT", "namespace_id": "4101", "simple": { "limit": 30, "period": 60 } },
+    { "name": "CONNECT_LIMIT", "namespace_id": "4102", "simple": { "limit": 300, "period": 60 } }
+  ],
+  "vars": {
+    "CLERK_ISSUER": "https://clerk.pokemonsurvivors.com",
+    "ALLOWED_ORIGINS": "https://www.pokemonsurvivors.com,https://pokemonsurvivors.com,https://*.vercel.app"
+  }
+}
