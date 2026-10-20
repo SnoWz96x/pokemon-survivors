@@ -118,14 +118,8 @@ export default {
     if (origin !== null && !allowedOrigin(env, origin)) return new Response('Forbidden', { status: 403 })
     const headers = cors(origin)
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })
-    if (path === '/health' && request.method === 'GET') {
-      try {
-        const vault = await env.VAULT.getByName('dumps').ping()
-        return json({ ok: true, protocol: PROTOCOL, dumps: vault.dumps }, 200, headers)
-      } catch (err) {
-        return json({ ok: false, error: String(err) }, 503, headers)
-      }
-    }
+    // The Worker answering is the check: no Durable Object is touched, so a flood of these costs nothing past the edge.
+    if (path === '/health' && request.method === 'GET') return json({ ok: true, protocol: PROTOCOL }, 200, headers)
     if (path === '/rooms' && request.method === 'POST') return createRoom(request, env, headers)
     const ws = path.match(/^\/rooms\/([^/]+)\/ws$/)
     if (ws && request.method === 'GET') {
