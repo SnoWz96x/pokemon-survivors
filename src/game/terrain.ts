@@ -279,6 +279,9 @@ const block = (g: Game, o: Pos, r: number) => {
   return hit
 }
 
+/** Keeps a circle of radius `r` at `o` out of every solid near it, as a walking player is each tick. For co-op's drawn prediction. */
+export const keepOut = (g: Game, o: Pos, r: number) => block(g, o, r) !== null
+
 /** Whether a circle at (x, y) overlaps any solid. */
 export const inSolid = (g: Game, x: number, y: number, r: number) => featuresNear(g, x, y, r).some((f) => f.solids.some((s) => inside(s.foot, x, y, r)))
 

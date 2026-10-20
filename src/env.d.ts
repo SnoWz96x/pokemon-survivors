@@ -8,7 +8,12 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string
   /** PostHog's project key (`phc_…`, public): analytics and error reports (`src/analytics.ts`). Without it, neither. */
   readonly VITE_POSTHOG_KEY?: string
+  /** The co-op relay (`relay/`), e.g. `https://ps-coop.pedrobarretto.workers.dev`. Dev builds default to the dev relay. */
+  readonly VITE_COOP_URL?: string
 }
 
 /** The build that's playing (the commit, or `dev`): ranked runs report it. Set in `vite.config.ts`. */
 declare const __GAME_VERSION__: string
+
+/** The co-op build id: a hash of the simulation's source (`src/coop/simBuild.ts`). Rooms only take clients of the same. Set in `vite.config.ts`. */
+declare const __SIM_BUILD__: string

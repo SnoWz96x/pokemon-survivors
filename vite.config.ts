@@ -1,6 +1,8 @@
 import { execSync } from 'node:child_process'
+import { readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig, runnerImport, type Plugin } from 'vite'
+import { SIM_ROOTS, simBuildId } from './src/coop/simBuild'
 
 type Site = typeof import('./src/site/index.ts')
 
@@ -70,12 +72,33 @@ const gameVersion = () => {
   }
 }
 
+/** A repo file's text, or null when it isn't a file. */
+const readRepoFile = (path: string) => {
+  try {
+    const file = resolve(import.meta.dirname, path)
+    return statSync(file).isFile() ? readFileSync(file, 'utf8') : null
+  } catch {
+    return null
+  }
+}
+
+/** A constant `export const NAME = <integer>` read from a source file (no module loading, the config stays light). */
+const constantIn = (path: string, name: string) => Number(new RegExp(`export const ${name} = (\\d+)`).exec(readRepoFile(path) ?? '')?.[1] ?? NaN)
+
+/**
+ * The co-op build id (`__SIM_BUILD__`): a hash of the simulation's modules only
+ * (`src/coop/simBuild.ts`), so the relay pins rooms to the simulation, not to
+ * the app, and a deploy that doesn't touch the simulation never splits a room.
+ */
+export const simBuild = () =>
+  simBuildId(SIM_ROOTS, readRepoFile, { rules: constantIn('src/game/replay.ts', 'RULES_VERSION'), protocol: constantIn('src/net/protocol.ts', 'PROTOCOL') }).id
+
 // One page per language for the game (index.html, en/index.html, es/index.html); the site pages are added by `sitePages`.
 export default defineConfig({
   plugins: [sitePages()],
   // The co-op relay (`relay/`) is its own package with its own Workers test runner.
   test: { exclude: ['**/node_modules/**', '**/.git/**', 'relay/**'] },
-  define: { __GAME_VERSION__: JSON.stringify(gameVersion()) },
+  define: { __GAME_VERSION__: JSON.stringify(gameVersion()), __SIM_BUILD__: JSON.stringify(simBuild()) },
   // PostHog's proxy, as vercel.json has it, to try analytics locally (`ps:analytics` set to `on` in localStorage).
   server: { proxy: { '/ingest': { target: 'https://us.i.posthog.com', changeOrigin: true, rewrite: (path) => path.replace(/^\/ingest/, '') } } },
   build: {
