@@ -58,6 +58,8 @@ export type RunnerStats = {
   /** Most ticks run in one display frame, and the frame sim time (ms) at its worst. */
   maxRun: number
   maxFrameMs: number
+  /** Snapshots that failed to restore, and why. */
+  failures: string[]
 }
 
 export type Runner = {
@@ -120,9 +122,11 @@ export type RunnerDeps = {
   onGame?: (r: Runner, why: 'heal' | 'join' | 'seed') => void
   /** A heal finished: the run is back with the team. */
   onHealed?: (r: Runner, tick: number, ms: number) => void
+  /** A snapshot didn't restore (never expected: same build): the caller joins afresh for another. */
+  onFailed?: (r: Runner, error: string) => void
 }
 
-const newStats = (): RunnerStats => ({ ticks: 0, underruns: 0, syncs: [], heals: [], snapshots: [], hashes: 0, maxRun: 0, maxFrameMs: 0 })
+const newStats = (): RunnerStats => ({ ticks: 0, underruns: 0, syncs: [], heals: [], snapshots: [], hashes: 0, maxRun: 0, maxFrameMs: 0, failures: [] })
 
 /**
  * Records who was acting as each event is pushed: the game's `events` array
@@ -279,11 +283,11 @@ export const onSnapPart = (r: Runner, msg: Extract<ServerMessage, { t: 'snapPart
       r.anchor = null
       deps.onGame?.(r, p.reason === 'heal' ? 'heal' : 'join')
     })
-    .catch(() => {
-      // A snapshot that doesn't restore (never expected: same build): drop it, the caller rejoins.
-      if (r.pending === p) p.busy = false
-      p.parts = []
-      p.got = 0
+    .catch((err: unknown) => {
+      // A snapshot that doesn't restore (never expected: same build): the caller rejoins for another.
+      if (r.pending !== p) return
+      r.stats.failures.push(String(err).slice(0, 200))
+      deps.onFailed?.(r, String(err))
     })
 }
 

@@ -243,6 +243,10 @@ export const createCoopClient = (deps: CoopDeps) => {
     now: deps.now,
     onGame: (runner, why) => emit({ kind: 'game', runner, why }),
     onHealed: (_, tick, ms) => emit({ kind: 'healed', tick, ms }),
+    onFailed: () => {
+      s.fresh = true
+      reconnect()
+    },
   }
 
   /** Ends the client for good: no reconnect. */

@@ -280,6 +280,9 @@ for (const room of rooms) {
     tickMs: reps.map((x) => x.run?.tickMs),
     frameMs: { p50: pct(frame, 50), p99: pct(frame, 99), max: pct(frame, 100) },
     deposited: reps.map((x) => x.log.deposited),
+    failures: reps.flatMap((x) => x.run?.stats.failures ?? []),
+    // The last of each bot's story, to read a failure back.
+    tails: reps.map((x) => ({ bot: x.index, status: x.status, next: x.run?.next, known: x.run?.known, over: x.run?.over, ended: x.run?.ended, pending: x.run?.pending, events: x.log.events.slice(-30) })),
   })
 }
 await stopRelay()

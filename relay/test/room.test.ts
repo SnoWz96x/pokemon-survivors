@@ -321,6 +321,22 @@ describe('hashes, snapshots and the end', () => {
     expect(of(sent(second, 'c2'), 'heal')).toHaveLength(0)
   })
 
+  it('heals from the snapshot agreed on the same tick, never from one whose chunks that agreement drops', () => {
+    const { state, t0 } = playing(3)
+    alive(state, 3, t0 + 21_090)
+    tick(state, t0 + 21_100)
+    for (const c of ['c0', 'c1', 'c2']) say(state, c, { t: 'hash', tick: 600, h: 'a' }, t0 + 21_100)
+    say(state, 'c0', { t: 'snap', tick: 600, h: 'a', part: 0, parts: 1, data: 'AAAA' }, t0 + 21_100)
+    expect(roomOf(state).run?.agreed?.tick).toBe(600)
+    // The next snapshot is in before tick 1200 is decided, and c2 diverged at that very tick.
+    say(state, 'c0', { t: 'snap', tick: 1200, h: 'b', part: 0, parts: 1, data: 'BBBB' }, t0 + 21_100)
+    say(state, 'c0', { t: 'hash', tick: 1200, h: 'b' }, t0 + 21_100)
+    say(state, 'c2', { t: 'hash', tick: 1200, h: 'x' }, t0 + 21_100)
+    const out = say(state, 'c1', { t: 'hash', tick: 1200, h: 'b' }, t0 + 21_100)
+    const order = out.flatMap((e) => (e.k === 'keepSnapshot' ? ['keep'] : e.k === 'sync' ? [`sync@${e.msg.base?.tick}`] : []))
+    expect(order).toEqual(['keep', 'sync@1200'])
+  })
+
   it("doesn't agree on a snapshot whose hash the majority didn't report", () => {
     const { state, t0 } = playing(3)
     alive(state, 3, t0 + 10_990)

@@ -733,14 +733,15 @@ const decide = (state: State, room: Room, run: Run, tick: number): Effect[] => {
   const bySeat = Object.fromEntries(reports)
   const out: Effect[] = [{ k: 'hashes', run: run.start.id, tick, bySeat }]
   for (const [seat, v] of reports) if (v === h) live.healing.delete(seat)
-  // A seat told to heal after this tick reported it before the heal reached it: it's already being healed.
-  const minority = [...reports].filter(([seat, v]) => v !== h && !((live.healing.get(seat) ?? -1) > tick)).map(([seat]) => seat)
-  if (minority.length > 0) out.push(...heal(state, room, run, minority, tick, bySeat, h))
+  // The snapshot first: accepting it drops the older one's chunks, which a heal sent in this same batch would read.
   const up = live.upload
   if (up && up.tick === tick && up.got.size === up.parts) {
     live.upload = null
     out.push(...(up.h === h ? acceptSnapshot(room, run, up) : [dropSnapshot(run, up)]))
   }
+  // A seat told to heal after this tick reported it before the heal reached it: it's already being healed.
+  const minority = [...reports].filter(([seat, v]) => v !== h && !((live.healing.get(seat) ?? -1) > tick)).map(([seat]) => seat)
+  if (minority.length > 0) out.push(...heal(state, room, run, minority, tick, bySeat, h))
   return [...out, ...updateUploader(state, room)]
 }
 

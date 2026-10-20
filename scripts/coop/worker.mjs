@@ -74,7 +74,7 @@ const report = () => {
     seat: s.seat,
     status: s.status,
     code: s.code,
-    run: r ? { id: r.start.id, next: r.next, known: r.known, hold: r.hold.hold, jitter: Math.round(r.hold.jitter), tickMs: +r.tickMs.toFixed(2), over: r.over, ended: r.ended, phase: r.game.phase, time: Math.round(r.game.time), level: B.localPlayer(r.game).level, stats: r.stats, syncing: !!r.syncing } : null,
+    run: r ? { id: r.start.id, next: r.next, known: r.known, hold: r.hold.hold, jitter: Math.round(r.hold.jitter), tickMs: +r.tickMs.toFixed(2), over: r.over, ended: r.ended, pending: r.pending ? { reason: r.pending.reason, from: r.pending.from, got: r.pending.got, busy: r.pending.busy } : null, phase: r.game.phase, time: Math.round(r.game.time), level: B.localPlayer(r.game).level, stats: r.stats, syncing: !!r.syncing } : null,
     rtt: Math.round(s.rtt),
     reconnects: s.reconnects,
     outbox: s.outbox.stats,
