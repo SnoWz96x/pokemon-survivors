@@ -866,11 +866,21 @@ export type RenderOptions = { damageNumbers: DamageNumbers; screenShake: boolean
 
 const isMate = (d: Drawable): d is Mate => typeof d === 'object' && 'mate' in d
 
+/** A name as the in-world font can write it: capitals and digits, accents off, short. */
+const nameTag = (name: string) =>
+  name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, '')
+    .trim()
+    .slice(0, 12)
+
 /** A teammate where they stand: their Pokémon and name, or the Poké Ball they fainted into (a teammate standing by gets them up). */
 const drawMate = (ctx: Ctx, mate: Game, calm: boolean, t: number) => {
   const p = localPlayer(mate)
   if (p.gone) return
-  const name = mate.coop?.names[p.slot] ?? ''
+  const name = nameTag(mate.coop?.names[p.slot] ?? '')
   if (p.hp <= 0) {
     blitCentered(ctx, PICKUPS.pokeball(), p.x, p.y - 3 + Math.round(Math.sin(t * 3) * 1))
     if (p.revive > 0) {

@@ -14629,13 +14629,13 @@ button.hall-tile:hover {
 .coop-pip {
   position: absolute;
   left: 50%;
-  top: calc(env(safe-area-inset-top, 0px) + 36px);
+  top: calc(env(safe-area-inset-top, 0px) + 58px);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  font-size: 9px;
+  gap: 5px;
+  padding: 3px 8px;
+  font-size: 12px;
   color: #f8f8f8;
   background: rgba(16, 24, 48, 0.55);
   border-radius: 8px;
@@ -14643,8 +14643,8 @@ button.hall-tile:hover {
 }
 
 .coop-pip i {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 1px;
   background: #58e858;
   box-shadow: 0 0 0 1px #101018;
@@ -14669,18 +14669,18 @@ button.hall-tile:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
-  min-width: 180px;
-  font-size: 11px;
+  gap: 10px;
+  padding: 14px 22px;
+  min-width: 240px;
+  font-size: 16px;
 }
 
-.coop-veil-box b { animation: coop-blink 1.2s steps(2) infinite; }
-.coop-veil-box small { font-size: 8px; opacity: 0.8; max-width: 220px; text-align: center; }
+.coop-veil-box b { color: var(--ink); animation: coop-blink 1.2s steps(2) infinite; }
+.coop-veil-box small { font-size: 12px; max-width: 300px; text-align: center; }
 
 .coop-bar {
-  width: 160px;
-  height: 6px;
+  width: 220px;
+  height: 8px;
   background: #283040;
   border-radius: 2px;
   overflow: hidden;
@@ -14697,15 +14697,15 @@ button.hall-tile:hover {
   left: 50%;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
   transform: translateX(-50%);
-  padding: 6px 10px;
-  font-size: 10px;
+  padding: 8px 14px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
 .coop-end .panel { display: flex; flex-direction: column; gap: 8px; align-items: center; max-width: min(92vw, 420px); }
-.coop-table { border-collapse: collapse; font-size: 10px; width: 100%; }
+.coop-table { border-collapse: collapse; font-size: 13px; width: 100%; }
 .coop-table th, .coop-table td { padding: 3px 6px; text-align: right; }
 .coop-table th:first-child, .coop-table td:first-child { text-align: left; }
 .coop-table tr.me td { color: var(--accent, #3070d0); }
 .coop-end .buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.coop-voted { font-size: 9px; }
+.coop-voted { font-size: 12px; }

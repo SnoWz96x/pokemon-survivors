@@ -46,19 +46,36 @@ export const createBot = (deps: CoopDeps, opts: { seed: number; vote?: boolean }
     return g ? localPlayer(g) : null
   }
 
-  /** Where to walk: around a wide circle, away from the foes closest by. */
+  /** Where to walk: away from the foes closest by and around them (kiting), wandering when none are near. */
   const steer = (g: Game, p: Player) => {
-    angle += 0.35 * (0.5 + random())
-    let x = Math.cos(angle)
-    let y = Math.sin(angle)
+    angle += 0.25 * (0.5 + random())
+    let fx = 0
+    let fy = 0
     for (const e of g.enemies) {
       const dx = p.x - e.x
       const dy = p.y - e.y
-      const d2 = dx * dx + dy * dy
-      if (d2 > 90 * 90 || d2 < 1) continue
-      const w = 900 / d2
-      x += dx * w * 0.05
-      y += dy * w * 0.05
+      const d = Math.hypot(dx, dy)
+      if (d > 150 || d < 0.5) continue
+      const w = ((150 - d) / 150) * (e.boss ? 3 : 1)
+      fx += (dx / d) * w
+      fy += (dy / d) * w
+    }
+    for (const hz of g.hazards) {
+      const dx = p.x - hz.x
+      const dy = p.y - hz.y
+      const d = Math.hypot(dx, dy)
+      if (d < 60 && d > 0.5) {
+        fx += (dx / d) * 2
+        fy += (dy / d) * 2
+      }
+    }
+    const f = Math.hypot(fx, fy)
+    let x = Math.cos(angle) * 0.3
+    let y = Math.sin(angle) * 0.3
+    if (f > 0.05) {
+      // Flee, and circle around the pack instead of running into the next one.
+      x += fx / f - (fy / f) * 0.7
+      y += fy / f + (fx / f) * 0.7
     }
     // A fainted teammate within reach: go get them up.
     for (const q of g.players) {
