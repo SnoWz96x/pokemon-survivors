@@ -163,14 +163,29 @@ const collect = (g: Game, pickup: Pickup) => {
   }
 }
 
-/** Co-op: an Exp. Candy reaches every player still in the run (fainted and away ones too), split so the team levels at a solo pace. */
-const shareXp = (g: Game, value: number) => {
+/**
+ * Co-op: an Exp. Candy reaches every player still in the run (fainted and
+ * away ones too), split so the team levels at a solo pace, and grown by the
+ * team's mean growth (Exp. Charm, Lucky Egg) rather than each player's: the
+ * same EXP for everyone keeps the team's levels together, so level-ups land on
+ * the same tick and the team picks them in one pause.
+ */
+export const shareXp = (g: Game, value: number) => {
   const share = value / coopScale(g, COOP.scale.xp)
+  let growth = 0
+  let n = 0
+  for (const q of g.players) {
+    if (q.gone) continue
+    growth += q.stats.growth
+    n++
+  }
+  if (n === 0) return
+  growth /= n
   const actor = g.player
   for (const q of g.players) {
     if (q.gone) continue
     g.player = q
-    gainXp(g, share)
+    gainXp(g, share, growth)
   }
   g.player = actor
 }

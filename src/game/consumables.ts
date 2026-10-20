@@ -76,9 +76,16 @@ export const CONSUMABLES = {
   rareCandy: {
     name: 'Rare Candy',
     sfx: 'levelUp',
+    // Co-op: a level for the whole team, so its levels stay together (`shareXp`).
     apply: (g) => {
-      g.player.xp = g.player.xpNext
-      gainXp(g, 0)
+      const actor = g.player
+      for (const p of g.coop === null ? [actor] : g.players) {
+        if (p.gone) continue
+        g.player = p
+        p.xp = p.xpNext
+        gainXp(g, 0)
+      }
+      g.player = actor
     },
   },
   expShare: {

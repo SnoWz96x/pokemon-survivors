@@ -37,9 +37,9 @@ const UPGRADE_WEIGHT = 1.3
 export const xpFor = (level: number) =>
   Math.floor(5 + (level - 1) * 9 + Math.max(0, level - 20) * 6 + Math.max(0, level - 40) * 10)
 
-export const gainXp = (g: Game, amount: number) => {
+export const gainXp = (g: Game, amount: number, growth = g.player.stats.growth) => {
   const p = g.player
-  p.xp += amount * p.stats.growth
+  p.xp += amount * growth
   while (p.xp >= p.xpNext) {
     p.xp -= p.xpNext
     p.level++
