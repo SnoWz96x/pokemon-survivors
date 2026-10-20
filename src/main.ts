@@ -1873,6 +1873,8 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
   await loadAll([...families, ...opening])
   await Promise.all(g.players.filter((p) => p.shiny).map((p) => preloadShinies(familyDex(p.starter)).catch(() => {})))
   loading.remove()
+  // Closed for good while loading (kicked, the room gone): the close already went back to the title.
+  if (client.state().status.kind === 'closed') return
   // The run may have moved on while loading (a heal, a newer run): show the client's current one.
   const live = client.state().runner
   if (!live || run?.coop?.runner === live) return
@@ -2267,11 +2269,12 @@ const frame = (now: number) => {
   input.poll(run?.game.phase === 'playing')
   setActivePad(input.activePad())
 
-  // Co-op keeps its socket and lockstep going behind menus and loading screens too.
+  // Co-op keeps its socket and lockstep going behind menus and loading screens too (not once it closed for good).
   const coop = run?.coop ?? null
   if (!coop) {
     const client = coopClient()
-    if (client && client.state().status.kind !== 'idle') client.frame(dt)
+    const status = client?.state().status.kind
+    if (client && status !== 'idle' && status !== 'closed') client.frame(dt)
   }
   if (run && coop) coopFrame(run, coop, dt, t)
   else if (run) {
