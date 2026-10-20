@@ -161,7 +161,7 @@ import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, tickToasts, toast } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
 import { localPlayer, phaseOf } from './game/players'
-import { addBots, bankCoopRun, botCount, coopClient, coopEventFor, coopUrl, linkedRoom, linkRoom, removeBots, reportHeal, setCoopUrl } from './coopShell'
+import { addBots, bankCoopRun, botCount, coopClient, coopEventFor, coopUrl, linkedRoom, linkRoom, removeBots, reportHeal, setCoopUrl, surrenderBots } from './coopShell'
 import type { CoopClient } from './coop/client'
 import { coopDriver, type CoopDriver } from './coop/driver'
 import { createDrawView, updateDrawView, type DrawView } from './coop/view'
@@ -2556,7 +2556,7 @@ const devLandmark = (g: Game, id?: LandmarkId, dy = 60) => {
  * Dev: co-op without the lobby (PR 7). `ps.coop()` shows the client's state;
  * `ps.coop('create', 2)` makes a room, joins it and adds two bots (same tab,
  * each a full client); `ps.coop('join', 'K7QF2')`, `('bots', n)`, `('ready')`,
- * `('start')` (the host), `('leave')`; `('drop')` cuts the socket as a network
+ * `('start')` (the host), `('leave')`, `('surrender')` (the tab's bots walk into the horde); `('drop')` cuts the socket as a network
  * failure would, `('fresh')` rejoins as a new tab (the snapshot), `('desync')`
  * nudges this client's state off the team's (the relay heals it), `('pick', id)` another
  * Pokémon for the room, `('url', u)`
@@ -2588,6 +2588,8 @@ const devCoop = async (cmd?: string, arg?: string | number | null) => {
       const save = loadSave()
       return client.setLoadout({ starter: id, ranks: save.ranks, shiny: playsShiny(save, id) })
     }
+    case 'surrender':
+      return surrenderBots()
     case 'ready':
       return client.setReady(arg !== 0 && arg !== 'no')
     case 'start':
@@ -2623,7 +2625,7 @@ const devCoop = async (cmd?: string, arg?: string | number | null) => {
       return { ...client.connection(), queued: client.queued(), stats: r?.stats, tickMs: r?.tickMs, slot: r?.slot, errors: run?.coop?.prediction.errors }
     }
     default:
-      return 'ps.coop(): create, join, bots, pick, ready, start, leave, drop, fresh, desync, url, net, wall'
+      return 'ps.coop(): create, join, bots, surrender, pick, ready, start, leave, drop, fresh, desync, url, net, wall'
   }
 }
 

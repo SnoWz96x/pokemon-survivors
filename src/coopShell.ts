@@ -168,6 +168,11 @@ export const addBots = async (code: string, n: number) => {
     if (!res.ok) continue
     bot.client.setLoadout(botPick(k + 1))
     setTimeout(() => bot.client.setReady(true), 300)
+    // After a run the relay clears everyone's ready: a bot is ready for "Jogar de novo" a moment later.
+    bot.client.on((e) => {
+      const seat = bot.client.state().seat
+      if (e.kind === 'room' && e.room.phase === 'ended' && e.room.members.some((m) => m.seat === seat && !m.ready)) setTimeout(() => bot.client.setReady(true), 800)
+    })
     joined.push(res.seat)
   }
   if (botLoop === null) {
@@ -189,4 +194,10 @@ export const removeBots = () => {
 }
 
 export const botCount = () => bots.length
+
+/** Dev: the tab's bots stop kiting and walk into the horde (staging a faint, a revive, the team's wipe). */
+export const surrenderBots = () => {
+  for (const b of bots) b.surrender()
+  return bots.length
+}
 
