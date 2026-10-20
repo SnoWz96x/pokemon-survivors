@@ -27,7 +27,7 @@ import {
 /** A socket's attachment: survives WebSocket hibernation, so the room finds its sockets again. */
 type Attachment = { id: ConnId; ua: string; seat: number | null }
 
-/** A socket that sends no valid `hello` within this long is closed. */
+/** A socket not seated within this long is closed: no valid `hello`, or one whose auth is still being checked. */
 const HELLO_TIMEOUT_MS = 10_000
 
 /** Ticks of the log per catch-up frame. */
@@ -112,7 +112,11 @@ export class RoomObject extends DurableObject<Env> {
     connect(this.state, id, ua, Date.now())
     setTimeout(() => {
       const conn = this.state.live.conns.get(id)
-      if (conn && conn.seat === null && !this.authing.has(id)) this.closeSocket(id, 'refused')
+      if (!conn || conn.seat !== null) return
+      // A hello still authenticating is given up too: its late answer finds no socket (`hello` ignores it).
+      this.closeSocket(id, 'refused')
+      const ws = this.sockets.get(id)
+      if (ws) this.dropSocket(ws)
     }, HELLO_TIMEOUT_MS)
     return new Response(null, { status: 101, webSocket: client })
   }

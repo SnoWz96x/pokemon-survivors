@@ -10,6 +10,8 @@ export const LEEWAY_S = 60
 /** JWKS kept this long before a refetch; an unknown `kid` refetches at most once per `refetch`. */
 const JWKS_TTL_MS = 60 * 60_000
 const JWKS_REFETCH_MS = 60_000
+/** A JWKS fetch that takes longer is given up (the hello waiting on it is refused, and the next one tries again). */
+const JWKS_TIMEOUT_MS = 5000
 
 export type KeyLookup = (kid: string) => Promise<CryptoKey | null>
 
@@ -78,7 +80,7 @@ const isJwk = (v: unknown): v is Jwk =>
  * Keys from a JWKS URL, cached: refetched after an hour, or when a token names
  * a `kid` we don't have (Clerk rotated its keys), at most once a minute.
  */
-export const jwksKeys = (url: string, fetcher: (url: string) => Promise<Response> = (u) => fetch(u)): KeyLookup => {
+export const jwksKeys = (url: string, fetcher: (url: string) => Promise<Response> = (u) => fetch(u, { signal: AbortSignal.timeout(JWKS_TIMEOUT_MS) })): KeyLookup => {
   let keys = new Map<string, CryptoKey>()
   let fetchedAt = -Infinity
   let inflight: Promise<void> | null = null
