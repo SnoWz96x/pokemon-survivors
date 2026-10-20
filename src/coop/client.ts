@@ -174,6 +174,8 @@ export type ClientState = {
   uploader: boolean
   /** When `over` last went out (ms). */
   overAt: number
+  /** The build the room runs, from a `build` refusal (else null): older or newer than this client's. */
+  roomBuild: string | null
 }
 
 export const createCoopClient = (deps: CoopDeps) => {
@@ -202,6 +204,7 @@ export const createCoopClient = (deps: CoopDeps) => {
     fresh: false,
     uploader: false,
     overAt: -Infinity,
+    roomBuild: null,
   }
   const listeners = new Set<(e: CoopEvent) => void>()
   const emit = (e: CoopEvent) => listeners.forEach((fn) => fn(e))
@@ -378,6 +381,7 @@ export const createCoopClient = (deps: CoopDeps) => {
       }
       case 'refused':
         lastRefusal = m.code
+        if (m.code === 'build' && typeof m.build === 'string') s.roomBuild = m.build
         return
       case 'room': {
         s.room = m.room
@@ -460,6 +464,7 @@ export const createCoopClient = (deps: CoopDeps) => {
     s.runner = null
     s.room = null
     s.fresh = false
+    s.roomBuild = null
     lastRefusal = null
     setStatus({ kind: 'connecting', attempt: 0 })
     return new Promise((resolve) => {
