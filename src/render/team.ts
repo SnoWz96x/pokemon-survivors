@@ -252,8 +252,11 @@ export const edgeSpot = (w: number, h: number, insets: MarkerInsets, sx: number,
   const cy = h / 2
   const dx = sx - cx
   const dy = sy - cy
-  const kx = dx === 0 ? Infinity : (cx - insets.side - 10) / Math.abs(dx)
-  const ky = dy === 0 ? Infinity : (dy > 0 ? h - insets.bottom - 10 - cy : cy - insets.top - 10) / Math.abs(dy)
+  // A short landscape screen keeps half its height for markers, whatever the HUD takes.
+  const top = Math.min(insets.top, h * 0.25) + 8
+  const bottom = Math.min(insets.bottom, h * 0.25) + 8
+  const kx = dx === 0 ? Infinity : (cx - insets.side - 8) / Math.abs(dx)
+  const ky = dy === 0 ? Infinity : (dy > 0 ? h - bottom - cy : cy - top) / Math.abs(dy)
   const k = Math.max(0, Math.min(kx, ky))
   out.x = Math.round(cx + dx * k)
   out.y = Math.round(cy + dy * k)

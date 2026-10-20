@@ -15320,6 +15320,7 @@ button.hall-tile:hover {
 }
 
 .team-pay b {
+  white-space: nowrap;
   font-family: var(--title);
   font-size: 8px;
   color: #a06800;
@@ -15335,6 +15336,11 @@ button.hall-tile:hover {
 
 .team-pay {
   justify-content: flex-end;
+  margin-top: auto;
+}
+
+.dialog.team-results > * {
+  flex-shrink: 0;
 }
 
 .team-split {
@@ -15367,5 +15373,60 @@ button.hall-tile:hover {
   }
   .team-summary {
     gap: 4px 12px;
+  }
+  /* The white card and the name already say which one is yours. */
+  .team-pay small {
+    display: none;
+  }
+  .team-results .result-buttons {
+    flex-wrap: nowrap;
+  }
+  .team-results .result-buttons .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 6px;
+    font-size: 9px;
+  }
+}
+
+/* A phone on its side: the end screen fits without scrolling (stats in two columns, the best move only). */
+@media (max-height: 500px) and (orientation: landscape) {
+  .dialog.team-results {
+    padding: 10px 12px;
+    gap: 6px;
+  }
+  .team-results .dialog-title {
+    font-size: 11px;
+  }
+  .team-summary > span:not(.difficulty-tag) {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+  }
+  .team-result {
+    gap: 4px;
+    padding-bottom: 6px;
+  }
+  .team-result-face > img:first-child {
+    width: 32px;
+    height: 32px;
+  }
+  .team-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 10px;
+  }
+  .team-stat {
+    font-size: 16px;
+  }
+  .team-move:nth-child(n + 2) {
+    display: none;
+  }
+  .team-split {
+    font-size: 16px;
+  }
+  .team-results .result-buttons .btn {
+    min-height: 36px;
+    padding: 6px 14px;
   }
 }
