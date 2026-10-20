@@ -221,9 +221,9 @@ export const updateSpawner = (g: Game, dt: number) => {
     if (!kind) continue
     if (hasTrait(kind)) traitsAlive++
     if (rollShiny(g.rng, SHINY_ODDS.enemy * g.shinyBoost)) {
-      // Shinies pop in just inside the screen edge so their sparkle entrance is seen.
+      // Shinies pop in just inside the screen edge so their sparkle entrance is seen (in co-op, inside every client's screen).
       const a = range(g.rng, 0, TAU)
-      const d = Math.min(g.view.w, g.view.h) / 2 - 16
+      const d = g.coop !== null ? COOP.inSight : Math.min(g.view.w, g.view.h) / 2 - 16
       const p = anchorPlayer(g)
       makeShiny(g, spawnEnemy(g, kind, p.x + dm.cos(a) * d, p.y + dm.sin(a) * d))
     } else {

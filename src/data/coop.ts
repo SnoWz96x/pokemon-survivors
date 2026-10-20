@@ -14,9 +14,13 @@ export const COOP = {
   /**
    * The world's view for the simulation (spawn ring, despawns, what's on a
    * screen): every client must simulate the same, whatever its window; the
-   * shell draws its own camera.
+   * shell draws its own camera. The union of what a desktop (480×270 to
+   * 480×300) and a phone held either way (about 234×507 and 507×234 world px)
+   * draw, so nothing spawns or vanishes in sight on any of them.
    */
-  view: { w: 480, h: 270 },
+  view: { w: 480, h: 512 },
+  /** How far from a player (px) a shiny pops in to be seen on every screen: within a phone's half width held upright. */
+  inSight: 100,
   scale: {
     /** Regular spawn rate. */
     spawn: 0.5,
