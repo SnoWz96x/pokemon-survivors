@@ -14,7 +14,7 @@ const moments = (g: Game): string[] => [
   ...(g.phase !== 'playing' ? [g.phase] : []),
   ...(g.rift.arena ? ['arena'] : []),
   ...(g.bossId !== null ? ['boss'] : []),
-  ...(g.mega.active > 0 ? ['mega'] : []),
+  ...(g.player.mega.active > 0 ? ['mega'] : []),
   ...(g.endless ? ['endless'] : []),
 ]
 
@@ -33,6 +33,8 @@ const proveRestores = (s: Scenario, ticks: number, every: number) => {
     const bytes = snapshot(at.g)
     const copy = forkDriver(at, restore(bytes))
     expect(snapshot(copy.g)).toEqual(bytes)
+    // The acting player is one of the team, not a copy of it.
+    expect(copy.g.player).toBe(copy.g.players[0])
     for (let i = 0; i < AFTER; i++) {
       tickScenario(at)
       tickScenario(copy)

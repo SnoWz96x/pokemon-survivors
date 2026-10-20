@@ -89,15 +89,15 @@ const decide = (d: Driver) => {
     d.over = true
     return true
   }
-  if (g.phase === 'playing' || g.phase === 'evolving' || g.offers.length === 0) return false
+  if (g.phase === 'playing' || g.phase === 'evolving' || g.player.offers.length === 0) return false
   const roll = d.bot()
-  if (g.phase === 'levelup' && roll < 0.04) banishOffer(g, Math.floor(d.bot() * g.offers.length))
+  if (g.phase === 'levelup' && roll < 0.04) banishOffer(g, Math.floor(d.bot() * g.player.offers.length))
   else if (g.phase === 'levelup' && roll < 0.06) rerollOffers(g)
   else if (g.phase === 'levelup' && roll < 0.07) skipLevelUp(g)
-  const before = { offers: g.offers, phase: g.phase }
-  chooseOffer(g, g.offers[Math.floor(d.bot() * g.offers.length)]!)
+  const before = { offers: g.player.offers, phase: g.phase }
+  chooseOffer(g, g.player.offers[Math.floor(d.bot() * g.player.offers.length)]!)
   // A pick the phase doesn't take would loop: step on.
-  return g.offers !== before.offers || g.phase !== before.phase
+  return g.player.offers !== before.offers || g.phase !== before.phase
 }
 
 /**
@@ -109,7 +109,7 @@ export const tickScenario = (d: Driver) => {
   if (d.over) return false
   const { g } = d
   if (g.player.hp < g.player.stats.maxHp * 0.5) g.player.hp = g.player.stats.maxHp
-  g.revives = Math.max(g.revives, 1)
+  g.player.revives = Math.max(g.player.revives, 1)
   if (d.tick === 1800) {
     g.view.w = 300
     g.view.h = 520
