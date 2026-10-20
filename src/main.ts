@@ -2538,7 +2538,8 @@ const devLandmark = (g: Game, id?: LandmarkId, dy = 60) => {
  * each a full client); `ps.coop('join', 'K7QF2')`, `('bots', n)`, `('ready')`,
  * `('start')` (the host), `('leave')`; `('drop')` cuts the socket as a network
  * failure would, `('fresh')` rejoins as a new tab (the snapshot), `('desync')`
- * nudges this client's state off the team's (the relay heals it), `('url', u)`
+ * nudges this client's state off the team's (the relay heals it), `('pick', id)` another
+ * Pokémon for the room, `('url', u)`
  * points at another relay (null: the default), `('net')` the connection numbers.
  */
 const devCoop = async (cmd?: string, arg?: string | number | null) => {
@@ -2560,6 +2561,13 @@ const devCoop = async (cmd?: string, arg?: string | number | null) => {
       return joinCoop(String(arg ?? ''))
     case 'bots':
       return st.code ? addBots(st.code, Number(arg ?? 1)) : 'ps.coop: join a room first'
+    case 'pick': {
+      // Another Pokémon for this room (the lobby picks it in PR 7).
+      const id = PLAYABLE_IDS.find((p) => p === arg)
+      if (!id) return `ps.coop('pick', id): ${PLAYABLE_IDS.slice(0, 6).join(', ')}…`
+      const save = loadSave()
+      return client.setLoadout({ starter: id, ranks: save.ranks, shiny: playsShiny(save, id) })
+    }
     case 'ready':
       return client.setReady(arg !== 0 && arg !== 'no')
     case 'start':
@@ -2595,7 +2603,7 @@ const devCoop = async (cmd?: string, arg?: string | number | null) => {
       return { ...client.connection(), queued: client.queued(), stats: r?.stats, tickMs: r?.tickMs, slot: r?.slot, errors: run?.coop?.prediction.errors }
     }
     default:
-      return 'ps.coop(): create, join, bots, ready, start, leave, drop, fresh, desync, url, net'
+      return 'ps.coop(): create, join, bots, pick, ready, start, leave, drop, fresh, desync, url, net, wall'
   }
 }
 
