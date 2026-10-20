@@ -210,7 +210,7 @@ export const pt = {
     jumps: (n: number) => `×${n}`,
   },
 
-  /** Co-op in a run: the connection pip, the overlays and notices, the end of the run. The lobby is PR 7's. */
+  /** Co-op: the connection pip, the overlays and notices in a run, the lobby's entry, the hub (create or join) and the room. */
   coop: {
     ping: (ms: number) => `${ms} ms`,
     reconnecting: 'Reconectando…',
@@ -220,8 +220,6 @@ export const pt = {
     healed: 'Partida ressincronizada com o time',
     slow: 'Conexão lenta: alguns comandos atrasaram',
     room: (code: string) => `Sala ${code}`,
-    lobby: (code: string, n: number) => `Sala ${code}: ${n} ${n === 1 ? 'treinador' : 'treinadores'}. Esperando o anfitrião começar.`,
-    joined: (name: string) => `${name} entrou na sala`,
     closed: {
       replaced: 'A partida foi aberta em outra aba ou aparelho.',
       build: 'Atualize o jogo para jogar junto: a sala usa outra versão.',
@@ -238,6 +236,124 @@ export const pt = {
       abuse: 'Conexão encerrada por excesso de mensagens.',
       offline: 'Sem conexão com o servidor do co-op.',
     },
+    /** The lobby's dock tile, and the tag the co-op screens wear while it's a beta. */
+    entry: 'Co-op',
+    beta: 'BETA',
+    /** The game has no co-op server in this build (a room link opened anyway). */
+    off: 'O co-op não está disponível nesta versão do jogo.',
+    /** A room that runs another version: reloading brings the new one. */
+    update: { title: 'Atualize o jogo para jogar junto: a sala usa outra versão.', yes: 'Atualizar', no: 'Agora não' },
+    /** Creating a room didn't work (`POST /rooms`). */
+    createFailed: {
+      version: 'Atualize o jogo para criar uma sala.',
+      invalid: 'Não deu para criar a sala.',
+      rate: 'Muitas salas criadas agora. Espere um pouco e tente de novo.',
+      busy: 'O servidor do co-op está cheio. Tente de novo em instantes.',
+      offline: 'Sem conexão com o servidor do co-op.',
+    },
+    denied: { notHost: 'Só o anfitrião pode começar.', notReady: 'Espere todos ficarem prontos.' },
+    /** The hub: create a room or join one by code. */
+    hub: {
+      title: 'JOGAR JUNTO',
+      intro: 'Até 4 treinadores na mesma partida. O ₽ da equipe é dividido entre todos.',
+      create: 'Criar sala',
+      creating: 'Criando sala…',
+      or: 'ou entre com um código',
+      code: 'Código da sala',
+      join: 'Entrar',
+      joining: 'Entrando na sala…',
+      badCode: 'O código tem 5 letras e números, como K7QF2.',
+      name: 'Seu nome no time',
+      friends: 'Amigos',
+      /** Guests: friends and invites need an account; co-op itself doesn't. */
+      guest: 'Entre na sua conta para adicionar amigos e convidar. Para jogar junto, basta o código ou o link.',
+      signIn: 'Entrar na conta',
+      back: 'Voltar',
+      hintKeys: '↑ ↓ escolher · ENTER confirmar · ESC voltar',
+      hintTouch: 'Toque para escolher',
+    },
+    /** The room before a run (and between runs): who's in, their Pokémon, ready, the host's start. */
+    lobby: {
+      code: 'Código',
+      share: 'Compartilhar link',
+      copy: 'Copiar link',
+      copied: 'Link da sala copiado!',
+      shareText: 'Bora jogar Pokémon Survivors junto? Entra na minha sala:',
+      you: 'Você',
+      host: 'Anfitrião',
+      state: { host: 'Anfitrião', ready: 'Pronto', picking: 'Escolhendo', offline: 'Desconectado', away: 'Ausente' },
+      empty: 'Vaga livre',
+      invite: 'Convidar',
+      kick: 'Tirar',
+      kickConfirm: (name: string) => `Tirar ${name} da sala? Não dá para voltar.`,
+      difficulty: 'Dificuldade',
+      hostPicks: 'o anfitrião escolhe',
+      partner: 'Trocar Pokémon',
+      ready: 'Estou pronto',
+      unready: 'Cancelar pronto',
+      start: 'Começar',
+      friends: 'Convidar amigos',
+      leave: 'Sair da sala',
+      leaveConfirm: 'Sair da sala?',
+      /** Under the buttons: what the start waits on. */
+      waitAll: (ready: number, total: number) => `Esperando todos ficarem prontos (${ready}/${total})`,
+      allReady: 'Todos prontos!',
+      alone: 'Compartilhe o link para chamar alguém (ou jogue sozinho).',
+      waitHost: 'Esperando o anfitrião começar…',
+      getReady: 'Escolha seu Pokémon e fique pronto.',
+      reconnecting: 'Reconectando…',
+      /** Back in the room while the others still play (the endless mode). */
+      playing: 'A equipe está numa partida.',
+      rejoin: 'Voltar para a partida',
+      rules: 'Co-op não vale para o ranking, o Surto do dia nem os itens da Bolsa.',
+      /** Guests rename themselves here (the name teammates see). */
+      rename: 'Seu nome',
+      hintKeys: '← → escolher · ENTER confirmar · ESC sair',
+      hintTouch: 'Toque para escolher',
+      /** The partner select, picking for the room. */
+      pick: 'Escolher',
+    },
+  },
+
+  /** Friends (mutual follows), presence and co-op invites (`ui/friends.ts`). Signed-in players only. */
+  friends: {
+    title: 'AMIGOS',
+    tabs: { friends: 'Amigos', requests: 'Pedidos', add: 'Adicionar' },
+    guest: 'Entre na sua conta para adicionar amigos, ver quem está online e convidar para jogar junto.',
+    signIn: 'Entrar na conta',
+    noHandle: 'Crie seu perfil (um @nome) para adicionar amigos.',
+    createProfile: 'Criar perfil',
+    unavailable: 'Amigos estão fora do ar agora. Tente mais tarde.',
+    loading: 'Carregando…',
+    empty: 'Nenhum amigo ainda. Procure um @nome em Adicionar.',
+    presence: { offline: 'Offline', lobby: 'Online', room: 'Numa sala', run: 'Jogando' },
+    invite: 'Convidar',
+    invited: (name: string) => `Convite enviado para ${name}`,
+    inviteFailed: { notFriend: 'Vocês não são mais amigos.', limit: 'Muitos convites. Espere um pouco.', offline: 'Não deu para enviar o convite.' },
+    accept: 'Aceitar',
+    decline: 'Recusar',
+    cancel: 'Cancelar',
+    remove: 'Desfazer',
+    removeConfirm: (name: string) => `Desfazer a amizade com ${name}?`,
+    noRequests: 'Nenhum pedido de amizade.',
+    sent: 'Pedidos enviados',
+    search: 'Procure um @nome',
+    searchHint: 'Digite pelo menos 2 letras do @nome.',
+    noMatches: 'Ninguém com esse @nome.',
+    limit: 'Muitas buscas. Espere um pouco.',
+    add: 'Adicionar',
+    relation: { following: 'Pedido enviado', follower: 'Quer ser seu amigo', friend: 'Amigos' },
+    added: (name: string) => `Pedido de amizade enviado para ${name}`,
+    nowFriends: (name: string) => `Você e ${name} agora são amigos!`,
+    failed: 'Não deu certo. Tente de novo.',
+    appearOffline: (on: boolean) => `Aparecer offline: ${on ? 'sim' : 'não'}`,
+    back: 'Voltar',
+    hintKeys: '↑ ↓ escolher · ← → abas · ENTER confirmar · ESC voltar',
+    hintTouch: 'Toque para escolher',
+    /** A friend's invite into their co-op room, over the title and the menus. */
+    inviteBanner: (name: string) => `*${name}* te chamou para jogar junto!`,
+    inviteJoin: 'Entrar',
+    inviteLater: 'Agora não',
   },
 
   levelUp: {
@@ -4850,6 +4966,7 @@ export const pt = {
       mewtwo: ['*Mewtwo* libera o poder psíquico! Fuja do _círculo_ do Teleport.', 'Psystrike! Passe pelos _vãos_ e corra para um _abrigo_.'],
       arceus: ['*Arceus* se teleporta para julgar você!', 'Judgment! Só os _abrigos de luz_ te salvam.'],
     } satisfies Record<WaveLegend, readonly [string, string]>,
+  },
   /** Co-op in a run (`ui/team*.ts`): the team's cards, its pauses, the spectator, the endless vote and the end screen. */
   team: {
     /** A seat without a name. */

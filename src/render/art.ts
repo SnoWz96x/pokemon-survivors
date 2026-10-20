@@ -1006,6 +1006,33 @@ const BULB = [
 
 export const bulbIcon = () => toIconUrl('bulb', () => art(BULB, { 1: '#303040', 2: '#f8d030', 3: '#fff8c0', 4: '#c89000', 5: '#c8d0e0', 6: '#7880a0' }))
 
+/** Jogar junto (co-op): two Poké Balls side by side, red behind blue. 1 outline, 2 red, 3 white, 4 blue, 5 the button. */
+const COOP_BALLS = [
+  '..11111.11111..',
+  '.1222221444441.',
+  '122222144444441',
+  '122111144111441',
+  '111151111151111',
+  '133111133111331',
+  '133333133333331',
+  '.1333331333331.',
+  '..11111.11111..',
+]
+
+export const coopIcon = () => toIconUrl('coop', () => art(COOP_BALLS, { 1: '#202030', 2: '#e83850', 3: '#f8f8f8', 4: '#4898e8', 5: '#f8f8f8' }))
+
+/** The room's host: a small gold crown. 1 outline, 2 gold, 3 shine, 4 the gem. */
+const CROWN = [
+  '1...1...1',
+  '21.121.12',
+  '221232122',
+  '222242222',
+  '322222223',
+  '111111111',
+]
+
+export const crownIcon = () => toIconUrl('crown', () => art(CROWN, { 1: '#583000', 2: '#f8d030', 3: '#fff8c0', 4: '#e83850' }))
+
 /* ---------------- Medals ---------------- */
 
 /** Achievement medal: a two-tone ribbon over a disc with a star. 1 outline, 2-3 ribbon, 4 star, 5 rim, 6 face. */

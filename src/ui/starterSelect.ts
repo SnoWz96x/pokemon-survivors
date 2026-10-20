@@ -75,8 +75,10 @@ type SelectActions = {
  * Lure and an Incense, O opens the incubator, L the Poké Mart, Enter starts, Esc/Backspace go back.
  * Pointer: a tap selects, a tap on the selected cell (or Start) starts.
  * `selected` reads the selected Pokémon, so a rebuilt screen (language switch, back from a sub-screen) keeps it.
+ * `coop`: picking the Pokémon for a co-op room, where the host sets the difficulty and the Bag stays home:
+ * the bar is just "Escolher".
  */
-export const starterSelect = (root: HTMLElement, input: Input, actions: SelectActions, initial: PlayableId = 'charmander'): Screen & { selected: () => PlayableId } => {
+export const starterSelect = (root: HTMLElement, input: Input, actions: SelectActions, initial: PlayableId = 'charmander', opts: { coop?: boolean } = {}): Screen & { selected: () => PlayableId } => {
   const m = t()
   const save = loadSave()
   const unlocked = (id: PlayableId) => canPlay(save, id)
@@ -461,18 +463,21 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
   renderTms()
   }
 
-  const bar = actionBar(
-    h('div', { class: 'partner-bag' }, bagLabel, ...slots, tmSlots),
-    h('div', { class: 'partner-diff' }, h('div', { class: 'partner-diff-row' }, seg.el, h('span', { class: 'key-hint' }, 'X')), blurb),
-    go,
-  )
+  const bar = opts.coop
+    ? actionBar(go)
+    : actionBar(
+        h('div', { class: 'partner-bag' }, bagLabel, ...slots, tmSlots),
+        h('div', { class: 'partner-diff' }, h('div', { class: 'partner-diff-row' }, seg.el, h('span', { class: 'key-hint' }, 'X')), blurb),
+        go,
+      )
   bar.classList.add('partner-bar')
+  if (opts.coop) bar.classList.add('coop')
 
   /* ---------- State ---------- */
 
   const renderGo = () => {
     const id = current()
-    go.querySelector('.partner-go-label')!.textContent = unlocked(id) ? `${m.partner.start} ▶` : isLegend(id) ? m.legend.lockedButton : m.eggs.lockedButton
+    go.querySelector('.partner-go-label')!.textContent = unlocked(id) ? `${opts.coop ? m.coop.lobby.pick : m.partner.start} ▶` : isLegend(id) ? m.legend.lockedButton : m.eggs.lockedButton
     paintGo()
   }
 
@@ -580,7 +585,7 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
       id,
       stage,
       shiny: shinyOf(id),
-      go: h('button', { class: 'partner-go', type: 'button', onclick: () => confirm() }, m.partner.startWith(PLAYABLE[id].name)),
+      go: h('button', { class: 'partner-go', type: 'button', onclick: () => confirm() }, opts.coop ? m.coop.lobby.pick : m.partner.startWith(PLAYABLE[id].name)),
       onStage: (i) => ((stage = i), renderHero()),
       onClose: closeDetails,
     })
@@ -594,9 +599,9 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
 
   const off = input.onKey((key) => {
     if (sheet?.onKey(key)) return
-    if (key === 'KeyX') return setDifficulty(DIFFICULTY_IDS[(DIFFICULTY_IDS.indexOf(difficulty) + 1) % DIFFICULTY_IDS.length]!)
+    if (key === 'KeyX' && !opts.coop) return setDifficulty(DIFFICULTY_IDS[(DIFFICULTY_IDS.indexOf(difficulty) + 1) % DIFFICULTY_IDS.length]!)
     if (key === 'KeyZ') return setShiny(!shinyOf(current()))
-    const item = BAG_ITEM_IDS.find((i) => BAG_KEYS[i] === key)
+    const item = opts.coop ? undefined : BAG_ITEM_IDS.find((i) => BAG_KEYS[i] === key)
     if (item) return toggleBag(item)
     if (sheet) return
     if (key === 'ArrowLeft' || key === 'KeyA') step('left')

@@ -55,7 +55,7 @@ import { dialogue, type Dialogue, type DialogueLine } from './dialogue'
 import { h, later, setText } from './dom'
 import { emptyCounter, kecleonSpeaker, levelUpLine, pickTrigger, thanks, visitLine, weekdayOf, type VisitContext } from './kecleon'
 import { loadSave, today, vitrineToday, writeSave } from './save'
-import { confirmDialog, hint, menu, type Screen } from './screens'
+import { confirmDialog, hint, type Screen } from './screens'
 import { capPips, shopIcon, tmPicture } from './shopIcons'
 import { nearestInDirection, type Direction } from './spatial'
 

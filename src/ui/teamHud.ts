@@ -67,11 +67,25 @@ export const createTeamHud = (root: HTMLElement) => {
 
   /** The HUD's top bar the cards sit under (null until the HUD exists: it's made after the team layer, and again on a language switch). */
   let under: Element | null = null
+  /**
+   * Where the cards end, as `--team-bottom` on the HUD (`with-team`): on a
+   * phone held upright the boss bar and the pills move below the row
+   * (`style.css`). Measured when the bar or the cards change size.
+   */
+  const sizes = new ResizeObserver(() => {
+    const hud = el.parentElement
+    if (hud) hud.style.setProperty('--team-bottom', `${el.offsetTop + el.offsetHeight}px`)
+  })
   /** In the HUD's flow right under its top bar, so it follows the bar's height on every screen. */
   const place = () => {
     under = root.querySelector('.hud .hud-row')
-    if (under) under.after(el)
-    else if (!el.isConnected) root.append(el)
+    if (under) {
+      under.after(el)
+      under.parentElement?.classList.add('with-team')
+      sizes.disconnect()
+      sizes.observe(under)
+      sizes.observe(el)
+    } else if (!el.isConnected) root.append(el)
   }
 
   const update = (g: Game, me: Player) => {
@@ -109,7 +123,7 @@ export const createTeamHud = (root: HTMLElement) => {
   }
 
   place()
-  return { el, update, dispose: () => el.remove() }
+  return { el, update, dispose: () => (sizes.disconnect(), el.remove()) }
 }
 
 export type TeamHud = ReturnType<typeof createTeamHud>

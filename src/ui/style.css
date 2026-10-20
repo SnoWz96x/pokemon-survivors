@@ -14705,6 +14705,34 @@ button.hall-tile:hover {
   pointer-events: none;
 }
 
+/* In co-op the connection pip sits under the timer: the boss bar and the rift and mission pills move below it. */
+.hud.with-team .boss {
+  top: 82px;
+}
+
+.hud.with-team .rift-pill,
+.hud.with-team .mission-pill {
+  top: 116px;
+}
+
+.hud.with-team .mission-pill.stacked {
+  top: 142px;
+}
+
+/* A phone held upright: the teammates' row sits under the top bar, so those go below it (`--team-bottom`, ui/teamHud.ts). */
+@media (orientation: portrait) and (max-width: 700px) {
+  .hud.with-team .boss {
+    top: calc(var(--team-bottom, 110px) + 6px);
+  }
+  .hud.with-team .rift-pill,
+  .hud.with-team .mission-pill {
+    top: calc(var(--team-bottom, 110px) + 40px);
+  }
+  .hud.with-team .mission-pill.stacked {
+    top: calc(var(--team-bottom, 110px) + 66px);
+  }
+}
+
 @media (orientation: portrait) and (max-width: 700px) {
   .team-hud {
     flex-direction: row;
@@ -15480,4 +15508,564 @@ button.hall-tile:hover {
 .team-moment .team-chip-face {
   width: 22px;
   height: 22px;
+}
+
+/* ---------- Co-op outside a run (ui/coopRoom.ts, ui/friends.ts) ---------- */
+
+/* The lobby's Co-op tile wears a BETA tag; on phones it's the tab bar's last tile. */
+.lobby-beta {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  padding: 2px 4px 1px;
+  font-family: var(--title);
+  font-size: 6px;
+  font-style: normal;
+  color: #fff;
+  background: #4898e8;
+  border: 2px solid #fff;
+  border-radius: 6px;
+}
+
+@media (max-width: 759px) and (min-height: 501px), (max-width: 759px) and (orientation: portrait) {
+  .lobby-tile.coop {
+    grid-column: var(--tiles);
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .lobby-tile.coop {
+    grid-area: auto;
+    grid-row: 4;
+    grid-column: var(--tiles);
+  }
+  /* Six tiles (Ranking and Ideias too): one more column for the dock. */
+  .lobby.dock6 {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(0, 6.5fr);
+    grid-template-areas:
+      'logo logo logo logo logo logo today'
+      'stage stage stage stage stage stage today'
+      'stage stage stage stage stage stage side'
+      'd1 d2 d3 d4 d5 d6 play';
+  }
+  .lobby.dock6 .lobby-tile > span:not(.key-hint) {
+    font-size: 7px;
+  }
+}
+
+/* The partner select picking for a room: just "Escolher". */
+.shell-actions.partner-bar.coop {
+  justify-content: center;
+}
+
+.coop-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.coop-title img {
+  width: 30px;
+  height: 18px;
+  flex: none;
+}
+
+.coop-beta {
+  padding: 3px 5px 2px;
+  font-size: 7px;
+  font-style: normal;
+  color: #fff;
+  background: #4898e8;
+  border-radius: 4px;
+}
+
+.dialog.coop-hub {
+  width: min(460px, 100%);
+}
+
+.dialog.coop-room {
+  width: min(640px, 100%);
+}
+
+.coop-body {
+  gap: 10px;
+}
+
+.coop-screen .btn.small,
+.friends .btn.small {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 8px;
+}
+
+.coop-screen .btn[disabled] {
+  opacity: 0.5;
+}
+
+.coop-create {
+  width: 100%;
+}
+
+.coop-or {
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  color: #6878a8;
+}
+
+.coop-join {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.coop-join .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.coop-code-input {
+  font-family: var(--title);
+  font-size: 18px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.coop-guest {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.coop-hub.busy .btn,
+.coop-screen .busy .btn {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.coop-status:empty {
+  display: none;
+}
+
+/* The room's code, big, with its link button. */
+.coop-code {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: #283048;
+  border-radius: 6px;
+  color: #fff;
+}
+
+.coop-code .btn {
+  color: var(--ink);
+}
+
+.coop-code-label {
+  font-family: var(--title);
+  font-size: 8px;
+  color: #a8b8e8;
+}
+
+.coop-code-value {
+  flex: 1;
+  font-family: var(--title);
+  font-size: 20px;
+  font-weight: normal;
+  letter-spacing: 4px;
+  text-shadow: 2px 2px 0 #101020;
+}
+
+/* Four seats: two columns, one on narrow phones. */
+.coop-seats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.coop-seat {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 60px;
+  padding: 6px 8px;
+  background: #f0f0f8;
+  border: 3px solid var(--slot, #c8cce0);
+  border-radius: 6px;
+}
+
+.coop-seat.me {
+  background: #fff;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+}
+
+.coop-seat.offline,
+.coop-seat.away {
+  opacity: 0.6;
+}
+
+.coop-seat.empty {
+  justify-content: center;
+  gap: 10px;
+  border-style: dashed;
+  border-color: #c8cce0;
+  background: transparent;
+}
+
+.coop-seat-empty {
+  font-size: 18px;
+  color: #8890b0;
+}
+
+.coop-seat-portrait {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  padding: 2px;
+  background: #283048;
+  border: 2px solid var(--slot, #283048);
+  border-radius: 6px;
+  image-rendering: pixelated;
+}
+
+.coop-seat-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.coop-seat-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--title);
+  font-size: 9px;
+  font-weight: normal;
+}
+
+.coop-seat-name span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coop-crown {
+  width: 18px;
+  height: 12px;
+  flex: none;
+}
+
+.coop-seat-partner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.coop-you {
+  font-family: var(--title);
+  font-size: 7px;
+  font-style: normal;
+  color: #e83838;
+}
+
+.coop-seat-state {
+  font-family: var(--title);
+  font-size: 7px;
+  color: #6878a8;
+}
+
+.coop-seat-state.ready {
+  color: #289048;
+}
+
+.coop-seat-state.host {
+  color: #b07800;
+}
+
+.coop-seat-state.offline,
+.coop-seat-state.away {
+  color: #e83838;
+}
+
+.coop-kick {
+  flex: none;
+}
+
+.coop-settings {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.coop-difficulty {
+  flex: 1;
+  min-width: 220px;
+}
+
+.coop-difficulty .shell-seg-option {
+  min-height: 38px;
+  font-size: 8px;
+}
+
+.coop-difficulty .shell-seg-option.selected {
+  box-shadow: inset 0 0 0 3px #e83838;
+}
+
+.coop-difficulty-read {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  color: #6878a8;
+}
+
+.coop-rules {
+  margin: 0;
+}
+
+.coop-wait {
+  margin: 0;
+  text-align: center;
+  font-size: 18px;
+  line-height: 1.1;
+  color: #2a5aa8;
+}
+
+.coop-wait.error {
+  color: #e83838;
+}
+
+.coop-buttons .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .coop-seats {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .coop-seat {
+    min-height: 50px;
+    padding: 4px 6px;
+  }
+  .coop-seat-portrait {
+    width: 36px;
+    height: 36px;
+  }
+  .coop-seat.empty {
+    min-height: 40px;
+  }
+  .coop-buttons .btn {
+    flex: 1 1 40%;
+  }
+  .coop-difficulty {
+    min-width: 0;
+  }
+}
+
+/* Landscape phones: the seats in a row of four, the room's footer shorter. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .dialog.coop-room {
+    width: min(760px, 100%);
+    height: 100%;
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .coop-room .dialog-title {
+    font-size: 11px;
+  }
+  .coop-seats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .coop-seat {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 2px;
+    min-height: 0;
+    padding: 4px;
+  }
+  .coop-seat-portrait {
+    align-self: center;
+    width: 32px;
+    height: 32px;
+  }
+  .coop-seat-name,
+  .coop-seat-partner {
+    justify-content: center;
+  }
+  .coop-seat-partner {
+    font-size: 15px;
+  }
+  .coop-code {
+    padding: 3px 8px;
+  }
+  .coop-code-value {
+    font-size: 16px;
+  }
+  .coop-rules,
+  .coop-screen .hint {
+    display: none;
+  }
+  .coop-buttons .btn {
+    min-height: 36px;
+    padding: 6px 12px;
+  }
+  .coop-wait {
+    font-size: 15px;
+  }
+}
+
+/* Amigos: tabs, rows of people with their presence and buttons. */
+.friends-tabs {
+  align-self: center;
+}
+
+.friends-tabs .lobby-badge {
+  margin-left: 4px;
+}
+
+.friend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.friend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #f0f0f8;
+  border-radius: 6px;
+}
+
+.friend-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.friend-id b {
+  font-family: var(--title);
+  font-size: 9px;
+  font-weight: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-handle {
+  font-size: 16px;
+  color: #6878a8;
+}
+
+.friend-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+
+.friend-presence {
+  font-family: var(--title);
+  font-size: 7px;
+  color: #6878a8;
+}
+
+.friend-presence::before {
+  content: '● ';
+}
+
+.friend-presence.lobby {
+  color: #289048;
+}
+
+.friend-presence.room {
+  color: #2a7ad8;
+}
+
+.friend-presence.run {
+  color: #c07800;
+}
+
+.friend-presence.offline {
+  color: #a0a8c0;
+}
+
+.friend-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.friends-subtitle {
+  margin: 8px 0 0;
+  font-family: var(--title);
+  font-size: 8px;
+  color: #c04890;
+}
+
+/* A friend's invite: top center, over the menus (never over a run). */
+.coop-invite {
+  position: absolute;
+  z-index: 30;
+  top: max(10px, var(--safe-t));
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(520px, calc(100% - 20px));
+  padding: 8px 10px;
+  pointer-events: auto;
+  border: 3px solid #4898e8;
+}
+
+.coop-invite-icon {
+  width: 30px;
+  height: 18px;
+  flex: none;
+}
+
+.coop-invite-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 19px;
+  line-height: 1.1;
+}
+
+.coop-invite-buttons {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+
+.coop-invite .btn.small {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 8px;
+}
+
+@media (max-width: 520px) {
+  .coop-invite {
+    flex-wrap: wrap;
+  }
+  .coop-invite-buttons {
+    width: 100%;
+  }
+  .coop-invite-buttons .btn {
+    flex: 1;
+  }
 }
