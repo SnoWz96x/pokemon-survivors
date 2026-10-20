@@ -59,6 +59,9 @@ const HASH_WINDOW = 10 * 60 * TICK_HZ
 /** Desync dumps recorded per run, at most. */
 export const MAX_DUMPS = 3
 
+/** Snapshots a seat may call bad (`badSnap`) per run, at most: past that it can't make the team drop another. */
+export const MAX_BAD_SNAPS = 2
+
 /** Per-socket token bucket: burst and refill per second. Touch input coalesced to 30/s stays well inside. */
 export const BUCKET = { capacity: 120, perSecond: 60 } as const
 
@@ -100,6 +103,10 @@ export type Run = {
   /** Seats that left the run for good. */
   left: number[]
   agreed: SnapshotRef | null
+  /** The seat that uploaded `agreed`. */
+  agreedBy: number | null
+  /** Seats whose snapshot restored wrong for someone (`badSnap`): they upload only when nobody else can. */
+  demoted: number[]
   /** Where each seat's simulation said the run ended. */
   overs: Record<number, { tick: number; h: string }>
   ended: { tick: number; h: string } | null
@@ -150,6 +157,8 @@ export type Live = {
   healing: Map<number, number>
   upload: Upload | null
   uploader: number | null
+  /** `badSnap`s each seat sent this run (`MAX_BAD_SNAPS`). */
+  badSnaps: Map<number, number>
 }
 
 export type State = { room: Room | null; live: Live; gen: Gen }
@@ -171,7 +180,7 @@ export type Effect =
   /** Send `msg`, then the base snapshot's chunks, then the log's frames from `msg.from` to `msg.to`. */
   | { k: 'sync'; to: ConnId; msg: Extract<ServerMessage, { t: 'sync' }> }
   | { k: 'close'; to: ConnId; reason: CloseReason }
-  | { k: 'dump'; reason: 'desync'; run: number; tick: number; reports: Record<number, string>; majority: string; minority: number[] }
+  | { k: 'dump'; reason: 'desync' | 'badSnap'; run: number; tick: number; reports: Record<number, string>; majority: string; minority: number[] }
   | { k: 'event'; ev: string; data: Record<string, string | number | boolean | null> }
   /** The room is over: delete everything and close every socket. */
   | { k: 'wipe' }
@@ -186,6 +195,7 @@ export const emptyLive = (): Live => ({
   healing: new Map(),
   upload: null,
   uploader: null,
+  badSnaps: new Map(),
 })
 
 /**
@@ -195,6 +205,11 @@ export const emptyLive = (): Live => ({
  */
 export const loadState = (room: Room | null, gen: Gen, now: number): State => {
   const live = emptyLive()
+  if (room?.run) {
+    // Rooms saved before these fields existed.
+    room.run.agreedBy ??= null
+    room.run.demoted ??= []
+  }
   if (room?.run && !room.run.ended) {
     room.run.next = Math.max(room.run.next, room.run.bound)
     room.run.paused = true
@@ -318,10 +333,11 @@ const liveSeats = (state: State, room: Room) => {
     })
 }
 
-/** The snapshot uploader: the lowest live seat that isn't being healed. Tells the old and new one. */
+/** The snapshot uploader: the lowest live seat that isn't being healed, one never demoted first. Tells the old and new one. */
 const updateUploader = (state: State, room: Room): Effect[] => {
-  const live = room.phase === 'playing' && room.run && !room.run.ended ? liveSeats(state, room) : []
-  const next = live.find((seat) => !state.live.healing.has(seat)) ?? null
+  const run = room.run
+  const live = room.phase === 'playing' && run && !run.ended ? liveSeats(state, room).filter((seat) => !state.live.healing.has(seat)) : []
+  const next = live.find((seat) => !run?.demoted.includes(seat)) ?? live[0] ?? null
   const prev = state.live.uploader
   if (next === prev) return []
   state.live.uploader = next
@@ -564,6 +580,8 @@ export const message = (state: State, connId: ConnId, msg: ClientMessage | null,
       live.overs[seat.seat] = { tick: msg.tick, h: msg.h }
       return [...out, { k: 'save' }, ...evaluateOver(state, room)]
     }
+    case 'badSnap':
+      return live ? [...out, ...onBadSnap(state, room, live, seat.seat, msg.tick)] : out
     case 'leave': {
       conn.seat = null
       out.push(send(connId, { t: 'bye', reason: 'left' }), { k: 'close', to: connId, reason: 'left' })
@@ -600,7 +618,7 @@ const startRun = (state: State, room: Room, now: number): Effect[] => {
   room.runs += 1
   const players = room.seats.flatMap((s) => (s.loadout ? [{ seat: s.seat, name: s.name, account: s.account, loadout: s.loadout }] : []))
   const start: RunStart = { id: room.runs, seed: state.gen.seed() >>> 0, build: room.build, settings: room.settings, players }
-  room.run = { start, clockBase: now + TIMES.startDelay, next: 0, bound: 0, paused: false, left: [], agreed: null, overs: {}, ended: null, dumps: 0 }
+  room.run = { start, clockBase: now + TIMES.startDelay, next: 0, bound: 0, paused: false, left: [], agreed: null, agreedBy: null, demoted: [], overs: {}, ended: null, dumps: 0 }
   room.phase = 'playing'
   const live = state.live
   live.pending = []
@@ -610,6 +628,7 @@ const startRun = (state: State, room: Room, now: number): Effect[] => {
   live.healing.clear()
   live.upload = null
   live.uploader = null
+  live.badSnaps.clear()
   for (const s of room.seats) {
     s.away = !online(state, s)
     if (s.away) stamp(state, [s.seat, 'away'])
@@ -688,6 +707,7 @@ const heal = (state: State, room: Room, run: Run, seats: number[], tick: number,
 
 const acceptSnapshot = (room: Room, run: Run, up: Upload): Effect[] => {
   run.agreed = { tick: up.tick, h: up.h, parts: up.parts }
+  run.agreedBy = up.seat
   return [{ k: 'save' }, { k: 'keepSnapshot', run: run.start.id, tick: up.tick }, event(room, 'snapshot.agreed', { run: run.start.id, tick: up.tick, parts: up.parts })]
 }
 
@@ -761,6 +781,29 @@ const onSnap = (state: State, room: Room, run: Run, seat: number, msg: Extract<C
 }
 
 const dropSnapshot = (run: Run, up: { tick: number }): Effect => ({ k: 'dropSnapshot', run: run.start.id, tick: up.tick })
+
+/**
+ * A seat restored the agreed snapshot and it didn't hash to its label (the
+ * relay can't check the bytes, only the label the majority agreed on): it
+ * goes, its uploader stops uploading while anyone else can, and a dump is
+ * recorded. The seat joins afresh: from a newer snapshot, or the seed.
+ */
+const onBadSnap = (state: State, room: Room, run: Run, seat: number, tick: number): Effect[] => {
+  const agreed = run.agreed
+  const calls = state.live.badSnaps.get(seat) ?? 0
+  if (!agreed || agreed.tick !== tick || calls >= MAX_BAD_SNAPS) return []
+  state.live.badSnaps.set(seat, calls + 1)
+  const by = run.agreedBy
+  run.agreed = null
+  run.agreedBy = null
+  if (by !== null && !run.demoted.includes(by)) run.demoted.push(by)
+  const out: Effect[] = [{ k: 'save' }, dropSnapshot(run, agreed), event(room, 'snapshot.bad', { run: run.start.id, tick, seat, uploader: by })]
+  if (run.dumps < MAX_DUMPS) {
+    run.dumps += 1
+    out.push({ k: 'dump', reason: 'badSnap', run: run.start.id, tick, reports: {}, majority: agreed.h, minority: [seat] })
+  }
+  return [...out, ...updateUploader(state, room)]
+}
 
 /* ---------------- Time ---------------- */
 

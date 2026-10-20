@@ -261,6 +261,26 @@ describe('hashes, snapshots and the end', () => {
     expect(out).toContainEqual({ k: 'dropSnapshot', run: 1, tick: 600 })
   })
 
+  it('drops an agreed snapshot a restorer found bad, demotes its uploader and records a dump', () => {
+    const { state, t0 } = playing(3)
+    alive(state, 3, t0 + 11_090)
+    tick(state, t0 + 11_100)
+    for (const c of ['c0', 'c1', 'c2']) say(state, c, { t: 'hash', tick: 600, h: 'good' }, t0 + 11_100)
+    say(state, 'c0', { t: 'snap', tick: 600, h: 'good', part: 0, parts: 1, data: 'AAAA' }, t0 + 11_100)
+    expect(roomOf(state).run?.agreed?.tick).toBe(600)
+    // A stale report changes nothing.
+    expect(say(state, 'c2', { t: 'badSnap', tick: 0 }, t0 + 11_100)).toEqual([])
+    const out = say(state, 'c2', { t: 'badSnap', tick: 600 }, t0 + 11_100)
+    expect(roomOf(state).run).toMatchObject({ agreed: null, demoted: [0] })
+    expect(out).toContainEqual({ k: 'dropSnapshot', run: 1, tick: 600 })
+    expect(out.filter((e) => e.k === 'dump')).toEqual([expect.objectContaining({ reason: 'badSnap', minority: [2] })])
+    expect(of(sent(out, 'c0'), 'role')).toEqual([{ t: 'role', snapshots: false }])
+    expect(of(sent(out, 'c1'), 'role')).toEqual([{ t: 'role', snapshots: true }])
+    // A fresh join now comes from the seed, not the bad bytes.
+    const back = join(state, 'c9', 'guest-2-xxxxxxxxxxxx', t0 + 11_200, { secret: roomOf(state).seats[2]?.secret ?? null })
+    expect(of(sent(back, 'c9'), 'sync')[0]).toMatchObject({ reason: 'join', from: 0, base: null })
+  })
+
   it('charges `over` a token like any message, and saves only a vote that changed', () => {
     const { state, t0 } = playing(3)
     alive(state, 3, t0 + 4990)

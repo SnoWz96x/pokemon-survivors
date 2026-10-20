@@ -188,6 +188,11 @@ export type ClientMessage =
   | { t: 'snap'; tick: number; h: string; part: number; parts: number; data: string }
   /** The run ended in this client's simulation at `tick`, with this state hash. */
   | { t: 'over'; tick: number; h: string }
+  /**
+   * The agreed snapshot at `tick` (a `sync`'s base) didn't hash to its label once restored: its bytes are bad.
+   * The relay drops it and stops taking snapshots from whoever uploaded it; the client joins afresh.
+   */
+  | { t: 'badSnap'; tick: number }
   | { t: 'leave' }
   | { t: 'ping'; at: number }
 
@@ -362,6 +367,8 @@ export const parseClientMessage = (raw: string): ClientMessage | null => {
       const h = parseHash(m.h)
       return h && isWhole(m.tick, MAX_TICK) ? { t: 'over', tick: m.tick, h } : null
     }
+    case 'badSnap':
+      return isWhole(m.tick, MAX_TICK) && m.tick % SNAPSHOT_EVERY === 0 ? { t: 'badSnap', tick: m.tick } : null
     case 'ping':
       return typeof m.at === 'number' && Number.isFinite(m.at) ? { t: 'ping', at: m.at } : null
     case 'start':

@@ -280,7 +280,7 @@ export class RoomObject extends DurableObject<Env> {
     }
   }
 
-  /** Records a desync dump (room, run start, the whole input log, hashes per seat, builds and user agents) in the vault. */
+  /** Records a dump (a desync, a bad snapshot: room, run start, the whole input log, hashes per seat, builds and user agents) in the vault. */
   private async dump(e: Extract<Effect, { k: 'dump' }>) {
     const room = this.state.room
     if (!room?.run) return
