@@ -41,6 +41,8 @@ export const TIMES = {
   lobbyDrop: 120_000,
   /** A room nobody is connected to lives this long. */
   idle: 600_000,
+  /** A room lives this long at most, whatever happens in it. */
+  maxAge: 6 * 3_600_000,
   /** A tick's hashes are compared at the latest this long after the first one came in. */
   hashWait: 10_000,
 } as const
@@ -93,7 +95,7 @@ export type Run = {
   next: number
   /** No frame ever reached this tick: after a restart the clock resumes here, so no sent tick is reused. */
   bound: number
-  /** Nobody is connected: the clock stands still (and resumes where it stopped). */
+  /** No seat in the run is here to play (all offline or away): the clock stands still (and resumes where it stopped). */
   paused: boolean
   /** Seats that left the run for good. */
   left: number[]
@@ -211,7 +213,7 @@ export const ticksDue = (clockBase: number, now: number) => Math.max(0, Math.flo
 /** When the tick after `next - 1` falls due: the frame timer's next deadline. */
 export const nextTickAt = (run: Run) => run.clockBase + ((run.next + 1) * 1000) / TICK_HZ
 
-/** Whether the frame clock runs (a run is on, someone is connected). */
+/** Whether the frame clock runs (a run is on, a seat in it is here to play). */
 export const running = (state: State) => {
   const run = state.room?.run
   return state.room?.phase === 'playing' && !!run && !run.paused && !run.ended
@@ -296,10 +298,9 @@ export const reattach = (state: State, sockets: readonly { id: ConnId; ua: strin
     seat.offlineSince = null
     state.live.lastSeen.set(seat.seat, now)
   }
-  if (!room || !room.seats.some((s) => online(state, s))) return []
-  room.emptySince = null
-  const run = room.run
-  return room.phase === 'playing' && run && !run.ended ? resumeClock(room, run, now) : []
+  if (!room) return []
+  if (room.seats.some((s) => online(state, s))) room.emptySince = null
+  return settle(state, room, now)
 }
 
 const liveSeats = (state: State, room: Room) => {
@@ -328,11 +329,11 @@ const updateUploader = (state: State, room: Room): Effect[] => {
   return out
 }
 
-const removeSeat = (state: State, room: Room, seat: Seat): Effect[] => {
+const removeSeat = (state: State, room: Room, seat: Seat, now: number): Effect[] => {
   room.seats = room.seats.filter((s) => s !== seat)
   if (room.host === seat.seat) room.host = (room.seats.find((s) => online(state, s)) ?? room.seats[0])?.seat ?? null
   if (room.seats.length === 0) return wipe(state, room, 'empty')
-  return [{ k: 'save' }, ...broadcastRoom(state, room), ...evaluateOver(state, room)]
+  return [{ k: 'save' }, ...broadcastRoom(state, room), ...evaluateOver(state, room), ...settle(state, room, now)]
 }
 
 /** Ends the room: nothing about it is saved again. */
@@ -366,6 +367,29 @@ const resumeClock = (room: Room, run: Run, now: number): Effect[] => {
   return [event(room, 'run.resumed', { run: run.start.id, tick: run.next })]
 }
 
+/**
+ * After anything that changes who's here: with nobody connected the room's
+ * idle countdown starts (`TIMES.idle`); in a run the clock stops while no seat
+ * in it is here to play (all offline or away: locked phones, hidden tabs) and
+ * starts again where it stopped as soon as one is.
+ */
+const settle = (state: State, room: Room, now: number): Effect[] => {
+  const out: Effect[] = []
+  if (room.emptySince === null && !room.seats.some((s) => online(state, s))) {
+    room.emptySince = now
+    out.push({ k: 'save' })
+  }
+  const run = room.run
+  if (room.phase !== 'playing' || !run || run.ended) return out
+  const here = liveSeats(state, room).length > 0
+  if (!here && !run.paused) {
+    run.paused = true
+    run.bound = run.next
+    out.push({ k: 'save' }, event(room, 'run.paused', { run: run.start.id, tick: run.next, why: room.emptySince === null ? 'away' : 'empty' }))
+  } else if (here && run.paused) out.push({ k: 'save' }, ...resumeClock(room, run, now))
+  return out
+}
+
 const stamp = (state: State, entry: Entry) => {
   const [seat, kind] = entry
   if ((COALESCED_KINDS as readonly string[]).includes(kind)) {
@@ -384,7 +408,7 @@ const heard = (state: State, room: Room, seat: Seat, now: number): Effect[] => {
   if (room.phase !== 'playing' || !run || run.ended || !seat.away || !inRun(run, seat.seat)) return []
   seat.away = false
   stamp(state, [seat.seat, 'back'])
-  return [{ k: 'save' }, ...broadcastRoom(state, room), ...updateUploader(state, room)]
+  return [{ k: 'save' }, ...settle(state, room, now), ...broadcastRoom(state, room), ...updateUploader(state, room)]
 }
 
 /**
@@ -421,7 +445,6 @@ export const hello = (state: State, connId: ConnId, h: Hello, identity: Identity
     room.host ??= seat.seat
     out.push(event(room, 'seat.joined', { seat: n, account: identity.account }))
   }
-  const wasEmpty = room.emptySince !== null
   conn.seat = seat.seat
   seat.offlineSince = null
   seat.name = h.name
@@ -430,10 +453,7 @@ export const hello = (state: State, connId: ConnId, h: Hello, identity: Identity
   state.live.lastSeen.set(seat.seat, now)
   out.push({ k: 'save' })
   const run = room.run
-  if (room.phase === 'playing' && run && !run.ended) {
-    if (wasEmpty) out.push(...resumeClock(room, run, now))
-    out.push(...heard(state, room, seat, now))
-  }
+  if (room.phase === 'playing' && run && !run.ended) out.push(...heard(state, room, seat, now), ...settle(state, room, now))
   out.push(send(connId, { t: 'welcome', seat: seat.seat, secret: seat.secret, room: roomView(state, room) }))
   out.push(...broadcastRoom(state, room).filter((e) => e.k !== 'send' || e.to !== connId))
   if (room.phase === 'playing' && run && !run.ended && inRun(run, seat.seat)) {
@@ -514,7 +534,7 @@ export const message = (state: State, connId: ConnId, msg: ClientMessage | null,
         c.seat = null
         out.push(send(c.id, { t: 'bye', reason: 'kicked' }), { k: 'close', to: c.id, reason: 'kicked' })
       }
-      return [...out, event(room, 'seat.kicked', { seat: target.seat }), ...removeSeat(state, room, target)]
+      return [...out, event(room, 'seat.kicked', { seat: target.seat }), ...removeSeat(state, room, target, now)]
     }
     case 'start':
       if (!outside) return out
@@ -544,13 +564,13 @@ export const message = (state: State, connId: ConnId, msg: ClientMessage | null,
         live.left.push(seat.seat)
         stamp(state, [seat.seat, 'leave'])
       }
-      out.push(...removeSeat(state, room, seat))
+      out.push(...removeSeat(state, room, seat, now))
       return [...out, ...(state.room ? updateUploader(state, room) : [])]
     }
   }
 }
 
-/** A socket closed. Its seat is kept; in a run it goes `away` once silent long enough, and the clock stops when nobody is left. */
+/** A socket closed. Its seat is kept; in a run it goes `away` once silent long enough, and the clock stops when nobody in the run is left (`settle`). */
 export const disconnect = (state: State, connId: ConnId, now: number): Effect[] => {
   const conn = state.live.conns.get(connId)
   state.live.conns.delete(connId)
@@ -559,17 +579,7 @@ export const disconnect = (state: State, connId: ConnId, now: number): Effect[] 
   const seat = room.seats.find((s) => s.seat === conn.seat)
   if (!seat || connOf(state, seat.seat)) return []
   seat.offlineSince = now
-  const out: Effect[] = [{ k: 'save' }]
-  if (!room.seats.some((s) => online(state, s))) {
-    room.emptySince = now
-    const run = room.run
-    if (room.phase === 'playing' && run && !run.ended && !run.paused) {
-      run.paused = true
-      run.bound = run.next
-      out.push(event(room, 'run.paused', { run: run.start.id, tick: run.next }))
-    }
-  }
-  return [...out, ...broadcastRoom(state, room), ...updateUploader(state, room), ...evaluateOver(state, room)]
+  return [{ k: 'save' }, ...settle(state, room, now), ...broadcastRoom(state, room), ...updateUploader(state, room), ...evaluateOver(state, room)]
 }
 
 /* ---------------- Runs ---------------- */
@@ -762,13 +772,14 @@ const emit = (state: State, run: Run, now: number): Effect[] => {
 /**
  * Everything time does: the frame clock (when running), seats going `away`,
  * overdue hash comparisons, the host handing over, lobby seats dropped and the
- * room expiring. Called by the frame timer at 60 Hz in a run, and by the alarm
+ * room expiring (idle, or past its maximum age). Called by the frame timer at 60 Hz in a run, and by the alarm
  * at `deadline` otherwise.
  */
 export const tick = (state: State, now: number): Effect[] => {
   const room = state.room
   if (!room) return []
   if (room.emptySince !== null && now - room.emptySince >= TIMES.idle) return wipe(state, room, 'idle')
+  if (now - room.createdAt >= TIMES.maxAge) return wipe(state, room, 'age')
   const out: Effect[] = []
   const someoneOnline = room.seats.some((s) => online(state, s))
   const host = room.seats.find((s) => s.seat === room.host)
@@ -781,7 +792,7 @@ export const tick = (state: State, now: number): Effect[] => {
   }
   if (room.phase !== 'playing' && someoneOnline) {
     for (const s of room.seats.filter((x) => x.offlineSince !== null && now - x.offlineSince >= TIMES.lobbyDrop)) {
-      if (state.room) out.push(event(room, 'seat.dropped', { seat: s.seat }), ...removeSeat(state, room, s))
+      if (state.room) out.push(event(room, 'seat.dropped', { seat: s.seat }), ...removeSeat(state, room, s, now))
     }
   }
   const run = room.run
@@ -803,6 +814,8 @@ export const tick = (state: State, now: number): Effect[] => {
       }
     }
     out.push(...emit(state, run, now))
+    // Everyone in the run just went away: the clock stops after their `away` went out.
+    if (changed) out.push(...settle(state, room, now))
   }
   return out
 }
@@ -811,7 +824,7 @@ export const tick = (state: State, now: number): Effect[] => {
 export const deadline = (state: State): number | null => {
   const room = state.room
   if (!room) return null
-  const times: number[] = []
+  const times: number[] = [room.createdAt + TIMES.maxAge]
   if (room.emptySince !== null) times.push(room.emptySince + TIMES.idle)
   const someoneOnline = room.seats.some((s) => online(state, s))
   if (someoneOnline) {
@@ -819,5 +832,5 @@ export const deadline = (state: State): number | null => {
     if (host?.offlineSince != null) times.push(host.offlineSince + TIMES.hostHandoff)
     if (room.phase !== 'playing') for (const s of room.seats) if (s.offlineSince !== null) times.push(s.offlineSince + TIMES.lobbyDrop)
   }
-  return times.length > 0 ? Math.min(...times) : null
+  return Math.min(...times)
 }

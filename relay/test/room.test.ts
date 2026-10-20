@@ -5,6 +5,7 @@ import {
   TIMES,
   connect,
   createRoom,
+  deadline,
   disconnect,
   hello,
   loadState,
@@ -153,6 +154,39 @@ describe('clock', () => {
     expect(of(sent(back, 'c2'), 'sync')[0]).toMatchObject({ reason: 'resume', from: next, to: next })
     // Seat 1 never came back: it goes away right at the tick the clock resumed on.
     expect(frames(tick(state, later + 17), 'c2')).toEqual([{ t: 'frame', from: next, to: next + 1, ticks: [[next, [[1, 'away']]]] }])
+  })
+
+  it('expires a room whose last player leaves while a teammate is offline', () => {
+    const { state, t0 } = playing()
+    tick(state, t0 + 1000)
+    disconnect(state, 'c1', t0 + 1000)
+    say(state, 'c0', { t: 'leave' }, t0 + 2000)
+    expect(roomOf(state)).toMatchObject({ emptySince: t0 + 2000, run: { paused: true } })
+    expect(deadline(state)).toBe(t0 + 2000 + TIMES.idle)
+    expect(tick(state, t0 + 2000 + TIMES.idle)).toContainEqual({ k: 'wipe' })
+    expect(state.room).toBeNull()
+  })
+
+  it('stops the clock while everyone in the run is away, and starts it again where it stopped when one is back', () => {
+    const { state, t0 } = playing()
+    tick(state, t0)
+    const gone = tick(state, t0 + TIMES.away + 20)
+    expect(frames(gone, 'c0')[0]?.ticks).toEqual([[expect.any(Number), [[0, 'away'], [1, 'away']]]])
+    expect(roomOf(state).run?.paused).toBe(true)
+    const next = roomOf(state).run?.next ?? -1
+    expect(frames(tick(state, t0 + 60_000), 'c0')).toEqual([])
+    say(state, 'c1', { t: 'hb' }, t0 + 60_000)
+    expect(roomOf(state).run?.paused).toBe(false)
+    expect(frames(tick(state, t0 + 60_020), 'c0')).toEqual([{ t: 'frame', from: next, to: next + 1, ticks: [[next, [[1, 'back']]]] }])
+  })
+
+  it('wipes a room past its maximum age, whatever goes on in it', () => {
+    const { state, t0 } = playing()
+    expect(deadline(state)).toBeLessThanOrEqual(T0 + TIMES.maxAge)
+    alive(state, 2, T0 + TIMES.maxAge - 1)
+    expect(tick(state, T0 + TIMES.maxAge - 1).some((e) => e.k === 'wipe')).toBe(false)
+    expect(tick(state, T0 + TIMES.maxAge)).toContainEqual({ k: 'wipe' })
+    expect(t0).toBeGreaterThan(T0)
   })
 
   it('after a restart, resumes at the persisted bound, past every tick it may have sent', () => {
