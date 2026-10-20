@@ -93,16 +93,31 @@ export type CoopEvent =
   | { kind: 'denied'; why: 'notHost' | 'notReady' }
   | { kind: 'slow' }
 
-/** A socket as both the browser's and Node's `WebSocket` are. */
-export type SocketLike = {
-  readonly readyState: number
-  readonly bufferedAmount: number
-  send: (data: string) => void
-  close: (code?: number, reason?: string) => void
-  onopen: ((ev: unknown) => void) | null
-  onmessage: ((ev: { data: unknown }) => void) | null
-  onclose: ((ev: { code: number }) => void) | null
-  onerror: ((ev: unknown) => void) | null
+/** What the client hears from its socket. */
+export type SocketHandlers = { open: () => void; message: (data: unknown) => void; close: (code: number) => void }
+
+/** A socket, as the client uses it (`webSocket` wraps the browser's and Node's `WebSocket`). */
+export type SocketLike = { send: (data: string) => void; close: () => void; isOpen: () => boolean; buffered: () => number }
+
+/** The standard `WebSocket` (browsers, Node 22+) as a `SocketLike`. */
+export const webSocket = (url: string, on: SocketHandlers): SocketLike => {
+  const ws = new WebSocket(url)
+  ws.onopen = () => on.open()
+  ws.onmessage = (e) => on.message(e.data)
+  ws.onclose = (e) => on.close(e.code)
+  ws.onerror = () => {}
+  return {
+    send: (d) => ws.send(d),
+    close: () => {
+      try {
+        ws.close()
+      } catch {
+        // Closed already.
+      }
+    },
+    isOpen: () => ws.readyState === WebSocket.OPEN,
+    buffered: () => ws.bufferedAmount,
+  }
 }
 
 export type CoopDeps = {
@@ -110,7 +125,7 @@ export type CoopDeps = {
   url: string
   /** The simulation's build id (`__SIM_BUILD__`). */
   build: string
-  socket: (url: string) => SocketLike
+  socket: (url: string, on: SocketHandlers) => SocketLike
   fetch: (url: string, init: { method: string; body: string; headers: Record<string, string> }) => Promise<{ json: () => Promise<unknown> }>
   store: Store
   /** A fresh Clerk session token when signed in, else null (a guest). */
@@ -119,8 +134,6 @@ export type CoopDeps = {
   now: () => number
   random: () => number
 }
-
-const OPEN = 1
 
 /** Stick samples kept for prediction: far more than any round trip. */
 export const HISTORY = 256
@@ -206,7 +219,7 @@ export const createCoopClient = (deps: CoopDeps) => {
 
   const send = (msg: ClientMessage) => {
     const ws = s.socket
-    if (!ws || !s.welcomed || ws.readyState !== OPEN) return false
+    if (!ws || !s.welcomed || !ws.isOpen()) return false
     try {
       // Snapshot chunks start with `t` (the relay picks its size limit from that prefix): JSON keeps key order.
       ws.send(JSON.stringify(msg))
@@ -231,15 +244,7 @@ export const createCoopClient = (deps: CoopDeps) => {
     const ws = s.socket
     s.socket = null
     s.welcomed = false
-    if (ws) {
-      ws.onclose = null
-      ws.onmessage = null
-      try {
-        ws.close()
-      } catch {
-        // Closed already.
-      }
-    }
+    ws?.close()
     if (why === 'left' || why === 'kicked' || why === 'expired') deps.store.remove(secretKey(s.code ?? ''))
     joining?.({ ok: false, why })
     joining = null
@@ -261,15 +266,7 @@ export const createCoopClient = (deps: CoopDeps) => {
     s.socket = null
     s.welcomed = false
     s.pingAt = null
-    if (ws) {
-      ws.onclose = null
-      ws.onmessage = null
-      try {
-        ws.close()
-      } catch {
-        // Closed already.
-      }
-    }
+    ws?.close()
     if (s.wanted) scheduleRetry()
   }
 
@@ -285,49 +282,50 @@ export const createCoopClient = (deps: CoopDeps) => {
     s.retryAt = null
     const token = await deps.token().catch(() => null)
     if (!s.wanted || s.socket) return
-    let ws: SocketLike
+    // Every handler checks it still speaks for the current socket: an old one's late events are ignored.
+    let ws: SocketLike | null = null
+    const handlers: SocketHandlers = {
+      open: () => {
+        if (!ws || s.socket !== ws) return
+        const hello: ClientMessage = {
+          t: 'hello',
+          v: PROTOCOL,
+          build: deps.build,
+          room: code,
+          auth: token ? { kind: 'clerk', token } : { kind: 'guest', id: guestId() },
+          secret: deps.store.get(secretKey(code)),
+          name: deps.name(),
+          resume: resumeFrom(),
+        }
+        ws.send(JSON.stringify(hello))
+      },
+      message: (data) => {
+        if (!ws || s.socket !== ws) return
+        s.lastMessageAt = deps.now()
+        const m = parseServerMessage(data)
+        if (m) receive(m)
+      },
+      close: (closeCode) => {
+        if (!ws || s.socket !== ws) return
+        s.socket = null
+        s.welcomed = false
+        s.pingAt = null
+        const why = closeReason(closeCode)
+        // Refused before a welcome: the `refused` message already said why.
+        if (why === 'refused') return finish(lastRefusal ?? 'unavailable')
+        if (why) return finish(why)
+        s.reconnects++
+        if (s.wanted) scheduleRetry()
+      },
+    }
     try {
-      ws = deps.socket(wsUrl(code))
+      ws = deps.socket(wsUrl(code), handlers)
     } catch {
       return scheduleRetry()
     }
     s.socket = ws
     s.welcomed = false
     s.lastMessageAt = deps.now()
-    ws.onopen = () => {
-      if (s.socket !== ws) return
-      const resume = resumeFrom()
-      const hello: ClientMessage = {
-        t: 'hello',
-        v: PROTOCOL,
-        build: deps.build,
-        room: code,
-        auth: token ? { kind: 'clerk', token } : { kind: 'guest', id: guestId() },
-        secret: deps.store.get(secretKey(code)),
-        name: deps.name(),
-        resume,
-      }
-      ws.send(JSON.stringify(hello))
-    }
-    ws.onmessage = (ev) => {
-      if (s.socket !== ws) return
-      s.lastMessageAt = deps.now()
-      const m = parseServerMessage(ev.data)
-      if (m) receive(m)
-    }
-    ws.onclose = (ev) => {
-      if (s.socket !== ws) return
-      s.socket = null
-      s.welcomed = false
-      s.pingAt = null
-      const why = closeReason(ev.code)
-      // Refused before a welcome: the `refused` message already said why.
-      if (why === 'refused') return finish(lastRefusal ?? 'unavailable')
-      if (why) return finish(why)
-      s.reconnects++
-      if (s.wanted) scheduleRetry()
-    }
-    ws.onerror = () => {}
   }
 
   let lastRefusal: CloseWhy | null = null
@@ -468,15 +466,7 @@ export const createCoopClient = (deps: CoopDeps) => {
     s.wanted = false
     const ws = s.socket
     s.socket = null
-    if (ws) {
-      ws.onclose = null
-      ws.onmessage = null
-      try {
-        ws.close()
-      } catch {
-        // Closed already.
-      }
-    }
+    ws?.close()
   }
 
   /** Leaves the room for good (in a run: the Pokémon leaves the field; the share was banked by the shell). */
@@ -547,7 +537,7 @@ export const createCoopClient = (deps: CoopDeps) => {
           send({ t: 'ping', at: now })
         }
         // Only what the socket can take: a stalled one keeps the stick coalesced instead of piling up.
-        if (ws.bufferedAmount < 64 * 1024) for (const msg of due(s.outbox, now, s.rtt)) send(msg)
+        if (ws.buffered() < 64 * 1024) for (const msg of due(s.outbox, now, s.rtt)) send(msg)
         if (now - s.lastSentAt >= CONNECT.heartbeat) send({ t: 'hb' })
       }
     }

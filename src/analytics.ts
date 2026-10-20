@@ -101,6 +101,8 @@ type AnalyticsEvents = {
   install: { step: 'prompt' | 'accepted' | 'dismissed' | 'ios' | 'installed' }
   /** The lobby's survey (`ui/survey.ts`): how each difficulty feels, with the runs and wins the player had when answering. */
   survey_difficulty: Record<Difficulty, SurveyAnswer> & { runs: number; wins: number }
+  /** A co-op client diverged and was healed from the agreed snapshot: the room, the tick it was told at, and how long until it was back in step. */
+  coop_heal: { room: string; tick: number; ms: number }
 }
 
 declare global {

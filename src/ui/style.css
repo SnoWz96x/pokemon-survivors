@@ -14616,3 +14616,96 @@ button.hall-tile:hover {
   height: 100%;
 }
 
+
+/* ---------------- Co-op run (src/ui/coopHud.ts) ---------------- */
+
+.coop-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* The connection pip, under the clock: quality as a color, the ping in ms. */
+.coop-pip {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 36px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 9px;
+  color: #f8f8f8;
+  background: rgba(16, 24, 48, 0.55);
+  border-radius: 8px;
+  text-shadow: 1px 1px 0 #101018;
+}
+
+.coop-pip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: #58e858;
+  box-shadow: 0 0 0 1px #101018;
+}
+
+.coop-pip.fair i { background: #f8d030; }
+.coop-pip.poor i { background: #f87038; }
+.coop-pip.offline i { background: #f83838; animation: coop-blink 0.8s steps(2) infinite; }
+
+@keyframes coop-blink { 50% { opacity: 0.2; } }
+
+/* Reconnecting and syncing: over the world, the HUD still readable, never blocking taps for long. */
+.coop-veil {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 12, 28, 0.45);
+}
+
+.coop-veil-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  min-width: 180px;
+  font-size: 11px;
+}
+
+.coop-veil-box b { animation: coop-blink 1.2s steps(2) infinite; }
+.coop-veil-box small { font-size: 8px; opacity: 0.8; max-width: 220px; text-align: center; }
+
+.coop-bar {
+  width: 160px;
+  height: 6px;
+  background: #283040;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.coop-bar-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(#78d0f8 0 40%, #4898e8 40%);
+}
+
+.coop-waiting {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.coop-end .panel { display: flex; flex-direction: column; gap: 8px; align-items: center; max-width: min(92vw, 420px); }
+.coop-table { border-collapse: collapse; font-size: 10px; width: 100%; }
+.coop-table th, .coop-table td { padding: 3px 6px; text-align: right; }
+.coop-table th:first-child, .coop-table td:first-child { text-align: left; }
+.coop-table tr.me td { color: var(--accent, #3070d0); }
+.coop-end .buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.coop-voted { font-size: 9px; }

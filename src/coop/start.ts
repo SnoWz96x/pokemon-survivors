@@ -1,4 +1,4 @@
-import { PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
+import { PLAYABLE_IDS } from '../data/hatchlings'
 import { COOP } from '../data/coop'
 import { parseDifficulty, type Difficulty } from '../game/difficulty'
 import { createCoopGame, type CoopLoadout } from '../game/game'
@@ -13,8 +13,12 @@ import type { Loadout, RunStart, Settings } from '../net/protocol'
  * here the same way on every client. Part of the simulation's build id.
  */
 
-/** What a player sends as their loadout: their Pokémon, Poké Mart ranks and whether it plays shiny. */
-export type CoopPick = { starter: PlayableId; ranks: Ranks; shiny: boolean }
+/**
+ * What a player sends as their loadout: their Pokémon (a starter or a hatched
+ * family, `PLAYABLE_IDS`: the Legend mode stays solo, `COOP_LOCKS`), Poké Mart
+ * ranks and whether it plays shiny.
+ */
+export type CoopPick = { starter: (typeof PLAYABLE_IDS)[number]; ranks: Ranks; shiny: boolean }
 
 /** The room's settings as the host sets them. */
 export type CoopSettings = { difficulty: Difficulty }
@@ -25,7 +29,7 @@ export const settingsOf = (s: CoopSettings): Settings => ({ difficulty: s.diffic
 
 const rankOf = (raw: unknown, max: number) => (typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 ? Math.min(raw, max) : 0)
 
-/** A loadout from the wire: an unknown Pokémon falls back to the first starter, ranks are clamped to the Poké Mart's. */
+/** A loadout from the wire: an unknown Pokémon (or a legend) falls back to the first starter, ranks are clamped to the Poké Mart's. */
 export const parseLoadout = (raw: Loadout): CoopPick => {
   const starter = PLAYABLE_IDS.find((id) => id === raw.starter) ?? PLAYABLE_IDS[0]!
   const r = raw.ranks

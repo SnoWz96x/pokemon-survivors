@@ -10,7 +10,7 @@ const store = { get: (k) => data.get(k) ?? null, set: (k, v) => void data.set(k,
 const deps = {
   url,
   build,
-  socket: (u) => new WebSocket(u),
+  socket: B.webSocket,
   fetch: (u, init) => fetch(u, init),
   store,
   token: async () => null,
