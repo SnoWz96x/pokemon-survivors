@@ -5,7 +5,7 @@ import { ABILITIES } from '../data/abilities'
 import { COOP } from '../data/coop'
 import { TYPE_COLORS } from '../data/types'
 import { formAt } from '../game/branch'
-import { coopPayout, coopStats, type PlayerStats } from '../game/coop'
+import { awayHold, coopPayout, coopStats, type PlayerStats } from '../game/coop'
 import { MOVES } from '../game/moves'
 import { localPlayer, phaseOf } from '../game/players'
 import { resolveSpecial } from '../game/special'
@@ -91,6 +91,28 @@ export const teamWait = (after: HTMLElement, g: Game, me: Player) => {
     let left = 0
     for (const p of g.players) if (onLevelUp(g, p)) left = Math.max(left, p.pickLeft)
     bar.set(left, COOP.pick.time)
+  }
+  update()
+  return { el, update, dispose: () => el.remove() }
+}
+
+/**
+ * The world held for an away teammate (a locked phone, a dropped
+ * connection): who it waits on and how long it still will (`awayHold`, m:ss),
+ * after which the run goes on without them. Placed like `teamWait`.
+ */
+export const awayWait = (after: HTMLElement, g: Game) => {
+  const title = h('div', { class: 'team-wait-title' })
+  const el = h('div', { class: 'team-wait box pop' }, title)
+  after.after(el)
+  let shown = ''
+  const update = () => {
+    const hold = awayHold(g)
+    const s = hold ? Math.ceil(hold.left) : 0
+    const text = hold ? t().team.awayWait(seatName(g, hold.slot), `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`) : ''
+    if (text === shown) return
+    shown = text
+    title.replaceChildren(rich(text))
   }
   update()
   return { el, update, dispose: () => el.remove() }

@@ -4734,6 +4734,7 @@ export const es: Messages = {
     you: 'Tú',
     state: { fainted: 'Debilitado', away: 'Ausente', choosing: 'Eligiendo', evolving: 'Evolucionando', left: 'Salió' },
     waiting: 'Esperando al equipo…',
+    awayWait: (name: string, time: string) => `Esperando a que *${name}* vuelva… ${time}`,
     picked: 'listo',
     picking: 'eligiendo',
     auto: (s) => `Elección automática en *${s}s*`,

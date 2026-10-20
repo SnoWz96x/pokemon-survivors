@@ -4978,6 +4978,8 @@ export const pt = {
     state: { fainted: 'Desmaiou', away: 'Ausente', choosing: 'Escolhendo', evolving: 'Evoluindo', left: 'Saiu' },
     /** The world held by a teammate's level-up. */
     waiting: 'Esperando a equipe…',
+    /** The world held for an away teammate (a locked phone, a dropped connection), and how long it still waits (m:ss). */
+    awayWait: (name: string, time: string) => `Esperando *${name}* voltar… ${time}`,
     picked: 'pronto',
     picking: 'escolhendo',
     /** A pick screen's clock: the game picks for you when it runs out. */

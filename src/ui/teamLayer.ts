@@ -1,6 +1,7 @@
 import type { Connection } from '../coop/client'
 import type { CoopDriver } from '../coop/driver'
 import type { Input } from '../engine/input'
+import { awayHold } from '../game/coop'
 import { onScreen, type PickScreen } from '../game/lockstep'
 import { phaseOf } from '../game/players'
 import type { Game, Offer, Phase, Player } from '../game/types'
@@ -8,12 +9,12 @@ import { createTeamCamera, cycleWatched, spectating, updateTeamCamera, watched }
 import { createCoopHud } from './coopHud'
 import type { Screen } from './screens'
 import { createTeamHud, seatName } from './teamHud'
-import { pickClock, spectatorBanner, teamEnd, teamWait, type EndActions } from './teamScreens'
+import { awayWait, pickClock, spectatorBanner, teamEnd, teamWait, type EndActions } from './teamScreens'
 
 /**
  * The co-op layer over a run, everything the shell shows that solo doesn't:
  * the team's cards, the connection pip and the reconnecting veil, the wait
- * while teammates pick, the clock on this player's pick screens, the
+ * while teammates pick or an away one holds the world, the clock on this player's pick screens, the
  * spectator camera and its banner while fainted, and the end (vote and
  * results). It reads the draw copy of the game (`coop/view.ts`) and acts
  * through PR 5's driver (`coop/driver.ts`). The shell makes one per co-op run
@@ -30,6 +31,7 @@ export const createTeamLayer = (root: HTMLElement, input: Input, driver: CoopDri
   const cycle = () => game && me && cycleWatched(camera, game, me)
   const banner = spectatorBanner(root, cycle)
   let wait: ReturnType<typeof teamWait> | null = null
+  let away: ReturnType<typeof awayWait> | null = null
   let clock: { el: HTMLElement; update: () => void } | null = null
   let ending: Screen | null = null
   /** The round of the screen a pick was sent on: the screen stays closed until the run moves it on. */
@@ -65,6 +67,14 @@ export const createTeamLayer = (root: HTMLElement, input: Input, driver: CoopDri
       wait = null
     }
     wait?.update()
+    // Held for an away teammate: who, and how long until the run goes on without them.
+    const held = g.phase === 'playing' && !self.gone && awayHold(g) !== null
+    if (held && !away) away = awayWait(hud.el, g)
+    if (!held && away) {
+      away.dispose()
+      away = null
+    }
+    away?.update()
     if (clock && !clock.el.isConnected) clock = null
     clock?.update()
     ending?.tick?.(0)
@@ -117,6 +127,7 @@ export const createTeamLayer = (root: HTMLElement, input: Input, driver: CoopDri
     net.dispose()
     banner.dispose()
     wait?.dispose()
+    away?.dispose()
   }
 
   return { camera, frame, holding, decorate, end: showEnd, pick, levelUp, dispose }

@@ -4733,6 +4733,7 @@ export const en: Messages = {
     you: 'You',
     state: { fainted: 'Fainted', away: 'Away', choosing: 'Choosing', evolving: 'Evolving', left: 'Left' },
     waiting: 'Waiting for the team…',
+    awayWait: (name: string, time: string) => `Waiting for *${name}* to come back… ${time}`,
     picked: 'ready',
     picking: 'choosing',
     auto: (s) => `Auto pick in *${s}s*`,
