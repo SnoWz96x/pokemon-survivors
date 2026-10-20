@@ -24,7 +24,7 @@ export type Bot = {
   game: () => Game | null
   /** Picks every pending screen at once with rounds old and new, duplicates, nonsense: none of it may break the run. */
   storm: (n: number) => void
-  /** Stops kiting and stands still: the horde ends the run (the soak's way to a natural end on time). */
+  /** Stops kiting and walks into the horde: it ends the run soon (the soak's way to a natural end on time). */
   surrender: () => void
 }
 
@@ -98,12 +98,30 @@ export const createBot = (deps: CoopDeps, opts: { seed: number; vote?: boolean }
     return { x: x / len, y: y / len }
   }
 
+  /** Toward the nearest foe (a boss first): how a surrendering bot meets its end. */
+  const charge = (g: Game, p: Player) => {
+    let best: { x: number; y: number } | null = null
+    let bestD = Infinity
+    for (const e of g.enemies) {
+      const d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2 - (e.boss ? 1e6 : 0)
+      if (d < bestD) {
+        bestD = d
+        best = e
+      }
+    }
+    if (!best) return { x: 0, y: 0 }
+    const dx = best.x - p.x
+    const dy = best.y - p.y
+    const len = Math.hypot(dx, dy) || 1
+    return { x: dx / len, y: dy / len }
+  }
+
   const decide = (g: Game, now: number, dt: number) => {
     const p = localPlayer(g)
     steerIn -= dt
     if (steerIn <= 0) {
       steerIn = 0.15 + random() * 0.2
-      stick = surrendered ? { x: 0, y: 0 } : inPlay(p) ? steer(g, p) : p.hp <= 0 ? { x: 0, y: 0 } : stick
+      stick = surrendered ? charge(g, p) : inPlay(p) ? steer(g, p) : p.hp <= 0 ? { x: 0, y: 0 } : stick
     }
     if (onScreen(p) && p.offers.length > 0) {
       if (!pickAt || pickAt.round !== p.round) pickAt = { round: p.round, at: now + 300 + random() * 1700 }
