@@ -249,10 +249,11 @@ export const createCoopClient = (deps: CoopDeps) => {
     },
   }
 
-  /** Ends the client for good: no reconnect. */
+  /** Ends the client for good: no reconnect, and no run (nothing simulates it any more). */
   const finish = (why: CloseWhy) => {
     s.wanted = false
     s.retryAt = null
+    s.runner = null
     const ws = s.socket
     s.socket = null
     s.welcomed = false
