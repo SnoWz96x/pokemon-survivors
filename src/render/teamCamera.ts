@@ -14,13 +14,13 @@ export type TeamCamera = {
   y: number
   /** The slot being watched while spectating (null: the client's own player). */
   follow: number | null
-  /** Easing from one player to another: 1 right after a switch, down to 0. */
-  ease: number
-  /** Whether the camera has a position yet (the first frame snaps). */
-  placed: boolean
+  /** The slot the view was on last frame (a switch eases from there); -1 before the first frame, which snaps. */
+  on: number
+  /** How far the view still is from its target after a switch (world px), shrinking to nothing while the target is followed exactly. */
+  off: { x: number; y: number }
 }
 
-export const createTeamCamera = (): TeamCamera => ({ x: 0, y: 0, follow: null, ease: 0, placed: false })
+export const createTeamCamera = (): TeamCamera => ({ x: 0, y: 0, follow: null, on: -1, off: { x: 0, y: 0 } })
 
 /** Whether a teammate can be watched: still in the run, on their feet. Away ones count only if nobody else does. */
 const watchable = (p: Player) => !p.gone && !fainted(p)
@@ -59,37 +59,37 @@ export const cycleWatched = (cam: TeamCamera, g: Game, me: Player, step: 1 | -1 
   const next = nextWatchable(g, me, from.slot, step)
   if (!next || next === from) return
   cam.follow = next.slot
-  cam.ease = 1
 }
 
-/** Seconds a switch between players takes to settle. */
-const EASE_TIME = 0.4
+/** Share of a switch's distance still to go after a second: most of it goes at first, then it settles. */
+const EASE_LEFT = 0.0005
+
+/** Under this (world px) a switch has settled. */
+const SETTLED = 0.5
 
 /**
  * Moves the camera onto the player it follows for a `w`×`h` view (centered a
- * little above their feet, as `followPlayers` frames a solo run), easing after
- * a switch. Call once per drawn frame with the frame's `dt`.
+ * little above their feet, as `followPlayers` frames a solo run). A switch
+ * eases from where the view was: the distance left shrinks every frame (ease
+ * out) until it's under half a pixel, the target followed exactly meanwhile,
+ * so it never lags a walking player nor cuts at the end. Call once per drawn
+ * frame with the frame's `dt`.
  */
 export const updateTeamCamera = (cam: TeamCamera, g: Game, me: Player, w: number, h: number, dt: number) => {
   const target = watched(cam, g, me)
-  const follow = target === me ? null : target.slot
-  if (follow !== cam.follow) {
-    cam.follow = follow
-    cam.ease = 1
-  }
+  cam.follow = target === me ? null : target.slot
   const tx = target.x - w / 2
   const ty = target.y - 10 - h / 2
-  if (!cam.placed || cam.ease <= 0) {
-    cam.x = tx
-    cam.y = ty
-    cam.placed = true
-    cam.ease = 0
-    return cam
+  if (cam.on >= 0 && cam.on !== target.slot) {
+    cam.off.x = cam.x - tx
+    cam.off.y = cam.y - ty
   }
-  cam.ease = Math.max(0, cam.ease - dt / EASE_TIME)
-  // Ease-out: covers most of the way at first, settles onto the target as `ease` runs out.
-  const k = cam.ease <= 0 ? 1 : 1 - Math.pow(0.0005, dt)
-  cam.x += (tx - cam.x) * k
-  cam.y += (ty - cam.y) * k
+  cam.on = target.slot
+  const k = Math.pow(EASE_LEFT, dt)
+  cam.off.x *= k
+  cam.off.y *= k
+  if (Math.hypot(cam.off.x, cam.off.y) < SETTLED) cam.off.x = cam.off.y = 0
+  cam.x = tx + cam.off.x
+  cam.y = ty + cam.off.y
   return cam
 }

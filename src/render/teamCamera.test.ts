@@ -32,4 +32,25 @@ describe('team camera', () => {
     expect(cam.x).toBe(me.x - 100)
     expect(cam.y).toBe(me.y - 10 - 50)
   })
+
+  it('eases a switch all the way down to half a pixel, never cutting the last stretch', () => {
+    const g = createLocalGame(2, ['charmander', 'squirtle'], 7)
+    const [me, mate] = g.players as [typeof g.players[0], typeof g.players[0]]
+    mate.x = me.x + 300
+    const cam = createTeamCamera()
+    updateTeamCamera(cam, g, me, 200, 100, 1 / 60)
+    me.hp = 0
+    const left: number[] = []
+    for (let i = 0; i < 120; i++) {
+      // The teammate walks on while the view comes over: it never lags them.
+      mate.x += 1
+      updateTeamCamera(cam, g, me, 200, 100, 1 / 60)
+      left.push(Math.abs(cam.x - (mate.x - 100)))
+    }
+    const settled = left.indexOf(0)
+    expect(settled).toBeGreaterThan(24)
+    expect(left.slice(0, settled).every((d, i) => i === 0 || d < left[i - 1]!)).toBe(true)
+    expect(left[settled - 1]).toBeLessThan(0.6)
+    expect(left.slice(settled).every((d) => d === 0)).toBe(true)
+  })
 })
