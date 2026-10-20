@@ -1,3 +1,4 @@
+import { worldHeld } from '../game/coop'
 import { walkPlayer } from '../game/game'
 import { inPlay, localPlayer } from '../game/players'
 import { moveOf, TICK } from '../game/replay'
@@ -17,7 +18,9 @@ import type { Runner } from './runner'
  * is never touched. When the confirmed state disagrees with what was
  * predicted (a knockback, a dash, a hit), the difference blends away over a
  * few frames instead of snapping; the drawn spot is kept out of the terrain
- * too, so the sprite never sinks into a wall.
+ * too, so the sprite never sinks into a wall. While the step doesn't walk the
+ * player (a hitstop, the rift's fall, a held world) the sprite eases to the
+ * confirmed spot the same way.
  */
 
 /** Samples predicted ahead at most (~0.75 s): a worse link just shows its lag. */
@@ -61,23 +64,32 @@ export const createPrediction = (): Prediction => ({
   errors: [],
 })
 
-/** Whether the stick moves this player in the simulation right now. */
-const walking = (g: Game, p: Player) => g.phase === 'playing' && g.hitstop <= 0 && inPlay(p)
+/**
+ * How the next steps treat this player's stick, mirroring the step's own
+ * checks: null while it doesn't walk them for now (a screen up, the world
+ * held, the rift's fall, fainted or wrapped up); else how many ticks the
+ * hitstop still eats (the samples those ticks read never move the player).
+ */
+const walking = (g: Game, p: Player): number | null => {
+  if (g.phase !== 'playing' || !inPlay(p) || worldHeld(g) || (g.rift.arena?.fall ?? null) !== null) return null
+  // `stepTeam` takes a tick off the hitstop each tick it holds the world; a hair under a whole tick counts as one.
+  return g.hitstop > 0 ? Math.ceil(g.hitstop / TICK - 1e-6) : 0
+}
 
 /**
- * Walks a copy of the confirmed player through the samples after `simSample`
- * up to `sample`, against the terrain. Returns the positions at `sample - 1`,
- * `sample` and `at` (if in range).
+ * Walks a copy of the confirmed player through the samples after `from` up
+ * to `sample`, against the terrain. Returns the positions at `sample - 1`,
+ * `sample` and `at` (the start for `at <= from`, null past `sample`).
  */
-const walkAhead = (pr: Prediction, g: Game, p: Player, history: Uint8Array, simSample: number, sample: number, at: number) => {
+const walkAhead = (pr: Prediction, g: Game, p: Player, history: Uint8Array, from: number, sample: number, at: number) => {
   const ghost = Object.assign((pr.ghost ??= { ...p }), p)
   if (pr.terrain.seed !== g.terrain.seed) pr.terrain = { seed: g.terrain.seed, cells: new Map() }
   if (pr.terrain.cells.size > 4096) pr.terrain.cells.clear()
   // A copy of the game around the copy of the player, with its own terrain cache: the step reads `g.player`.
   const world = Object.assign((pr.world ??= { ...g }), g, { player: ghost, terrain: pr.terrain })
   let prev = { x: ghost.x, y: ghost.y }
-  let atPos: Pos | null = at === simSample ? { x: ghost.x, y: ghost.y } : null
-  for (let s = simSample + 1; s <= sample; s++) {
+  let atPos: Pos | null = at <= from ? { x: ghost.x, y: ghost.y } : null
+  for (let s = from + 1; s <= sample; s++) {
     if (s === sample) prev = { x: ghost.x, y: ghost.y }
     walkPlayer(world, moveOf(history[s % HISTORY]!), TICK)
     keepOut(world, ghost, ghost.radius)
@@ -99,14 +111,17 @@ export const predict = (pr: Prediction, r: Runner, history: Uint8Array, sample: 
   let prev: Pos = cur
   let atLast: Pos | null = null
   let walked = false
-  if (anchor && walking(g, p)) {
+  const frozen = anchor ? walking(g, p) : null
+  if (anchor && frozen !== null) {
     // Sample `s` lands `s - anchor.sample` ticks after the anchor: both count 60 a second.
     const simSample = anchor.sample + (r.next - 1 - anchor.tick)
     // How good the prediction was for the sample the confirmed state just reached.
     const k = ((simSample % HISTORY) + HISTORY) % HISTORY
     if (pr.predictedAt[k] === simSample && pr.errors.length < 100_000) pr.errors.push(Math.hypot(pr.predicted[k * 2]! - p.x, pr.predicted[k * 2 + 1]! - p.y))
-    const ahead = Math.max(0, Math.min(MAX_AHEAD, sample - simSample))
-    const w = walkAhead(pr, g, p, history, simSample, simSample + ahead, pr.lastSample)
+    // A hitstop eats the samples its ticks read: the walk starts past them.
+    const from = Math.min(simSample + frozen, sample)
+    const ahead = Math.max(0, Math.min(MAX_AHEAD, sample - from))
+    const w = walkAhead(pr, g, p, history, from, from + ahead, pr.lastSample)
     cur = w.cur
     prev = ahead > 0 ? w.prev : cur
     atLast = w.at
@@ -116,10 +131,11 @@ export const predict = (pr: Prediction, r: Runner, history: Uint8Array, sample: 
     pr.predicted[top * 2 + 1] = cur.y
     pr.predictedAt[top] = sample
   }
-  // The confirmed state moved what was predicted for last frame's sample: blend the difference away.
+  // The confirmed state moved what was predicted for last frame's sample: blend the difference away. Not
+  // walking, the confirmed spot stands for every sample: the sprite eases onto it instead of snapping back.
   if (pr.lastSample >= 0) {
     const was = pr.last
-    const now = atLast ?? (pr.lastSample === sample ? cur : null)
+    const now = walked ? (atLast ?? (pr.lastSample === sample ? cur : null)) : cur
     if (now) {
       pr.err.x += was.x - now.x
       pr.err.y += was.y - now.y
