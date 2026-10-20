@@ -91,7 +91,7 @@ const hurl = (g: Game, a: Attack) => {
   if (!isAlive(e)) return
   const p = g.player
   const angle = dm.atan2(e.y - p.y, e.x - p.x)
-  if (!e.boss) throwFoe(e, angle, LIFT.force * e.mass, a.memo * LIFT.crash, 'telekinesis')
+  if (!e.boss) throwFoe(e, angle, LIFT.force * e.mass, a.memo * LIFT.crash, 'telekinesis', p.slot)
   const slam = spawnAttack(g, {
     move: a.move, type: a.type, visual: 'psySlam', x: e.x, y: e.y - e.radius,
     shape: { kind: 'circle', r: Math.max(LIFT.slam, e.radius + 6) }, motion: { kind: 'static' },

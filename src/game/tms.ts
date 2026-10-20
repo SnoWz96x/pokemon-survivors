@@ -57,12 +57,15 @@ export const dropBossTm = (g: Game, e: Enemy) => {
  * A beaten legendary offers its legendary TM, until every player has learned
  * one. When everyone still missing one already knows this move (a legend
  * played in the Legend mode starts with its own, so its clone teaches
- * nothing) it leaves a Rare Candy instead. Rift arenas call it when won.
+ * nothing) it leaves a Rare Candy instead. Rift arenas call it when won. In
+ * co-op it runs as each player (`dropForEach`) and drops for the acting player
+ * alone while they still lack one.
  */
 export const dropLegendaryTm = (g: Game, legend: RiftLegend | Enemy['kind'], x: number, y: number) => {
   const move = LEGENDARY_TMS[legend]
-  if (!move || g.players.every((p) => p.tm.legendary)) return
-  if (g.players.every((p) => p.tm.legendary || p.moves.some((m) => m.id === move))) dropItem(g, x, y, 'rareCandy')
+  const lacking = g.coop === null ? g.players : [g.player]
+  if (!move || lacking.every((p) => p.tm.legendary)) return
+  if (lacking.every((p) => p.tm.legendary || p.moves.some((m) => m.id === move))) dropItem(g, x, y, 'rareCandy')
   else dropTm(g, x, y, move, 'legendary')
 }
 

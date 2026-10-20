@@ -46,7 +46,7 @@ const FLUTE: StatusSpec = { kind: 'sleep', chance: 1, duration: FLUTE_SLEEP, pow
 const sleepOnScreen = (g: Game) => {
   for (const e of g.enemies) {
     if (!isAlive(e) || !inSight(g, e.x, e.y, 16)) continue
-    applyStatus(e.status, FLUTE, 0, e.boss, null)
+    applyStatus(e.status, FLUTE, 0, e.boss, null, g.player.slot)
     e.kx = 0
     e.ky = 0
   }

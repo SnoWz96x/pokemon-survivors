@@ -3,6 +3,7 @@ import { healPlayer } from './combat'
 import { took } from './kitRules'
 import { MOVES, moveStats, type CastStats, type MoveDef } from './moves'
 import { isAlive } from './queries'
+import { ownAttack } from './players'
 import { RAIN_DANCE, SUNNY_DAY, WEATHER_CALL } from './shopTmMoves2'
 import { spawnAttack } from './spawn'
 import { applyStatus } from './status'
@@ -59,7 +60,7 @@ const beat = (g: Game, a: Attack, s: CastStats, owned: OwnedMove) => {
     const ring2 = dm.sq(SUNNY_DAY.ring * s.area)
     for (const e of g.enemies) {
       if (!isAlive(e) || dm.sq(e.x - p.x) + dm.sq(e.y - p.y) > ring2) continue
-      applyStatus(e.status, SUNNY_DAY.burn, s.damage, e.boss, 'sunnyDay')
+      applyStatus(e.status, SUNNY_DAY.burn, s.damage, e.boss, 'sunnyDay', g.player.slot)
       burst(g, e.x, e.y - e.radius, { colors: ['#fff3a0', '#f89838'], count: 2, speed: 30, ttl: 0.3, gravity: -60 })
     }
   }
@@ -68,7 +69,7 @@ const beat = (g: Game, a: Attack, s: CastStats, owned: OwnedMove) => {
 /** Ticks the called skies: their beats, and Soothing Rain's heal while it rains where the player stands. */
 export const updateShopTms = (g: Game, dt: number) => {
   for (const a of g.attacks) {
-    if ((a.visual !== 'rainDance' && a.visual !== 'sunnyDay') || a.age < 0 || a.age >= a.ttl) continue
+    if ((a.visual !== 'rainDance' && a.visual !== 'sunnyDay') || a.age < 0 || a.age >= a.ttl || !ownAttack(g, a)) continue
     const owned = ownerOf(g, a)
     if (!owned) continue
     if (owned.id === 'rainDance' && took(owned, 4, 1) && weatherHere(g) === 'rain') healPlayer(g, g.player.stats.maxHp * RAIN_DANCE.heal * dt)

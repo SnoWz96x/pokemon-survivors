@@ -4,6 +4,8 @@ import { ENEMIES, type EnemyDef, type EnemyId } from '../data/enemies'
 import { bossWaveAt, RUN_LENGTH, stageIndexAt } from '../data/waves'
 import { spawnHazard } from './bosses'
 import { hurtPlayer } from './combat'
+import { coopScale, dropForEach } from './coop'
+import { COOP } from '../data/coop'
 import type { Difficulty } from './difficulty'
 import { burst } from './effects'
 import { spawnEnemy } from './enemies'
@@ -170,7 +172,8 @@ export const drawScale = (e: Enemy) => (e.alpha ? ALPHA.scale : ((ENEMIES[e.kind
 export const spawnAlpha = (g: Game, kind: EnemyId, x: number, y: number) => {
   const e = spawnEnemy(g, kind, x, y)
   e.boss = true
-  e.hp = e.maxHp = Math.round(e.maxHp * alphaHp(g.time) * ALPHA_RULES[g.difficulty].hp)
+  // Co-op: an Alpha takes the bosses' scaling instead of the horde's (exactly 1 solo).
+  e.hp = e.maxHp = Math.round(e.maxHp * alphaHp(g.time) * ALPHA_RULES[g.difficulty].hp * (coopScale(g, COOP.scale.bossHp) / coopScale(g, COOP.scale.hp)))
   e.damage *= ALPHA_RULES[g.difficulty].damage
   e.mass = ALPHA.mass
   e.radius *= ALPHA.scale
@@ -329,7 +332,8 @@ export const alphaDown = (g: Game, e: Enemy) => {
   const xp = Math.round(xpFor(g.player.level) * ALPHA.xpLevels)
   const candies = 6
   for (let i = 0; i < candies; i++) dropXp(g, e.x + range(g.rng, -14, 14), e.y + range(g.rng, -8, 8), Math.ceil(xp / candies))
-  dropPickup(g, e.x, e.y, 'alphaPrize')
+  // Co-op: a prize for each player.
+  dropForEach(g, () => dropPickup(g, e.x, e.y, 'alphaPrize'))
   g.alphas.next = Math.max(g.alphas.next, g.time + ALPHA.gap)
   g.shake = Math.max(g.shake, 6)
   burst(g, e.x, e.y - e.radius, { colors: ['#f83020', '#f8d030', '#ffffff'], count: 50, speed: 170, ttl: 0.7, size: 2, drag: 3 })

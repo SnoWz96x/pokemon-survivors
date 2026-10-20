@@ -2,7 +2,7 @@ import { chance, range } from '../engine/rng'
 import { dotDamage, drainHeal } from './combat'
 import { burst } from './effects'
 import { DOT_INTERVAL, dotDps, isAfflicted, SEED_HEAL, tickStatus } from './status'
-import { onAnyScreen } from './players'
+import { onAnyScreen, ownerOf } from './players'
 import type { Enemy, Game } from './types'
 
 /** Cosmetic per-second particle rates and looks, emitted only for on-screen enemies. */
@@ -44,12 +44,26 @@ export const updateStatuses = (g: Game, dt: number) => {
     const burnMove = st.burn.move
     const poisonMove = st.poison.move
     const seedMove = st.seed.move
+    // Read before the tick, which clears an affliction that runs out.
+    const burnBy = st.burn.by
+    const poisonBy = st.poison.by
+    const seedBy = st.seed.by
     if (!tickStatus(st, dt, e.boss, g.rng)) continue
-    if (burn > 0) dotDamage(g, e, burn, burnMove, 'burn')
-    if (poison > 0 && e.dying < 0) dotDamage(g, e, poison, poisonMove, 'poison')
+    // Each DoT acts as the player who put it on: the damage, a kill and Leech Seed's heal are theirs.
+    const actor = g.player
+    if (burn > 0) {
+      g.player = ownerOf(g, burnBy)
+      dotDamage(g, e, burn, burnMove, 'burn')
+    }
+    if (poison > 0 && e.dying < 0) {
+      g.player = ownerOf(g, poisonBy)
+      dotDamage(g, e, poison, poisonMove, 'poison')
+    }
     if (seed > 0 && e.dying < 0) {
+      g.player = ownerOf(g, seedBy)
       dotDamage(g, e, seed, seedMove, 'seed')
       drainHeal(g, seed, SEED_HEAL)
     }
+    g.player = actor
   }
 }

@@ -533,10 +533,10 @@ export const EGG_MOVES_2 = {
       const mark = took(path, 5) === 1 && owned.level >= 7
       for (const e of foesWithin(g, p.x, p.y, r + 6)) {
         if (!sleep || !chance(g.rng, sleep.chance)) continue
-        applyStatus(e.status, sleep, s.damage, e.boss, 'spore')
-        if (poison) applyStatus(e.status, EFFECT_POISON, s.damage, e.boss, 'spore')
-        if (numb) applyStatus(e.status, HEAVY_SPORE, s.damage, e.boss, 'spore')
-        if (mark) applyStatus(e.status, DREAM_MARK, s.damage, e.boss, 'spore')
+        applyStatus(e.status, sleep, s.damage, e.boss, 'spore', g.player.slot)
+        if (poison) applyStatus(e.status, EFFECT_POISON, s.damage, e.boss, 'spore', g.player.slot)
+        if (numb) applyStatus(e.status, HEAVY_SPORE, s.damage, e.boss, 'spore', g.player.slot)
+        if (mark) applyStatus(e.status, DREAM_MARK, s.damage, e.boss, 'spore', g.player.slot)
       }
       cast(g, 'spore')
     },

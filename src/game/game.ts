@@ -10,7 +10,7 @@ import type { EvoItemId } from '../data/shop'
 import type { EvolutionStage } from '../data/starters'
 import { runBoost } from './evoItems'
 import { evolutionFreed, missingEvoItems, runEvoItems, stepOpen } from './evoGate'
-import { PLAYABLE, type PlayableId } from '../data/hatchlings'
+import { PLAYABLE, type PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
 import { abilityImmune, abilityLuck, abilitySet, createAbilityState, grantAbility, updateAbility } from './abilities'
 import { BAG_ITEMS, type BagItem } from './bag'
 import { branchContext, evolutionOffers, playerForm } from './branch'
@@ -74,7 +74,9 @@ import { createWeather, updateWeather } from './weather'
 import { updateTraits } from './traitSystem'
 import { BASE_STATS } from './stats'
 import { TERRAIN } from '../data/terrain'
-import { actAs, eachPlayer, followPlayers, phaseOf, setPhase } from './players'
+import { actAs, eachPlayer, followPlayers, inPlay, phaseOf, setPhase } from './players'
+import { createCoopState, createRecord, updateCoop } from './coop'
+import { COOP } from '../data/coop'
 import type { Game, Offer, OwnedMove, Player } from './types'
 import * as dm from '../engine/dmath'
 
@@ -196,32 +198,35 @@ export const createPlayer = (slot: number, setup: PlayerSetup, lucky: boolean, x
     legend: createLegendState(setup.starter),
     wings: {},
     landmark: createPlayerLandmarks(),
+    round: 0,
+    pickLeft: COOP.pick.time,
+    away: false,
+    gone: false,
+    revive: 0,
+    record: createRecord(),
   }
 }
 
 /**
- * A fresh run. Pass `roster` when the shell drew it ahead of time to preload
- * its sprites (see `drawRoster`); otherwise it's drawn from the run's rng.
+ * A fresh run for `setups` by slot (one solo), standing side by side. Each
+ * player rolls their 1/64 shiny in slot order, then the run draws its wild
+ * cast unless the shell drew it ahead (`drawRoster`). The team's best Shiny
+ * Charm counts (solo, the player's).
  */
-export const createGame = (
-  starter: PlayableId,
-  view: Game['view'],
-  seed = Date.now(),
-  ranks: Ranks = NO_RANKS,
-  roster?: Roster,
-  options: RunOptions = {},
-): Game => {
+const createRun = (view: Game['view'], seed: number, setups: readonly PlayerSetup[], roster: Roster | undefined, options: RunOptions, coop: boolean): Game => {
   const bag = options.bag ?? []
   const rng = createRng(seed)
-  const lucky = rollShiny(rng, SHINY_ODDS.player)
-  const player = createPlayer(0, { starter, ranks, shiny: options.shiny === true, bag, tms: options.tms, evo: options.evo, caps: options.caps }, lucky, 0, view)
+  const lucky = setups.map(() => rollShiny(rng, SHINY_ODDS.player))
+  const players = setups.map((setup, slot) => createPlayer(slot, setup, lucky[slot]!, coop ? (slot - (setups.length - 1) / 2) * COOP.spacing : 0, view))
+  const player = players[0]!
+  const starter = player.starter
   const g: Game = {
     difficulty: options.difficulty ?? DEFAULT_DIFFICULTY,
     rng,
     time: 0,
     phase: 'playing',
     nextId: 1,
-    players: [player],
+    players,
     player,
     enemies: [],
     attacks: [],
@@ -266,29 +271,81 @@ export const createGame = (
     outbreak: options.outbreak ?? null,
     halloween: options.halloween === true,
     candies: 0,
-    shinyBoost: shinyBoost(ranks.shinyCharm, bag.includes('lure')),
+    shinyBoost: shinyBoost(Math.max(...setups.map((s) => s.ranks.shinyCharm)), bag.includes('lure')),
     dexLog: createDexLog(),
-    // Only a lucky roll is news: a shiny picked (or hatched) is shiny every run.
-    events: lucky && !options.shiny ? [{ kind: 'shinyPlayer' }] : [],
+    // Only a lucky roll is news: a shiny picked (or hatched) is shiny every run. Co-op players see `Player.luckyShiny`.
+    events: !coop && lucky[0] && !options.shiny ? [{ kind: 'shinyPlayer' }] : [],
     tension: createTension(),
     alphas: createAlphaClock(options.difficulty ?? DEFAULT_DIFFICULTY),
     worldHazards: createWorldHazards(),
     now: 0,
     legendScene: null,
+    coop: coop ? createCoopState(players.length) : null,
   }
-  recomputeStats(g)
-  player.hp = player.stats.maxHp
-  // A Rare Candy starts the run a few levels up: their level-ups come right after the opening draft.
-  if (bag.includes('rareCandy')) {
-    player.level = BAG_ITEMS.rareCandy.effect.startLevel
-    player.xpNext = xpFor(player.level)
-    player.pendingLevelUps = player.level - 1
+  for (const p of players) {
+    g.player = p
+    recomputeStats(g)
+    p.hp = p.stats.maxHp
+    // A Rare Candy starts the run a few levels up: their level-ups come right after the opening draft.
+    if (p.bag.includes('rareCandy')) {
+      p.level = BAG_ITEMS.rareCandy.effect.startLevel
+      p.xpNext = xpFor(p.level)
+      p.pendingLevelUps = p.level - 1
+    }
   }
-  if (options.draft) {
-    player.pendingLevelUps++
-    player.offers = draftOffers(loadout(g), g.rng)
-    setPhase(g, 'levelup')
-  } else if (player.pendingLevelUps > 0) advancePhase(g)
+  // The opening draft: everyone picks their second move at once.
+  for (const p of players) {
+    g.player = p
+    if (options.draft) {
+      p.pendingLevelUps++
+      p.offers = draftOffers(loadout(g), g.rng)
+      setPhase(g, 'levelup')
+    } else if (p.pendingLevelUps > 0) advancePhase(g)
+  }
+  g.player = player
+  return g
+}
+
+/**
+ * A fresh solo run. Pass `roster` when the shell drew it ahead of time to
+ * preload its sprites (see `drawRoster`); otherwise it's drawn from the run's rng.
+ */
+export const createGame = (
+  starter: PlayableId,
+  view: Game['view'],
+  seed = Date.now(),
+  ranks: Ranks = NO_RANKS,
+  roster?: Roster,
+  options: RunOptions = {},
+): Game => {
+  const setup: PlayerSetup = { starter, ranks, shiny: options.shiny === true, bag: options.bag ?? [], tms: options.tms, evo: options.evo, caps: options.caps }
+  return createRun(view, seed, [setup], roster, options, false)
+}
+
+/**
+ * What a player brings into a co-op run: their Pokémon (a starter or a hatched
+ * family: the Legend mode stays solo), Poké Mart ranks, whether it plays shiny,
+ * and the name the team sees. Nothing else from the save comes along (`createCoopGame`).
+ */
+export type CoopLoadout = { starter: (typeof PLAYABLE_IDS)[number]; ranks: Ranks; shiny: boolean; name: string }
+
+/** A co-op run's settings, the same on every client: the difficulty, the opening draft (on by default), the simulated view and a roster drawn ahead. */
+export type CoopOptions = { difficulty?: Difficulty; draft?: boolean; view?: Game['view']; roster?: Roster }
+
+/**
+ * A fresh co-op run for 1 to `COOP.maxPlayers` loadouts (by slot). Every
+ * client that calls it with the same seed, loadouts and options gets the same
+ * game, so nothing here reads a save, the day or the clock: co-op plays the
+ * normal mode (`COOP_LOCKS` in `data/coop.ts`) — no outbreak, Noite das Bruxas,
+ * Bag, armed TMs, evolution items or Bottle Caps, no lucky first egg, and the
+ * roster from the run's rng (or `options.roster`, drawn the same way).
+ */
+export const createCoopGame = (seed: number, loadouts: readonly CoopLoadout[], options: CoopOptions = {}): Game => {
+  if (loadouts.length < 1 || loadouts.length > COOP.maxPlayers) throw new RangeError(`co-op takes 1 to ${COOP.maxPlayers} players, got ${loadouts.length}`)
+  const setups: PlayerSetup[] = loadouts.map(({ starter, ranks, shiny }) => ({ starter, ranks, shiny }))
+  const view = { ...(options.view ?? COOP.view) }
+  const g = createRun(view, seed, setups, options.roster, { difficulty: options.difficulty, draft: options.draft ?? true }, true)
+  g.coop!.names = loadouts.map((l) => l.name)
   return g
 }
 
@@ -654,8 +711,8 @@ export const skipLevelUp = (g: Game, p: Player = g.player) => {
   actAs(g, before)
 }
 
-/** Plays the acting player's evolution, if one is under way; at its end the new form lands and their next pick (or play) follows. */
-const updateEvolution = (g: Game, dt: number) => {
+/** Plays the acting player's evolution, if one is under way; at its end the new form lands and their next pick (or play) follows. Co-op's lockstep driver plays each player's. */
+export const updateEvolution = (g: Game, dt: number) => {
   const p = g.player
   const evo = p.evolution
   if (!evo) return
@@ -730,8 +787,9 @@ export const stepTeam = (g: Game, inputs: readonly StepInput[], dt: number) => {
     return
   }
   if (g.phase !== 'playing') return
-  // A Mega Evolution plays with the world held still, and so does a dungeon floor's title card.
-  if (updateMegaIntros(g, dt)) return
+  // A Mega Evolution plays with the world held still (solo; in co-op the player
+  // transforms wrapped in light while the team plays on), and so does a dungeon floor's title card.
+  if (updateMegaIntros(g, dt) && g.coop === null) return
   if (updatePlaceIntro(g, dt)) return
   // So does the rift throwing a fainted player back out, or a rescue out of a place, a domain's encounter and capture scenes and a wave legendary's.
   if (updateArenaFall(g, dt)) return
@@ -756,6 +814,7 @@ export const stepTeam = (g: Game, inputs: readonly StepInput[], dt: number) => {
   }
   const actor = g.player
   for (const p of g.players) {
+    if (g.coop !== null && !inPlay(p)) continue
     g.player = p
     stepPlayer(g, inputs[p.slot] ?? STILL, dt)
   }
@@ -777,6 +836,7 @@ export const stepTeam = (g: Game, inputs: readonly StepInput[], dt: number) => {
   rebuildGrid(g)
   updateTraits(g, dt)
   for (const p of g.players) {
+    if (g.coop !== null && !inPlay(p)) continue
     g.player = p
     stepMoves(g, inputs[p.slot] ?? STILL, dt)
   }
@@ -792,14 +852,34 @@ export const stepTeam = (g: Game, inputs: readonly StepInput[], dt: number) => {
   updatePickups(g, dt)
   updateConsumables(g, dt)
   updateEffects(g, dt)
+  if (g.coop !== null) updateCoop(g, dt)
 
   // In a legendary's domain the camera looks ahead and frames the fight (`domainCamera`); elsewhere it sits on the player.
   followPlayers(g, (g) => domainCamera(g, dt))
   updateSightings(g, dt)
 
-  // Level-ups earned this tick, or a held evolution whose item was just found, open everyone's next pick at once.
+  // Level-ups earned this tick, or a held evolution whose item was just found, open everyone's next pick at once
+  // (in co-op alongside a screen a pickup opened this tick, so nobody waits in turn).
+  if (g.coop !== null) return openPendingPicks(g)
   if (g.phase !== 'playing') return
   for (const p of g.players) {
+    g.player = p
+    if (p.pendingLevelUps > 0 || evolutionFreed(g)) advancePhase(g)
+  }
+  g.player = actor
+}
+
+/**
+ * Co-op: opens the pending level-ups (or a held evolution an item just freed,
+ * `evolutionFreed`) of every player not on a screen (nor evolving, nor gone),
+ * all at once. The lockstep driver also calls it while the team waits, so a
+ * level-up never queues behind a teammate's pick.
+ */
+export const openPendingPicks = (g: Game) => {
+  if (g.phase === 'gameover' || g.phase === 'victory' || g.phase === 'paused') return
+  const actor = g.player
+  for (const p of g.players) {
+    if (p.gone || p.phase !== 'playing') continue
     g.player = p
     if (p.pendingLevelUps > 0 || evolutionFreed(g)) advancePhase(g)
   }

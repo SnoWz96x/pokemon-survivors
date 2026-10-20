@@ -94,7 +94,7 @@ export const dreamEater = (g: Game, s: CastStats) => {
     shape: { kind: 'circle', r }, motion: { kind: 'follow', ox: 0, oy: -8 }, damage: 0, ttl: 0.7, activeFrom: Infinity,
   })
   const near = foesWithin(g, p.x, p.y, r)
-  if (s.status) for (const e of near) if (chance(g.rng, s.status.chance)) applyStatus(e.status, s.status, s.damage, e.boss, 'dreamEater')
+  if (s.status) for (const e of near) if (chance(g.rng, s.status.chance)) applyStatus(e.status, s.status, s.damage, e.boss, 'dreamEater', g.player.slot)
   const asleep = (e: Enemy) => e.status.sleep.time > 0
   const targets = [...near.filter(asleep), ...near.filter((e) => !asleep(e))].slice(0, s.amount)
   targets.forEach((e, i) => {
@@ -364,7 +364,7 @@ const ICE_FREEZE = { kind: 'freeze', chance: 1, duration: 1.2, power: 0 } as con
 export const iceBallHit = (g: Game, a: Attack, e: Enemy) => {
   const s = castOf(g, 'iceBall')
   const base = s?.damage ?? a.damage
-  if (rampFull(a.damage, base)) applyStatus(e.status, ICE_FREEZE, a.damage, e.boss, 'iceBall')
+  if (rampFull(a.damage, base)) applyStatus(e.status, ICE_FREEZE, a.damage, e.boss, 'iceBall', g.player.slot)
   a.damage = rampDamage(a.damage, base)
   a.tier++
   if (a.shape.kind === 'circle') a.shape = { kind: 'circle', r: Math.min(a.shape.r + ICE_GROW * (s?.area ?? 1), ICE_MAX_R * (s?.area ?? 1)) }

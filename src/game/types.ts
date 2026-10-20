@@ -57,6 +57,7 @@ import type { TensionState } from './tension'
 import type { AlphaClock, AlphaState } from './alphas'
 import type { LegendForm, LegendId } from '../data/legends'
 import type { LegendState } from './legend'
+import type { CoopState } from './coop'
 
 export type OwnedMove = {
   id: MoveId
@@ -191,6 +192,34 @@ export type Player = {
   wings: Partial<Record<WingId, number>>
   /** The treasure this player is opening and the tunnel they're stepping into or walking (`landmarks.ts`). */
   landmark: PlayerLandmarks
+  /**
+   * Co-op: counts this player's pick screens (and every change of their cards).
+   * A pick quotes the round it was made on, so one that arrives after the timer
+   * or a reroll changed the screen is dropped (`lockstep.ts`).
+   */
+  round: number
+  /** Co-op: seconds left on this player's pick screen before it picks for them (`coop.ts`). */
+  pickLeft: number
+  /** Co-op: the tab went to the background or the connection dropped: frozen, untargetable, picks for them at once. */
+  away: boolean
+  /** Co-op: left the run for good (out of play and out of the horde's scaling). */
+  gone: boolean
+  /** Co-op: seconds a teammate has stood by this fainted player (`COOP.revive`). */
+  revive: number
+  /** What this player did this run, for the end screen and their missions (`coop.ts`). */
+  record: PlayerRecord
+}
+
+/** One player's run stats (damage dealt is `damageByMove`). `tally` counts their own faints only in co-op. */
+export type PlayerRecord = {
+  kills: number
+  /** HP lost to the horde, bosses and hazards. */
+  taken: number
+  /** Fainted teammates this player got back up. */
+  revives: number
+  /** Times this player fainted (co-op). */
+  faints: number
+  tally: RunTally
 }
 
 export type EnemyBehavior =
@@ -250,7 +279,8 @@ export type Enemy = {
   alpha: AlphaState | null
 }
 
-export type Thrown = { damage: number; move: DamageSource; hit: Set<number> }
+/** `by`: slot of the player whose move threw it (its blows are theirs). */
+export type Thrown = { damage: number; move: DamageSource; hit: Set<number>; by: number }
 
 export type Shape = { kind: 'circle'; r: number } | { kind: 'rect'; w: number; h: number }
 
@@ -500,6 +530,10 @@ export type Pickup = {
   /** True once it's being pulled into the player. */
   attracted: boolean
   age: number
+  /** Co-op: the slot of the player it's pulled toward (unset solo). */
+  to?: number
+  /** Co-op: dropped for this slot alone (their Mega Stone, legendary TM, a boss's TM or Poké Ball); unset means anyone's. */
+  owner?: number
 } & ({ kind: 'xp'; value: number } | { kind: 'coin'; value: number } | { kind: 'berry' } | { kind: 'pokeball' } | { kind: 'megaStone'; mega: MegaId } | { kind: 'consumable'; item: ConsumableId } | { kind: 'tm'; move: MoveId; source: TmSource } | { kind: 'alphaPrize' } | { kind: 'treat' } | { kind: 'evoItem'; item: EvoItemId })
 
 export type Particle = {
@@ -712,6 +746,14 @@ export type GameEvent =
   /** A wave legendary on the map (`legendScene.ts`) showed itself (its title card), or its capture's ball settled. */
   | { kind: 'legendTitle'; enemy: EnemyId; shiny: boolean }
   | { kind: 'bossCapture'; enemy: EnemyId; shiny: boolean }
+  /** Co-op: a player fainted (their Poké Ball lies there), got back up (`by` the teammate who stood by them), left, went away or came back. */
+  | { kind: 'fainted'; slot: number }
+  | { kind: 'revived'; slot: number; by: number }
+  | { kind: 'left'; slot: number }
+  | { kind: 'away'; slot: number; away: boolean }
+  /** Co-op: a vote for the endless mode was cast, or the vote ended (`outcome`). */
+  | { kind: 'vote'; slot: number; endless: boolean }
+  | { kind: 'voted'; outcome: 'endless' | 'over' }
 
 /** A timed player buff (X Attack, X Speed, Max Repel). `left` counts down in seconds. */
 export type Buff = { id: BuffId; left: number; total: number }
@@ -808,6 +850,8 @@ export type Game = {
   now: number
   /** A wave legendary's entrance or capture playing on the map, with the world held still (`legendScene.ts`). */
   legendScene: LegendScene | null
+  /** Co-op rules state (`coop.ts`): held sticks, the endless vote, pause time. Null solo. */
+  coop: CoopState | null
 }
 
 /** Where a prize level-up came from: an Alpha's gem or a field mission. */

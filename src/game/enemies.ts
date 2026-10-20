@@ -16,8 +16,10 @@ import { createTraitState, isAirborne, traitPace } from './traits'
 import { dungeonNav } from './dungeon'
 import { underground } from './landmarks'
 import { TRAITS } from '../data/traits'
-import { actAs, nearestPlayer, standing } from './players'
-import type { Enemy, EnemyBehavior, Game } from './types'
+import { actAs, nearestPlayer, ownerOf, standing } from './players'
+import { coopScale } from './coop'
+import { COOP } from '../data/coop'
+import type { DamageSource, Enemy, EnemyBehavior, Game } from './types'
 import * as dm from '../engine/dmath'
 
 const neighbors: number[] = []
@@ -43,7 +45,8 @@ export const spawnEnemy = (g: Game, kind: EnemyId, x: number, y: number, behavio
   const boss = def.boss === true
   const mods = runMods(g)
   const scale = boss ? { hp: mods.enemyHp, damage: 1, xp: 1 } : enemyScale(g)
-  const hp = Math.round(def.hp * scale.hp)
+  // Co-op: the whole team hits it (`coopScale`; exactly 1 solo).
+  const hp = Math.round(def.hp * scale.hp * coopScale(g, boss ? COOP.scale.bossHp : COOP.scale.hp))
   const enemy: Enemy = {
     id: g.nextId++,
     kind,
@@ -108,11 +111,18 @@ const bodyBlow = (g: Game, e: Enemy, o: Enemy) => {
     t.hit.add(o.id)
     o.kx += e.kx * 0.5 / o.mass
     o.ky += e.ky * 0.5 / o.mass
-    return bumpDamage(g, o, t.damage, t.move)
+    return blowAs(g, t.by, o, t.damage, t.move)
   }
   if (e.status.bump > 0) return
   e.status.bump = CONFUSE_BUMP
-  bumpDamage(g, o, e.damage * CONFUSE_CONTACT, e.status.confuse.move)
+  blowAs(g, e.status.confuse.by, o, e.damage * CONFUSE_CONTACT, e.status.confuse.move)
+}
+
+/** A body blow credited to the player at `slot` (who threw or confused the foe), as them. */
+const blowAs = (g: Game, slot: number, o: Enemy, amount: number, move: DamageSource | null) => {
+  const before = actAs(g, ownerOf(g, slot))
+  bumpDamage(g, o, amount, move)
+  actAs(g, before)
 }
 
 const FAINT_TIME = 0.4

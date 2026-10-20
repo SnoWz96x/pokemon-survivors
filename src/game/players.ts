@@ -40,8 +40,12 @@ export const ownAttack = (g: Game, a: Attack) => a.owner === g.player.slot
 /** The player whose hitbox this is (`Attack.owner`); the first one if that slot is gone. */
 export const ownerOf = (g: Game, slot: number): Player => g.players[slot] ?? g.players[0]!
 
-/** Standing in the run: can be chased, hit and pick things up. Fainted players aren't (co-op). */
-export const inPlay = (p: Player) => p.hp > 0
+/**
+ * Standing in the run: can be chased, hit and pick things up. In co-op a
+ * fainted, away or gone player isn't, nor one wrapped in their evolution or
+ * Mega Evolution (those play without holding the team, `coop.ts`).
+ */
+export const inPlay = (p: Player) => p.hp > 0 && !p.away && !p.gone && p.phase !== 'evolving' && p.mega.intro <= 0
 
 /** Whether `p` counts for a world system (can be chased, touched, hit): solo the player always does (their HP only hits 0 as the run ends, mid-tick). */
 export const standing = (g: Game, p: Player) => g.players.length === 1 || inPlay(p)
@@ -175,18 +179,21 @@ const worldPhase = (phase: Phase) => phase === 'playing' || phase === 'paused' |
  * their own pick screen or evolution while the world waits on the team. Solo
  * it's always `g.phase`. Pick rules check it, so a pick belongs to its player.
  */
-export const phaseOf = (g: Game, p: Player = g.player): Phase => (worldPhase(g.phase) ? g.phase : p.phase)
+export const phaseOf = (g: Game, p: Player = g.player): Phase =>
+  worldPhase(g.phase) && !(g.phase === 'playing' && p.phase === 'evolving') ? g.phase : p.phase
 
 /**
  * Sets `p`'s own phase (a pick screen, an evolution, back to playing) and the
  * world's: held on the first player in slot order who isn't playing, playing
- * once nobody is busy. Solo the world takes `phase` as is.
+ * once nobody is busy. Solo the world takes `phase` as is. In co-op an
+ * evolution doesn't hold the world: the player evolves wrapped in light while
+ * the team plays on (`inPlay`).
  */
 export const setPhase = (g: Game, phase: PlayerPhase, p: Player = g.player) => {
   p.phase = phase
   let team: PlayerPhase = 'playing'
   for (const q of g.players) {
-    if (q.phase === 'playing') continue
+    if (q.phase === 'playing' || (g.coop !== null && q.phase === 'evolving')) continue
     team = q.phase
     break
   }

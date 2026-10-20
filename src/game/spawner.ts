@@ -15,6 +15,8 @@ import { surgeSize, TENSION_PEAK, tensionMods } from './tension'
 import { spawnPoint, updateTension } from './tensionSystem'
 import { isSpitter, makeSpitter, SPITTERS } from './spitters'
 import { anchorPlayer, playerWithin } from './players'
+import { coopScale } from './coop'
+import { COOP } from '../data/coop'
 import type { Game } from './types'
 import * as dm from '../engine/dmath'
 
@@ -177,7 +179,8 @@ export const updateSpawner = (g: Game, dt: number) => {
   const level = finale ? 0 : g.tension.level
   const peak = TENSION_PEAK[g.difficulty]
   const tension = tensionMods(level, peak, g.endless !== null)
-  const cap = stage.max * pressure.max * more * tension.cap
+  // Co-op: a denser horde for a bigger team (`coopScale`; exactly 1 solo).
+  const cap = stage.max * pressure.max * more * tension.cap * coopScale(g, COOP.scale.cap)
   // Tension brings pressure, not power: the faster horde splits the same loot.
   g.tension.share = 1 / tension.rate
   const spitting = spitter !== null && !finale && g.time >= spit.from
@@ -190,7 +193,7 @@ export const updateSpawner = (g: Game, dt: number) => {
     }
   }
 
-  g.spawnBudget += stage.rate * pressure.rate * more * tension.rate * dt
+  g.spawnBudget += stage.rate * pressure.rate * more * tension.rate * coopScale(g, COOP.scale.spawn) * dt
   while (g.spawnBudget >= 1) {
     g.spawnBudget--
     if (regular >= cap) {

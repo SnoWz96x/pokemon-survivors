@@ -75,7 +75,8 @@ export const CONFUSE_CONTACT = 2
 /** Share of a seed's DoT that heals the player. */
 export const SEED_HEAL = 0.5
 
-export type Affliction = { time: number; power: number; stacks: number; move: DamageSource | null }
+/** `by`: slot of the player whose hit put it on (its DoT, kills and Leech Seed heals are theirs). */
+export type Affliction = { time: number; power: number; stacks: number; move: DamageSource | null; by: number }
 
 export type EnemyStatus = Record<StatusKind, Affliction> & {
   /** Seconds frozen in place (paralysis). */
@@ -88,7 +89,7 @@ export type EnemyStatus = Record<StatusKind, Affliction> & {
   bump: number
 }
 
-const none = (): Affliction => ({ time: 0, power: 0, stacks: 0, move: null })
+const none = (): Affliction => ({ time: 0, power: 0, stacks: 0, move: null, by: 0 })
 
 export const createStatus = (): EnemyStatus => ({
   burn: none(), poison: none(), paralysis: none(), slow: none(), sleep: none(),
@@ -108,16 +109,18 @@ export const clearAffliction = (a: Affliction) => {
   a.stacks = 0
   a.power = 0
   a.move = null
+  a.by = 0
 }
 
 /** DoT damage per second of one affliction. */
 export const dotDps = (a: Affliction) => (a.time > 0 ? a.power * a.stacks : 0)
 
 /**
- * Inflicts `spec` (already rolled) from a hit of `damage`. Re-applying refreshes
- * the duration and keeps the strongest power; poison also adds a stack.
+ * Inflicts `spec` (already rolled) from a hit of `damage` by the player at slot
+ * `by`. Re-applying refreshes the duration and keeps the strongest power (and
+ * its player); poison also adds a stack.
  */
-export const applyStatus = (st: EnemyStatus, spec: StatusSpec, damage: number, boss: boolean, move: DamageSource | null) => {
+export const applyStatus = (st: EnemyStatus, spec: StatusSpec, damage: number, boss: boolean, move: DamageSource | null, by = 0) => {
   const rule = STATUS_RULES[spec.kind]
   const a = st[spec.kind]
   const resist = boss ? rule.boss : 1
@@ -127,11 +130,13 @@ export const applyStatus = (st: EnemyStatus, spec: StatusSpec, damage: number, b
     a.stacks = 1
     a.power = power
     a.move = move
+    a.by = by
   } else {
     a.stacks = Math.min(rule.maxStacks, a.stacks + 1)
     if (power >= a.power) {
       a.power = power
       a.move = move
+      a.by = by
     }
   }
   a.time = Math.max(a.time, spec.duration * resist)

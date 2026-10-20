@@ -91,8 +91,8 @@ export const bossEggSource = (kind: EnemyId): EggSource =>
 
 /* ---------------- In a run ---------------- */
 
-/** An egg found this run, with the distance walked (px) when it was found. */
-export type FoundEgg = { tier: EggTier; at: number }
+/** An egg found this run, with the distance walked (px) when it was found; in co-op, every player's (`walked`, by slot). */
+export type FoundEgg = { tier: EggTier; at: number; walked?: number[] }
 
 /** `lucky`: this player never had an egg, so the next roll can't miss. `boost` multiplies every source's chance (Incense). */
 export type RunEggs = { found: FoundEgg[]; lucky: boolean; boost: number }
