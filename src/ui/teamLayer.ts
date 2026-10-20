@@ -80,12 +80,16 @@ export const createTeamLayer = (root: HTMLElement, input: Input, driver: CoopDri
   /** Puts the auto-pick clock on a pick overlay the shell just opened (and, on the team's level-up, who already picked). */
   const decorate = (overlay: Screen, g: Game, self: Player, phase: Phase) => {
     if (phase === 'paused' || phase === 'victory' || phase === 'gameover' || phase === 'evolving' || phase === 'playing') return
-    const dialog = overlay.el.querySelector('.dialog')
-    if (!dialog) return
     const made = pickClock(g, self, phase === 'levelup')
-    const title = dialog.querySelector(':scope > .dialog-title')
+    // In the screen's box under its title; screens without one (the Ability, a branch) get it as a box of its own on top.
+    const host = overlay.el.querySelector('.dialog, .tm-stage')
+    const title = host?.querySelector(':scope > .dialog-title')
     if (title) title.after(made.el)
-    else dialog.prepend(made.el)
+    else if (host) host.prepend(made.el)
+    else {
+      made.el.classList.add('box', 'floating')
+      overlay.el.prepend(made.el)
+    }
     clock = made
   }
 

@@ -14969,6 +14969,12 @@ button.hall-tile:hover {
   margin-bottom: -4px;
 }
 
+.pick-clock.floating {
+  width: min(440px, 94 * var(--vw));
+  margin: 0 auto;
+  padding: 8px 12px 10px;
+}
+
 .pick-clock-row {
   display: flex;
   align-items: center;
