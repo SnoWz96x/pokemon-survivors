@@ -4871,6 +4871,63 @@ export const pt = {
       mewtwo: ['*Mewtwo* libera o poder psíquico! Fuja do _círculo_ do Teleport.', 'Psystrike! Passe pelos _vãos_ e corra para um _abrigo_.'],
       arceus: ['*Arceus* se teleporta para julgar você!', 'Judgment! Só os _abrigos de luz_ te salvam.'],
     } satisfies Record<WaveLegend, readonly [string, string]>,
+  /** Co-op in a run (`ui/team*.ts`): the team's cards, its pauses, the spectator, the endless vote and the end screen. */
+  team: {
+    /** A seat without a name. */
+    player: (n: number) => `Jogador ${n}`,
+    you: 'Você',
+    /** A teammate's card on the HUD. */
+    state: { fainted: 'Desmaiou', away: 'Ausente', choosing: 'Escolhendo', evolving: 'Evoluindo', left: 'Saiu' },
+    /** The world held by a teammate's level-up. */
+    waiting: 'Esperando a equipe…',
+    picked: 'pronto',
+    picking: 'escolhendo',
+    /** A pick screen's clock: the game picks for you when it runs out. */
+    auto: (s: number) => `Escolha automática em *${s}s*`,
+    /** Spectating while fainted. */
+    fainted: 'Você desmaiou',
+    reviveHint: 'Um colega pode te reviver',
+    watching: (name: string) => `Assistindo *${name}*`,
+    nextKeys: 'Tab: trocar',
+    nextTouch: 'Toque para trocar',
+    toast: {
+      fainted: (name: string) => `*${name}* desmaiou! Fique ao lado da _Poké Ball_ para reviver.`,
+      revived: (name: string, by: string) => `*${by}* reviveu *${name}*!`,
+      revivedYou: (by: string) => `*${by}* te reviveu!`,
+      left: (name: string) => `*${name}* saiu da partida.`,
+      away: (name: string) => `*${name}* está ausente.`,
+      back: (name: string) => `*${name}* voltou!`,
+    },
+    vote: {
+      title: 'A equipe venceu Mewtwo!',
+      question: 'Continuar no modo sem fim?',
+      yes: 'Continuar',
+      no: 'Encerrar',
+      rule: 'A maioria decide. Empate encerra.',
+      voting: 'votando…',
+      endless: 'Modo sem fim!',
+    },
+    results: {
+      victory: 'Vitória da equipe!',
+      wipe: 'A equipe desmaiou',
+      endless: 'Fim do modo sem fim',
+      time: 'Tempo',
+      damage: 'Dano',
+      kills: 'Derrotas',
+      taken: 'Sofrido',
+      revives: 'Reviveu',
+      faints: 'Desmaios',
+      team: 'Equipe',
+      share: 'Sua parte',
+      /** The team's ₽, split evenly; each card adds that player's own end bonus. */
+      split: (total: string, n: number, each: string) => `Equipe: ${total} ÷ ${n} = ${each} cada, mais o bônus de cada um`,
+      payout: (share: string, bonus: string) => `${share} da equipe + ${bonus} de bônus`,
+      left: 'Saiu',
+      playAgain: 'Jogar de novo',
+      lobby: 'Voltar ao lobby',
+      /** Superlatives, one per player at most (`ui/teamAwards.ts`). */
+      awards: { damage: 'Mais dano', kills: 'Mais derrotas', revives: 'Anjo da guarda', untouched: 'Intocável', tank: 'Tanque', comeback: 'Fênix' },
+    },
   },
 } satisfies ContentTexts & Record<string, unknown>
 
