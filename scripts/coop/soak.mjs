@@ -9,7 +9,7 @@
  *
  *   - every run reached its natural end and the relay confirmed it;
  *   - every client ended on the same tick with the same state hash;
- *   - every injected desync was healed;
+ *   - every injected desync was healed, and nothing else diverged;
  *   - nobody banked twice (deposits equal the payout, after banking every end twice);
  *   - nobody replayed from tick 0 once the run had a snapshot;
  *   - the outbox stayed bounded.
@@ -245,6 +245,7 @@ for (const room of rooms) {
   const desyncs = reps.reduce((n, x) => n + x.log.desyncs, 0)
   const heals = reps.reduce((n, x) => n + x.log.events.filter((e) => e.what === 'healed').length, 0)
   check(`${tag}: every injected desync healed`, heals >= desyncs, `${desyncs} injected, ${heals} healed`)
+  check(`${tag}: no divergence but the injected ones (no heal the soak didn't cause)`, heals <= desyncs, `${desyncs} injected, ${heals} healed`)
   for (const x of reps) {
     check(`${tag} bot ${x.index}: banked exactly once`, x.pay && x.log.deposited === x.pay.coins + x.pay.bonus, `deposited ${x.log.deposited}, payout ${x.pay && x.pay.coins + x.pay.bonus}, ${x.log.bankCalls} bank calls`)
     const replays = x.log.events.filter((e) => e.what === 'sync' && e.reason !== 'resume' && e.from === 0 && e.to > 1300)

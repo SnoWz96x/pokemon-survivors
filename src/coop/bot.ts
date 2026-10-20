@@ -28,8 +28,8 @@ export type Bot = {
   surrender: () => void
 }
 
-/** Every Poké Mart rank bought: a bot plays like a veteran, so a soak's runs last (a fresh save's bot falls in minutes). */
-const VETERAN: Ranks = UPGRADE_IDS.reduce((r, id) => ({ ...r, [id]: UPGRADES[id].maxRank }), NO_RANKS)
+/** Half of every Poké Mart rank: a fresh save's bot falls in a few minutes, a maxed one outlives a surrender. */
+const VETERAN: Ranks = UPGRADE_IDS.reduce((r, id) => ({ ...r, [id]: Math.ceil(UPGRADES[id].maxRank / 2) }), NO_RANKS)
 
 /** A bot's Pokémon, by its number (a spread of species and sizes). */
 export const botPick = (n: number): CoopPick => ({ starter: STARTER_IDS[(n * 7 + 3) % STARTER_IDS.length]!, ranks: VETERAN, shiny: n % 5 === 0 })
