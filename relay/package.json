@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev --port 8791",
     "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
     "types": "wrangler types",
     "typecheck": "npm run types && tsc --noEmit",
     "test": "vitest run"

@@ -19,7 +19,8 @@ npm install
 npm test             # vitest in the Workers runtime (pure rules + a restart test)
 npm run typecheck    # wrangler types + tsc
 npm run dev          # wrangler dev on :8791
-npm run deploy       # ps-coop-dev on workers.dev
+npm run deploy       # ps-coop-dev on workers.dev (also allows Vercel previews)
+npm run deploy:prod  # ps-coop on workers.dev (only pokemonsurvivors.com)
 node scripts/probe.mjs --bots 3 --secs 40 --desync --rejoin   # bots against a deployed relay
 ```
 
@@ -34,8 +35,9 @@ node scripts/probe.mjs --bots 3 --secs 40 --desync --rejoin   # bots against a d
 
 ## Secrets
 
-`ADMIN_TOKEN` is set with `wrangler secret put ADMIN_TOKEN`. The dev relay's token is in
-`~/.config/ps-coop/dev-admin-token` on Pedro's Mac (mode 600). To fetch a dump:
+`ADMIN_TOKEN` is set with `wrangler secret put ADMIN_TOKEN` (add `--env production` for
+`ps-coop`). The tokens are in `~/.config/ps-coop/dev-admin-token` and `prod-admin-token` on
+Pedro's Mac (mode 600). To fetch a dump:
 
 ```bash
 H="Authorization: Bearer $(cat ~/.config/ps-coop/dev-admin-token)"

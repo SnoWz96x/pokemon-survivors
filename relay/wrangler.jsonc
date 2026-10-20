@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  // The dev relay. A production one gets its own name (and a custom domain); see README.md.
+  // The dev relay (`npm run deploy`). Production is `env.production` below (`npm run deploy:prod`).
   "name": "ps-coop-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
@@ -21,5 +21,29 @@
   "vars": {
     "CLERK_ISSUER": "https://clerk.pokemonsurvivors.com",
     "ALLOWED_ORIGINS": "https://www.pokemonsurvivors.com,https://pokemonsurvivors.com,https://*.vercel.app"
+  },
+  // Bindings, rate limits and vars don't inherit into an environment, so they repeat here.
+  // Production serves only the live site; Vercel previews use the dev relay.
+  "env": {
+    "production": {
+      "name": "ps-coop",
+      "workers_dev": true,
+      "observability": { "enabled": true },
+      "durable_objects": {
+        "bindings": [
+          { "name": "ROOMS", "class_name": "RoomObject" },
+          { "name": "VAULT", "class_name": "Vault" }
+        ]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomObject", "Vault"] }],
+      "ratelimits": [
+        { "name": "CREATE_LIMIT", "namespace_id": "4201", "simple": { "limit": 30, "period": 60 } },
+        { "name": "CONNECT_LIMIT", "namespace_id": "4202", "simple": { "limit": 300, "period": 60 } }
+      ],
+      "vars": {
+        "CLERK_ISSUER": "https://clerk.pokemonsurvivors.com",
+        "ALLOWED_ORIGINS": "https://www.pokemonsurvivors.com,https://pokemonsurvivors.com"
+      }
+    }
   }
 }
