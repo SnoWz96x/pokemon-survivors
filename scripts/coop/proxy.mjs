@@ -5,8 +5,10 @@
 // ways for some seconds (the single-socket stalls measured on home Wi-Fi), a cut kills its sockets.
 // HTTP (`POST /rooms`) and WebSockets go through unchanged.
 //
-//   node scripts/coop/proxy.mjs --upstream 8796 --ports 4011,4012 --profile br   (standalone, for browsers)
+//   node scripts/coop/proxy.mjs --upstream 8796 --ports 4011,4012 --profile br   (standalone, for browsers;
+//     control on --control 4399: /cut?port=4011, /stall?port=4011&ms=3500, /profile?port=4011&name=us)
 //   import { startProxy, PROFILES } from './proxy.mjs'                           (the soak)
+import { createServer } from 'node:http'
 import net from 'node:net'
 
 /** One-way latency and jitter (ms), loss (share of chunks) and stalls (every `every` ms, `ms` long). */
@@ -107,6 +109,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
   const upstream = Number(arg('upstream', 8796))
   const profile = PROFILES[arg('profile', 'br')]
-  for (const port of arg('ports', '4011').split(',').map(Number)) startProxy({ port, upstream, profile })
+  const proxies = new Map(arg('ports', '4011').split(',').map(Number).map((port) => [port, startProxy({ port, upstream, profile })]))
+  createServer((req, res) => {
+    const u = new URL(req.url, 'http://x')
+    const p = proxies.get(Number(u.searchParams.get('port')))
+    if (p && u.pathname === '/cut') p.cut()
+    if (p && u.pathname === '/stall') p.stall(Number(u.searchParams.get('ms') ?? 3500))
+    if (p && u.pathname === '/profile') p.set(PROFILES[u.searchParams.get('name')] ?? p.link.profile)
+    res.end(JSON.stringify(p ? { stalls: p.link.stalls, cuts: p.link.cuts, bytes: p.link.bytes } : { ports: [...proxies.keys()] }))
+  }).listen(Number(arg('control', 4399)), '127.0.0.1')
   console.log(`proxy ${arg('ports', '4011')} → :${upstream} (${arg('profile', 'br')})`)
 }
