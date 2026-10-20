@@ -142,6 +142,7 @@ export const es: Messages = {
     },
     entry: 'Co-op',
     beta: 'BETA',
+    guestName: (n: number) => `Entrenador ${n}`,
     off: 'El co-op no está disponible en esta versión del juego.',
     update: { title: 'Actualiza el juego para jugar juntos: la sala usa otra versión.', yes: 'Actualizar', no: 'Ahora no' },
     createFailed: {

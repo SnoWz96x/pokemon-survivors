@@ -15900,6 +15900,13 @@ button.hall-tile:hover {
     width: 32px;
     height: 32px;
   }
+  .coop-screen .btn.small.coop-kick {
+    min-height: 28px;
+    padding: 4px 8px;
+  }
+  .coop-difficulty .shell-seg-option {
+    min-height: 32px;
+  }
   .coop-seat-name,
   .coop-seat-partner {
     justify-content: center;
@@ -15928,11 +15935,18 @@ button.hall-tile:hover {
 
 /* Amigos: tabs, rows of people with their presence and buttons. */
 .friends-tabs {
-  align-self: center;
+  align-self: stretch;
+}
+
+.friends-tabs .shell-tab {
+  flex: 1 1 auto;
+  padding: 0 8px;
+  overflow: visible;
 }
 
 .friends-tabs .lobby-badge {
   margin-left: 4px;
+  vertical-align: middle;
 }
 
 .friend-list {
@@ -15954,7 +15968,10 @@ button.hall-tile:hover {
 .friend-id {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   min-width: 0;
+  text-align: left;
 }
 
 .friend-id b {
@@ -15984,7 +16001,13 @@ button.hall-tile:hover {
 }
 
 .friend-presence::before {
-  content: '● ';
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  background: currentColor;
+  border-radius: 1px;
 }
 
 .friend-presence.lobby {

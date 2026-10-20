@@ -189,7 +189,7 @@ export const featureFlag = (key: string): Promise<boolean | null> =>
   })
 
 /** A flag's answer in a `/flags/?v=2` response (`flags[key].enabled`, or the older `featureFlags[key]`), or null. */
-const flagIn = (json: unknown, key: string): boolean | null => {
+export const flagIn = (json: unknown, key: string): boolean | null => {
   if (!isRecord(json)) return null
   const flag = isRecord(json.flags) ? json.flags[key] : undefined
   if (isRecord(flag) && 'enabled' in flag) return flag.enabled === true

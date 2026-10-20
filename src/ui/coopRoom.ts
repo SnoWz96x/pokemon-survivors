@@ -34,9 +34,12 @@ import { toast } from './toasts'
  */
 const keyNav = (input: Input, el: HTMLElement, back: () => void) => {
   let current: string | null = null
+  /** Where `focus` asked the highlight to be: it goes there once that button is enabled, until the player moves it. */
+  let wanted: string | null = null
   const buttons = () => [...el.querySelectorAll<HTMLButtonElement>('[data-nav]')].filter((b) => !b.disabled && b.offsetParent !== null)
   const paint = () => {
     const all = buttons()
+    if (wanted && all.some((b) => b.dataset.nav === wanted)) current = wanted
     if (!all.some((b) => b.dataset.nav === current)) current = all[0]?.dataset.nav ?? null
     for (const b of el.querySelectorAll<HTMLElement>('[data-nav]')) b.classList.toggle('selected', b.dataset.nav === current)
   }
@@ -45,6 +48,7 @@ const keyNav = (input: Input, el: HTMLElement, back: () => void) => {
     if (all.length === 0) return
     const i = all.findIndex((b) => b.dataset.nav === current)
     current = all[(i + dir + all.length) % all.length]!.dataset.nav ?? null
+    wanted = null
     playSfx('move')
     paint()
   }
@@ -54,7 +58,7 @@ const keyNav = (input: Input, el: HTMLElement, back: () => void) => {
     else if (k === 'Enter' || k === 'Space') buttons().find((b) => b.dataset.nav === current)?.click()
     else if (k === 'Escape' || k === 'Backspace') back()
   })
-  return { paint, off, focus: (key: string) => ((current = key), paint()) }
+  return { paint, off, focus: (key: string) => ((wanted = current = key), paint()) }
 }
 
 /** A button the arrows reach as `key`, its sound and its action after this press is dispatched. */
@@ -158,8 +162,8 @@ export const coopHub = (root: HTMLElement, input: Input, actions: HubActions, co
     ),
   )
   const nav = keyNav(input, el, () => (playSfx('select'), later(actions.back)))
-  nav.focus(code ? 'join' : 'create')
   root.append(el)
+  nav.focus(code ? 'join' : 'create')
   return { el, dim: 0.5, dispose: () => (nav.off(), el.remove()) }
 }
 

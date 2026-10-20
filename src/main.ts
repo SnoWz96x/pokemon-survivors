@@ -2073,7 +2073,11 @@ const coopClosed = (why: CloseWhy) => {
   track('coop', { step: 'fail', at: run?.coop ? 'run' : coopShown === 'room' ? 'room' : 'join', why })
   if (run?.coop) endRun()
   removeBots()
-  if (why === 'build' || why === 'version') return showCoopUpdate()
+  if (why === 'build' || why === 'version') {
+    // The link keeps the room, so the reload joins it again on the new version.
+    linkRoom(coopClient()?.state().code ?? null)
+    return showCoopUpdate()
+  }
   linkRoom(null)
   if (coopShown === 'hub') return
   if (!screen?.el.classList.contains('title-home')) showTitle()

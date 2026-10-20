@@ -11,7 +11,7 @@ import { localPlayer } from './game/players'
 import type { Game, GameEvent } from './game/types'
 import { ROOM_PARAM, parseName, parseRoomCode } from './net/protocol'
 import { ROUTES } from './site/routes'
-import { locale } from './i18n'
+import { locale, t } from './i18n'
 import { bankEggs, depositPokeDollars, recordRunProgress, updateSave } from './ui/save'
 
 /**

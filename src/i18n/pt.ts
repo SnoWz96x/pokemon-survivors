@@ -239,6 +239,8 @@ export const pt = {
     /** The lobby's dock tile, and the tag the co-op screens wear while it's a beta. */
     entry: 'Co-op',
     beta: 'BETA',
+    /** A guest's name for the team until they pick one (kept on the device). */
+    guestName: (n: number) => `Treinador ${n}`,
     /** The game has no co-op server in this build (a room link opened anyway). */
     off: 'O co-op não está disponível nesta versão do jogo.',
     /** A room that runs another version: reloading brings the new one. */
