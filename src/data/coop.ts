@@ -19,17 +19,17 @@ export const COOP = {
   view: { w: 480, h: 270 },
   scale: {
     /** Regular spawn rate. */
-    spawn: 0.6,
+    spawn: 0.5,
     /** Regular horde cap. */
-    cap: 0.45,
+    cap: 0.4,
     /** Regular enemy HP. */
     hp: 0.25,
     /** Boss, Alpha, rift legendary and Arceus HP: everyone hits it at once. */
-    bossHp: 0.85,
+    bossHp: 0.75,
     /** Exp. Candy reaching each player is divided by this. */
     xp: 0.55,
     /** ₽ collected (the team's total is divided by the players at the end). */
-    coins: 0.3,
+    coins: 0.4,
   },
   revive: {
     /** Seconds a teammate must stand next to a fainted player. */
