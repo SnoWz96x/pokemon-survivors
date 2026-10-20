@@ -58,7 +58,7 @@ export type RunnerStats = {
   /** Most ticks run in one display frame, and the frame sim time (ms) at its worst. */
   maxRun: number
   maxFrameMs: number
-  /** Snapshots that failed to restore, and why. */
+  /** Snapshots that failed to restore (or restored to another hash than agreed), and why. */
   failures: string[]
 }
 
@@ -122,7 +122,7 @@ export type RunnerDeps = {
   onGame?: (r: Runner, why: 'heal' | 'join' | 'seed') => void
   /** A heal finished: the run is back with the team. */
   onHealed?: (r: Runner, tick: number, ms: number) => void
-  /** A snapshot didn't restore (never expected: same build): the caller joins afresh for another. */
+  /** A snapshot didn't restore, or not to its agreed hash (the relay was told, `badSnap`): the caller joins afresh for another. */
   onFailed?: (r: Runner, error: string) => void
 }
 
@@ -266,29 +266,40 @@ const carry = (from: Runner, to: Runner) => {
   to.hold = from.hold
 }
 
-/** A chunk of the sync's snapshot. Once all are in, the snapshot is inflated and restored (async); frames keep buffering meanwhile. */
+/**
+ * A chunk of the sync's snapshot. Once all are in, the snapshot is inflated
+ * and restored (async); frames keep buffering meanwhile. The relay agreed on
+ * the snapshot's label (the majority's hash), not its bytes: a snapshot that
+ * doesn't restore to that hash, or doesn't restore at all, is never played.
+ * The relay hears it's bad (`badSnap`) and the caller joins afresh.
+ */
 export const onSnapPart = (r: Runner, msg: Extract<ServerMessage, { t: 'snapPart' }>, deps: RunnerDeps) => {
   const p = r.pending
-  if (!p || !p.base || msg.tick !== p.base.tick || p.parts[msg.part] !== undefined || msg.part >= p.base.parts) return
+  const base = p?.base
+  if (!p || !base || msg.tick !== base.tick || p.parts[msg.part] !== undefined || msg.part >= base.parts) return
   p.parts[msg.part] = msg.data
   p.got++
-  if (p.got < p.base.parts || p.busy) return
+  if (p.got < base.parts || p.busy) return
   p.busy = true
+  const fail = (why: string) => {
+    if (r.pending !== p) return
+    r.stats.failures.push(why.slice(0, 200))
+    deps.send({ t: 'badSnap', tick: base.tick })
+    deps.onFailed?.(r, why)
+  }
   void inflate(fromBase64(p.parts.join('')))
     .then((bytes) => {
       if (r.pending !== p) return
-      r.game = restore(bytes)
+      const game = restore(bytes)
+      const h = stateHash(game)
+      if (h !== base.h) return fail(`hash ${h} is not ${base.h} at ${base.tick}`)
+      r.game = game
       r.pending = null
       linkGame(r)
       r.anchor = null
       deps.onGame?.(r, p.reason === 'heal' ? 'heal' : 'join')
     })
-    .catch((err: unknown) => {
-      // A snapshot that doesn't restore (never expected: same build): the caller rejoins for another.
-      if (r.pending !== p) return
-      r.stats.failures.push(String(err).slice(0, 200))
-      deps.onFailed?.(r, String(err))
-    })
+    .catch((err: unknown) => fail(String(err)))
 }
 
 /** Remembers where the players and enemies stand before a tick, to draw between it and the next. */

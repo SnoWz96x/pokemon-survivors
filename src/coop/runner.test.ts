@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { NO_RANKS } from '../game/meta'
-import { restore, snapshot, stateHash } from '../game/snapshot'
-import type { ClientMessage, Entry, Frame, RunStart } from '../net/protocol'
-import { advance, createRunner, onFrame, SYNC_FAR, type RunnerDeps } from './runner'
+import { deflate, restore, snapshot, stateHash } from '../game/snapshot'
+import type { ClientMessage, Entry, Frame, RunStart, ServerMessage } from '../net/protocol'
+import { advance, createRunner, onFrame, onSnapPart, onSync, stepOne, SYNC_FAR, type RunnerDeps } from './runner'
+import { toBase64 } from './wire'
 
 const START: RunStart = {
   id: 1,
@@ -85,6 +86,32 @@ describe('the lockstep runner', () => {
     for (let i = 0; i < 2000 && r.syncing; i++) advance(r, 1 / 60, h.deps)
     expect(r.syncing).toBeNull()
     expect(r.known - r.next).toBeLessThanOrEqual(r.hold.hold + 2)
+  })
+
+  it('plays a snapshot only if it restores to the hash the team agreed on; a bad one is reported and never played', async () => {
+    const h = harness()
+    const source = createRunner(START, 'ROOMS', 0)
+    onFrame(source, frame(0, 600, sticks(0)), h.at(), () => {})
+    while (source.next < 600) stepOne(source, h.deps)
+    const data = toBase64(await deflate(snapshot(source.game)))
+    const join = (label: string) => {
+      const failed: string[] = []
+      const deps: RunnerDeps = { ...h.deps, onFailed: (_, why) => void failed.push(why) }
+      const sync: Extract<ServerMessage, { t: 'sync' }> = { t: 'sync', reason: 'join', run: START, from: 600, to: 600, base: { tick: 600, h: label, parts: 1 } }
+      const r = onSync(createRunner(START, 'ROOMS', 2), sync, 'ROOMS', 2, deps)
+      if (r === 'rejoin') throw new Error('expected a join')
+      onSnapPart(r, { t: 'snapPart', tick: 600, part: 0, data }, deps)
+      return { r, failed }
+    }
+    const good = join(stateHash(source.game))
+    await vi.waitFor(() => expect(good.r.pending).toBeNull())
+    expect(stateHash(good.r.game)).toBe(stateHash(source.game))
+    const bad = join('not-its-hash')
+    const seed = bad.r.game
+    await vi.waitFor(() => expect(bad.failed).toHaveLength(1))
+    expect(h.sent).toContainEqual({ t: 'badSnap', tick: 600 })
+    expect(bad.r.game).toBe(seed)
+    expect(bad.r.pending).not.toBeNull()
   })
 
   it('says a gap in the frames (the caller resyncs)', () => {
