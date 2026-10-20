@@ -32,3 +32,25 @@ jobs:
       - run: npm ci --prefix server
       - run: npm run typecheck --prefix server
       - run: npm run build --prefix server
+
+  # The same scripted runs in Node, Chromium, Firefox and WebKit must hash the
+  # same every 60 ticks (`npm run determinism`): co-op peers and the ranked
+  # re-simulation rely on it.
+  determinism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps --only-shell chromium firefox webkit
+      - run: npm run determinism
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: determinism-out
+          path: determinism-out/
+          if-no-files-found: ignore
