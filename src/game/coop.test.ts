@@ -6,7 +6,7 @@ import { spawnEnemy } from './enemies'
 import { createCoopGame, createGame, type CoopLoadout } from './game'
 import { parseTickEntry, stepTick, type TickEntry } from './lockstep'
 import { NO_RANKS } from './meta'
-import { actAs } from './players'
+import { actAs, phaseOf, setPhase } from './players'
 import { moveCode, TICK } from './replay'
 import { restore, snapshot, stateHash } from './snapshot'
 import { applyStatus } from './status'
@@ -144,16 +144,20 @@ describe('co-op picks', () => {
     expect(b.pendingLevelUps).toBe(1)
   })
 
-  it('an evolution plays without holding the team', () => {
+  it('an evolution and a personal screen play without holding the team; the timer leaves a cursed item', () => {
     const g = team()
     calm(g)
-    const [a] = players(g)
+    const [a, b] = players(g)
     a.evolution = { from: 4, to: 5, t: 0 }
     a.phase = 'evolving'
+    b.offers = [{ kind: 'curse', id: 'lifeOrb', take: true }, { kind: 'curse', id: 'lifeOrb', take: false }]
+    setPhase(g, 'curse', b)
     const time = g.time
     run(g, 1)
-    expect([g.phase, a.phase]).toEqual(['playing', 'evolving'])
+    expect([g.phase, phaseOf(g, a), phaseOf(g, b)]).toEqual(['playing', 'evolving', 'curse'])
     expect(g.time).toBeGreaterThan(time + 0.9)
+    run(g, COOP.pick.time)
+    expect([b.phase, b.curses.held]).toEqual(['playing', []])
   })
 })
 

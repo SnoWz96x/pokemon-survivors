@@ -42,10 +42,20 @@ export const ownerOf = (g: Game, slot: number): Player => g.players[slot] ?? g.p
 
 /**
  * Standing in the run: can be chased, hit and pick things up. In co-op a
- * fainted, away or gone player isn't, nor one wrapped in their evolution or
- * Mega Evolution (those play without holding the team, `coop.ts`).
+ * fainted, away or gone player isn't, nor one wrapped up in something of their
+ * own: their evolution, a Mega Evolution or a personal pick (`personal`),
+ * which play without holding the team.
  */
-export const inPlay = (p: Player) => p.hp > 0 && !p.away && !p.gone && p.phase !== 'evolving' && p.mega.intro <= 0
+export const inPlay = (p: Player) => p.hp > 0 && !p.away && !p.gone && p.phase === 'playing' && p.mega.intro <= 0
+
+/**
+ * Co-op: phases that are one player's own and don't hold the world: the
+ * evolution and the screens that follow it (where it branches, the Ability)
+ * and the ones a pickup or chest opens (a TM, a Poké Ball's prize, a cursed
+ * item). Only level-ups, which the team's shared EXP brings to everyone on the
+ * same tick, hold the world for everyone.
+ */
+export const personal = (phase: PlayerPhase) => phase !== 'playing' && phase !== 'levelup'
 
 /** Whether `p` counts for a world system (can be chased, touched, hit): solo the player always does (their HP only hits 0 as the run ends, mid-tick). */
 export const standing = (g: Game, p: Player) => g.players.length === 1 || inPlay(p)
@@ -176,24 +186,24 @@ const worldPhase = (phase: Phase) => phase === 'playing' || phase === 'paused' |
 
 /**
  * The phase as `p` sees it: the world's while it plays, is paused or is over;
- * their own pick screen or evolution while the world waits on the team. Solo
- * it's always `g.phase`. Pick rules check it, so a pick belongs to its player.
+ * their own pick screen or evolution while the world waits on the team, or
+ * plays on around them (co-op's `personal` phases). Solo it's always `g.phase`. Pick rules check it, so a pick belongs to its player.
  */
 export const phaseOf = (g: Game, p: Player = g.player): Phase =>
-  worldPhase(g.phase) && !(g.phase === 'playing' && p.phase === 'evolving') ? g.phase : p.phase
+  worldPhase(g.phase) && !(g.phase === 'playing' && p.phase !== 'playing') ? g.phase : p.phase
 
 /**
  * Sets `p`'s own phase (a pick screen, an evolution, back to playing) and the
  * world's: held on the first player in slot order who isn't playing, playing
- * once nobody is busy. Solo the world takes `phase` as is. In co-op an
- * evolution doesn't hold the world: the player evolves wrapped in light while
- * the team plays on (`inPlay`).
+ * once nobody is busy. Solo the world takes `phase` as is. In co-op only a
+ * level-up holds the world: a `personal` phase plays with the player wrapped
+ * up, untargetable, while the team plays on (`inPlay`).
  */
 export const setPhase = (g: Game, phase: PlayerPhase, p: Player = g.player) => {
   p.phase = phase
   let team: PlayerPhase = 'playing'
   for (const q of g.players) {
-    if (q.phase === 'playing' || (g.coop !== null && q.phase === 'evolving')) continue
+    if (q.phase === 'playing' || (g.coop !== null && personal(q.phase))) continue
     team = q.phase
     break
   }
