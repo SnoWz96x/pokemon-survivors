@@ -635,12 +635,13 @@ const drawRageEmbers = (ctx: Ctx, x: number, cy: number, size: number, t: number
 
 const hpColor = (ratio: number) => (ratio > 0.5 ? '#48d048' : ratio > 0.2 ? '#f8c830' : '#f04030')
 
-/** Chain dash afterimages: fading type-colored copies of the player along the lunge. */
+/** Chain dash afterimages: fading type-colored copies of `g`'s player along their own lunge (co-op: each teammate's from their copy). */
 const drawAfterimages = (ctx: Ctx, g: Game, calm: boolean) => {
   const p = localPlayer(g)
-  const s = playerSprites(g, megaLook(g, calm).form)
+  let s: ReturnType<typeof sprites> | null = null
   for (const a of g.attacks) {
-    if (a.visual !== 'afterimage' || a.age < 0) continue
+    if (a.visual !== 'afterimage' || a.age < 0 || a.owner !== p.slot) continue
+    s ??= playerSprites(g, megaLook(g, calm).form)
     const k = a.age / a.ttl
     drawPokemon(ctx, s, airborne(s, inSky(g), 'Walk'), p.dir, p.animTime, a.x, a.y, { alpha: 0.7 * (1 - k), tint: { color: TYPE_COLORS[a.type], amount: 1 } })
   }
@@ -988,6 +989,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
     } else if (!isSolid(d) && d.dying < 0 && (!lean || d.boss || d.alpha)) shadow(ctx, d.x, d.y, d.radius * 3)
   }
   drawAfterimages(ctx, g, calm)
+  for (const mate of mates) drawAfterimages(ctx, mate, calm)
   for (const d of inDepth) {
     // Co-op: a player fainted, away or wrapped up in a moment of their own draws its own way (`render/team.ts`); this one only when fainted (their screen says the rest).
     if (d === 'player') !hidden && (g.coop && !showsStanding(me) ? drawTeammate(ctx, g, me, t, calm) : drawPlayer(ctx, g, calm))
