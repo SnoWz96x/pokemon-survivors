@@ -1098,3 +1098,58 @@ const TROPHY_METAL = {
 } as const satisfies Record<Difficulty, Palette>
 
 export const trophyIcon = (d: Difficulty) => toIconUrl(`trophy:${d}`, () => art(TROPHY, TROPHY_METAL[d]))
+
+/* ---------------- Co-op (render/team.ts) ---------------- */
+
+/** A fainted teammate's Poké Ball on the ground, bigger than the pickup one. 1 outline, 2 red, 3 white, 4 button, 5 shine. */
+const TEAM_BALL = [
+  '...11111...', '.112222211.', '.125222221.', '12522222221', '12221112221', '11114441111',
+  '13331113331', '13333333331', '.133333331.', '.113333311.', '...11111...',
+]
+/** An away teammate's "Zz", drifting up. */
+const TEAM_ZZ = ['......111', '.......1.', '......111', '11111....', '...1.....', '..1......', '.1.......', '11111....']
+/** The edge arrow toward an off-screen teammate (points right). */
+const TEAM_ARROW = ['1......', '121....', '12221..', '1222221', '12221..', '121....', '1......']
+
+/** 7×7 icons in a wrapped-up teammate's bubble: what they're busy with. */
+const TEAM_ICONS = {
+  tm: { rows: ['..111..', '.12221.', '1223221', '1231321', '1223221', '.12221.', '..111..'], palette: { 1: '#283048', 2: '#78c0f8', 3: '#f8f8f8' } },
+  pokeball: { rows: ['..111..', '.12221.', '1222221', '1114111', '1333331', '.13331.', '..111..'], palette: { 1: '#202028', 2: '#e83838', 3: '#d8d8e0', 4: '#ffffff' } },
+  curse: { rows: ['.11111.', '1222221', '1211121', '1222221', '.12221.', '.1.1.1.', '.......'], palette: { 1: '#382048', 2: '#c890e8' } },
+  mega: { rows: ['..111..', '.12341.', '1234561', '1345621', '1456231', '.15621.', '..111..'], palette: { 1: '#282838', 2: '#f85888', 3: '#f8a030', 4: '#f8e050', 5: '#58d878', 6: '#5890f8' } },
+  evolve: { rows: SPARKLES[2], palette: { 1: '#e8a800', 2: '#f8e070' } },
+  dots1: { rows: ['.......', '.......', '.......', '.1.....', '.......', '.......', '.......'], palette: { 1: '#283040' } },
+  dots2: { rows: ['.......', '.......', '.......', '.1.1...', '.......', '.......', '.......'], palette: { 1: '#283040' } },
+  dots3: { rows: ['.......', '.......', '.......', '.1.1.1.', '.......', '.......', '.......'], palette: { 1: '#283040' } },
+} as const satisfies Record<string, { rows: readonly string[]; palette: Palette }>
+
+export type TeamIcon = keyof typeof TEAM_ICONS
+
+/** Co-op art: the fainted Poké Ball (lit while a teammate revives it), the away "Zz", thought bubbles and edge arrows per color. */
+export const TEAM_FX = {
+  ball: lazy(() => art(TEAM_BALL, { 1: '#202028', 2: '#e83838', 3: '#f0f0f0', 4: '#ffffff', 5: '#f8a0a0' }, '#181818')),
+  ballLit: lazy(() => art(TEAM_BALL, { 1: '#202028', 2: '#f86060', 3: '#ffffff', 4: '#f8e050', 5: '#ffd0d0' }, '#181818')),
+  zz: lazy(() => art(TEAM_ZZ, { 1: '#f8f8f8' }, '#303850')),
+  bubbles: lazy(() => {
+    const build = (icon: (typeof TEAM_ICONS)[TeamIcon]) => {
+      const sprite = fromStrings(BUBBLE, { 1: '#283040', 2: '#f8f8f8' })
+      context2d(sprite).drawImage(fromStrings(icon.rows, icon.palette), 2, 2)
+      return sprite
+    }
+    return Object.fromEntries(Object.entries(TEAM_ICONS).map(([id, icon]) => [id, build(icon)])) as Record<TeamIcon, PixelSprite>
+  }),
+}
+
+const teamArrows = canvasCache<string, PixelSprite>()
+
+/** The edge arrow in `color`, cached per color. */
+export const teamArrow = (color: string) => {
+  let sprite = teamArrows.get(color)
+  if (!sprite) teamArrows.set(color, (sprite = art(TEAM_ARROW, { 1: '#181818', 2: color })))
+  return sprite
+}
+
+/** The fainted Poké Ball as a HUD/screen icon. */
+export const teamBallIcon = () => toIconUrl('teamBall', TEAM_FX.ball)
+/** The "Zz" as a HUD icon. */
+export const teamAwayIcon = () => toIconUrl('teamZz', TEAM_FX.zz)

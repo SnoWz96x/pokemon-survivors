@@ -19,7 +19,7 @@ import { xpTier } from '../game/pickups'
 import { isHeld } from '../game/status'
 import { inSolid, overTerrain, type Solid } from '../game/terrain'
 import { isAirborne, traitPace } from '../game/traits'
-import type { Attack, Enemy, Game, Hazard } from '../game/types'
+import type { Attack, Enemy, Game, Hazard, Player } from '../game/types'
 import { FX, HAZARD_FX, hostile, PICKUPS, SPARKLE, SPIT_FX } from './art'
 import { drawEvolvedAttack, drawEvolvedGround, drawFrost, drawPuff, drawShard } from './evolved'
 import { drawMapEventMarkers, drawMapEvents, markerInsets } from './mapEvents'
@@ -64,7 +64,7 @@ import { CALM_PERIOD, HURT_TINT, type Flashes } from './flashes'
 import { detail } from './quality'
 import { localPlayer } from '../game/players'
 import { riftDomain } from '../game/rift'
-import { COOP } from '../data/coop'
+import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, showsPlain } from './team'
 
 type Ctx = CanvasRenderingContext2D
 
@@ -865,39 +865,8 @@ const TEXT_PASSES = [false, true] as const
 export type RenderOptions = { damageNumbers: DamageNumbers; screenShake: boolean; flashes: Flashes; companion?: CompanionView | null; mates?: readonly Game[] }
 
 const isMate = (d: Drawable): d is Mate => typeof d === 'object' && 'mate' in d
-
-/** A name as the in-world font can write it: capitals and digits, accents off, short. */
-const nameTag = (name: string) =>
-  name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9 ]/g, '')
-    .trim()
-    .slice(0, 12)
-
-/** A teammate where they stand: their Pokémon and name, or the Poké Ball they fainted into (a teammate standing by gets them up). */
-const drawMate = (ctx: Ctx, mate: Game, calm: boolean, t: number) => {
-  const p = localPlayer(mate)
-  if (p.gone) return
-  const name = nameTag(mate.coop?.names[p.slot] ?? '')
-  if (p.hp <= 0) {
-    blitCentered(ctx, PICKUPS.pokeball(), p.x, p.y - 3 + Math.round(Math.sin(t * 3) * 1))
-    if (p.revive > 0) {
-      const w = 18
-      ctx.fillStyle = '#181818'
-      ctx.fillRect(Math.round(p.x - w / 2) - 1, Math.round(p.y + 5), w + 2, 3)
-      ctx.fillStyle = '#f8d830'
-      ctx.fillRect(Math.round(p.x - w / 2), Math.round(p.y + 6), Math.ceil((w * p.revive) / COOP.revive.time), 1)
-    }
-  } else drawPlayer(ctx, mate, calm)
-  if (name) {
-    const s = playerSprites(mate)
-    ctx.globalAlpha = p.away ? 0.5 : 0.9
-    blitCentered(ctx, textSprite(name, p.away ? '#a0a0a0' : '#f8f8f8'), p.x, p.y - (p.hp > 0 ? s.bodyH : 10) - 6)
-    ctx.globalAlpha = 1
-  }
-}
+/** The teammates' drawables, kept from frame to frame. */
+const mateSlots: Mate[] = []
 
 /** Particles a lean frame draws at most (`render/quality.ts`). */
 const LEAN_PARTICLES = 120
@@ -959,13 +928,23 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   drawTraitGround(ctx, g, visible)
   drawAlphaGround(ctx, g, t, visible)
   drawPickups(ctx, g, t)
+  if (g.coop) drawTeamGround(ctx, g, t)
 
   drawables.length = 0
   // A wave legendary's scene draws it itself (its arrival, its capture).
   const hiddenBoss = sceneHides(g)
   for (const e of g.enemies) if (visible(e.x, e.y) && e.id !== hiddenBoss) drawables.push(e)
+  const me = localPlayer(g)
   drawables.push('player')
-  for (const mate of opts.mates ?? []) drawables.push({ mate })
+  const mates = opts.mates ?? []
+  for (let i = 0; i < mates.length; i++) {
+    const mate = mates[i]!
+    const p = localPlayer(mate)
+    if (p.gone || !visible(p.x, p.y)) continue
+    const slot = (mateSlots[i] ??= { mate })
+    slot.mate = mate
+    drawables.push(slot)
+  }
   const companion = opts.companion
   if (companion) drawables.push('companion')
   solidsInView(g, camX, camY, w, h, drawables)
@@ -1004,9 +983,10 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   }
   drawAfterimages(ctx, g, calm)
   for (const d of inDepth) {
-    if (d === 'player') !hidden && drawPlayer(ctx, g, calm)
+    // Co-op: a player fainted, away or wrapped up in a moment of their own draws its own way (`render/team.ts`).
+    if (d === 'player') !hidden && (g.coop && !showsPlain(me) ? drawTeammate(ctx, g, me, t, calm) : drawPlayer(ctx, g, calm))
     else if (d === 'companion') companion && drawCompanion(ctx, companion, t)
-    else if (isMate(d)) drawMate(ctx, d.mate, calm, t)
+    else if (isMate(d)) showsPlain(localPlayer(d.mate)) ? drawPlayer(ctx, d.mate, calm) : drawTeammate(ctx, d.mate, localPlayer(d.mate), t, calm)
     else if (isSolid(d)) drawSolid(ctx, g, d, look)
     else drawEnemy(ctx, d, g.now, t, calm, aloft, isClone(g, d))
   }
@@ -1037,6 +1017,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   drawCapture(ctx, g, t)
   drawDomainAir(ctx, g, t)
   drawLegendScene(ctx, g, t)
+  if (g.coop) drawTeamAir(ctx, g, me, t)
 
   for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, 200)) drawAttack(ctx, a, t)
   drawVerbAir(ctx, g, t, visible)
@@ -1094,6 +1075,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   if (!indoors) drawMapEventMarkers(ctx, g, t)
   drawAlphaMarkers(ctx, g, t, markerInsets())
   drawBossMarker(ctx, g, camX, camY, t)
+  if (g.coop) drawTeamMarkers(ctx, g, me, camX, camY, t)
   drawRiftFallOut(ctx, g)
   drawPlaceFallOut(ctx, g)
   // Explosions, rift jumps, a Mega's burst: white over the whole screen, unless flashes are reduced.
