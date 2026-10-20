@@ -1,0 +1,110 @@
+{
+ "build": "sim-3b488e55c6823cf5",
+ "relay": "wrangler dev",
+ "restarts": 0,
+ "results": [
+  {
+   "room": 0,
+   "code": "DM226",
+   "profile": "br",
+   "minutes": 1,
+   "ticks": 3399,
+   "gameTime": 52,
+   "phase": "playing",
+   "level": 3,
+   "chaos": 0,
+   "desyncs": 0,
+   "heals": 0,
+   "healMs": [],
+   "syncs": [],
+   "reconnects": [
+    0,
+    0
+   ],
+   "rtt": [
+    235,
+    143
+   ],
+   "hold": [
+    10,
+    10
+   ],
+   "jitterMs": [
+    362,
+    296
+   ],
+   "underruns": [
+    28,
+    29
+   ],
+   "resent": [
+    4,
+    2
+   ],
+   "maxQueued": 2,
+   "snapshots": 5,
+   "snapshotKB": 9.63,
+   "snapshotTakeMs": 2.44,
+   "tickMs": [
+    1.37,
+    0.79
+   ],
+   "frameMs": {
+    "p50": 0.3,
+    "p99": 3.08,
+    "max": 20.24
+   },
+   "deposited": [
+    0,
+    0
+   ]
+  }
+ ],
+ "checks": [
+  {
+   "name": "room 0 (br): the run reached its natural end, confirmed by the relay",
+   "ok": false,
+   "detail": "playing,playing"
+  },
+  {
+   "name": "room 0 (br): every client ended on the same tick and state hash",
+   "ok": false,
+   "detail": "none"
+  },
+  {
+   "name": "room 0 (br): every injected desync healed",
+   "ok": true,
+   "detail": "0 injected, 0 healed"
+  },
+  {
+   "name": "room 0 (br) bot 0: banked exactly once",
+   "ok": false,
+   "detail": "deposited 0, payout 146, 0 bank calls"
+  },
+  {
+   "name": "room 0 (br) bot 0: never replayed from tick 0 after the first snapshot",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "room 0 (br) bot 0: outbox bounded",
+   "ok": true,
+   "detail": "max 2"
+  },
+  {
+   "name": "room 0 (br) bot 1: banked exactly once",
+   "ok": false,
+   "detail": "deposited 0, payout 150, 0 bank calls"
+  },
+  {
+   "name": "room 0 (br) bot 1: never replayed from tick 0 after the first snapshot",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "room 0 (br) bot 1: outbox bounded",
+   "ok": true,
+   "detail": "max 2"
+  }
+ ]
+}

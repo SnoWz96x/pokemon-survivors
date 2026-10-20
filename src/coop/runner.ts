@@ -1,0 +1,391 @@
+import { coopOver } from '../game/coop'
+import { stepTick } from '../game/lockstep'
+import { setLocalSlot } from '../game/players'
+import { TICK } from '../game/replay'
+import { deflate, inflate, restore, snapshot, stateHash } from '../game/snapshot'
+import type { Game, GameEvent } from '../game/types'
+import { HASH_EVERY, SNAPSHOT_EVERY, type ClientMessage, type Entry, type Frame, type RunStart, type ServerMessage } from '../net/protocol'
+import { slotsOf, toTickEntries } from './entries'
+import { createHold, onArrival, onUnderrun, resetArrivals, updateHold, type HoldState } from './hold'
+import { startGame } from './start'
+import { chunks, fromBase64, toBase64 } from './wire'
+
+/**
+ * The lockstep runner: one co-op run as this client simulates it. Frames from
+ * the relay fill a buffer of ticks; every display frame `advance` simulates
+ * what the local clock says is due, keeping `hold` ticks in hand against
+ * jitter (`hold.ts`), slowing a little when the buffer runs thin and catching
+ * up smoothly when it's fat (+25% speed and more the further behind, never a
+ * jump), within a CPU budget. Far behind (a hidden tab, a fresh join) it runs
+ * as fast as the budget allows and says it's syncing. Every 60 ticks it sends
+ * the state hash; every 600, if the relay asked, a compressed snapshot (taken
+ * at once, compressed and sent later). A `sync` brings it to the run's
+ * present: from its own state (a resume), the agreed snapshot (a join, a
+ * heal) or the seed. Plain state and functions; it runs in the browser and in
+ * Node (the soak bots) alike. The caller owns the socket (`send`).
+ */
+
+/** Ticks behind (past the hold) where catching up turns into syncing: the progress bar shows and sounds wait. */
+export const SYNC_FAR = 300
+
+/** Catch-up speed on top of real time: +25% from two ticks behind, up to +100% at `SYNC_FAR`. */
+export const CATCH_UP = { min: 0.25, max: 1 } as const
+
+/** The buffer thinner than the hold: the run plays this much slower until it fills (imperceptible, unlike a stall). */
+const SLOW_DOWN = 0.1
+
+/** CPU per display frame for simulation (ms): live, and while syncing. A tick that costs more still runs (one at least). */
+export const BUDGET = { live: 8, sync: 14 } as const
+
+export type Pending = {
+  reason: 'join' | 'resume' | 'heal'
+  from: number
+  base: { tick: number; h: string; parts: number } | null
+  parts: string[]
+  got: number
+  /** Inflating and restoring the snapshot (async). */
+  busy: boolean
+}
+
+export type RunnerStats = {
+  ticks: number
+  underruns: number
+  /** Syncs by reason, and the ticks each replayed (a snapshot's tail, a resume's tail, or from the seed). */
+  syncs: { reason: Pending['reason']; from: number; to: number; base: number | null; at: number }[]
+  heals: { tick: number; ms: number }[]
+  snapshots: { tick: number; bytes: number; takeMs: number; packMs: number }[]
+  hashes: number
+  /** Most ticks run in one display frame, and the frame sim time (ms) at its worst. */
+  maxRun: number
+  maxFrameMs: number
+}
+
+export type Runner = {
+  start: RunStart
+  room: string
+  seat: number
+  slot: number
+  slots: ReadonlyMap<number, number>
+  game: Game
+  /** The next tick to simulate: the game is the state after ticks `0..next - 1`. */
+  next: number
+  /** Ticks received: every tick below it is known (`ticks` holds those with entries, from `next` on). */
+  known: number
+  ticks: Map<number, readonly Entry[]>
+  /** A sync waiting on its snapshot's chunks or their restore. */
+  pending: Pending | null
+  /** Below this tick the frames are a sync's tail, not live. */
+  tailTo: number
+  hold: HoldState
+  /** Real time not yet turned into ticks (s), and the catch-up and slow-down fractions. */
+  acc: number
+  fast: number
+  slow: number
+  starving: boolean
+  /** Ms a tick costs here (moving average). */
+  tickMs: number
+  /** Syncing: far behind, running as fast as the budget allows. `from` is where it started (for the progress). */
+  syncing: { from: number } | null
+  /** Asked to upload snapshots (`role`). */
+  uploader: boolean
+  /**
+   * Where the run ended in this simulation (sent as `over`), and whether the
+   * relay confirmed it. The runner keeps stepping (and hashing) after its
+   * `over` until `ended`: a client that ended wrongly is still healed.
+   */
+  over: { tick: number; h: string } | null
+  ended: boolean
+  /** Events of the ticks simulated, in order, for the shell (drained after every tick, so the state hashes alike everywhere). */
+  events: GameEvent[]
+  /** This seat's last stick stamped and simulated: the tick and the input sample it carried (prediction anchors on it). */
+  anchor: { tick: number; sample: number } | null
+  /** A heal under way: when it was asked (ms) and its tick. */
+  healing: { at: number; tick: number } | null
+  /** Positions before the last tick simulated, for drawing between ticks: players by slot, enemies by id (no objects made per tick). */
+  before: { players: { x: number; y: number }[]; ex: Map<number, number>; ey: Map<number, number> }
+  stats: RunnerStats
+}
+
+export type RunnerDeps = {
+  send: (msg: ClientMessage) => void
+  now: () => number
+  /** Called after the game object changed (a restore): the shell re-links what it shares with it. */
+  onGame?: (r: Runner, why: 'heal' | 'join' | 'seed') => void
+  /** A heal finished: the run is back with the team. */
+  onHealed?: (r: Runner, tick: number, ms: number) => void
+}
+
+const newStats = (): RunnerStats => ({ ticks: 0, underruns: 0, syncs: [], heals: [], snapshots: [], hashes: 0, maxRun: 0, maxFrameMs: 0 })
+
+const linkGame = (r: Pick<Runner, 'game' | 'slot'>) => setLocalSlot(r.game.players, r.slot)
+
+/** A runner for a run starting at tick 0 (the relay's `start`, or a sync from the seed). */
+export const createRunner = (start: RunStart, room: string, seat: number): Runner => {
+  const slots = slotsOf(start)
+  const slot = slots.get(seat) ?? 0
+  const r: Runner = {
+    start,
+    room,
+    seat,
+    slot,
+    slots,
+    game: startGame(start),
+    next: 0,
+    known: 0,
+    ticks: new Map(),
+    pending: null,
+    tailTo: 0,
+    hold: createHold(),
+    acc: 0,
+    fast: 0,
+    slow: 0,
+    starving: false,
+    tickMs: 1,
+    syncing: null,
+    uploader: false,
+    over: null,
+    ended: false,
+    events: [],
+    anchor: null,
+    healing: null,
+    before: { players: [], ex: new Map(), ey: new Map() },
+    stats: newStats(),
+  }
+  linkGame(r)
+  return r
+}
+
+/** Ticks received and not simulated yet. */
+export const backlog = (r: Runner) => r.known - r.next
+
+/** How far a sync has come (0..1), or null when not syncing. */
+export const syncProgress = (r: Runner): number | null => {
+  if (r.pending) return 0
+  if (!r.syncing) return null
+  const span = r.known - r.syncing.from
+  return span <= 0 ? 1 : Math.min(1, (r.next - r.syncing.from) / span)
+}
+
+/**
+ * A frame from the relay, `live` unless it belongs to a sync's tail. Ticks
+ * already known are skipped (a resume may overlap); a gap returns false (the
+ * caller resyncs). `onEntry` sees each entry once, as it arrives.
+ */
+export const onFrame = (r: Runner, f: Frame, at: number, onEntry: (e: Entry) => void): boolean => {
+  if (f.to <= r.known) return true
+  if (f.from > r.known) return false
+  for (const [tick, entries] of f.ticks) {
+    if (tick < r.known) continue
+    r.ticks.set(tick, entries)
+    for (const e of entries) onEntry(e)
+  }
+  r.known = f.to
+  if (f.from >= r.tailTo && !r.pending) onArrival(r.hold, f.to - 1, at)
+  return true
+}
+
+/**
+ * A `sync`: how this client gets to the run's present. A resume keeps the
+ * state (its tail follows); a join or heal restores the agreed snapshot (its
+ * chunks follow) or starts from the seed (only before the run's first agreed
+ * snapshot). Returns the runner to use (a new one for another run), or
+ * `rejoin` when the relay offers a resume this client has no state for (the
+ * caller joins afresh, getting the snapshot).
+ */
+export const onSync = (r: Runner | null, msg: Extract<ServerMessage, { t: 'sync' }>, room: string, seat: number, deps: RunnerDeps): Runner | 'rejoin' => {
+  const at = deps.now()
+  const same = r !== null && r.start.id === msg.run.id
+  let runner: Runner
+  if (msg.reason === 'resume') {
+    if (!r || !same || r.pending || msg.from > r.known || msg.from < r.next) return 'rejoin'
+    runner = r
+    for (const t of [...runner.ticks.keys()]) if (t >= msg.from) runner.ticks.delete(t)
+    runner.known = msg.from
+  } else if (msg.base === null) {
+    runner = createRunner(msg.run, room, seat)
+    if (r && same) carry(r, runner)
+    deps.onGame?.(runner, 'seed')
+  } else {
+    runner = r && same ? r : createRunner(msg.run, room, seat)
+    runner.ticks.clear()
+    runner.known = msg.from
+    runner.next = msg.from
+    runner.over = null
+    runner.pending = { reason: msg.reason, from: msg.from, base: msg.base, parts: [], got: 0, busy: false }
+  }
+  if (msg.reason === 'heal') runner.healing ??= { at, tick: msg.from }
+  runner.tailTo = msg.to
+  runner.acc = 0
+  runner.starving = false
+  resetArrivals(runner.hold)
+  runner.stats.syncs.push({ reason: msg.reason, from: msg.from, to: msg.to, base: msg.base?.tick ?? null, at })
+  if (msg.to - msg.from > SYNC_FAR) runner.syncing ??= { from: msg.from }
+  return runner
+}
+
+/** What a fresh runner keeps of the one it replaces (same run): the role, stats, a heal under way. */
+const carry = (from: Runner, to: Runner) => {
+  to.uploader = from.uploader
+  to.stats = from.stats
+  to.healing = from.healing
+  to.hold = from.hold
+}
+
+/** A chunk of the sync's snapshot. Once all are in, the snapshot is inflated and restored (async); frames keep buffering meanwhile. */
+export const onSnapPart = (r: Runner, msg: Extract<ServerMessage, { t: 'snapPart' }>, deps: RunnerDeps) => {
+  const p = r.pending
+  if (!p || !p.base || msg.tick !== p.base.tick || p.parts[msg.part] !== undefined || msg.part >= p.base.parts) return
+  p.parts[msg.part] = msg.data
+  p.got++
+  if (p.got < p.base.parts || p.busy) return
+  p.busy = true
+  void inflate(fromBase64(p.parts.join('')))
+    .then((bytes) => {
+      if (r.pending !== p) return
+      r.game = restore(bytes)
+      r.pending = null
+      linkGame(r)
+      r.anchor = null
+      deps.onGame?.(r, p.reason === 'heal' ? 'heal' : 'join')
+    })
+    .catch(() => {
+      // A snapshot that doesn't restore (never expected: same build): drop it, the caller rejoins.
+      if (r.pending === p) p.busy = false
+      p.parts = []
+      p.got = 0
+    })
+}
+
+/** Remembers where the players and enemies stand before a tick, to draw between it and the next. */
+const rememberPositions = (r: Runner) => {
+  const g = r.game
+  const b = r.before
+  g.players.forEach((p, i) => {
+    const at = (b.players[i] ??= { x: 0, y: 0 })
+    at.x = p.x
+    at.y = p.y
+  })
+  b.players.length = g.players.length
+  b.ex.clear()
+  b.ey.clear()
+  for (const e of g.enemies) {
+    b.ex.set(e.id, e.x)
+    b.ey.set(e.id, e.y)
+  }
+}
+
+/** Takes the snapshot of now, then compresses and sends it in chunks off the frame (measured). */
+const uploadSnapshot = (r: Runner, h: string, deps: RunnerDeps) => {
+  const t0 = deps.now()
+  const raw = snapshot(r.game)
+  const takeMs = deps.now() - t0
+  const tick = r.next
+  const run = r.start.id
+  void deflate(raw).then((packed) => {
+    const t1 = deps.now()
+    const parts = chunks(toBase64(packed))
+    // The run went on (or another began): the relay would refuse a stale upload anyway.
+    if (r.start.id !== run || !r.uploader) return
+    parts.forEach((data, part) => deps.send({ t: 'snap', tick, h, part, parts: parts.length, data }))
+    r.stats.snapshots.push({ tick, bytes: packed.byteLength, takeMs, packMs: deps.now() - t1 })
+  })
+}
+
+/** Simulates tick `next`: its entries, the step, the events out; then the hash, the snapshot and the end, when due. */
+export const stepOne = (r: Runner, deps: RunnerDeps) => {
+  const g = r.game
+  const tick = r.next
+  const entries = r.ticks.get(tick)
+  if (entries) {
+    r.ticks.delete(tick)
+    for (const e of entries) if (e[0] === r.seat && e[1] === 'move' && typeof e[3] === 'number') r.anchor = { tick, sample: e[3] }
+    stepTick(g, toTickEntries(entries, r.slots))
+  } else stepTick(g, [])
+  r.next++
+  r.stats.ticks++
+  // Drained every tick on every client, so the events never sit in the state that's hashed.
+  for (const e of g.events.splice(0)) r.events.push(e)
+  const n = r.next
+  if (n % HASH_EVERY === 0) {
+    const h = stateHash(g)
+    deps.send({ t: 'hash', tick: n, h })
+    r.stats.hashes++
+    if (n % SNAPSHOT_EVERY === 0 && r.uploader) uploadSnapshot(r, h, deps)
+  }
+  if (!r.over && coopOver(g)) {
+    r.over = { tick: n, h: stateHash(g) }
+    deps.send({ t: 'over', ...r.over })
+  }
+  if (r.healing && n >= r.tailTo) {
+    const ms = deps.now() - r.healing.at
+    r.stats.heals.push({ tick: r.healing.tick, ms })
+    deps.onHealed?.(r, r.healing.tick, ms)
+    r.healing = null
+  }
+}
+
+/**
+ * One display frame of the run (`dt` seconds of real time): simulates what's
+ * due, within the budget. Returns how many ticks ran.
+ */
+export const advance = (r: Runner, dt: number, deps: RunnerDeps): number => {
+  if (r.pending || r.ended) return 0
+  const now = deps.now()
+  updateHold(r.hold, now)
+  r.acc += dt
+  let due = Math.floor(r.acc / TICK)
+  r.acc -= due * TICK
+  const have = backlog(r)
+  const excess = have - due - r.hold.hold
+  // Far behind: sync at the budget's pace, with a progress bar.
+  if (r.syncing || excess > SYNC_FAR) r.syncing ??= { from: r.next }
+  let want = due
+  if (r.syncing) want = have
+  else if (excess > 1) {
+    r.fast += due * (CATCH_UP.min + (CATCH_UP.max - CATCH_UP.min) * Math.min(1, excess / SYNC_FAR))
+    const extra = Math.min(excess, Math.floor(r.fast))
+    r.fast -= extra
+    want += extra
+  } else if (have < r.hold.hold && due > 0) {
+    r.slow += due * SLOW_DOWN
+    if (r.slow >= 1) {
+      r.slow -= 1
+      want -= 1
+    }
+  }
+  const run = Math.min(have, want)
+  // Starved: the buffer is empty when a tick is due (the frames stopped coming: a slow link, a stall). One
+  // underrun per episode, and the clock doesn't bank the wait. A long frame of our own isn't one: it runs what it has.
+  if (have === 0 && due > 0 && r.next >= r.tailTo) {
+    if (!r.starving) onUnderrun(r.hold, now)
+    r.starving = true
+    r.stats.underruns = r.hold.underruns
+    r.acc = Math.min(r.acc, TICK)
+  } else if (run > 0) r.starving = false
+  const budget = r.syncing ? BUDGET.sync : BUDGET.live
+  const t0 = deps.now()
+  let ran = 0
+  // Real time's own ticks always run (a few at most); the catch-up and the sync only within the budget.
+  const floor = Math.min(due, 4)
+  for (; ran < run; ran++) {
+    if (ran >= floor && deps.now() - t0 + r.tickMs > budget) break
+    if (!r.syncing) rememberPositions(r)
+    stepOne(r, deps)
+    if (r.pending) {
+      ran++
+      break
+    }
+  }
+  const spent = deps.now() - t0
+  if (ran > 0) r.tickMs = r.tickMs * 0.9 + (spent / ran) * 0.1
+  r.stats.maxRun = Math.max(r.stats.maxRun, ran)
+  r.stats.maxFrameMs = Math.max(r.stats.maxFrameMs, spent)
+  // Caught up: live again.
+  if (r.syncing && backlog(r) <= r.hold.hold + 2) r.syncing = null
+  return ran
+}
+
+/** The relay confirmed the end (`ended`). */
+export const onEnded = (r: Runner) => {
+  r.ended = true
+}
