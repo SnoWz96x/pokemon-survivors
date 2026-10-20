@@ -210,6 +210,7 @@ export class RoomObject extends DurableObject<Env> {
       else if (e.k === 'hashes') sql.exec('INSERT OR REPLACE INTO hashes (run, tick, v) VALUES (?, ?, ?)', e.run, e.tick, JSON.stringify(e.bySeat))
       else if (e.k === 'chunk') sql.exec('INSERT OR REPLACE INTO snaps (run, tick, part, data) VALUES (?, ?, ?, ?)', e.run, e.tick, e.part, e.data)
       else if (e.k === 'keepSnapshot') sql.exec('DELETE FROM snaps WHERE run = ? AND tick <> ?', e.run, e.tick)
+      else if (e.k === 'dropSnapshot') sql.exec('DELETE FROM snaps WHERE run = ? AND tick = ?', e.run, e.tick)
       else if (e.k === 'dropRun') for (const table of ['log', 'hashes', 'snaps']) sql.exec(`DELETE FROM ${table} WHERE run = ?`, e.run)
     }
     const room = this.state.room

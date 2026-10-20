@@ -163,6 +163,8 @@ export type Effect =
   | { k: 'chunk'; run: number; tick: number; part: number; data: string }
   /** Delete every snapshot of `run` but the one at `tick`. */
   | { k: 'keepSnapshot'; run: number; tick: number }
+  /** Delete the snapshot of `run` at `tick` (an upload replaced or turned down, a bad agreed one). */
+  | { k: 'dropSnapshot'; run: number; tick: number }
   /** Delete the log, hashes and snapshots of `run`. */
   | { k: 'dropRun'; run: number }
   | { k: 'send'; to: ConnId; msg: ServerMessage }
@@ -299,8 +301,10 @@ export const reattach = (state: State, sockets: readonly { id: ConnId; ua: strin
     state.live.lastSeen.set(seat.seat, now)
   }
   if (!room) return []
+  // The upload under way was lost with the memory: only the agreed snapshot is worth its storage.
+  const out: Effect[] = room.run ? [{ k: 'keepSnapshot', run: room.run.start.id, tick: room.run.agreed?.tick ?? -1 }] : []
   if (room.seats.some((s) => online(state, s))) room.emptySince = null
-  return settle(state, room, now)
+  return [...out, ...settle(state, room, now)]
 }
 
 const liveSeats = (state: State, room: Room) => {
@@ -708,7 +712,7 @@ const decide = (state: State, room: Room, run: Run, tick: number): Effect[] => {
   const up = live.upload
   if (up && up.tick === tick && up.got.size === up.parts) {
     live.upload = null
-    if (up.h === h) out.push(...acceptSnapshot(room, run, up))
+    out.push(...(up.h === h ? acceptSnapshot(room, run, up) : [dropSnapshot(run, up)]))
   }
   return [...out, ...updateUploader(state, room)]
 }
@@ -738,20 +742,25 @@ const onSnap = (state: State, room: Room, run: Run, seat: number, msg: Extract<C
   const live = state.live
   if (seat !== live.uploader || msg.tick >= run.next || msg.tick <= (run.agreed?.tick ?? -1)) return []
   let up = live.upload
+  const out: Effect[] = []
   if (!up || up.tick !== msg.tick) {
     if (up && up.tick > msg.tick) return []
+    // A newer upload replaces one that never made it: its chunks go.
+    if (up) out.push(dropSnapshot(run, up))
     up = { seat, tick: msg.tick, h: msg.h, parts: msg.parts, got: new Set() }
     live.upload = up
   }
-  if (up.seat !== seat || up.h !== msg.h || up.parts !== msg.parts || up.got.has(msg.part)) return []
+  if (up.seat !== seat || up.h !== msg.h || up.parts !== msg.parts || up.got.has(msg.part)) return out
   up.got.add(msg.part)
-  const out: Effect[] = [{ k: 'chunk', run: run.start.id, tick: msg.tick, part: msg.part, data: msg.data }]
+  out.push({ k: 'chunk', run: run.start.id, tick: msg.tick, part: msg.part, data: msg.data })
   if (up.got.size < up.parts) return out
   const decided = live.decided.get(up.tick)
   if (decided === undefined) return out
   live.upload = null
-  return decided === up.h ? [...out, ...acceptSnapshot(room, run, up)] : out
+  return [...out, ...(decided === up.h ? acceptSnapshot(room, run, up) : [dropSnapshot(run, up)])]
 }
+
+const dropSnapshot = (run: Run, up: { tick: number }): Effect => ({ k: 'dropSnapshot', run: run.start.id, tick: up.tick })
 
 /* ---------------- Time ---------------- */
 

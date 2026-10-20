@@ -11,6 +11,7 @@ import {
   loadState,
   majority,
   message,
+  reattach,
   tick,
   type Effect,
   type Room,
@@ -233,6 +234,31 @@ describe('hashes, snapshots and the end', () => {
     expect(of(sent(out, 'c2'), 'sync')[0]).toMatchObject({ reason: 'heal', from: 600, base: { tick: 600, h: 'good', parts: 2 } })
     expect(out.filter((e) => e.k === 'dump')).toHaveLength(1)
     expect(sent(out, 'c0').some((m) => m.t === 'heal')).toBe(false)
+  })
+
+  it('drops the chunks of a snapshot upload that was replaced or turned down, and of any upload lost in a restart', () => {
+    const { state, t0 } = playing(3)
+    alive(state, 3, t0 + 21_090)
+    tick(state, t0 + 21_100)
+    say(state, 'c0', { t: 'snap', tick: 600, h: 'a', part: 0, parts: 2, data: 'AAAA' }, t0 + 21_100)
+    const replaced = say(state, 'c0', { t: 'snap', tick: 1200, h: 'b', part: 0, parts: 1, data: 'BBBB' }, t0 + 21_100)
+    expect(replaced).toContainEqual({ k: 'dropSnapshot', run: 1, tick: 600 })
+    const votes = [['c0', 'b'], ['c1', 'x'], ['c2', 'x']] as const
+    const decided = votes.flatMap(([c, h]) => say(state, c, { t: 'hash', tick: 1200, h }, t0 + 21_100))
+    // The upload's label lost the vote: turned down, its chunks dropped as the tick is decided.
+    expect(decided).toContainEqual({ k: 'dropSnapshot', run: 1, tick: 1200 })
+    expect(roomOf(state).run?.agreed).toBeNull()
+    const saved = JSON.parse(JSON.stringify(roomOf(state))) as Room
+    expect(reattach(loadState(saved, state.gen, t0 + 22_000), [], t0 + 22_000)).toContainEqual({ k: 'keepSnapshot', run: 1, tick: -1 })
+  })
+
+  it('turns a snapshot down when its tick was already decided otherwise, dropping its chunks', () => {
+    const { state, t0 } = playing(3)
+    alive(state, 3, t0 + 11_090)
+    tick(state, t0 + 11_100)
+    for (const c of ['c0', 'c1', 'c2']) say(state, c, { t: 'hash', tick: 600, h: 'x' }, t0 + 11_100)
+    const out = say(state, 'c0', { t: 'snap', tick: 600, h: 'mine', part: 0, parts: 1, data: 'AAAA' }, t0 + 11_100)
+    expect(out).toContainEqual({ k: 'dropSnapshot', run: 1, tick: 600 })
   })
 
   it('charges `over` a token like any message, and saves only a vote that changed', () => {
