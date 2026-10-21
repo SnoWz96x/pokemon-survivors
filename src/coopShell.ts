@@ -131,7 +131,11 @@ const PERSONAL: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>([
   'cast', 'moveSound', 'heal', 'hurt', 'special', 'stance', 'megaChoice', 'megaStone', 'megaStart', 'mega', 'megaEnd', 'megaReady',
   'shinyPlayer', 'evolve', 'branchChoice', 'ability', 'evolved', 'moveEvolved', 'duoFused', 'curse', 'pokeball', 'shinyOffer',
   'tm', 'tmLearned', 'tmMastered', 'banish', 'consumable', 'revive', 'riftFall', 'guard',
+  'evoItem', 'evoHeld', 'maxRevive', 'stolen', 'awaken', 'awakened',
 ])
+
+/** Events solo banks into the save that co-op never shows: a legendary's defeat counting toward its capture (solo's progression, `COOP_LOCKS`). */
+const SOLO_ONLY: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>(['legendBeaten'])
 
 /**
  * Whether an event of the simulation is this client's to see and hear: the
@@ -139,7 +143,7 @@ const PERSONAL: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>([
  * a player's own (`PERSONAL`) only theirs, by `actor`, the slot acting when
  * the game pushed it.
  */
-export const coopEventFor = (g: Game, e: GameEvent, actor: number) => !PERSONAL.has(e.kind) || actor === localPlayer(g).slot
+export const coopEventFor = (g: Game, e: GameEvent, actor: number) => !SOLO_ONLY.has(e.kind) && (!PERSONAL.has(e.kind) || actor === localPlayer(g).slot)
 
 /** Dev: bots in this tab, each a full client of its own (its own socket, game and guest id). */
 const bots: Bot[] = []

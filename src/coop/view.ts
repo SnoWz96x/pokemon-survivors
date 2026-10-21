@@ -8,7 +8,8 @@ import type { Runner } from './runner'
  * screens holding it see it live) has
  * - this client as "the player" (`g.player`, `localPlayer`), drawn where the
  *   prediction puts it, with its hitboxes glued to it (auras, orbits) moved along;
- * - the drawn camera around it and the shell's own view size, while the
+ * - the drawn camera around it (or where a legendary's scene pans its screen)
+ *   and the shell's own view size, while the
  *   simulation keeps its fixed 480×270 view for everyone;
  * - teammates and enemies between the last two ticks (`alpha`), so the world
  *   moves at the display's rate, 60 or 120 Hz, without stepping in jumps;
@@ -118,8 +119,11 @@ export const updateDrawView = (dv: DrawView, r: Runner, me: { x: number; y: numb
     }
     if (pool.attacks.size > 256) pool.attacks.clear()
   }
-  dv.camera.x = me.x - view.w / 2
-  dv.camera.y = me.y - 10 - view.h / 2
+  // A wave legendary's entrance or capture pans every screen itself (the world held): frame what this player's screen frames.
+  const cx = g.legendScene ? own.screen.x + g.view.w / 2 : me.x
+  const cy = g.legendScene ? own.screen.y + 10 + g.view.h / 2 : me.y
+  dv.camera.x = cx - view.w / 2
+  dv.camera.y = cy - 10 - view.h / 2
   const game = Object.assign(dv.game, g, { players, player: players[r.slot]!, enemies, attacks, camera: dv.camera, view })
   // Each teammate as their own copy: the renderer draws "the player" of it.
   let n = 0

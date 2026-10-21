@@ -67,11 +67,11 @@ export const createPrediction = (): Prediction => ({
 /**
  * How the next steps treat this player's stick, mirroring the step's own
  * checks: null while it doesn't walk them for now (a screen up, the world
- * held, the rift's fall, fainted or wrapped up); else how many ticks the
+ * held, the rift's fall, a wave legendary's scene, fainted or wrapped up); else how many ticks the
  * hitstop still eats (the samples those ticks read never move the player).
  */
 const walking = (g: Game, p: Player): number | null => {
-  if (g.phase !== 'playing' || !inPlay(p) || worldHeld(g) || (g.rift.arena?.fall ?? null) !== null) return null
+  if (g.phase !== 'playing' || !inPlay(p) || worldHeld(g) || (g.rift.arena?.fall ?? null) !== null || g.legendScene !== null) return null
   // `stepTeam` takes a tick off the hitstop each tick it holds the world; a hair under a whole tick counts as one.
   return g.hitstop > 0 ? Math.ceil(g.hitstop / TICK - 1e-6) : 0
 }
