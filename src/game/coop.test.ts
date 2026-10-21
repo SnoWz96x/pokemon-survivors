@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { COOP } from '../data/coop'
 import { RIFT } from '../data/rifts'
+import { PLAYABLE } from '../data/hatchlings'
 import { hurtPlayer } from './combat'
-import { awayHold, coopPayout, coopStats } from './coop'
+import { awayHold, coopPayout, coopStats, playerDexLog } from './coop'
 import { spawnEnemy } from './enemies'
 import { createCoopGame, createGame, step, type CoopLoadout } from './game'
 import { parseTickEntry, stepTick, type TickEntry } from './lockstep'
@@ -270,6 +271,14 @@ describe('co-op payout and stats', () => {
     g.coins = 1000
     run(g, TICK, () => [{ slot: 2, kind: 'leave' }])
     expect(g.players.map((p) => coopPayout(g, p.slot).coins)).toEqual([333, 333, 333])
+  })
+
+  it("each player's Pokédex marks only their own Pokémon caught", () => {
+    const g = team()
+    calm(g)
+    run(g, 1)
+    const own = (slot: number) => [...playerDexLog(g, slot).own.keys()]
+    expect([own(0), own(1)]).toEqual([[PLAYABLE.charmander.line[0].dex], [PLAYABLE.squirtle.line[0].dex]])
   })
 
   it('credits a condition to whoever put it on: its DoT and its kill', () => {

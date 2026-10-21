@@ -26,6 +26,7 @@ export const updateSightings = (g: Game, dt: number) => {
     const form = playerForm(g).dex
     seen.add(form)
     g.dexLog.own.set(form, p.shiny)
+    g.coop?.own[p.slot]?.set(form, p.shiny)
   }
   g.player = actor
   for (const e of g.enemies) if (e.dying < 0 && onScreen(g, e.x, e.y)) seen.add(ENEMIES[e.kind].dex)

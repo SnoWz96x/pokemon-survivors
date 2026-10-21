@@ -8,6 +8,7 @@ import { runBonus, wonRun } from './meta'
 import { inPlay, setPhase } from './players'
 import { createTally, summarizeRun, type RunSummary } from './tally'
 import type { Game, Player, PlayerRecord } from './types'
+import type { DexLog } from './dex'
 import type { MoveId } from './moves'
 import { TICK } from './tick'
 import * as dm from '../engine/dmath'
@@ -45,6 +46,8 @@ export type CoopState = {
   vote: EndlessVote | null
   /** Ticks each slot has been away in a row (0 while here), counted by `stepTick`. */
   awayTicks: number[]
+  /** Each slot's own forms seen in the run (dex → shiny; `updateSightings`): what their Pokédex marks caught (`playerDexLog`). */
+  own: Map<number, boolean>[]
 }
 
 export const createCoopState = (players: number): CoopState => ({
@@ -54,7 +57,15 @@ export const createCoopState = (players: number): CoopState => ({
   paused: 0,
   vote: null,
   awayTicks: Array.from({ length: players }, () => 0),
+  own: Array.from({ length: players }, () => new Map<number, boolean>()),
 })
+
+/**
+ * The run's Pokédex log as player `slot` banks it: the team's sightings and
+ * defeats, but only their own Pokémon's forms as caught (`DexLog.own` holds
+ * every player's). Solo, the run's log.
+ */
+export const playerDexLog = (g: Game, slot: number): DexLog => (g.coop === null ? g.dexLog : { ...g.dexLog, own: g.coop.own[slot] ?? new Map() })
 
 export const createRecord = (): PlayerRecord => ({ kills: 0, taken: 0, revives: 0, faints: 0, tally: createTally() })
 
