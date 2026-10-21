@@ -29,7 +29,8 @@ import type { Game, Player } from './types'
  */
 
 /** The fixed simulation step, the same in the shell and here. */
-export const TICK = 1 / 60
+export { TICK } from './tick'
+import { TICK } from './tick'
 
 /**
  * Version of the rules a replay plays by. Bump it with any change that makes

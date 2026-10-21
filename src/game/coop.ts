@@ -9,7 +9,7 @@ import { inPlay, setPhase } from './players'
 import { createTally, summarizeRun, type RunSummary } from './tally'
 import type { Game, Player, PlayerRecord } from './types'
 import type { MoveId } from './moves'
-import { TICK } from './replay'
+import { TICK } from './tick'
 import * as dm from '../engine/dmath'
 
 /**
