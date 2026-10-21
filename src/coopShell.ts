@@ -4,7 +4,7 @@ import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/
 import { createBot, botPick, type Bot } from './coop/bot'
 import { createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
 import { EGGS } from './game/eggs'
-import { coopPayout } from './game/coop'
+import { coopPayout, playerDexLog } from './game/coop'
 import { mergeDex, recordRun, type Pokedex } from './game/dex'
 import { localPlayer } from './game/players'
 import type { Game, GameEvent } from './game/types'
@@ -120,7 +120,8 @@ export const bankCoopRun = (g: Game, room: string, run: number, slot: number, wi
     if (d.coins > 0) depositPokeDollars(d.coins)
     if (d.steps > 0 || d.eggs.length > 0) bankEggs(d.steps, d.eggs.slice(0, EGGS.perRun))
     if (paysAnything(d) || d.before === null) recordRunProgress(d.summary, d.before, Math.max(0, EGGS.perRun - g.eggs.found.length))
-    updateSave((save) => ({ ...save, dex: mergeDex(save.dex, recordRun(dexBase, g.dexLog)) }))
+    // Their own Pokémon's forms only count as caught (`playerDexLog`), not the teammates'.
+    updateSave((save) => ({ ...save, dex: mergeDex(save.dex, recordRun(dexBase, playerDexLog(g, slot))) }))
   })
 
 /** Reports a heal to PostHog: when, where and how long it took. */
