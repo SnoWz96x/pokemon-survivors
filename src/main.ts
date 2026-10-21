@@ -506,8 +506,9 @@ let pressedStart = false
 const showTitle = (opts: { intro?: boolean; focus?: LobbyFocus; shop?: ShopTrip; shelf?: VisitorShelf; instant?: boolean; back?: () => void } = {}) => {
   endRun()
   shopLevel = loadSave().shop.level
-  // A newer build went live during the run (see `watchDeploys`): back in the lobby, with the run banked, ranked and its crash watch cleared, is the moment to load it.
-  if (reloadForDeploy) return location.reload()
+  // A newer build went live during the run (see `watchDeploys`): back in the lobby, with the run banked, ranked and its crash watch cleared, is the moment to load it
+  // (not while a co-op room still holds this player: leaving it comes back here).
+  if (reloadForDeploy && !inCoopRoom()) return location.reload()
   // Every Play in the lobby (the partner select, the challenge, a hatch, a shiny pick) finds its ticket in hand.
   prefetchRun()
   prefetchRun(challengeToday().day)
@@ -2540,11 +2541,21 @@ const newerBuild = async () => {
   return html !== null && scripts.some((path) => !html.includes(path))
 }
 
-/** Reloads into a newer build when one is live: right away in the menus (the save is local), or once the run is over. */
+/**
+ * In a co-op room, in or out of its run (its lobby, the partner select, a
+ * reconnect): the room is pinned to this build, so a reload would only drop
+ * the seat and come back on a build the room refuses (`buildAdvice`).
+ */
+const inCoopRoom = () => {
+  const status = coopClient()?.state().status.kind
+  return status === 'room' || status === 'playing' || status === 'connecting'
+}
+
+/** Reloads into a newer build when one is live: right away in the menus (the save is local), or once the run is over (a co-op room: once the player leaves it). */
 const loadNewerBuild = () =>
   void newerBuild().then((newer) => {
     if (!newer) return
-    if (run) reloadForDeploy = true
+    if (run || inCoopRoom()) reloadForDeploy = true
     else location.reload()
   })
 
