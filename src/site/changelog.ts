@@ -51,9 +51,9 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
             es: 'Las subidas de nivel y las elecciones pasan para todos a la vez, con un reloj. Quien se desmaya se vuelve una Poké Ball que un compañero revive quedándose al lado, y mientras tanto mira la partida de quien sigue en pie.',
           },
           {
-            pt: 'O ₽ da equipe é dividido entre todos, e cada um leva o próprio bônus do fim. No fim tem os números de cada um, com um destaque para cada treinador, e Jogar de novo mantém a equipe na sala. O co-op não vale para o ranking, o Surto do dia nem os itens da Bolsa.',
-            en: "The team's ₽ is split among everyone, and each player keeps their own end bonus. The end shows everyone's numbers, with a highlight for each trainer, and Play again keeps the team in the room. Co-op doesn't count for the ranking, the daily Outbreak or Bag items.",
-            es: 'Los ₽ del equipo se reparten entre todos, y cada uno se lleva su propio bono del final. Al final se ven los números de cada uno, con un destacado para cada entrenador, y Jugar de nuevo mantiene al equipo en la sala. El co-op no cuenta para el ranking, el Brote del día ni los objetos de la Bolsa.',
+            pt: 'O ₽ da equipe é dividido entre todos, e cada um leva o próprio bônus do fim. No fim tem os números de cada um, com um destaque para cada treinador, e Jogar de novo mantém a equipe na sala. O co-op é o modo normal: não vale para o ranking e fica sem Modo Lendário, Surto do dia, Noite das Bruxas, Mochila e TMs da loja.',
+            en: "The team's ₽ is split among everyone, and each player keeps their own end bonus. The end shows everyone's numbers, with a highlight for each trainer, and Play again keeps the team in the room. Co-op is the standard mode: it doesn't count for the ranking and leaves out Legend Mode, the daily Outbreak, Halloween Night, the Bag and the shop's TMs.",
+            es: 'Los ₽ del equipo se reparten entre todos, y cada uno se lleva su propio bono del final. Al final se ven los números de cada uno, con un destacado para cada entrenador, y Jugar de nuevo mantiene al equipo en la sala. El co-op es el modo normal: no cuenta para el ranking y queda sin Modo Legendario, Brote del día, Noche de Brujas, Mochila ni MT de la tienda.',
           },
           {
             pt: 'Adicione amigos pelo @nome, veja quem está online, numa sala ou jogando, e convide para a sua sala. O convite aparece no lobby de quem você chamou.',

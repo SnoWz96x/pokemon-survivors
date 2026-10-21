@@ -311,7 +311,7 @@ export const pt = {
       /** Back in the room while the others still play (the endless mode). */
       playing: 'A equipe está numa partida.',
       rejoin: 'Voltar para a partida',
-      rules: 'Co-op não vale para o ranking, o Surto do dia nem os itens da Bolsa.',
+      rules: 'Co-op é o modo normal: fora do ranking, sem Modo Lendário, Surto do dia, Noite das Bruxas, Mochila nem TMs da loja.',
       hintKeys: '← → escolher · ENTER confirmar · ESC sair',
       hintTouch: 'Toque para escolher',
       /** The partner select, picking for the room. */

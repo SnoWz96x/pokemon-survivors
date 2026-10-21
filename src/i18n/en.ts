@@ -205,7 +205,7 @@ export const en: Messages = {
       reconnecting: 'Reconnecting…',
       playing: 'The team is in a run.',
       rejoin: 'Back to the run',
-      rules: "Co-op doesn't count for the ranking, the daily Outbreak or Bag items.",
+      rules: "Co-op is the standard mode: no ranking, Legend Mode, daily Outbreak, Halloween Night, Bag or shop TMs.",
       hintKeys: '← → choose · ENTER confirm · ESC leave',
       hintTouch: 'Tap to choose',
       pick: 'Choose',
