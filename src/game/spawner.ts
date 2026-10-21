@@ -14,7 +14,7 @@ import { makeShiny, rollShiny, SHINY_ODDS } from './shiny'
 import { surgeSize, TENSION_PEAK, tensionMods } from './tension'
 import { spawnPoint, updateTension } from './tensionSystem'
 import { isSpitter, makeSpitter, SPITTERS } from './spitters'
-import { anchorPlayer, playerWithin } from './players'
+import { anchorPlayer, onAnyScreen, playerWithin } from './players'
 import { coopScale } from './coop'
 import { COOP } from '../data/coop'
 import type { Game } from './types'
@@ -23,12 +23,21 @@ import * as dm from '../engine/dmath'
 /** Just outside the visible area, in a random direction around a player. */
 const ringDistance = (g: Game) => dm.hypot(g.view.w, g.view.h) / 2 + 12
 
+/** Co-op: draws of a spawn point at most before one on a teammate's screen stands anyway. */
+const OFFSCREEN_TRIES = 6
+
 /**
  * Off a player's screen in a random direction (the players take turns,
  * `anchorPlayer`): on the far ring, or `near` of the way to just past the
- * screen edge (tension).
+ * screen edge (tension). In co-op, off every teammate's screen too, drawn
+ * again a few times (`OFFSCREEN_TRIES`) when it lands on one.
  */
-const offscreen = (g: Game, near = 0) => spawnPoint(g, anchorPlayer(g), range(g.rng, 0, TAU), ringDistance(g), near)
+const offscreen = (g: Game, near = 0) => {
+  const p = anchorPlayer(g)
+  let pos = spawnPoint(g, p, range(g.rng, 0, TAU), ringDistance(g), near)
+  for (let i = 0; g.coop !== null && i < OFFSCREEN_TRIES && onAnyScreen(g, pos.x, pos.y); i++) pos = spawnPoint(g, p, range(g.rng, 0, TAU), ringDistance(g), near)
+  return pos
+}
 
 /** A closing circle of `count` × `species` around a player (`anchorPlayer`). The endless mode reuses it. */
 export const spawnRing = (g: Game, species: EnemyId, count: number) => {

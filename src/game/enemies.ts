@@ -16,7 +16,7 @@ import { createTraitState, isAirborne, traitPace } from './traits'
 import { dungeonNav } from './dungeon'
 import { underground } from './landmarks'
 import { TRAITS } from '../data/traits'
-import { actAs, nearestPlayer, nearestSeen, ownerOf, standing } from './players'
+import { actAs, nearestPlayer, nearestSeen, onAnyScreen, ownerOf, standing } from './players'
 import { coopScale } from './coop'
 import { COOP } from '../data/coop'
 import type { DamageSource, Enemy, EnemyBehavior, Game } from './types'
@@ -244,10 +244,14 @@ export const updateEnemies = (g: Game, dt: number) => {
     // A spitter backing off keeps facing the player.
     if (Math.abs(vx) + Math.abs(vy) > 1) e.dir = isSpitter(e) && e.behavior.kind === 'chase' ? dir8(p.x - e.x, p.y - e.y) : dir8(vx, vy)
 
-    // Wrap stragglers back in front of the player instead of letting them get lost.
+    // Wrap stragglers back in front of the player instead of letting them get lost (in co-op, never onto a teammate's screen).
     if (e.behavior.kind === 'chase' && !e.boss && Math.abs(e.x - p.x) + Math.abs(e.y - p.y) > recycleDist * 1.3) {
-      e.x = p.x + (p.x - e.x) * 0.7
-      e.y = p.y + (p.y - e.y) * 0.7
+      const x = p.x + (p.x - e.x) * 0.7
+      const y = p.y + (p.y - e.y) * 0.7
+      if (g.coop === null || !onAnyScreen(g, x, y)) {
+        e.x = x
+        e.y = y
+      }
     }
   }
 
