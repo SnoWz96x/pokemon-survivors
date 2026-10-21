@@ -1,4 +1,5 @@
 import { dirTo, fromAngle } from '../engine/math'
+import { ownAttack } from './players'
 import { chance } from '../engine/rng'
 import * as dm from '../engine/dmath'
 import { DROP_TABLES, rollDrop } from '../data/consumables'
@@ -155,7 +156,7 @@ const protect = (g: Game, s: CastStats) => {
 
 /** The bubble took a hit: it holds, the guard stays up for what's left of it. */
 const protectHolds = (g: Game) => {
-  const bubble = g.attacks.find((a) => a.move === 'protect' && a.visual === 'protect' && a.age < a.ttl)
+  const bubble = g.attacks.find((a) => ownAttack(g, a) && a.move === 'protect' && a.visual === 'protect' && a.age < a.ttl)
   if (bubble) guard(g, 'protect', bubble.ttl - bubble.age)
 }
 

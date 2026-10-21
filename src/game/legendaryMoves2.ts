@@ -1,4 +1,5 @@
 import { JUDGMENT_PLATES } from '../data/legendaryMoves'
+import { ownAttack } from './players'
 import { dirTo, fromAngle, TAU } from '../engine/math'
 import { addMoveBuff } from './signatureMoves'
 import { aimAt, cast, crowdTargets, fan, look, stats, tookB } from './legendaryMoves'
@@ -267,7 +268,7 @@ export const LEGENDARY_MOVES_2 = {
     onGuard: (g, s) => {
       const p = g.player
       for (const a of g.attacks) {
-        if (a.visual !== 'bulwarkShell' || a.tier !== 0) continue
+        if (a.visual !== 'bulwarkShell' || a.tier !== 0 || !ownAttack(g, a)) continue
         a.tier = 1
         a.ttl = Math.min(a.ttl, a.age + 0.2)
       }

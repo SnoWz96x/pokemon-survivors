@@ -1,4 +1,5 @@
 import { dirTo, fromAngle, TAU } from '../engine/math'
+import { ownAttack } from './players'
 import * as dm from '../engine/dmath'
 import { burst } from './effects'
 import { burrow, took } from './moveKit'
@@ -96,7 +97,7 @@ const callSky = (g: Game, s: CastStats, l: Look, weather: 'rain' | 'sun') => {
   callWeather(g, weather, s.duration)
   // The marker's radius is the sun-lit ring's (Scorching Sun burns in it; the renderer draws it).
   const r = SUNNY_DAY.ring * s.area
-  const running = g.attacks.find((a) => a.visual === l.visual && a.move === l.move && a.age < a.ttl)
+  const running = g.attacks.find((a) => ownAttack(g, a) && a.visual === l.visual && a.move === l.move && a.age < a.ttl)
   if (running) {
     running.ttl = running.age + s.duration
     running.shape = { kind: 'circle', r }
