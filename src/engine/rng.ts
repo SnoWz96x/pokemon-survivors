@@ -1,16 +1,27 @@
-/** Seeded PRNG (mulberry32). Returns floats in [0, 1). */
+/** A source of floats in [0, 1). Rules take any; the runs' own is a `SeededRng`. */
 export type Rng = () => number
 
-export const createRng = (seed: number): Rng => {
-  let a = seed >>> 0
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0
+/** Mulberry32's whole state: one 32-bit word, as plain data so a run's snapshot carries it (`game/snapshot.ts`). */
+export type RngState = { a: number }
+
+/** A seeded rng: a function that reads and advances its `state` record, and nothing else. */
+export type SeededRng = Rng & { readonly state: RngState }
+
+/**
+ * The rng bound to `state` (mulberry32): every draw advances `state.a`, so
+ * rebuilding it on a restored state goes on with the same sequence.
+ */
+export const rngFrom = (state: RngState): SeededRng =>
+  Object.assign(() => {
+    const a = (state.a = (state.a + 0x6d2b79f5) >>> 0)
     let t = a
     t = Math.imul(t ^ (t >>> 15), t | 1)
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
+  }, { state })
+
+/** Seeded PRNG (mulberry32). Returns floats in [0, 1). */
+export const createRng = (seed: number): SeededRng => rngFrom({ a: seed >>> 0 })
 
 export const range = (rng: Rng, min: number, max: number) => min + rng() * (max - min)
 

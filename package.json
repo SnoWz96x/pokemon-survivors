@@ -12,10 +12,12 @@
     "roster": "node scripts/roster.mjs",
     "assets": "node scripts/fetch-assets.mjs",
     "credits": "node scripts/credits.mjs",
-    "bodies": "node scripts/bodies.mjs"
+    "bodies": "node scripts/bodies.mjs",
+    "determinism": "node scripts/determinism.mjs"
   },
   "devDependencies": {
     "@posthog/cli": "^0.16.2",
+    "playwright": "^1.64.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.4"

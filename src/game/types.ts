@@ -1,5 +1,5 @@
 import type { Dir8 } from '../engine/math'
-import type { Rng } from '../engine/rng'
+import type { SeededRng } from '../engine/rng'
 import type { Grid } from '../engine/spatial'
 import type { HazardVisual } from '../data/bosses'
 import type { WorldHazardState } from './hazards'
@@ -722,7 +722,8 @@ export type Evolution = { from: number; to: number; t: number; awakening?: numbe
 export type Game = {
   /** Multipliers this run plays with (`difficulty.ts`). */
   difficulty: Difficulty
-  rng: Rng
+  /** The run's rng; its state is plain data on it (`rng.state`), so snapshots carry it. */
+  rng: SeededRng
   /** The run clock, in seconds: it stops inside a rift (`clockRuns`). */
   time: number
   /** What the world is doing: playing, paused, over, or held while players pick or evolve (`setPhase`). */
