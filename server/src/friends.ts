@@ -97,14 +97,14 @@ export const friendStore = (sql: Sql, now: () => number = Date.now) => {
     /** Takes one heartbeat from the player's budget. */
     takeBeat: (userId: string) => beats.take([`user:${userId}`], now()),
 
-    /** Players whose handle starts with `prefix` (already `parseHandlePrefix`ed), without the asker, with how they relate. Uses `users_handle_prefix`. */
+    /** Players whose handle starts with `prefix` (already `parseHandlePrefix`ed), without the asker or banned players, with how they relate. Uses `users_handle_prefix`. */
     search: async (prefix: string, viewer: string): Promise<PlayerMatch[]> => {
       const rows = await sql<FollowRow[]>`
         select handle, coalesce(name, handle) as name,
           exists (select 1 from follows where follower_id = ${viewer} and followee_id = users.id) as i_follow,
           exists (select 1 from follows where follower_id = users.id and followee_id = ${viewer}) as follows_me
         from users
-        where handle like ${likePrefix(prefix)} and id <> ${viewer}
+        where handle like ${likePrefix(prefix)} and id <> ${viewer} and banned_at is null
         order by handle limit ${FRIENDS.searchMax}`
       return rows.map((r) => ({ handle: r.handle, name: r.name, relation: relationOf(r.i_follow, r.follows_me) }))
     },
