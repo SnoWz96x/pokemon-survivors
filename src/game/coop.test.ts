@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { COOP } from '../data/coop'
+import { RIFT } from '../data/rifts'
 import { hurtPlayer } from './combat'
 import { awayHold, coopPayout, coopStats } from './coop'
 import { spawnEnemy } from './enemies'
-import { createCoopGame, createGame, type CoopLoadout } from './game'
+import { createCoopGame, createGame, step, type CoopLoadout } from './game'
 import { parseTickEntry, stepTick, type TickEntry } from './lockstep'
+import { spawnMapEvent } from './mapEvents'
 import { NO_RANKS } from './meta'
 import { actAs, phaseOf, setPhase } from './players'
 import { moveCode, TICK } from './replay'
+import { openPortal } from './riftPortal'
 import { restore, snapshot, stateHash } from './snapshot'
 import { applyStatus } from './status'
 import { updateStatuses } from './statusSystem'
@@ -190,6 +193,42 @@ describe('co-op picks', () => {
     expect(g.time).toBeGreaterThan(time + 0.9)
     run(g, COOP.pick.time)
     expect([b.phase, b.curses.held]).toEqual(['playing', []])
+  })
+})
+
+describe('co-op locks (COOP_LOCKS)', () => {
+  it('an epic rift sends the team into its old arena, not its domain (solo keeps the domain)', () => {
+    const g = team()
+    calm(g)
+    const [a] = players(g)
+    openPortal(g, 'kyogre', { x: a.x, y: a.y })
+    run(g, RIFT.enterTime + 0.2)
+    expect([g.rift.arena?.legend, g.rift.arena?.domain]).toEqual(['kyogre', null])
+    const solo = createGame('charmander', { w: 480, h: 270 }, 42)
+    openPortal(solo, 'kyogre', { x: solo.player.x, y: solo.player.y })
+    for (let t = 0; t < Math.round((RIFT.enterTime + 0.2) / TICK); t++) step(solo, { move: { x: 0, y: 0 }, special: false }, TICK)
+    expect(solo.rift.arena?.domain?.legend).toBe('kyogre')
+  })
+
+  it('opens no place entrance, even when one is due', () => {
+    const g = team()
+    calm(g)
+    g.place.nextAt = 0
+    run(g, 2)
+    expect(g.place.entrance).toBeNull()
+  })
+
+  it("a mission's prize waits as a level-up for a player on a screen of their own", () => {
+    const g = team()
+    calm(g)
+    const [a, b] = players(g)
+    b.offers = [{ kind: 'curse', id: 'lifeOrb', take: true }, { kind: 'curse', id: 'lifeOrb', take: false }]
+    setPhase(g, 'curse', b)
+    // Every lost Poké Ball lies under the first player: the mission is done on the next tick.
+    const balls = spawnMapEvent(g, 'collect', Math.round(a.x), Math.round(a.y))
+    balls.state.balls = balls.state.balls.map(() => ({ x: a.x, y: a.y, got: false }))
+    stepTick(g, [])
+    expect([a.phase, a.prize, b.phase, b.pendingLevelUps]).toEqual(['levelup', 'mission', 'curse', 1])
   })
 })
 

@@ -7,7 +7,7 @@ import { domainOf, type ArenaTransform, type LegendDomain, type ThreatKind } fro
 import { ARENAS, RIFT, type ArenaTheme, type RiftLegend } from '../data/rifts'
 import { composePlan, transformStage } from '../game/domainRules'
 import type { DomainState } from '../game/domain'
-import type { RiftArena, RiftPortal } from '../game/rift'
+import { riftDomain, type RiftArena, type RiftPortal } from '../game/rift'
 import type { Game } from '../game/types'
 import { FACES, lavaColor, mix, PATTERNS, rgb } from './rift'
 import { shade } from './sculpt'
@@ -571,7 +571,8 @@ export const drawDomainFloor = (ctx: Ctx, arena: RiftArena, d: DomainState, camX
  */
 export const warmDomain = (g: Game) => {
   const arena = g.rift.arena
-  const legend = arena?.domain?.legend ?? g.rift.omen?.legend ?? g.rift.portal?.legend
+  const outside = g.rift.omen?.legend ?? g.rift.portal?.legend
+  const legend = arena?.domain?.legend ?? (outside && riftDomain(g, outside) ? outside : undefined)
   const p = legend ? painterOf(legend) : null
   if (!p) {
     if (chunks.size > 0) chunks.clear()

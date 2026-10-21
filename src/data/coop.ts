@@ -63,3 +63,28 @@ export const COOP = {
     hold: 75,
   },
 } as const
+
+/**
+ * What the co-op beta leaves out (Pedro, 2026-10-21: the normal mode only, as
+ * stable as it gets; each can be switched on once a bot soak goes through it).
+ * This is the one list of them.
+ *
+ * Never in co-op, by construction (`createCoopGame` reads no save, day or
+ * clock): the Legend mode (`CoopLoadout.starter` is a starter or a hatched
+ * family), the Poké Mart's Bag, armed TMs, owned evolution items and Bottle
+ * Caps (Kecleon's shop), the day's outbreak, the Noite das Bruxas (ghosts,
+ * night bosses, candies, jack-o'-lanterns) and the lucky first egg. The run's
+ * roster is drawn from its own rng. Ranking, the Desafio do dia, companions
+ * and the server's replay checks are the shell's to skip.
+ *
+ * Switched off in the simulation while `g.coop !== null` (`coopLocked`):
+ * - `places`: no place entrance opens (cave, graveyard, sky; `updatePlaceEntrance`).
+ * - `landmarks`: landmarks are scenery only: no names, treasures or tunnels (`updateLandmarks`).
+ * - `domains`: an epic rift's legendary is fought in its old arena
+ *   (`data/arenas.ts`), not its domain (`riftDomain`): no omen sky or weather,
+ *   no tear, no crossing.
+ */
+export const COOP_LOCKS = { places: true, landmarks: true, domains: true } as const
+
+/** Whether co-op leaves `what` out of this run (`COOP_LOCKS`); never solo. */
+export const coopLocked = (g: { coop: object | null }, what: keyof typeof COOP_LOCKS) => g.coop !== null && COOP_LOCKS[what]

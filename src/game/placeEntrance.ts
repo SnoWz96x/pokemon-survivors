@@ -9,6 +9,7 @@ import { notifyPlace, solidAt } from './placeKit'
 import { teamFlies } from './sky'
 import { isOpen } from './terrain'
 import { anchorPlayer } from './players'
+import { coopLocked } from '../data/coop'
 import type { Game, Player } from './types'
 import * as dm from '../engine/dmath'
 
@@ -58,8 +59,9 @@ export const openEntrance = (g: Game, id: PlaceId = pickPlace(g.rng, { offered: 
   return g.place.entrance
 }
 
-/** Opens entrances on schedule, closes them when their time is up, drops them once out of everyone's sight and steps the team in. */
+/** Opens entrances on schedule, closes them when their time is up, drops them once out of everyone's sight and steps the team in. None in co-op (`COOP_LOCKS`). */
 export const updatePlaceEntrance = (g: Game, dt: number) => {
+  if (coopLocked(g, 'places')) return
   const s = g.place
   const ent = s.entrance
   if (!ent) {

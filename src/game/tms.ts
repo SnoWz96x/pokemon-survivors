@@ -125,6 +125,8 @@ const learn = (g: Game, tm: TmOffer, forgot: MoveId | null) => {
   else p.moves.push({ id: tm.id, level: 1, cooldown: 0.3, path: 0 })
   pay(g, tm)
   if (!g.tally.tms.includes(tm.id)) g.tally.tms.push(tm.id)
+  // Co-op: each player's own, for their summary (`coopPayout`).
+  if (g.coop !== null && !p.record.tally.tms.includes(tm.id)) p.record.tally.tms.push(tm.id)
   celebrate(g, tm, forgot)
 }
 

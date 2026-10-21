@@ -411,6 +411,14 @@ export const coopPayout = (g: Game, slot: number): CoopPayout => {
     killsByType: { ...t.killsByType },
     killsByWeather: { ...t.killsByWeather },
     killsByBiome: { ...t.killsByBiome },
+    // Locked out of co-op (`COOP_LOCKS`): nothing of theirs to bank. Legendary
+    // wins don't count toward captures either (that's solo's progression).
+    places: [],
+    placeClears: 0,
+    landmarks: 0,
+    legendWins: {},
+    nightBosses: [],
+    tms: [...t.tms],
   }
   const bonus = runBonus({ time: g.time, kills: p.record.kills, victory: wonRun(g), greed: p.stats.greed, reaperDefeats: g.endless?.reaperDefeats })
   return { coins, bonus, steps, eggs, summary }
