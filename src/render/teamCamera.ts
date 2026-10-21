@@ -1,3 +1,4 @@
+import { COOP } from '../data/coop'
 import { fainted } from '../game/coop'
 import type { Game, Player } from '../game/types'
 
@@ -6,7 +7,10 @@ import type { Game, Player } from '../game/types'
  * never reaches a snapshot or a hash): it follows this client's player and,
  * while they lie fainted (or have left), a teammate still standing, which a
  * tap or a key cycles (`cycleWatched`). Back on their feet, it returns to
- * them. Switching who it follows eases over instead of cutting.
+ * them. Switching who it follows eases over instead of cutting. A wave
+ * legendary's entrance or capture (`g.legendScene`) holds the world and pans
+ * every player's own screen: the camera frames this player's, as
+ * `updateDrawView` does.
  */
 export type TeamCamera = {
   /** Top-left of the drawn view, in world px. */
@@ -76,10 +80,12 @@ const SETTLED = 0.5
  * frame with the frame's `dt`.
  */
 export const updateTeamCamera = (cam: TeamCamera, g: Game, me: Player, w: number, h: number, dt: number) => {
-  const target = watched(cam, g, me)
-  cam.follow = target === me ? null : target.slot
-  const tx = target.x - w / 2
-  const ty = target.y - 10 - h / 2
+  const scene = g.legendScene !== null
+  const target = scene ? me : watched(cam, g, me)
+  if (!scene) cam.follow = target === me ? null : target.slot
+  // The scene's screen is the simulated view's top-left (`COOP.view`): frame its middle.
+  const tx = (scene ? me.screen.x + COOP.view.w / 2 : target.x) - w / 2
+  const ty = (scene ? me.screen.y + COOP.view.h / 2 : target.y - 10) - h / 2
   if (cam.on >= 0 && cam.on !== target.slot) {
     cam.off.x = cam.x - tx
     cam.off.y = cam.y - ty

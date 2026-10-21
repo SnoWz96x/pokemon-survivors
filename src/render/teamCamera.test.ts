@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PLAYABLE_IDS } from '../data/hatchlings'
+import { COOP } from '../data/coop'
 import { createCoopGame } from '../game/game'
 import { NO_RANKS } from '../game/meta'
 import { createTeamCamera, cycleWatched, spectating, updateTeamCamera, watched } from './teamCamera'
@@ -52,5 +53,21 @@ describe('team camera', () => {
     expect(left.slice(0, settled).every((d, i) => i === 0 || d < left[i - 1]!)).toBe(true)
     expect(left[settled - 1]).toBeLessThan(0.6)
     expect(left.slice(settled).every((d) => d === 0)).toBe(true)
+  })
+
+  it("frames this player's own screen while a wave legendary's scene pans it, even spectating", () => {
+    const g = createLocalGame(2, ['charmander', 'squirtle'], 7)
+    const [me, mate] = g.players as [typeof g.players[0], typeof g.players[0]]
+    mate.x = me.x + 300
+    me.hp = 0
+    me.screen = { x: me.x + 40, y: me.y - 500 }
+    g.legendScene = { kind: 'entrance', enemy: 'zapdos', bossId: 1, t: 0, capture: null, next: [], then: null }
+    const cam = updateTeamCamera(createTeamCamera(), g, me, 200, 100, 1 / 60)
+    expect(cam.x).toBe(me.screen.x + COOP.view.w / 2 - 100)
+    expect(cam.y).toBe(me.screen.y + COOP.view.h / 2 - 50)
+    // The scene over, the spectator's view goes back to the teammate.
+    g.legendScene = null
+    updateTeamCamera(cam, g, me, 200, 100, 1 / 60)
+    expect(cam.follow).toBe(mate.slot)
   })
 })
