@@ -24,8 +24,8 @@ export type BonusWhen =
   | 'flying'
   | 'elite' | 'boss'
 
-/** ×`mult` damage on hits against foes matching `when`. Several bonuses multiply. */
-export type DamageBonus = { when: BonusWhen; mult: number }
+/** ×`mult` damage on hits against foes matching `when`. Several bonuses multiply. `stamp`: a branch's mod put it there (Hunter, Cruel; `stampMods`), so it's added once. */
+export type DamageBonus = { when: BonusWhen; mult: number; stamp?: 'hunter' | 'cruel' }
 
 export const NO_BONUS: readonly DamageBonus[] = []
 
