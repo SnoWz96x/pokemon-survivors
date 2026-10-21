@@ -9,12 +9,13 @@ import { notifyPlace } from './placeKit'
 import { bringBack, keepOnFloor, setAside } from './room'
 import { buildSky, calmSky, updateSky } from './sky'
 import type { Solid } from './terrain'
+import { centerScreen, placeTeam } from './players'
 import type { Game } from './types'
 
 /**
  * The inside of a place: a room (`room.ts`) laid out by the place's rules,
  * with its own spawns and goal. Stepping in sets the world aside; time
- * running out (or the goal's loot window closing) brings the player back out
+ * running out (or the goal's loot window closing) brings the team back out
  * at the entrance's door, with the world exactly as it was.
  */
 
@@ -39,19 +40,16 @@ const PLACE_RULES: { [K in PlaceId]: PlaceRule<K> } = {
   sky: { build: buildSky, update: updateSky, walls: false, timeUp: calmSky },
 }
 
-/** How far south of the door the player steps back out, clear of the entrance. */
+/** How far south of the door the team steps back out, clear of the entrance. */
 const EXIT_STEP = 16
 
-/** Sends the player into place `id`, laid out around the entrance's door at (x, y). */
+/** Sends the team into place `id`, laid out around the entrance's door at (x, y). */
 export const enterPlace = <K extends PlaceId>(g: Game, id: K, x: number, y: number) => {
   const rule: PlaceRule<K> = PLACE_RULES[id]
   const stash = setAside(g)
   const built = rule.build(g, x, y)
-  const p = g.player
-  p.x = x + built.start[0]
-  p.y = y + built.start[1]
-  g.camera.x = p.x - g.view.w / 2
-  g.camera.y = p.y - 10 - g.view.h / 2
+  placeTeam(g, x + built.start[0], y + built.start[1])
+  for (const p of g.players) centerScreen(g, p, p.x, p.y)
   const inside: PlaceInteriorOf<K> = {
     id,
     x,
@@ -75,15 +73,15 @@ export const enterPlace = <K extends PlaceId>(g: Game, id: K, x: number, y: numb
   if (inside.intro > 0) notifyPlace(g, id, { kind: 'floor', floor: 0 })
 }
 
-/** Brings the player back out at the entrance's door. */
+/** Brings the team back out at the entrance's door. */
 export const exitPlace = (g: Game, outcome: PlaceOutcome) => {
   const inside = g.place.inside
   if (!inside) return
-  const p = g.player
-  p.x = inside.door.x
-  p.y = inside.door.y + EXIT_STEP
-  p.vx = 0
-  p.vy = 0
+  placeTeam(g, inside.door.x, inside.door.y + EXIT_STEP)
+  for (const p of g.players) {
+    p.vx = 0
+    p.vy = 0
+  }
   g.place.inside = null
   bringBack(g, inside.stash)
   g.flash = 0.6
@@ -91,17 +89,21 @@ export const exitPlace = (g: Game, outcome: PlaceOutcome) => {
 }
 
 /**
- * Plays the rescue after the player fainted inside and lands them at the door
- * with `PLACE.fallHp` of their HP. True while it plays (the step waits).
+ * Plays the rescue after a player fainted inside and lands the team at the
+ * door, whoever fainted with `PLACE.fallHp` of their HP. True while it plays
+ * (the step waits).
  */
 export const updatePlaceFall = (g: Game, dt: number) => {
   const inside = g.place.inside
   if (!inside || inside.fall === null) return false
   inside.fall -= dt
   if (inside.fall > 0) return true
-  const p = g.player
-  p.hp = Math.max(1, Math.round(p.stats.maxHp * PLACE.fallHp))
-  p.hurt = 0
+  for (const p of g.players) {
+    // Solo the one player is the one who fell.
+    if (g.players.length > 1 && p.hp > 0) continue
+    p.hp = Math.max(1, Math.round(p.stats.maxHp * PLACE.fallHp))
+    p.hurt = 0
+  }
   exitPlace(g, 'fallen')
   return true
 }
@@ -117,8 +119,7 @@ export const updatePlaceIntro = (g: Game, dt: number) => {
 const run = <K extends PlaceId>(g: Game, inside: PlaceInteriorOf<K>, dt: number) => {
   const rule: PlaceRule<K> = PLACE_RULES[inside.id]
   const whole = inside.layout.floor
-  const p = g.player
-  keepOnFloor(p, inside, whole, [], p.radius)
+  for (const p of g.players) keepOnFloor(p, inside, whole, [], p.radius)
   if (rule.walls) for (const e of g.enemies) if (e.dying < 0) keepOnFloor(e, inside, whole, [], e.radius * 0.8)
   // Shots break where the floor ends.
   retain(g.hazards, (h) => onFloor(whole, h.x - inside.x, h.y - inside.y, 4))
@@ -133,7 +134,7 @@ const run = <K extends PlaceId>(g: Game, inside: PlaceInteriorOf<K>, dt: number)
   rule.update(g, inside, dt)
 }
 
-/** Runs the place the player is in: keeps everyone where they belong, its rules, its clock and the loot window. */
+/** Runs the place the team is in: keeps everyone where they belong, its rules, its clock and the loot window. */
 export const updatePlace = (g: Game, dt: number) => {
   const inside = g.place.inside
   if (!inside) return

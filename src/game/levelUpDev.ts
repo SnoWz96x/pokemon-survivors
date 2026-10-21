@@ -1,6 +1,7 @@
 import { runLearnset } from './learnsets'
 import { loadout, rollOffers, withRarity } from './leveling'
 import { forkAt, MOVE_IDS, MOVES, withBranch, type MoveId } from './moves'
+import { setPhase } from './players'
 import type { Game, Offer, Rarity } from './types'
 
 /**
@@ -11,9 +12,9 @@ import type { Game, Offer, Rarity } from './types'
 export const levelUpDevTools = (game: () => Game | undefined) => {
   /** Opens a level-up showing `offers` (the shell draws it on the next frame). */
   const open = (g: Game, offers: Offer[]) => {
-    g.offers = offers
-    g.pendingLevelUps = Math.max(1, g.pendingLevelUps)
-    g.phase = 'levelup'
+    g.player.offers = offers
+    g.player.pendingLevelUps = Math.max(1, g.player.pendingLevelUps)
+    setPhase(g, 'levelup')
     return offers
   }
   /** The move at `id`, owned (added at level 1 if missing). */
@@ -59,7 +60,7 @@ export const levelUpDevTools = (game: () => Game | undefined) => {
       const g = game()
       if (!g) return 'ps: start a run first'
       // Owning a few of the learnset gives the rare cards levels to jump.
-      for (const id of runLearnset(g.starter, g.branch, g.player.stage).slice(0, 3)) {
+      for (const id of runLearnset(g.player.starter, g.player.branch, g.player.stage).slice(0, 3)) {
         const owned = own(g, id)
         owned.level = Math.max(owned.level, 2)
       }
@@ -71,7 +72,7 @@ export const levelUpDevTools = (game: () => Game | undefined) => {
     banishes: (n = 3) => {
       const g = game()
       if (!g) return 'ps: start a run first'
-      g.banishes = n
+      g.player.banishes = n
       return n
     },
   }

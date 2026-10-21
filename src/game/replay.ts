@@ -17,7 +17,7 @@ import { isRecord, wholeNumber } from './parse'
 import { isOutbreakSpecies, withOutbreak } from './outbreak'
 import { withHaunts } from './halloween'
 import { biomeWeight, drawRoster } from './roster'
-import type { Game } from './types'
+import type { Game, Player } from './types'
 
 /**
  * Replays: a run as its seed plus everything the simulation took from the
@@ -274,7 +274,7 @@ const applyEvent = (g: Game, e: ReplayEvent) => {
     case 'lunge':
       return
     case 'offer': {
-      const offer = g.offers[e[2]]
+      const offer = g.player.offers[e[2]]
       if (offer) chooseOffer(g, offer)
       return
     }
@@ -298,7 +298,7 @@ const applyEvent = (g: Game, e: ReplayEvent) => {
  * it, `server/src/checks.ts`). `branch`: the branching evolution it
  * took, which the boards trust over the one the game reported.
  */
-export type Resimulated = { time: number; kills: number; level: number; branch: Game['branch']; phase: Game['phase']; stuck: boolean }
+export type Resimulated = { time: number; kills: number; level: number; branch: Player['branch']; phase: Game['phase']; stuck: boolean }
 
 /**
  * Plays a replay again from its seed, step by step, applying each event at its
@@ -335,5 +335,5 @@ export const resimulate = (replay: Replay, g: Game = startGame(replay.start)): R
     }
   }
   applyDue()
-  return { time: g.time, kills: g.kills, level: g.player.level, branch: g.branch, phase: g.phase, stuck: g.phase === 'levelup' }
+  return { time: g.time, kills: g.kills, level: g.player.level, branch: g.player.branch, phase: g.phase, stuck: g.phase === 'levelup' }
 }

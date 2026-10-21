@@ -16,7 +16,7 @@ const START: ReplayStart = { seed: 5, starter: 'squirtle', difficulty: 'normal',
 /** A run past its first pick, holding only `move` (ready to cast) at `level`, its forks on `path`. */
 const run = (move: OwnedMove['id'], level = 1, path = 0): Game => {
   const g = startGame(START)
-  chooseOffer(g, g.offers[0]!)
+  chooseOffer(g, g.player.offers[0]!)
   g.player.moves = [{ id: move, level, cooldown: 0, path }]
   return g
 }

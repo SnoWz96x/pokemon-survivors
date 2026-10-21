@@ -12,7 +12,7 @@ describe('fainting in a place', () => {
     const g = createGame('charmander', { w: 480, h: 270 }, 1)
     const outside = g.enemies
     const door = { x: g.player.x, y: g.player.y }
-    g.revives = 1
+    g.player.revives = 1
     enterPlace(g, id, door.x, door.y)
     // The cave opens on its floor's title card.
     for (let t = 0; t < 2; t += DT) step(g, still, DT)
@@ -31,7 +31,7 @@ describe('fainting in a place', () => {
     expect(g.enemies).toBe(outside)
     expect(g.player.hp).toBe(Math.round(g.player.stats.maxHp * PLACE.fallHp))
     expect(g.player.x).toBe(door.x)
-    expect(g.revives).toBe(1)
+    expect(g.player.revives).toBe(1)
     expect(g.place.cleared).toEqual([])
     expect(g.events.some((e) => e.kind === 'place' && e.notice.kind === 'exit' && e.notice.outcome === 'fallen')).toBe(true)
   })

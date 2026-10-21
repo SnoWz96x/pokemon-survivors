@@ -6,6 +6,7 @@ import { t } from '../i18n'
 import { specialIcon, stanceIcon } from '../render/specialFx'
 import { boundLabel, setGlyphText } from './inputLabels'
 import { h, setStyle, setText } from './dom'
+import { localPlayer } from '../game/players'
 
 /**
  * Special attack controls: a HUD badge next to the move slots (desktop) and a
@@ -35,7 +36,7 @@ export const createSpecialControls = (onPress: () => void) => {
 
   const update = (g: Game) => {
     const r = gameSpecial(g)
-    const s = g.special
+    const s = localPlayer(g).special
     setGlyphText(keyLabel, boundLabel('special'))
     const look = `${r.tier.name}|${s.stance}`
     if (key !== look) {

@@ -10,6 +10,7 @@ import { grantStone } from './mega'
 import { collectTm } from './tms'
 import { collectCandy } from './halloween'
 import { collectEvoItem } from './evoGate'
+import { setPhase } from './players'
 import type { Game, Offer, Pickup } from './types'
 import * as dm from '../engine/dmath'
 
@@ -93,8 +94,8 @@ const openPokeball = (g: Game) => {
   burst(g, p.x, p.y - 14, { colors: ['#ffffff', '#fff8c0', '#ffd830'], count: 12, speed: 45, ttl: 0.9, gravity: -60 })
   g.shake = Math.max(g.shake, 2)
   if (offer && pokeballAsks(offer, p)) {
-    g.phase = 'pokeball'
-    g.offers = [offer, { kind: 'pass' }]
+    setPhase(g, 'pokeball')
+    g.player.offers = [offer, { kind: 'pass' }]
     g.events.push({ kind: 'pokeball', offer, moment: 'found' })
     return
   }
@@ -105,7 +106,7 @@ const openPokeball = (g: Game) => {
 
 /** The player's call on a Poké Ball's new move or item: `pass` leaves it, anything else takes it. */
 export const decidePokeball = (g: Game, picked: Offer) => {
-  const [found] = g.offers
+  const [found] = g.player.offers
   if (!found || found.kind === 'pass') return
   const take = picked.kind !== 'pass'
   if (take) applyOffer(g, found)

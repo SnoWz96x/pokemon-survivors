@@ -3,6 +3,7 @@ import { hash2 } from '../engine/rng'
 import { LANDMARK, TUNNEL } from '../data/landmarks'
 import { featuresNear } from '../game/terrain'
 import { roomOf } from '../game/room'
+import { localPlayer } from '../game/players'
 import type { Game } from '../game/types'
 
 /**
@@ -47,7 +48,7 @@ export const drawLandmarkAir = (ctx: Ctx, g: Game, t: number, visible: (x: numbe
         ctx.drawImage(GLINT(), Math.round(chest.x + 4 - 2), Math.round(chest.y - 14 - 2))
         ctx.globalAlpha = 1
       }
-      const open = g.landmarks.opening
+      const open = localPlayer(g).landmark.opening
       if (open?.cell === lm.cell) drawProgress(ctx, chest.x, chest.y - 22, open.t / LANDMARK.openTime)
     } else if (lm.id === 'ruins') {
       for (let i = 0; i < 4; i++) {
@@ -107,7 +108,8 @@ const drawProgress = (ctx: Ctx, x: number, y: number, k: number) => {
 
 /** Under a ridge: the screen goes dark on the way in, a faint light moves with the player, and it opens up again at the far mouth. */
 export const drawTunnelDark = (ctx: Ctx, g: Game, camX: number, camY: number) => {
-  const tr = g.landmarks.transit
+  const p = localPlayer(g)
+  const tr = p.landmark.transit
   if (!tr) return
   const k = tr.t / TUNNEL.travel
   const dark = Math.min(1, k / 0.22, (1 - k) / 0.22)
@@ -116,13 +118,13 @@ export const drawTunnelDark = (ctx: Ctx, g: Game, camX: number, camY: number) =>
   ctx.fillStyle = '#060404'
   ctx.fillRect(0, 0, w, h)
   // The player's own light down there, and the rails it follows.
-  const px = Math.round(g.player.x - camX)
-  const py = Math.round(g.player.y - camY - 10)
+  const px = Math.round(p.x - camX)
+  const py = Math.round(p.y - camY - 10)
   ctx.globalAlpha = 0.5 * Math.max(0, dark)
   ctx.drawImage(ellipse(18, 12, '#3a2e28'), px - 18, py - 12)
   ctx.fillStyle = '#7c7c88'
   for (let i = -6; i <= 6; i++) {
-    const rx = Math.round(px + i * 6 - ((g.player.x * 1) % 6))
+    const rx = Math.round(px + i * 6 - ((p.x * 1) % 6))
     ctx.fillRect(rx, py + 9, 1, 1)
     ctx.fillRect(rx, py + 13, 1, 1)
   }
@@ -130,4 +132,4 @@ export const drawTunnelDark = (ctx: Ctx, g: Game, camX: number, camY: number) =>
 }
 
 /** Whether the player's sprite hides (walking under a ridge). */
-export const playerUnderground = (g: Game) => g.landmarks.transit !== null
+export const playerUnderground = (g: Game) => localPlayer(g).landmark.transit !== null

@@ -13,6 +13,7 @@ import { awardEgg, dropCoins, dropPickup } from './pickups'
 import { placePool, type PlaceInteriorOf } from './place'
 import { notifyPlace, solidAt, spawnInPlace, startLoot } from './placeKit'
 import { playerTypes, type Solid } from './terrain'
+import { anchorPlayer, centerScreen, placeTeam } from './players'
 import type { Game } from './types'
 import * as dm from '../engine/dmath'
 
@@ -45,7 +46,7 @@ type CaveInside = PlaceInteriorOf<'cave'>
 /** The treasure chamber: a round cavern, crystals around its wall and the chest in the middle. */
 const CHAMBER = { r: 120, chest: [0, -14] as Pt, start: [0, 94] as Pt, crystals: 7 } as const
 
-/** How far the player's light reaches: Fire types carry a flame, Electric types use Flash. */
+/** How far the acting player's light reaches: Fire types carry a flame, Electric types use Flash. */
 export const caveLight = (g: Game) => {
   const types = playerTypes(g)
   return types.includes('fire') ? CAVE.fireLight : types.includes('electric') ? CAVE.electricLight : CAVE.light
@@ -101,9 +102,9 @@ export const buildCave = (g: Game, x: number, y: number) => {
 }
 
 /**
- * Down the stairs: a fresh floor and a fresh cast. Loot still lying around
- * comes along (it flies to the player as they arrive), and the floor's title
- * card holds everything still for a moment.
+ * Down the stairs: a fresh floor and a fresh cast, the team at its start.
+ * Loot still lying around comes along (it flies to a player as they arrive),
+ * and the floor's title card holds everything still for a moment.
  */
 export const descendCave = (g: Game, inside: CaveInside) => {
   const s = inside.state
@@ -115,25 +116,34 @@ export const descendCave = (g: Game, inside: CaveInside) => {
   inside.layout = f.layout
   inside.terrain = { solids: f.solids, lake: null }
   inside.state = { ...stateOf(f, s.floor + 1), wind: s.wind }
-  const p = g.player
-  p.x = inside.x + start[0]
-  p.y = inside.y + start[1]
+  placeTeam(g, inside.x + start[0], inside.y + start[1])
+  const p = anchorPlayer(g)
   for (const k of g.pickups) {
     if (!k.attracted) continue
     k.x = p.x + range(g.rng, -20, 20)
     k.y = p.y - 30
   }
-  g.camera.x = p.x - g.view.w / 2
-  g.camera.y = p.y - 10 - g.view.h / 2
+  for (const q of g.players) centerScreen(g, q, q.x, q.y)
   inside.intro = CAVE.card
   notifyPlace(g, 'cave', { kind: 'floor', floor: inside.state.floor })
 }
 
-/** A spot in the dark: in some room (or around the chamber), past the player's light but close enough to come for them. */
+/** Whether (x, y) is in some player's light (and its 24 px fringe). */
+const inLight = (g: Game, x: number, y: number) => {
+  const before = g.player
+  let lit = false
+  for (const p of g.players) {
+    g.player = p
+    if (dm.sq(x - p.x) + dm.sq(y - p.y) <= dm.sq(caveLight(g) + 24)) lit = true
+  }
+  g.player = before
+  return lit
+}
+
+/** A spot in the dark: in some room (or around the chamber), past every player's light but close enough to come for one of them (they take turns, `anchorPlayer`). */
 const darkSpot = (inside: CaveInside) => (g: Game) => {
   const plan = inside.state.plan
-  const p = g.player
-  const near = caveLight(g) + 24
+  const p = anchorPlayer(g)
   for (let i = 0; i < 4; i++) {
     let x: number
     let y: number
@@ -147,8 +157,7 @@ const darkSpot = (inside: CaveInside) => (g: Game) => {
       x = inside.x + dm.cos(a) * d
       y = inside.y + dm.sin(a) * d
     }
-    const d2 = dm.sq(x - p.x) + dm.sq(y - p.y)
-    if (d2 > near * near && d2 < 380 * 380) return { x, y }
+    if (!inLight(g, x, y) && dm.sq(x - p.x) + dm.sq(y - p.y) < 380 * 380) return { x, y }
   }
   return null
 }
@@ -195,14 +204,13 @@ export const updateCave = (g: Game, inside: CaveInside, dt: number) => {
     s.wind++
     notifyPlace(g, 'cave', { kind: 'wind', level: s.wind })
   }
-  const p = g.player
-  const lx = p.x - inside.x
-  const ly = p.y - inside.y
-  if (s.stairs && dm.sq(lx - s.stairs[0]) + dm.sq(ly - s.stairs[1]) < dm.sq(CAVE.stairsRadius + p.radius * 0.5)) return descendCave(g, inside)
+  // Any player at the stairs takes the team down; any player at the chest opens it.
+  const stairs = s.stairs
+  if (stairs && g.players.some((p) => dm.sq(p.x - inside.x - stairs[0]) + dm.sq(p.y - inside.y - stairs[1]) < dm.sq(CAVE.stairsRadius + p.radius * 0.5))) return descendCave(g, inside)
   const chest = s.chest
   if (chest && !chest.open) {
     if (!s.house) return springHouse(g, inside)
-    const near = dm.sq(lx - chest.x) + dm.sq(ly - chest.y) < dm.sq(CAVE.chestRadius + p.radius)
+    const near = g.players.some((p) => dm.sq(p.x - inside.x - chest.x) + dm.sq(p.y - inside.y - chest.y) < dm.sq(CAVE.chestRadius + p.radius))
     const before = chest.progress
     chest.progress = clamp(chest.progress + (near ? dt : -dt * 0.5) / CAVE.chestTime, 0, 1)
     if (chest.progress > before && Math.floor(chest.progress * 5) !== Math.floor(before * 5)) notifyPlace(g, 'cave', { kind: 'chestTick' })

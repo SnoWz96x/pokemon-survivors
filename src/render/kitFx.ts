@@ -3,6 +3,7 @@ import { TYPE_COLORS } from '../data/types'
 import { MOVES, type MoveDef } from '../game/moves'
 import type { Attack, Enemy, Game } from '../game/types'
 import { dashedRing } from './strokes'
+import { localPlayer } from '../game/players'
 
 /**
  * Drawing for the move kit (`game/moveKit.ts`): delayed-strike telegraphs,
@@ -103,10 +104,10 @@ export const drawKitStatus = (ctx: Ctx, g: Game, t: number, visible: (x: number,
 
 /** The guard window as a bright bubble around the player, flickering in its last moments. */
 export const drawGuard = (ctx: Ctx, g: Game, t: number) => {
-  const w = g.player.guard
+  const w = localPlayer(g).guard
   if (!w || (w.left < 0.3 && Math.floor(t * 20) % 2 === 0)) return
   const def: MoveDef = MOVES[w.move]
-  const p = g.player
+  const p = localPlayer(g)
   const r = Math.max(14, p.radius + 9)
   dashedRing(ctx, p.x, p.y - 10, r, t * 4, [TYPE_COLORS[def.type], '#ffffff'], 0.9)
   dashedRing(ctx, p.x, p.y - 10, r - 2, -t * 6, ['#ffffff'], 0.3)

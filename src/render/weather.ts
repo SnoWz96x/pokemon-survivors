@@ -5,6 +5,7 @@ import { WEATHER } from '../data/weather'
 import type { Game } from '../game/types'
 import { art, lazy, toIconUrl } from './art'
 import { roomOf } from '../game/room'
+import { localPlayer } from '../game/players'
 
 /**
  * Weather overlays, drawn in screen space over the world. Every particle is a
@@ -212,7 +213,7 @@ const drawOne = (ctx: Ctx, id: WeatherId, alpha: number, g: Game, camX: number, 
   const { w, h } = g.view
   ctx.save()
   ctx.globalAlpha = alpha
-  if (id === 'fog') fog(ctx, w, h, camX, camY, t, g.player.x - camX, g.player.y - 10 - camY)
+  if (id === 'fog') fog(ctx, w, h, camX, camY, t, localPlayer(g).x - camX, localPlayer(g).y - 10 - camY)
   else DRAW[id](ctx, w, h, camX, camY, t)
   ctx.restore()
 }

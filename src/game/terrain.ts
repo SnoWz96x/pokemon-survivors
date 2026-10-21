@@ -10,6 +10,7 @@ import { arenaGround } from './arenaFloor'
 import { burst } from './effects'
 import { roomOf } from './room'
 import { isAirborne } from './traits'
+import { nearestPlayer } from './players'
 import type { Enemy, Game } from './types'
 import * as dm from '../engine/dmath'
 
@@ -321,11 +322,12 @@ export const playerTypes = (g: Game) => playerForm(g).types
 export const playerWaterPace = (g: Game) => (playerTypes(g).includes('water') || abilityImmune(g, 'terrain') ? 1 : TERRAIN.waterPace)
 
 /**
- * Nudges an enemy pressed against a solid along its edge, toward the player's
- * side, so one coming straight at it from behind never stalls at its middle.
+ * Nudges an enemy pressed against a solid along its edge, toward the side of
+ * the player nearest to it, so one coming straight at it from behind never
+ * stalls at its middle.
  */
 const slide = (g: Game, e: Enemy, wall: Ellipse, dt: number) => {
-  const p = g.player
+  const p = nearestPlayer(g, e.x, e.y)
   const nx = (e.x - wall.x) / ((wall.rx + 1) * (wall.rx + 1))
   const ny = (e.y - wall.y) / ((wall.ry + 1) * (wall.ry + 1))
   const n = Math.sqrt(nx * nx + ny * ny) || 1
@@ -343,21 +345,25 @@ const slide = (g: Game, e: Enemy, wall: Ellipse, dt: number) => {
 
 const SHOT_SPARKS = ['#ffffff', '#d8d0c0', '#a89c90'] as const
 
-/** Keeps walkers out of solids, breaks enemy shots on them and drops cells far behind the player. */
+/** Whether terrain cell (cx, cy) is more than 5 cells (per axis) from every player: far behind everyone, so it can go. */
+const farFromAll = (g: Game, cx: number, cy: number) => {
+  for (const p of g.players) {
+    const pcx = Math.floor(p.x / TERRAIN.cell)
+    const pcy = Math.floor(p.y / TERRAIN.cell)
+    if (!(Math.abs(cx - pcx) > 5 || Math.abs(cy - pcy) > 5)) return false
+  }
+  return true
+}
+
+/** Keeps walkers out of solids, breaks enemy shots on them and drops cells far behind the players. */
 export const updateTerrain = (g: Game, dt: number) => {
-  const p = g.player
   if (!roomOf(g) && Math.floor(g.time) !== Math.floor(g.time - dt)) {
-    const C = TERRAIN.cell
-    const pcx = Math.floor(p.x / C)
-    const pcy = Math.floor(p.y / C)
     for (const key of g.terrain.cells.keys()) {
-      const cx = unwrap(key >> 15)
-      const cy = unwrap(key)
-      if (Math.abs(cx - pcx) > 5 || Math.abs(cy - pcy) > 5) g.terrain.cells.delete(key)
+      if (farFromAll(g, unwrap(key >> 15), unwrap(key))) g.terrain.cells.delete(key)
     }
   }
-  // Under a tunnel's ridge (`landmarks.ts`) the player goes through the rock.
-  if (!g.landmarks.transit) block(g, p, p.radius)
+  // Under a tunnel's ridge (`landmarks.ts`) a player goes through the rock.
+  for (const p of g.players) if (!p.landmark.transit) block(g, p, p.radius)
   for (const e of g.enemies) {
     if (e.dying >= 0 || overTerrain(e)) continue
     const wall = block(g, e, e.radius * 0.8)
@@ -368,6 +374,6 @@ export const updateTerrain = (g: Game, dt: number) => {
     h.age = h.ttl
     burst(g, h.x, h.y, { colors: SHOT_SPARKS, count: 6, speed: 50, ttl: 0.25 })
   }
-  // Loot that a flyer dropped over a mountain rolls off to where the player can reach it.
+  // Loot that a flyer dropped over a mountain rolls off to where the players can reach it.
   for (const k of g.pickups) if (!k.attracted) block(g, k, 3)
 }

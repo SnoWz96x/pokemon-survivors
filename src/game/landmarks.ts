@@ -7,7 +7,7 @@ import { COIN_VALUES } from './meta'
 import { awardEgg, dropCoins, dropPickup, dropXp } from './pickups'
 import { roomOf } from './room'
 import { featuresNear, type Landmark } from './terrain'
-import type { Game } from './types'
+import type { Game, Player } from './types'
 import * as dm from '../engine/dmath'
 
 /**
@@ -22,6 +22,7 @@ import * as dm from '../engine/dmath'
 /** Something the shell shows or plays: a landmark named, a treasure opened, the way into and out of a tunnel. */
 export type LandmarkMoment = 'spot' | 'loot' | 'tunnelIn' | 'tunnelOut'
 
+/** The world's side of the landmarks: what was looted and named, and how many treasures were opened. */
 export type LandmarkState = {
   /** Cells whose treasure was taken. */
   looted: Set<number>
@@ -29,6 +30,10 @@ export type LandmarkState = {
   seen: Set<number>
   /** Treasures opened this run. */
   opened: number
+}
+
+/** A player's side of the landmarks (`Player.landmark`): the treasure they're opening, the tunnel they're stepping into or walking. */
+export type PlayerLandmarks = {
   /** The treasure being opened (its cell) and for how long the player has stood at it. */
   opening: { cell: number; t: number } | null
   /** The tunnel mouth being stepped into (its cell, 0 west or 1 east) and for how long. */
@@ -39,20 +44,22 @@ export type LandmarkState = {
   lock: { cell: number; mouth: number } | null
 }
 
-export const createLandmarkState = (): LandmarkState => ({ looted: new Set(), seen: new Set(), opened: 0, opening: null, entering: null, transit: null, lock: null })
+export const createLandmarkState = (): LandmarkState => ({ looted: new Set(), seen: new Set(), opened: 0 })
+
+export const createPlayerLandmarks = (): PlayerLandmarks => ({ opening: null, entering: null, transit: null, lock: null })
 
 const notify = (g: Game, landmark: LandmarkId, moment: LandmarkMoment) => g.events.push({ kind: 'landmark', landmark, moment })
 
 const SPARKLE = ['#ffffff', '#f8e070', '#f8c040', '#a8e0ff'] as const
 const DUST = ['#a89c90', '#7c7068', '#d8d0c0'] as const
 
-/** Opens a landmark's treasure where it stands: ₽, item rolls, berries, Exp. Candy and maybe an egg (`LANDMARK_LOOT`). */
+/** The acting player opens a landmark's treasure where it stands: ₽, item rolls, berries, Exp. Candy (sized to their level) and maybe an egg (`LANDMARK_LOOT`). */
 const openTreasure = (g: Game, lm: Landmark & { id: TreasureLandmark }, x: number, y: number) => {
   const loot = LANDMARK_LOOT[lm.id]
   const s = g.landmarks
   s.looted.add(lm.cell)
   s.opened++
-  s.opening = null
+  g.player.landmark.opening = null
   dropCoins(g, x, y - 4, Array.from({ length: loot.coins + Math.floor(g.time / 300) }, () => COIN_VALUES[1]))
   for (const table of loot.drops) dropItem(g, x, y - 4, rollDrop(DROP_TABLES[table], g.time, g.rng))
   if ('berries' in loot) for (let i = 0; i < loot.berries; i++) dropPickup(g, x - 6 + i * 12, y + 6, 'berry')
@@ -68,23 +75,24 @@ const openTreasure = (g: Game, lm: Landmark & { id: TreasureLandmark }, x: numbe
 
 const isTreasure = (lm: Landmark): lm is Landmark & { id: TreasureLandmark } => lm.id in LANDMARK_LOOT
 
-/** Names the landmarks the player comes close to, opens the treasure they stand at and steps them into a tunnel's mouth. */
+/** Names the landmarks the acting player comes close to, opens the treasure they stand at and steps them into a tunnel's mouth. */
 export const updateLandmarks = (g: Game, dt: number) => {
-  const s = g.landmarks
-  if (s.transit || roomOf(g)) return
   const p = g.player
+  const w = g.landmarks
+  const s = p.landmark
+  if (s.transit || roomOf(g)) return
   let opening = false
   let entering = false
   const near = LANDMARK.treasureRadius + p.radius * 0.5
   for (const f of featuresNear(g, p.x, p.y, LANDMARK.spotRadius)) {
     const lm = f.landmark
     if (!lm) continue
-    if (!s.seen.has(lm.cell) && dm.sq(lm.x - p.x) + dm.sq(lm.y - p.y) < dm.sq(LANDMARK.spotRadius)) {
-      s.seen.add(lm.cell)
+    if (!w.seen.has(lm.cell) && dm.sq(lm.x - p.x) + dm.sq(lm.y - p.y) < dm.sq(LANDMARK.spotRadius)) {
+      w.seen.add(lm.cell)
       notify(g, lm.id, 'spot')
     }
     const chest = lm.treasure
-    if (chest && isTreasure(lm) && !s.looted.has(lm.cell) && dm.sq(chest.x - p.x) + dm.sq(chest.y - p.y) < near * near) {
+    if (chest && isTreasure(lm) && !w.looted.has(lm.cell) && dm.sq(chest.x - p.x) + dm.sq(chest.y - p.y) < near * near) {
       opening = true
       if (s.opening?.cell === lm.cell) s.opening.t += dt
       else s.opening = { cell: lm.cell, t: dt }
@@ -114,14 +122,14 @@ export const updateLandmarks = (g: Game, dt: number) => {
 }
 
 /**
- * Carries the player under a ridge (eased, out of sight and out of reach)
- * and lets them out of the far mouth. True while it does, so the player's
+ * Carries the acting player under a ridge (eased, out of sight and out of
+ * reach) and lets them out of the far mouth. True while it does, so their
  * own walking waits.
  */
 export const updateTunnel = (g: Game, dt: number) => {
-  const tr = g.landmarks.transit
-  if (!tr) return false
   const p = g.player
+  const tr = p.landmark.transit
+  if (!tr) return false
   tr.t += dt
   const k = Math.min(1, tr.t / TUNNEL.travel)
   const e = k * k * (3 - 2 * k)
@@ -131,11 +139,11 @@ export const updateTunnel = (g: Game, dt: number) => {
   p.vy = 0
   p.iframes = Math.max(p.iframes, 0.6)
   if (k < 1) return true
-  g.landmarks.transit = null
+  p.landmark.transit = null
   burst(g, p.x, p.y - 6, { colors: DUST, count: 14, speed: 60, ttl: 0.45 })
   notify(g, 'tunnel', 'tunnelOut')
   return true
 }
 
-/** Whether the player is under a ridge right now (out of sight: foes lose track, the sprite hides). */
-export const underground = (g: Game) => g.landmarks.transit !== null
+/** Whether player `p` (the acting one) is under a ridge right now (out of sight: foes lose track, the sprite hides). */
+export const underground = (g: Game, p: Player = g.player) => p.landmark.transit !== null

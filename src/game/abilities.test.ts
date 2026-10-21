@@ -50,7 +50,7 @@ describe('pinch abilities', () => {
     const g = withAbility('blaze')
     g.player.hp = 1
     const key = abilityKey(g)
-    g.mega.active = 5
+    g.player.mega.active = 5
     expect(abilityKey(g)).not.toBe(key)
     recomputeStats(g)
     expect(g.player.stats.typeDamage.fire ?? 0).toBe(0)

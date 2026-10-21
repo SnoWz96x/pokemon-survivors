@@ -11,6 +11,7 @@ import { LANDMARK_GROUNDS, LANDMARK_PIECES, LANDMARK_SHADOW, LANDMARK_TALL, LAND
 import type { LandmarkGround, LandmarkPiece } from '../data/landmarks'
 import type { Game } from '../game/types'
 import { hasScenery, keepScenery, sceneryPiece } from './scenery'
+import { localPlayer } from '../game/players'
 import {
   cone,
   cylinder,
@@ -1055,7 +1056,7 @@ export const drawSolid = (ctx: CanvasRenderingContext2D, g: Game, s: Solid, biom
   const piece = pieceOf(biome, s.kind, s.variant, s.loot !== undefined && g.landmarks.looted.has(s.loot))
   const x = Math.round(s.x - piece.ax)
   const y = Math.round(s.y - piece.ay)
-  const p = g.player
+  const p = localPlayer(g)
   const hx = Math.round(p.x) - HOLE - x
   const hy = Math.round(p.y) - 12 - HOLE - y
   const behind = tallOf(s.kind) && p.y < s.y && hx > -HOLE * 2 && hy > -HOLE * 2 && hx < piece.sprite.width && hy < piece.sprite.height
@@ -1090,7 +1091,7 @@ const ripple = (rx: number, ry: number) => {
 
 /** Rings spreading from the player's feet while they wade. */
 export const drawWading = (ctx: CanvasRenderingContext2D, g: Game, width: number, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   if (roomOf(g) || groundAt(g, p.x, p.y) !== 'water') return
   for (const k of [0, 0.5]) {
     const ph = (t * 1.2 + k) % 1

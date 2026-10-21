@@ -7,7 +7,7 @@ import { burst } from './effects'
 import { crackPumpkin, isPumpkinCell } from './halloween'
 import { inView } from './queries'
 import { isOpen } from './terrain'
-import type { Attack, Game } from './types'
+import type { Attack, Game, Player } from './types'
 import * as dm from '../engine/dmath'
 
 /**
@@ -48,13 +48,18 @@ export const propAt = (cx: number, cy: number, haunted = false): { kind: PropKin
   }
 }
 
-/** Cells (Chebyshev) around the player that hold live props; one ring past the screen so they never pop in. */
+/** Cells (Chebyshev) around each player that hold live props; one ring past the screen so they never pop in. */
 const reachCells = (g: Game) => Math.ceil(dm.hypot(g.view.w, g.view.h) / 2 / PROP_CELL) + 1
 
+/** Fills the cells around every player with their props (in slot order, so co-op runs agree on the ids). */
 const materialize = (g: Game) => {
+  for (const p of g.players) materializeAround(g, p)
+}
+
+const materializeAround = (g: Game, p: Player) => {
   const reach = reachCells(g)
-  const pcx = Math.floor(g.player.x / PROP_CELL)
-  const pcy = Math.floor(g.player.y / PROP_CELL)
+  const pcx = Math.floor(p.x / PROP_CELL)
+  const pcy = Math.floor(p.y / PROP_CELL)
   for (let cy = pcy - reach; cy <= pcy + reach; cy++) {
     for (let cx = pcx - reach; cx <= pcx + reach; cx++) {
       const cell = cellKey(cx, cy)
@@ -103,13 +108,18 @@ const hitProp = (g: Game, prop: Prop) => {
   dropItem(g, prop.x, prop.y - 2, rollDrop(DROP_TABLES[PROPS[prop.kind].table], g.time, g.rng))
 }
 
-/** Spawns/despawns props around the player and lets any active attack break them. */
+/** Whether a prop at (x, y) is within `far` px (per axis) of some player. */
+const nearAPlayer = (g: Game, x: number, y: number, far: number) => {
+  for (const p of g.players) if (Math.abs(x - p.x) < far && Math.abs(y - p.y) < far) return true
+  return false
+}
+
+/** Spawns/despawns props around the players and lets any active attack break them. */
 export const updateProps = (g: Game, dt: number) => {
   // Re-scanning cells 4x per second is plenty: props live a ring past the screen edge.
   if (g.props.length === 0 || Math.floor(g.time * 4) !== Math.floor((g.time - dt) * 4)) {
     const far = (reachCells(g) + 1.5) * PROP_CELL
-    const p = g.player
-    retain(g.props, (prop) => Math.abs(prop.x - p.x) < far && Math.abs(prop.y - p.y) < far)
+    retain(g.props, (prop) => nearAPlayer(g, prop.x, prop.y, far))
     materialize(g)
   }
 

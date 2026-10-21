@@ -21,6 +21,6 @@ export const tmDevTools = (game: () => Game | undefined) => ({
   lesson: () => {
     const g = game()
     if (!g || g.phase !== 'playing') return console.warn('ps: start a run (and close menus) first')
-    return openTutor(g) ? g.offers : 'The tutor has nothing to teach'
+    return openTutor(g) ? g.player.offers : 'The tutor has nothing to teach'
   },
 })

@@ -12,7 +12,8 @@ import { dropPickup, dropXp } from './pickups'
 import { inView } from './queries'
 import { hasTrait, type StagePool } from './roster'
 import { isHeld } from './status'
-import type { Enemy, Game } from './types'
+import { actAs, anchorPlayer, nearestPlayer, standing } from './players'
+import type { Enemy, Game, Player } from './types'
 import * as dm from '../engine/dmath'
 import { roomOf } from './room'
 
@@ -202,12 +203,14 @@ const direct = (g: Game) => {
   if (!kind) return
   const a = range(g.rng, 0, TAU)
   const d = dm.hypot(g.view.w, g.view.h) / 2 + 24
-  spawnAlpha(g, kind, g.player.x + dm.cos(a) * d, g.player.y + dm.sin(a) * d)
+  const p = anchorPlayer(g)
+  spawnAlpha(g, kind, p.x + dm.cos(a) * d, p.y + dm.sin(a) * d)
 }
 
 /** Mewtwo landed: an Alpha still around runs off (the last fight stays a duel). */
 const flee = (g: Game, e: Enemy) => {
-  const d = dirTo(g.player.x, g.player.y, e.x, e.y)
+  const p = nearestPlayer(g, e.x, e.y)
+  const d = dirTo(p.x, p.y, e.x, e.y)
   e.dying = 0
   e.fled = true
   e.kx = d.x * 260
@@ -216,8 +219,8 @@ const flee = (g: Game, e: Enemy) => {
   g.events.push({ kind: 'bossFled', enemy: e.kind })
 }
 
-const startAim = (g: Game, e: Enemy, a: AlphaState) => {
-  const p = g.player
+/** Aims a charge at player `p`: the red lane runs through them and a bit past. */
+const startAim = (g: Game, e: Enemy, a: AlphaState, p: Player) => {
   const d = dirTo(e.x, e.y, p.x, p.y)
   a.phase = 'aim'
   a.t = 0
@@ -242,24 +245,27 @@ const recover = (g: Game, e: Enemy, a: AlphaState) => {
   g.events.push({ kind: 'alpha', enemy: e.kind, moment: 'shock' })
 }
 
+/** A charge's step along its lane: the first player it runs into takes the hit (once per charge). */
 const dash = (g: Game, e: Enemy, a: AlphaState, dt: number) => {
-  const p = g.player
   const step = Math.min(dashSpeed(a.pace, a.enraged) * dt, a.length - a.run)
   e.x += a.dx * step
   e.y += a.dy * step
   a.run += step
-  if (!a.hit && dm.sq(e.x - p.x) + dm.sq(e.y - p.y) < dm.sq(e.radius + p.radius)) {
+  for (const p of g.players) {
+    if (a.hit || !standing(g, p) || !(dm.sq(e.x - p.x) + dm.sq(e.y - p.y) < dm.sq(e.radius + p.radius))) continue
     a.hit = true
+    const before = actAs(g, p)
     hurtPlayer(g, e.damage * ALPHA_RULES[g.difficulty].hit, e)
+    actAs(g, before)
   }
   if (g.rng() < dt * 20) burst(g, e.x - a.dx * e.radius, e.y, { colors: ['#c8b080', '#a08858'], count: 2, speed: 30, ttl: 0.3, drag: 6 })
   if (a.run >= a.length - 0.01) recover(g, e, a)
 }
 
-/** One Alpha's tick: rage, leash, and the charge cycle (a hold cancels a charge in progress). */
+/** One Alpha's tick: rage, leash, and the charge cycle at the nearest player (a hold cancels a charge in progress). */
 const act = (g: Game, e: Enemy, a: AlphaState, dt: number) => {
   const rules: AlphaRules = ALPHA_RULES[g.difficulty]
-  const p = g.player
+  const p = nearestPlayer(g, e.x, e.y)
   if (rules.rage && !a.enraged && e.hp < e.maxHp * ALPHA.rage.at) {
     a.enraged = true
     a.pace *= ALPHA.rage.speed
@@ -278,7 +284,7 @@ const act = (g: Game, e: Enemy, a: AlphaState, dt: number) => {
   switch (a.phase) {
     case 'walk':
       a.cooldown -= dt
-      if (!held && a.cooldown <= 0 && dist < ALPHA.charge.range && inView(g, e.x, e.y, -8)) startAim(g, e, a)
+      if (!held && a.cooldown <= 0 && dist < ALPHA.charge.range && inView(g, e.x, e.y, -8)) startAim(g, e, a, p)
       return
     case 'aim':
       a.t += dt

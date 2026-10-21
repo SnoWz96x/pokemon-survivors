@@ -7,6 +7,7 @@ import { blastRadius, HEALED_TIME, leapHeight, traitPace } from '../game/traits'
 import type { Enemy, Game } from '../game/types'
 import { TRAIT_FX } from './art'
 import { sprites } from './sprites'
+import { localPlayer } from '../game/players'
 
 /**
  * Enemy-trait visuals: heal/ward/summon pulses, and the telegraphs of the
@@ -152,7 +153,7 @@ export const drawTraitAir = (ctx: Ctx, g: Game, visible: Visible) => {
  * on the side facing the player, blinking faster as the shot gets close (`t` seconds in, `k` 0..1).
  */
 const spitGlow = (ctx: Ctx, g: Game, e: Enemy, t: number, k: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const d = Math.hypot(p.x - e.x, p.y - e.y) || 1
   const x = e.x + ((p.x - e.x) / d) * e.radius * 0.7
   const y = e.y - sprites(ENEMIES[e.kind].dex).bodyH * 0.5 + ((p.y - e.y) / d) * e.radius * 0.4

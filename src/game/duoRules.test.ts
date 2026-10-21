@@ -81,6 +81,6 @@ describe('duo offers', () => {
     const g = createGame('charmander', { w: 400, h: 240 }, 5)
     g.player.moves = [at('flamethrower', 2), maxed('vineWhip')]
     applyOffer(g, { kind: 'duo', from: ['flamethrower', 'vineWhip'], to: 'firePledge' })
-    expect([...g.banished].sort()).toEqual(['ember', 'flamethrower', 'vineWhip'])
+    expect([...g.player.banished].sort()).toEqual(['ember', 'flamethrower', 'vineWhip'])
   })
 })

@@ -5,6 +5,7 @@ import { curseCast } from './curseSystem'
 import { chooseOffer, createGame } from './game'
 import { loadout, offerPool } from './leveling'
 import { maxMoveLevel } from './moves'
+import { setPhase } from './players'
 
 /** An rng that plays back `rolls`, then 0s. */
 const rolls = (...values: number[]) => () => values.shift() ?? 0
@@ -37,7 +38,7 @@ describe('cursed item rules', () => {
   it('Choice Band: upgrades only, no new moves', () => {
     expect(blocksNewMoves(['lifeOrb'])).toBe(false)
     const g = createGame('charmander', { w: 400, h: 240 }, 3)
-    g.curses.held.push('choiceBand')
+    g.player.curses.held.push('choiceBand')
     const pool = offerPool(loadout(g)).map(([o]) => o)
     expect(pool.some((o) => o.kind === 'move' && o.level === 1)).toBe(false)
     expect(pool.some((o) => o.kind === 'move' && o.id === 'ember' && o.level === 2)).toBe(true)
@@ -46,7 +47,7 @@ describe('cursed item rules', () => {
 
   it('Life Orb: a cast costs 1% of max HP, at most once a second', () => {
     const g = createGame('charmander', { w: 400, h: 240 }, 3)
-    g.curses.held.push('lifeOrb')
+    g.player.curses.held.push('lifeOrb')
     const max = g.player.stats.maxHp
     curseCast(g)
     curseCast(g)
@@ -60,16 +61,16 @@ describe('cursed item rules', () => {
     const g = createGame('charmander', { w: 400, h: 240 }, 3)
     const might = g.player.stats.might
     g.player.moves[0]!.level = maxMoveLevel('ember')
-    g.phase = 'curse'
-    g.offers = [{ kind: 'curse', id: 'ironBall', take: true }, { kind: 'curse', id: 'ironBall', take: false }]
-    chooseOffer(g, g.offers[0]!)
+    setPhase(g, 'curse')
+    g.player.offers = [{ kind: 'curse', id: 'ironBall', take: true }, { kind: 'curse', id: 'ironBall', take: false }]
+    chooseOffer(g, g.player.offers[0]!)
     expect(g.phase).toBe('playing')
-    expect(g.curses.held).toEqual(['ironBall'])
+    expect(g.player.curses.held).toEqual(['ironBall'])
     expect(g.player.stats.might).toBeCloseTo(might + 0.3)
 
-    g.phase = 'curse'
-    g.offers = [{ kind: 'curse', id: 'lifeOrb', take: true }, { kind: 'curse', id: 'lifeOrb', take: false }]
-    chooseOffer(g, g.offers[1]!)
-    expect(g.curses.held).toEqual(['ironBall'])
+    setPhase(g, 'curse')
+    g.player.offers = [{ kind: 'curse', id: 'lifeOrb', take: true }, { kind: 'curse', id: 'lifeOrb', take: false }]
+    chooseOffer(g, g.player.offers[1]!)
+    expect(g.player.curses.held).toEqual(['ironBall'])
   })
 })

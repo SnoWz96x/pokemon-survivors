@@ -19,14 +19,16 @@ type Ctx = CanvasRenderingContext2D
 export const LEGEND_BODY = 48
 
 /**
- * The player's sprites: a Mega's form, else a legend's (Primal Kyogre,
- * Deoxys's forme), else a stance's (Aegislash's Blade); a legend's fitted to `LEGEND_BODY`.
+ * The acting player's sprites (the shell's own between ticks): a Mega's form,
+ * else a legend's (Primal Kyogre, Deoxys's forme), else a stance's
+ * (Aegislash's Blade); a legend's fitted to `LEGEND_BODY`.
  */
 export const playerSprites = (g: Game, megaForm?: FormKey): SpeciesSprites => {
-  const stance = g.special.stance
+  const p = g.player
+  const stance = p.special.stance
   const form = megaForm ?? legendLook(g) ?? (stance ? STANCE_FORMS[stance] : undefined)
-  const s = sprites(playerDex(g), g.player.shiny, form)
-  return g.legend ? fitSprites(s, LEGEND_BODY) : s
+  const s = sprites(playerDex(g), p.shiny, form)
+  return p.legend ? fitSprites(s, LEGEND_BODY) : s
 }
 
 /** A boss of the player's own species (`isClone`): a dark violet cast and outline. */
@@ -39,9 +41,9 @@ export const CLONE_OUTLINE = '#a050f0'
  * (Flashes: reduced) keeps the ring still and the motes few.
  */
 export const drawLegendAura = (ctx: Ctx, g: Game, t: number, calm: boolean) => {
-  const s = g.legend
-  if (!s) return
   const p = g.player
+  const s = p.legend
+  if (!s) return
   const color = PLAYABLE[s.id].color
   const body = playerSprites(g)
   const rx = Math.round(body.bodyW / 2) + 4

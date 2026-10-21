@@ -3,6 +3,7 @@ import { isWaveLegend, WAVE_LEGEND_HP } from '../data/legendBosses'
 import type { EnemyId } from '../data/enemies'
 import { burst, updateEffects } from './effects'
 import { despawnEnemy } from './enemies'
+import { centerScreen } from './players'
 import type { Enemy, Game } from './types'
 
 /**
@@ -92,11 +93,6 @@ export const sceneHides = (g: Game) => {
   return s.kind === 'capture' || s.t < ENTRANCE_REVEAL ? s.bossId : -1
 }
 
-const centerOn = (g: Game, x: number, y: number) => {
-  g.camera.x = x - g.view.w / 2
-  g.camera.y = y - 10 - g.view.h / 2
-}
-
 /** The scene is over: the next entrance waiting, or what it was holding (Mewtwo's victory). */
 const finish = (g: Game, s: LegendScene) => {
   g.legendScene = null
@@ -115,7 +111,8 @@ const finish = (g: Game, s: LegendScene) => {
 
 /**
  * Plays a legendary's scene with the world held still (the step waits on it):
- * it moves the camera itself and keeps the particles going. True while one plays.
+ * it moves every player's screen itself (each from where they stand) and
+ * keeps the particles going. True while one plays.
  */
 export const updateLegendScene = (g: Game, dt: number) => {
   const s = g.legendScene
@@ -124,7 +121,6 @@ export const updateLegendScene = (g: Game, dt: number) => {
   s.t += dt
   updateEffects(g, dt)
   g.flash = Math.max(0, g.flash - dt * 1.5)
-  const p = g.player
   if (s.kind === 'entrance') {
     const boss = g.enemies.find((e) => e.id === s.bossId)
     if (!boss || boss.dying >= 0) {
@@ -140,7 +136,7 @@ export const updateLegendScene = (g: Game, dt: number) => {
       burst(g, boss.x, boss.y - boss.radius, { colors: ['#ffffff', '#f8f0a0', '#c8d8f8'], count: 70, speed: 200, ttl: 0.6, size: 2, drag: 3 })
       g.events.push({ kind: 'legendTitle', enemy: s.enemy, shiny: boss.shiny })
     }
-    centerOn(g, p.x + (boss.x - p.x) * beat.camera, p.y + (boss.y - p.y) * beat.camera)
+    for (const p of g.players) centerScreen(g, p, p.x + (boss.x - p.x) * beat.camera, p.y + (boss.y - p.y) * beat.camera)
     if (s.t >= ENTRANCE_LENGTH) finish(g, s)
     return true
   }
@@ -148,7 +144,7 @@ export const updateLegendScene = (g: Game, dt: number) => {
   // Halfway between the player and the ball (the throw starts at the player), easing back on the player at the end.
   const back = smooth((s.t - (LIGHT_CAPTURE.length - 0.4)) / 0.4)
   const k = 0.5 * (1 - back)
-  centerOn(g, p.x + (c.x - p.x) * k, p.y + (c.y - 20 - p.y) * k)
+  for (const p of g.players) centerScreen(g, p, p.x + (c.x - p.x) * k, p.y + (c.y - 20 - p.y) * k)
   if (before < LIGHT_CAPTURE.settle && s.t >= LIGHT_CAPTURE.settle) {
     c.settled = true
     g.events.push({ kind: 'bossCapture', enemy: c.kind, shiny: c.shiny })

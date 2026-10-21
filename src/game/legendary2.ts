@@ -26,10 +26,10 @@ const statsOf = (g: Game, move: MoveId): CastStats | null => {
 
 /** Runs `spawn` with `s`'s fork mods stamped on what it spawns, like a cast. */
 const withMods = (g: Game, s: CastStats, spawn: () => void) => {
-  const before = g.castMods
-  g.castMods = s.mods
+  const before = g.player.castMods
+  g.player.castMods = s.mods
   spawn()
-  g.castMods = before
+  g.player.castMods = before
 }
 
 /** Whether a hitbox lives its last moments this tick. */

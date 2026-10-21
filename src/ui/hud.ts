@@ -32,6 +32,7 @@ import { createMegaControls } from './megaButton'
 import { moveCard, withMoveCard } from './moveCard'
 import { createMovePad } from './movePad'
 import { createSpecialControls } from './specialButton'
+import { localPlayer } from '../game/players'
 
 const hpClass = (ratio: number) => (ratio > 0.5 ? 'hp-high' : ratio > 0.2 ? 'hp-mid' : 'hp-low')
 
@@ -149,21 +150,21 @@ export const createHud = (root: HTMLElement, onSpecial: () => void, onMega: () =
   const renderBuffs = (g: Game) => {
     buffFills = []
     buffs.replaceChildren(
-      ...g.buffs.map((b) => {
+      ...localPlayer(g).buffs.map((b) => {
         const fill = h('div', { class: 'buff-fill' })
         buffFills.push(fill)
         return h('div', { class: 'buff' }, h('img', { src: consumableIcon(b.id), alt: '' }), h('div', { class: 'buff-bar' }, fill))
       }),
-      ...(g.revives > 0 ? [h('div', { class: 'buff revive', title: 'Revive' }, h('img', { src: consumableIcon('revive'), alt: '' }))] : []),
+      ...(localPlayer(g).revives > 0 ? [h('div', { class: 'buff revive', title: 'Revive' }, h('img', { src: consumableIcon('revive'), alt: '' }))] : []),
       // Cursed items stay for the run, in their purple frame.
-      ...g.curses.held.map((id) => h('div', { class: 'buff cursed', title: `${CURSES[id].name}: ${t().curses[id].downside}` }, h('img', { src: curseIcon(id), alt: '' }))),
+      ...localPlayer(g).curses.held.map((id) => h('div', { class: 'buff cursed', title: `${CURSES[id].name}: ${t().curses[id].downside}` }, h('img', { src: curseIcon(id), alt: '' }))),
     )
   }
 
   const renderSlots = (g: Game) => {
-    const p = g.player
+    const p = localPlayer(g)
     // Moves a fusion on the table would use blink in the duo's colors.
-    const fusing = new Set(readyDuos(p.moves, legendSignature(g.starter)).flatMap((d) => d.from))
+    const fusing = new Set(readyDuos(p.moves, legendSignature(p.starter)).flatMap((d) => d.from))
     moveSlots.replaceChildren(
       ...Array.from({ length: MAX_MOVES }, (_, i) => {
         const m = p.moves[i]
@@ -190,7 +191,7 @@ export const createHud = (root: HTMLElement, onSpecial: () => void, onMega: () =
   }
 
   const update = (g: Game) => {
-    const p = g.player
+    const p = localPlayer(g)
     setStyle(xpFill, 'width', `${Math.min(100, (p.xp / p.xpNext) * 100).toFixed(1)}%`)
     setText(xpLabel, t().level(p.level))
     setText(clock, formatTime(g.time))
@@ -223,12 +224,12 @@ export const createHud = (root: HTMLElement, onSpecial: () => void, onMega: () =
       renderSlots(g)
     }
 
-    const bkey = `${g.buffs.map((b) => b.id).join()}|${g.revives}|${g.curses.held.join()}`
+    const bkey = `${localPlayer(g).buffs.map((b) => b.id).join()}|${localPlayer(g).revives}|${localPlayer(g).curses.held.join()}`
     if (bkey !== buffKey) {
       buffKey = bkey
       renderBuffs(g)
     }
-    g.buffs.forEach((b, i) => {
+    localPlayer(g).buffs.forEach((b, i) => {
       const fill = buffFills[i]
       if (!fill) return
       setStyle(fill, 'width', `${((b.left / b.total) * 100).toFixed(1)}%`)
@@ -236,7 +237,7 @@ export const createHud = (root: HTMLElement, onSpecial: () => void, onMega: () =
     })
 
     const dex = playerDex(g)
-    const megaName = g.mega.active > 0 ? heldMega(g)?.name : undefined
+    const megaName = localPlayer(g).mega.active > 0 ? heldMega(g)?.name : undefined
     // A legend's awakened form (Primal Kyogre) renames it on the same dex.
     const formName = playerForm(g).name
     if (`${dex}${p.shiny}${megaName}${formName}` !== portraitKey) {
@@ -254,9 +255,9 @@ export const createHud = (root: HTMLElement, onSpecial: () => void, onMega: () =
     if (hpFill.className !== fillClass) hpFill.className = fillClass
     setText(hpText, `${Math.ceil(p.hp)}/${Math.round(p.stats.maxHp)}`)
 
-    const megaDef = g.mega.active > 0 ? heldMega(g) : null
+    const megaDef = localPlayer(g).mega.active > 0 ? heldMega(g) : null
     // A legend shows its innate until it picks an Ability at its first awakening.
-    const id = g.ability.id ?? innateAbility(g.starter)
+    const id = localPlayer(g).ability.id ?? innateAbility(localPlayer(g).starter)
     const stacks = megaDef || !id ? 0 : abilityStacks(g)
     const lit = !megaDef && id !== null && abilityLit(g)
     const akey = `${id}|${megaDef?.ability}|${lit}|${stacks}`

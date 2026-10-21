@@ -13,6 +13,7 @@ import { placeBossScale, type PlaceInteriorOf } from './place'
 import { notifyPlace, solidAt, spawnInPlace, startLoot } from './placeKit'
 import { rollShiny } from './shiny'
 import type { Solid } from './terrain'
+import { actAs, anchorPlayer } from './players'
 import type { Enemy, Game } from './types'
 import * as dm from '../engine/dmath'
 
@@ -77,10 +78,10 @@ const spiritFlight = (g: Game, x: number, y: number, tx: number, ty: number) => 
   }
 }
 
-/** A grave far enough from the player for a ghost to rise in front of it. */
+/** A grave far enough from a player (they take turns, `anchorPlayer`) for a ghost to rise in front of it. */
 const graveSpot = (inside: GraveInside) => (g: Game) => {
   const { graves } = inside.state
-  const p = g.player
+  const p = anchorPlayer(g)
   for (let i = 0; i < 4; i++) {
     const [gx, gy] = graves[Math.floor(g.rng() * graves.length)]!
     const x = inside.x + gx
@@ -121,7 +122,7 @@ const wake = (g: Game, inside: GraveInside) => {
   notifyPlace(g, 'graveyard', { kind: 'keystone', shiny: boss.shiny })
 }
 
-/** Spiritomb fell: ₽, items and a heal (its Poké Ball and egg roll come with any boss), the ghosts fade, then the way out. */
+/** Spiritomb fell: ₽, items and a heal for the team (its Poké Ball and egg roll come with any boss), the ghosts fade, then the way out. */
 const win = (g: Game, inside: GraveInside, boss: Enemy | undefined) => {
   const s = inside.state
   const x = boss?.x ?? inside.x
@@ -129,9 +130,12 @@ const win = (g: Game, inside: GraveInside, boss: Enemy | undefined) => {
   const coins = [COIN_VALUES[2], COIN_VALUES[1], COIN_VALUES[1], COIN_VALUES[1], COIN_VALUES[1]]
   dropCoins(g, x, y, s.shiny ? [...coins, ...coins] : coins)
   PLACE_LOOT.graveyard.forEach((item, i) => dropItem(g, x + 10 + i * 6, y, item))
-  const p = g.player
-  const heal = Math.round(healPlayer(g, p.stats.maxHp * 0.3))
-  if (heal > 0) floatText(g, p.x, p.y - 30, `+${heal}`, '#58e858')
+  for (const p of g.players) {
+    const before = actAs(g, p)
+    const heal = Math.round(healPlayer(g, p.stats.maxHp * 0.3))
+    if (heal > 0) floatText(g, p.x, p.y - 30, `+${heal}`, '#58e858')
+    actAs(g, before)
+  }
   for (const e of g.enemies) {
     if (e.dying >= 0) continue
     burst(g, e.x, e.y - e.radius, { colors: ['#9c8cc0', '#d8c8f8'], count: 8, speed: 40, ttl: 0.5, gravity: -30 })

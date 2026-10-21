@@ -13,7 +13,7 @@ const STILL = { move: { x: 0, y: 0 }, special: false }
 /** Smeargle past its opening draft, standing still. */
 const smeargle = (seed = START.seed): Game => {
   const g = startGame({ ...START, seed })
-  if (g.phase === 'levelup') chooseOffer(g, g.offers[0]!)
+  if (g.phase === 'levelup') chooseOffer(g, g.player.offers[0]!)
   return g
 }
 
@@ -69,8 +69,8 @@ describe('Sketch', () => {
     g.player.level = 12
     advancePhase(g)
     expect(g.phase).toBe('ability')
-    chooseOffer(g, g.offers[0]!)
-    expect([g.phase, g.player.stage, g.ability.id !== null]).toEqual(['playing', 0, true])
+    chooseOffer(g, g.player.offers[0]!)
+    expect([g.phase, g.player.stage, g.player.ability.id !== null]).toEqual(['playing', 0, true])
   })
 
   it('paints the same moves for the same seed', () => {
@@ -78,7 +78,7 @@ describe('Sketch', () => {
       const g = smeargle(seed)
       const seen: string[] = []
       for (let i = 0; i < 60 * 25; i++) {
-        if (g.phase !== 'playing' && g.offers.length > 0) chooseOffer(g, g.offers[0]!)
+        if (g.phase !== 'playing' && g.player.offers.length > 0) chooseOffer(g, g.player.offers[0]!)
         else step(g, { move: { x: 1, y: 0 }, special: false }, TICK)
         const move = sketchOf(g).sketch?.move
         if (move && move !== seen[seen.length - 1]) seen.push(move)

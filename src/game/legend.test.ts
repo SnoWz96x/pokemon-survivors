@@ -74,15 +74,15 @@ describe('legends data', () => {
 describe('awakenings', () => {
   it('come at Lv 12 and 28 instead of an evolution: the Ability pick first, a form on the second', () => {
     const g = createGame('kyogre', VIEW, 1)
-    const banishes = g.banishes
+    const banishes = g.player.banishes
     const hp = g.player.stats.maxHp
     expect(pendingAwakening(g)).toBe(0)
     awakenTo(g, 1)
-    expect([g.legend?.awakened, g.phase, g.player.stage, g.banishes]).toEqual([1, 'ability', 0, banishes + 1])
+    expect([g.player.legend?.awakened, g.phase, g.player.stage, g.player.banishes]).toEqual([1, 'ability', 0, banishes + 1])
     expect(g.player.stats.maxHp).toBeGreaterThan(hp)
-    chooseOffer(g, g.offers[0]!)
+    chooseOffer(g, g.player.offers[0]!)
     awakenTo(g, 2)
-    expect([g.legend?.awakened, g.phase]).toEqual([2, 'playing'])
+    expect([g.player.legend?.awakened, g.phase]).toEqual([2, 'playing'])
     expect(g.events.some((e) => e.kind === 'awakened' && e.form === 'primal')).toBe(true)
   })
 

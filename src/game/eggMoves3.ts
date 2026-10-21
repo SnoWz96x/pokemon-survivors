@@ -15,6 +15,7 @@ import type { Look, MoveDef, MoveId, MoveStats } from './moves'
 import { enemiesInView, nearestEnemy } from './queries'
 import { addMoveBuff } from './signatureMoves'
 import { spawnAttack } from './spawn'
+import { ownAttack } from './players'
 import type { Attack, Game } from './types'
 
 /**
@@ -426,7 +427,7 @@ export const EGG_MOVES_3 = {
       })
       for (const e of foes) {
         // A mark already counting down is renewed, not doubled.
-        for (const a of g.attacks) if (a.move === 'perishSong' && a.motion.kind === 'tether' && a.motion.target === e) a.ttl = a.age
+        for (const a of g.attacks) if (ownAttack(g, a) && a.move === 'perishSong' && a.motion.kind === 'tether' && a.motion.target === e) a.ttl = a.age
         spawnAttack(g, {
           ...look('perishSong', 'normal', 'perishMark'), x: e.x, y: e.y - e.radius,
           shape: { kind: 'circle', r: 6 }, motion: { kind: 'tether', target: e, every: Infinity, next: PERISH_TIME },

@@ -110,8 +110,8 @@ export const stampMods = (a: Attack) => {
  * so a branch picked after it appeared applies at once.
  */
 export const refreshMods = (g: Game, a: Attack) => {
-  if (g.castMods === 0 || (a.mod && a.mod.bits === g.castMods)) return
-  a.mod = createModState(g.castMods)
+  if (g.player.castMods === 0 || (a.mod && a.mod.bits === g.player.castMods)) return
+  a.mod = createModState(g.player.castMods)
   stampMods(a)
 }
 

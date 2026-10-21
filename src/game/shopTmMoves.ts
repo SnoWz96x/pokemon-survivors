@@ -85,8 +85,8 @@ const payDay = (g: Game, s: CastStats) => {
 
 /** A coin hit may knock ₽ loose, while the run's Pay Day purse (`TmState.coins`) has room. */
 const payDayHit = (g: Game, a: Attack, e: Enemy) => {
-  if (g.tm.coins >= PAY_DAY.cap || !chance(g.rng, a.memo)) return
-  g.tm.coins++
+  if (g.player.tm.coins >= PAY_DAY.cap || !chance(g.rng, a.memo)) return
+  g.player.tm.coins++
   dropCoins(g, e.x, e.y - 4, [PAY_DAY.coin])
   burst(g, e.x, e.y - e.radius, { colors: ['#fff8c0', '#f8d030', '#c89010'], count: 6, speed: 60, ttl: 0.35, gravity: 120 })
 }
@@ -129,8 +129,8 @@ const thief = (g: Game, s: CastStats) => {
 
 /** A hit on an Alpha or a boss may steal its held item, once per foe: a run item and a ₽50 coin tumble out. */
 const thiefHit = (g: Game, _a: Attack, e: Enemy) => {
-  if (!e.boss || g.tm.stolen.has(e.id) || !chance(g.rng, THIEF.steal)) return
-  g.tm.stolen.add(e.id)
+  if (!e.boss || g.player.tm.stolen.has(e.id) || !chance(g.rng, THIEF.steal)) return
+  g.player.tm.stolen.add(e.id)
   dropItem(g, e.x + 8, e.y, rollDrop(DROP_TABLES.itemBall, g.time, g.rng))
   dropCoins(g, e.x - 6, e.y, [THIEF.coin])
   burst(g, e.x, e.y - e.radius, { colors: ['#ffffff', '#f8d030', '#705898', '#383048'], count: 22, speed: 120, ttl: 0.5, size: 2, gravity: 80 })

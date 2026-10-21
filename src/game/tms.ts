@@ -10,6 +10,7 @@ import { burst, floatText } from './effects'
 import { applyOffer, branchOffers, recomputeStats } from './leveling'
 import { forkAt, MOVES, type MoveId } from './moves'
 import { forgetChoice, needsForget, TM_REFUND, tmChoice, TUTOR, tutorPicks, tutorPool, tutorPrice, type TmSource } from './tmRules'
+import { ownAttack, setPhase } from './players'
 import type { Enemy, Game, Offer, Pickup, TmOffer } from './types'
 
 /**
@@ -21,14 +22,15 @@ import type { Enemy, Game, Offer, Pickup, TmOffer } from './types'
  */
 
 /**
- * Tutors met (`tutors`), lessons taken from them (`lessons`), whether the run
- * learned its legendary TM, the TMs armed at the Kecleon Shop still waiting
- * for a disc (`armed`, `ReplayStart.tms`), the ₽ coins Pay Day knocked loose
- * (`coins`) and the foes Thief already robbed (`stolen`, by id).
+ * A player's TMs: lessons taken from Move Tutors (`lessons`; the tutors met
+ * are the run's, `Game.tutors`), whether they learned their legendary TM, the
+ * TMs they armed at the Kecleon Shop still waiting for a disc (`armed`,
+ * `ReplayStart.tms`), the ₽ coins their Pay Day knocked loose (`coins`) and
+ * the foes their Thief already robbed (`stolen`, by id).
  */
-export type TmState = { tutors: number; lessons: number; legendary: boolean; armed: MoveId[]; coins: number; stolen: Set<number> }
+export type TmState = { lessons: number; legendary: boolean; armed: MoveId[]; coins: number; stolen: Set<number> }
 
-export const createTmState = (armed: readonly MoveId[] = []): TmState => ({ tutors: 0, lessons: 0, legendary: false, armed: [...armed], coins: 0, stolen: new Set() })
+export const createTmState = (armed: readonly MoveId[] = []): TmState => ({ lessons: 0, legendary: false, armed: [...armed], coins: 0, stolen: new Set() })
 
 /** Puts a TM disc on the ground at (x, y). */
 export const dropTm = (g: Game, x: number, y: number, move: MoveId, source: TmSource) => {
@@ -41,7 +43,7 @@ export const dropTm = (g: Game, x: number, y: number, move: MoveId, source: TmSo
  * of what they'd teach. Rift legendaries' gold discs are never swapped. Pure
  * bookkeeping on `TmState.armed`, so the replay re-simulates it.
  */
-const takeArmed = (g: Game): MoveId | null => g.tm.armed.shift() ?? null
+const takeArmed = (g: Game): MoveId | null => g.player.tm.armed.shift() ?? null
 
 /** A defeated wave boss leaves its TM (`BOSS_TMS`), or the next armed one; a mythical of the finale its legendary TM. */
 export const dropBossTm = (g: Game, e: Enemy) => {
@@ -52,15 +54,15 @@ export const dropBossTm = (g: Game, e: Enemy) => {
 }
 
 /**
- * A beaten legendary offers its legendary TM, until the run has learned one.
- * One the player already knows (a legend played in the Legend mode starts with
- * its own, so its clone teaches nothing) leaves a Rare Candy instead. Rift
- * arenas call it when won.
+ * A beaten legendary offers its legendary TM, until every player has learned
+ * one. When everyone still missing one already knows this move (a legend
+ * played in the Legend mode starts with its own, so its clone teaches
+ * nothing) it leaves a Rare Candy instead. Rift arenas call it when won.
  */
 export const dropLegendaryTm = (g: Game, legend: RiftLegend | Enemy['kind'], x: number, y: number) => {
   const move = LEGENDARY_TMS[legend]
-  if (!move || g.tm.legendary) return
-  if (g.player.moves.some((m) => m.id === move)) dropItem(g, x, y, 'rareCandy')
+  if (!move || g.players.every((p) => p.tm.legendary)) return
+  if (g.players.every((p) => p.tm.legendary || p.moves.some((m) => m.id === move))) dropItem(g, x, y, 'rareCandy')
   else dropTm(g, x, y, move, 'legendary')
 }
 
@@ -71,8 +73,8 @@ export const dropLegendaryTm = (g: Game, legend: RiftLegend | Enemy['kind'], x: 
 export const openTm = (g: Game, ids: readonly MoveId[], source: TmSource, price = 0) => {
   const offers = tmChoice(g.player.moves, ids, source, price)
   if (offers.length === 0) return false
-  g.phase = 'tm'
-  g.offers = offers
+  setPhase(g, 'tm')
+  g.player.offers = offers
   g.events.push({ kind: 'tm', source })
   return true
 }
@@ -93,17 +95,18 @@ export const collectTm = (g: Game, pickup: Extract<Pickup, { kind: 'tm' }>) => {
  * card. False when it has nothing to teach.
  */
 export const openTutor = (g: Game) => {
-  const pool = tutorPool({ starter: g.starter, branch: g.branch, types: playerForm(g).types, moves: g.player.moves, banished: g.banished })
+  const p = g.player
+  const pool = tutorPool({ starter: p.starter, branch: p.branch, types: playerForm(g).types, moves: p.moves, banished: p.banished })
   const picks = tutorPicks(pool, g.rng)
   const armed = takeArmed(g)
-  return openTm(g, armed ? [armed, ...picks.filter((id) => id !== armed)].slice(0, TUTOR.offers) : picks, 'tutor', tutorPrice(g.tm.lessons))
+  return openTm(g, armed ? [armed, ...picks.filter((id) => id !== armed)].slice(0, TUTOR.offers) : picks, 'tutor', tutorPrice(p.tm.lessons))
 }
 
 /** Takes a move out of the loadout, with what it left on the field and on the player (Whirlpool's aura, a guard, a buff). */
 export const forgetMove = (g: Game, id: MoveId) => {
   const p = g.player
   retain(p.moves, (m) => m.id !== id)
-  retain(g.attacks, (a) => a.move !== id)
+  retain(g.attacks, (a) => !ownAttack(g, a) || a.move !== id)
   if (p.guard?.move === id) p.guard = null
   if (p.moveBuffs.some((b) => b.move === id)) {
     retain(p.moveBuffs, (b) => b.move !== id)
@@ -125,9 +128,9 @@ const learn = (g: Game, tm: TmOffer, forgot: MoveId | null) => {
 const pay = (g: Game, tm: TmOffer) => {
   if (tm.source === 'tutor') {
     g.coins -= tm.price
-    g.tm.lessons++
+    g.player.tm.lessons++
   }
-  if (tm.source === 'legendary') g.tm.legendary = true
+  if (tm.source === 'legendary') g.player.tm.legendary = true
 }
 
 const celebrate = (g: Game, tm: TmOffer, forgot: MoveId | null) => {
@@ -154,11 +157,11 @@ export const pickTm = (g: Game, offer: Offer): boolean => {
       if (owned && forkAt(offer.id, offer.level)) {
         // The step up is a fork: its two branches stand in for the card, paid now (they have no "pass").
         pay(g, offer)
-        g.offers = branchOffers({ kind: 'move', id: offer.id, level: offer.level })
+        g.player.offers = branchOffers({ kind: 'move', id: offer.id, level: offer.level })
         return false
       }
       if (needsForget(g.player.moves, offer.id)) {
-        g.offers = forgetChoice(g.player.moves, offer)
+        g.player.offers = forgetChoice(g.player.moves, offer)
         return false
       }
       learn(g, offer, null)

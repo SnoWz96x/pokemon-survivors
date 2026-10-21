@@ -40,6 +40,7 @@ import { h, later } from './dom'
 import { boundPadHint, glyphText } from './inputLabels'
 import { pressGuard } from './pressGuard'
 import { holdMoveCard, hoverMoveCard, moveCard, withMoveCard } from './moveCard'
+import { localPlayer } from '../game/players'
 
 export type Screen = {
   el: HTMLElement
@@ -160,7 +161,7 @@ const recipeChip = (r: DuoRecipe, state: 'ready' | 'done' | null, to: MoveId = r
 
 /** Recipes an offer takes part in, flagged ready if picking it completes the pair. */
 const offerRecipes = (g: Game, offer: Offer) => {
-  const p = g.player
+  const p = localPlayer(g)
   switch (offer.kind) {
     case 'move': {
       const evo = evolutionOf(offer.id)
@@ -168,13 +169,13 @@ const offerRecipes = (g: Game, offer: Offer) => {
       // Reaching max level makes it a duo ingredient: the fusions it would open show up.
       if (offer.level < maxMoveLevel(offer.id) || isDuo(offer.id)) return evos
       const moves = [...p.moves.filter((o) => o.id !== offer.id), { id: offer.id, level: offer.level, cooldown: 0 }]
-      const duos = readyDuos(moves, legendSignature(g.starter)).filter((d) => d.from.includes(offer.id) && !readyDuos(p.moves, legendSignature(g.starter)).some((r) => r.to === d.to))
+      const duos = readyDuos(moves, legendSignature(localPlayer(g).starter)).filter((d) => d.from.includes(offer.id) && !readyDuos(p.moves, legendSignature(localPlayer(g).starter)).some((r) => r.to === d.to))
       return [...evos, ...duos.map((d) => duoChip(d.from, d.to))]
     }
     case 'duo':
       return [duoChip(offer.from, offer.to)]
     case 'item': {
-      const learnset = runLearnset(g.starter, g.branch)
+      const learnset = runLearnset(localPlayer(g).starter, localPlayer(g).branch)
       return EVOLUTIONS.filter((e) => e.item === offer.id && learnset.includes(e.from)).map((e) =>
         evoRecipe(e, canEvolve(e, { moves: p.moves, items: [offer] })),
       )
@@ -227,7 +228,7 @@ const offerView = (g: Game, offer: Offer) => {
       return { icon: itemIcon(offer.id), name: ITEMS[offer.id].name, tag: isNew && !rare ? m.new : m.level(offer.level), isNew, desc, type: null, fork: false, mods: NO_MODS }
     }
     case 'berry':
-      return { icon: berryIcon(), name: 'Oran Berry', tag: '', isNew: false, desc: m.levelUp.berry(PLAYABLE[g.starter].name), type: null, fork: false, mods: NO_MODS }
+      return { icon: berryIcon(), name: 'Oran Berry', tag: '', isNew: false, desc: m.levelUp.berry(PLAYABLE[localPlayer(g).starter].name), type: null, fork: false, mods: NO_MODS }
     case 'evolution': {
       const to: MoveDef = MOVES[offer.to]
       const desc = m.levelUp.evolves(MOVES[offer.from].name, m.moves[offer.to].description)
@@ -268,7 +269,7 @@ const offerCard = (g: Game, offer: Offer) => {
   switch (offer.kind) {
     case 'move':
     case 'branch': {
-      const owned = g.player.moves.find((m) => m.id === offer.id)
+      const owned = localPlayer(g).moves.find((m) => m.id === offer.id)
       const path = offer.kind === 'branch' ? withBranch(owned?.path ?? 0, offer.level, offer.branch) : owned?.path
       return moveCard(g, offer.id, { level: offer.level, from: owned?.level, path })
     }
@@ -299,7 +300,7 @@ const fillCard = (g: Game, button: HTMLElement, offer: Offer, i: number) => {
   const rarity = rarityOf(offer)
   // A move the evolution just unlocked, while it still comes up more often: tagged with the form that learns it.
   const fresh =
-    offer.kind === 'move' && g.freshMoves > 0 && !g.player.moves.some((m) => m.id === offer.id) && unlockedAt(g.starter, g.branch, g.player.stage).includes(offer.id)
+    offer.kind === 'move' && localPlayer(g).freshMoves > 0 && !localPlayer(g).moves.some((m) => m.id === offer.id) && unlockedAt(localPlayer(g).starter, localPlayer(g).branch, localPlayer(g).stage).includes(offer.id)
   const classes = [
     'offer',
     offer.kind === 'evolution' && 'offer-evo',
@@ -386,22 +387,22 @@ type LevelUpExtras = { reroll: () => void; skip: () => void; banish: (index: num
 export const levelUp = (root: HTMLElement, input: Input, g: Game, onChoose: (offer: Offer) => void, extras?: LevelUpExtras): Screen => {
   const m = t().levelUp
   const name = playerForm(g).name
-  const fork = g.offers.find((o) => o.kind === 'branch')
-  const buttons = g.offers.map((offer, i) => {
+  const fork = localPlayer(g).offers.find((o) => o.kind === 'branch')
+  const buttons = localPlayer(g).offers.map((offer, i) => {
     const button = h('button', {})
     fillCard(g, button, offer, i)
     // Read at hold time: Esquecer redraws a slot with another offer, and a pick (another finger, the keyboard) empties them.
     holdMoveCard(button, () => {
-      const offer = g.offers[i]
+      const offer = localPlayer(g).offers[i]
       return offer ? offerCard(g, offer) : null
     })
     return button
   })
 
   const charge = (left: number, label: string, cls = 'btn') => (extras && !fork && left > 0 ? h('button', { class: cls }, label) : null)
-  const reroll = charge(g.rerolls, m.reroll(g.rerolls))
-  const skip = charge(g.skips, m.skip(g.skips))
-  const banish = charge(g.banishes, m.banish(g.banishes), 'btn btn-banish')
+  const reroll = charge(localPlayer(g).rerolls, m.reroll(localPlayer(g).rerolls))
+  const skip = charge(localPlayer(g).skips, m.skip(localPlayer(g).skips))
+  const banish = charge(localPlayer(g).banishes, m.banish(localPlayer(g).banishes), 'btn btn-banish')
   const actions = [reroll, skip, banish].filter((b) => b !== null)
 
   const offersEl = h('div', { class: fork ? 'offers branches' : 'offers' }, ...buttons)
@@ -411,7 +412,7 @@ export const levelUp = (root: HTMLElement, input: Input, g: Game, onChoose: (off
     banishing = on
     offersEl.classList.toggle('banishing', on)
     banish?.classList.toggle('active', on)
-    if (banish) banish.textContent = on ? m.banishCancel : m.banish(g.banishes)
+    if (banish) banish.textContent = on ? m.banishCancel : m.banish(localPlayer(g).banishes)
     hintEl.replaceChildren(on ? hint(m.banishHintKeys, m.banishHintTouch) : hint(m.hintKeys, m.hintTouch))
   }
 
@@ -425,11 +426,11 @@ export const levelUp = (root: HTMLElement, input: Input, g: Game, onChoose: (off
     offersEl.append(ghost)
     ghost.addEventListener('animationend', () => ghost.remove())
     extras?.banish(i)
-    fillCard(g, button, g.offers[i]!, i)
+    fillCard(g, button, localPlayer(g).offers[i]!, i)
     button.classList.add('offer-redrawn', 'selected')
     playSfx('escaped')
     setBanishing(false)
-    if (g.banishes <= 0) banish?.remove()
+    if (localPlayer(g).banishes <= 0) banish?.remove()
   }
 
   let done = false
@@ -437,7 +438,7 @@ export const levelUp = (root: HTMLElement, input: Input, g: Game, onChoose: (off
   const openedAt = performance.now()
   const nav = menu(input, [...buttons, ...actions], (i) => {
     if (done || performance.now() - openedAt < 400) return
-    const offer = g.offers[i]
+    const offer = localPlayer(g).offers[i]
     const action = actions[i - buttons.length]
     if (banishing && offer) return canBanish(offer) ? forget(i) : playSfx('denied')
     if (action && action === banish) {
@@ -457,7 +458,8 @@ export const levelUp = (root: HTMLElement, input: Input, g: Game, onChoose: (off
     else if (fork && (key === 'ArrowRight' || key === 'KeyD')) nav.focus(nav.index + 1)
   })
 
-  const title = fork ? m.forkTitle(MOVES[fork.id].name, fork.level) : drafting(g) ? m.draftTitle(name) : g.prize ? m.prize[g.prize] : m.title(name, g.player.level - g.pendingLevelUps + 1)
+  const me = localPlayer(g)
+  const title = fork ? m.forkTitle(MOVES[fork.id].name, fork.level) : drafting(g) ? m.draftTitle(name) : me.prize ? m.prize[me.prize] : m.title(name, me.level - me.pendingLevelUps + 1)
   const el = h(
     'div',
     { class: 'screen dim' },
@@ -510,7 +512,7 @@ const statTable = (g: Game) => {
     'div',
     { class: 'stat-table' },
     h('span', { class: 'stat-cards-head', title: m.cardsHint }, m.cards),
-    ...statSheet(g.player.stats, g.player.items).flatMap((r) => [
+    ...statSheet(localPlayer(g).stats, localPlayer(g).items).flatMap((r) => [
       r.stat === 'typeDamage' ? h('span', { class: 'stat-name' }, m.typeDamage, typeBadge(r.type)) : h('span', { class: 'stat-name' }, m.stats[r.stat]),
       h('b', {}, r.stat === 'typeDamage' ? pct(r.value) : SHEET_FORMAT[r.stat](r.value)),
       r.cards > 0 ? h('span', { class: 'stat-cards', title: m.cardsHint }, `×${r.cards}`) : h('span', { class: 'stat-cards none' }, '·'),
@@ -526,7 +528,7 @@ const loadoutHint = (g: Game, id: MoveId) => {
   if (isLegendary(id)) return h('span', { class: 'tag tag-legendary' }, '★')
   const evo = evolutionOf(id)
   if (!evo) return null
-  const ready = canEvolve(evo, g.player)
+  const ready = canEvolve(evo, localPlayer(g))
   return h(
     'span',
     { class: ready ? 'evo-pair ready' : 'evo-pair', title: `${ITEMS[evo.item].name} → ${MOVES[evo.to].name}` },
@@ -541,14 +543,14 @@ const moveList = (g: Game) =>
   h(
     'div',
     { class: 'loadout-list' },
-    ...g.player.moves.map((m) => {
+    ...localPlayer(g).moves.map((m) => {
       const row = h(
         'div',
         { class: 'loadout-row' },
         h('img', { src: moveIcon(m.id), alt: '' }),
         MOVES[m.id].name,
         // The mods of the fork branches taken.
-        ...modsOf(moveStats(m.id, m.level, g.player.stats, m.path).mods).map((id) => h('img', { class: 'loadout-mod', src: modIcon(id), alt: '' })),
+        ...modsOf(moveStats(m.id, m.level, localPlayer(g).stats, m.path).mods).map((id) => h('img', { class: 'loadout-mod', src: modIcon(id), alt: '' })),
         loadoutHint(g, m.id),
         levelTag(m.level, maxMoveLevel(m.id)),
       )
@@ -561,13 +563,13 @@ const itemList = (g: Game) =>
   h(
     'div',
     { class: 'loadout-list' },
-    ...g.player.items.map((i) =>
+    ...localPlayer(g).items.map((i) =>
       h('div', { class: 'loadout-row' }, h('img', { src: itemIcon(i.id), alt: '' }), ITEMS[i.id].name, levelTag(i.level, ITEMS[i.id].levels.length)),
     ),
-    ...g.curses.held.map((id) =>
+    ...localPlayer(g).curses.held.map((id) =>
       h('div', { class: 'loadout-row cursed', title: t().curses[id].downside }, h('img', { src: curseIcon(id), alt: '' }), CURSES[id].name, h('span', { class: 'tag tag-curse' }, t().curse.label)),
     ),
-    g.player.items.length === 0 && g.curses.held.length === 0 && h('p', { class: 'loadout-empty' }, t().pause.noItems),
+    localPlayer(g).items.length === 0 && localPlayer(g).curses.held.length === 0 && h('p', { class: 'loadout-empty' }, t().pause.noItems),
   )
 
 const pauseSection = (title: string, body: HTMLElement) => h('section', { class: 'pause-section' }, h('h3', { class: 'pause-head' }, title), body)
@@ -578,10 +580,10 @@ const pauseSection = (title: string, body: HTMLElement) => h('section', { class:
  */
 const duoPanel = (g: Game) => {
   const m = t().duo
-  const p = g.player
+  const p = localPlayer(g)
   const owned = p.moves.find((o) => isDuo(o.id))
-  const types = new Set<PokeType>([...runLearnset(g.starter, g.branch), ...p.moves.map((o) => o.id)].map((id) => MOVES[id].type))
-  const ready = readyDuos(p.moves, legendSignature(g.starter))
+  const types = new Set<PokeType>([...runLearnset(localPlayer(g).starter, localPlayer(g).branch), ...p.moves.map((o) => o.id)].map((id) => MOVES[id].type))
+  const ready = readyDuos(p.moves, legendSignature(localPlayer(g).starter))
   const recipes = reachableDuos(types)
   if (recipes.length === 0 && !owned) return null
   const chips = owned
@@ -602,13 +604,13 @@ const duoPanel = (g: Game) => {
 /** The ability in play for the pause menu: the one picked (its Hidden tag too), the Mega's while that lasts, or when it comes. */
 const abilityPanel = (g: Game) => {
   const m = t().ability
-  const mega = g.mega.active > 0 ? heldMega(g) : null
-  const id = g.ability.id
+  const mega = localPlayer(g).mega.active > 0 ? heldMega(g) : null
+  const id = localPlayer(g).ability.id
   const row = (cls: string, icon: string, name: Node | string, text: string) =>
     h('div', { class: `pause-ability ${cls}` }, h('img', { src: icon, alt: '' }), h('div', {}, h('b', {}, h('small', {}, m.label), name), h('span', {}, text)))
   if (mega) return row('mega', megaIcon(), mega.ability, m.megaNote)
   if (!id) return row('pending', sparkleIcon(), '—', m.pending)
-  const set = abilitySet(g.starter, g.branch)
+  const set = abilitySet(localPlayer(g).starter, localPlayer(g).branch)
   const hidden = isHidden(set, set.indexOf(id))
   return row(hidden ? 'hidden-ability' : '', abilityIcon(id), h('span', {}, ABILITIES[id].name, hidden && h('span', { class: 'tag tag-hidden' }, m.hidden)), t().abilities[id])
 }
@@ -705,12 +707,12 @@ const RESULTS_GUARD_MS = 900
 /** Icon, name and type for a results-screen damage row (and the run's share card). */
 export const damageSource = (g: Game, id: DamageSource) => {
   if (id === 'ability') {
-    const ability = g.ability.id
+    const ability = localPlayer(g).ability.id
     const type = playerForm(g).types[0] ?? 'normal'
     return ability ? { icon: abilityIcon(ability), name: ABILITIES[ability].name, type } : { icon: sparkleIcon(), name: t().ability.results, type }
   }
   if (id !== 'special') return { icon: moveIcon(id), name: MOVES[id].name, type: MOVES[id].type }
-  const r = resolveSpecial(g.starter, g.player.stage, null, g.branch)
+  const r = resolveSpecial(localPlayer(g).starter, localPlayer(g).stage, null, localPlayer(g).branch)
   return { icon: specialIcon(r.id), name: r.tier.name, type: r.def.type }
 }
 
@@ -795,7 +797,7 @@ export const results = (
   const r = t().rifts
   const victory = g.phase === 'victory'
   const name = playerForm(g).name
-  const entries = (Object.entries(g.damageByMove) as Array<[DamageSource, number]>).sort((a, b) => b[1] - a[1])
+  const entries = (Object.entries(localPlayer(g).damageByMove) as Array<[DamageSource, number]>).sort((a, b) => b[1] - a[1])
   const top = entries[0]?.[1] ?? 1
   const earned = runEarnings(g)
   const extra = overtime(g.time)
@@ -848,12 +850,12 @@ export const results = (
       h(
         'div',
         { class: 'portrait-wrap' },
-        h('img', { class: 'result-portrait', src: sprites(playerDex(g), g.player.shiny).portrait, alt: '' }),
-        g.player.shiny && h('img', { class: 'shiny-badge', src: sparkleIcon(), alt: 'Shiny' }),
+        h('img', { class: 'result-portrait', src: sprites(playerDex(g), localPlayer(g).shiny).portrait, alt: '' }),
+        localPlayer(g).shiny && h('img', { class: 'shiny-badge', src: sparkleIcon(), alt: 'Shiny' }),
       ),
       h('div', { class: 'dialog-title' }, victory ? m.victory : g.endless ? r.endlessOver(name) : m.fainted(name)),
       extras.badge,
-      g.player.shiny && h('div', { class: 'tag tag-shiny' }, m.shiny(name)),
+      localPlayer(g).shiny && h('div', { class: 'tag tag-shiny' }, m.shiny(name)),
       reaperDefeats > 0 && h('div', { class: 'tag tag-shiny' }, r.reaperDefeated(reaperDefeats)),
       h(
         'div',
@@ -861,14 +863,14 @@ export const results = (
         h('div', {}, h('span', {}, t().difficulty.label), h('b', {}, difficultyTag(g.difficulty))),
         h('div', {}, h('span', {}, m.time), h('b', {}, formatTime(g.time))),
         extra > 0 && h('div', {}, h('span', {}, r.overtime), h('b', {}, `+${formatTime(extra)}`)),
-        h('div', {}, h('span', {}, m.level), h('b', {}, g.player.level)),
+        h('div', {}, h('span', {}, m.level), h('b', {}, localPlayer(g).level)),
         h('div', {}, h('span', {}, m.kills), h('b', {}, g.kills)),
         g.halloween && h('div', { class: 'result-treats' }, h('span', {}, t().halloween.candies), h('b', {}, h('img', { src: treatIcon(), alt: '' }), `+${formatNumber(g.candies)}`)),
         legends.length > 0 &&
           h('div', {}, h('span', {}, r.legends), h('b', { class: 'result-legends' }, ...legends.map((id) => h('img', { src: portraitUrl(ENEMIES[id].dex), alt: ENEMIES[id].name, title: ENEMIES[id].name })))),
         g.place.cleared.length > 0 &&
           h('div', {}, h('span', {}, t().places.results), h('b', { class: 'result-legends' }, ...g.place.cleared.map((id) => h('img', { src: placeIcon(id), alt: t().places.names[id], title: t().places.names[id] })))),
-        h('div', {}, h('span', {}, e.steps), h('b', {}, formatNumber(toSteps(g.player.walked)))),
+        h('div', {}, h('span', {}, e.steps), h('b', {}, formatNumber(toSteps(localPlayer(g).walked)))),
         g.eggs.found.length > 0 &&
           h('div', {}, h('span', {}, e.eggs), h('b', { class: 'result-legends' }, ...g.eggs.found.map((egg) => h('img', { src: eggIcon(egg.tier), alt: e.tiers[egg.tier], title: e.tiers[egg.tier] })))),
       ),

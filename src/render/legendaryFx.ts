@@ -8,6 +8,7 @@ import type { Attack, Game } from '../game/types'
 import { LEGEND_FX } from './legendaryArt'
 import { dashedRing } from './strokes'
 import { detail } from './quality'
+import { localPlayer } from '../game/players'
 
 /**
  * Art of the legendary moves (`game/legendaryMoves.ts`), the biggest effects
@@ -491,7 +492,7 @@ const drawTimeClock = (ctx: Ctx, g: Game, a: Attack) => {
   const r = Math.round(14 * pop - 4 * settle)
   if (r < 2) return
   const x = Math.round(a.x)
-  const y = Math.round(g.player.y - bodyOf(playerForm(g).dex).bodyH - r - 3)
+  const y = Math.round(localPlayer(g).y - bodyOf(playerForm(g).dex).bodyH - r - 3)
   const end = a.ttl - 0.25
   const hand = a.age < TIME.time * 0.6 ? -a.age * 30 : a.age > end ? -TIME.time * 18 + (a.age - end) * 40 : -TIME.time * 18
   ctx.globalAlpha = fadeOut(a, 0.2)
@@ -609,7 +610,7 @@ const drawMistCloud = (ctx: Ctx, a: Attack, t: number) => {
 
 const drawLusterBeam = (ctx: Ctx, g: Game, a: Attack, t: number) => {
   if (a.motion.kind !== 'orbit') return
-  const p = g.player
+  const p = localPlayer(g)
   const ox = p.x
   const oy = p.y - 8
   const length = a.memo
@@ -790,7 +791,7 @@ const drawAncientRock = (ctx: Ctx, g: Game, a: Attack, t: number, ground: boolea
     if (!waiting) return
     // Dust and a crack where the stone tore out of the ground.
     ctx.globalAlpha = 0.7 * (1 - rise * 0.6)
-    blitEllipse(ctx, 7, 3, '#806848', a.x, g.player.y + 2 + (a.y - g.player.y + 10) * 0.4)
+    blitEllipse(ctx, 7, 3, '#806848', a.x, localPlayer(g).y + 2 + (a.y - localPlayer(g).y + 10) * 0.4)
     ctx.globalAlpha = 1
     return
   }
@@ -819,7 +820,7 @@ const drawAncientRock = (ctx: Ctx, g: Game, a: Attack, t: number, ground: boolea
 
 /** While Ancient Power's raise lasts, a pink and gold aura shimmers up around the player. */
 const drawAncientAura = (ctx: Ctx, g: Game, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const buff = p.moveBuffs.find((b) => b.move === 'ancientPower')
   if (!buff) return
   ctx.globalAlpha = buff.left < 1 && Math.floor(t * 12) % 2 === 0 ? 0.3 : 0.7

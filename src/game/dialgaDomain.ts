@@ -1,6 +1,7 @@
 import { DIALGA_DOMAIN } from '../data/domains/dialga'
 import type { DomainHooks } from './domainHooks'
 import type { DomainState } from './domain'
+import { nearestPlayer } from './players'
 import type { Game } from './types'
 import * as dm from '../engine/dmath'
 
@@ -58,13 +59,13 @@ const startSkip = (g: Game, d: DomainState, i: number) => {
 
 /** What a skip does each tick it plays. */
 const playSkip = (g: Game, d: DomainState, skip: TimeSkip, dt: number) => {
-  const p = g.player
   const threat = DIALGA_DOMAIN.crossing.threat
   if (skip === 'stop') return
   if (skip === 'forward') d.front = Math.max(threat.stop, d.front - threat.speed * TIME_SKIP.surge * dt)
   else d.front = Math.min(threat.start, d.front + (TIME_SKIP.back / TIME_SKIP.length.rewind) * dt)
   for (const e of g.enemies) {
     if (e.dying >= 0 || e.boss || e.status.stun > 0) continue
+    const p = nearestPlayer(g, e.x, e.y)
     const dx = p.x - e.x
     const dy = p.y - e.y
     const len = dm.hypot(dx, dy) || 1

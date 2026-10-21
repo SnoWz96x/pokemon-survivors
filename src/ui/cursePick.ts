@@ -6,6 +6,7 @@ import { curseIcon } from '../render/art'
 import { t } from '../i18n'
 import { h } from './dom'
 import { hint, menu, type Screen } from './screens'
+import { localPlayer } from '../game/players'
 
 /** Taps this soon after the chest opens are ignored: a thumb still on the joystick can't decide for the player. */
 const GUARD_MS = 650
@@ -20,16 +21,16 @@ const PICK_MS = 320
  */
 export const cursePick = (root: HTMLElement, input: Input, g: Game, onChoose: (offer: Offer) => void): Screen => {
   const m = t()
-  const offer = g.offers.find((o) => o.kind === 'curse')
+  const offer = localPlayer(g).offers.find((o) => o.kind === 'curse')
   const id = offer?.kind === 'curse' ? offer.id : 'lifeOrb'
   const text = m.curses[id]
-  const buttons = g.offers.map((o) =>
+  const buttons = localPlayer(g).offers.map((o) =>
     h('button', { class: o.kind === 'curse' && o.take ? 'btn curse-take' : 'btn curse-leave', type: 'button' }, o.kind === 'curse' && o.take ? m.curse.take : m.curse.leave),
   )
   const openedAt = performance.now()
   let done = false
   const nav = menu(input, buttons, (i) => {
-    const picked = g.offers[i]
+    const picked = localPlayer(g).offers[i]
     if (done || !picked || performance.now() - openedAt < GUARD_MS) return
     done = true
     playSfx(picked.kind === 'curse' && picked.take ? 'curseTake' : 'select')

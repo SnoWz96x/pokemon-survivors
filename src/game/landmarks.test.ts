@@ -106,28 +106,29 @@ describe('landmarks at play', () => {
     Object.assign(g.player, west)
     const foe = spawnEnemy(g, 'rattata', west!.x, west!.y + 60)
     for (let t = 0; t < TUNNEL.enterTime + 0.05; t += TICK) updateLandmarks(g, TICK)
-    expect(g.landmarks.transit).not.toBeNull()
+    expect(g.player.landmark.transit).not.toBeNull()
     // Underground, the horde loses track: the foe doesn't head straight up at the mouth.
     const before = foe.y
     updateEnemies(g, 0.25)
     expect(before - foe.y).toBeLessThan(foe.speed * 0.25 * 0.8)
-    while (updateTunnel(g, TICK)) if (!g.landmarks.transit) break
+    while (updateTunnel(g, TICK)) if (!g.player.landmark.transit) break
     expect(g.player.x).toBe(east!.x)
     expect(g.player.y).toBe(east!.y + TUNNEL.exitStep)
     // Standing in the mouth it came out of doesn't send it back until it steps out.
     Object.assign(g.player, east)
     for (let t = 0; t < 1; t += TICK) updateLandmarks(g, TICK)
-    expect(g.landmarks.transit).toBeNull()
+    expect(g.player.landmark.transit).toBeNull()
     g.player.y += 40
     updateLandmarks(g, TICK)
     Object.assign(g.player, east)
     for (let t = 0; t < TUNNEL.enterTime + 0.05; t += TICK) updateLandmarks(g, TICK)
-    expect(g.landmarks.transit?.x1).toBe(west!.x)
+    expect(g.player.landmark.transit?.x1).toBe(west!.x)
   })
 
   it('keeps the player off the rock while walking the tunnel in the full step', () => {
     const g = createGame('charmander', { w: 480, h: 270 }, 1234)
-    Object.assign(g, { phase: 'playing', pendingLevelUps: 0, offers: [] })
+    Object.assign(g, { phase: 'playing' })
+    Object.assign(g.player, { phase: 'playing', pendingLevelUps: 0, offers: [] })
     const lm = first(g, 'tunnel')
     Object.assign(g.player, lm.mouths[0])
     let t = 0

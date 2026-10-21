@@ -5,6 +5,7 @@ import { t } from '../i18n'
 import { moveIcon } from '../render/art'
 import { boundLabel, setGlyphText } from './inputLabels'
 import { h, setStyle } from './dom'
+import { localPlayer } from '../game/players'
 
 /**
  * Controls for the manual moves (Quick Attack, Extreme Speed), shown while the
@@ -30,7 +31,7 @@ export const createLungeControls = (onPress: () => void) => {
   let shown = ''
 
   const update = (g: Game) => {
-    const owned = g.player.moves.find((m) => isManual(m.id))
+    const owned = localPlayer(g).moves.find((m) => isManual(m.id))
     const id = owned?.id ?? ''
     if (shown !== id) {
       shown = id
@@ -44,7 +45,7 @@ export const createLungeControls = (onPress: () => void) => {
     }
     if (!owned) return
     setGlyphText(keyLabel, boundLabel('lunge'))
-    const fill = 1 - owned.cooldown / moveStats(owned.id, owned.level, g.player.stats, owned.path).cooldown
+    const fill = 1 - owned.cooldown / moveStats(owned.id, owned.level, localPlayer(g).stats, owned.path).cooldown
     for (const el of [badge, button]) {
       setStyle(el, '--fill', fill.toFixed(3))
       el.classList.toggle('ready', owned.cooldown <= 0)

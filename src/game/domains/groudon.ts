@@ -2,6 +2,7 @@ import { range } from '../../engine/rng'
 import { onFloor } from '../arenaFloor'
 import { spawnHazard } from '../bosses'
 import type { DomainHooks } from '../domainHooks'
+import { anchorPlayer } from '../players'
 import type { Game } from '../types'
 
 /**
@@ -29,7 +30,8 @@ export const GROUDON_HOOKS: DomainHooks = {
   crossing: (g, d, dt) => {
     const arena = g.rift.arena
     if (!arena) return
-    const p = g.player
+    // Aimed at a player: they take turns (`anchorPlayer`).
+    const p = anchorPlayer(g)
     if (beat(d.age, dt, GEYSER.every)) {
       for (let i = 0; i < GEYSER.count; i++) strike(g, p.x + range(g.rng, -46, 46), p.y - range(g.rng, 40, 120), GEYSER.radius, GEYSER.delay, GEYSER.damage, 'fire')
     }

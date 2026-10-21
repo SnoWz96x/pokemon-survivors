@@ -63,6 +63,7 @@ import { drawGround, GROUND_LOOKAHEAD, warmGround } from './world'
 import { damageBudget, showsText, textAlpha, type DamageNumbers } from './damageNumbers'
 import { CALM_PERIOD, HURT_TINT, type Flashes } from './flashes'
 import { detail } from './quality'
+import { localPlayer } from '../game/players'
 
 type Ctx = CanvasRenderingContext2D
 
@@ -635,7 +636,7 @@ const hpColor = (ratio: number) => (ratio > 0.5 ? '#48d048' : ratio > 0.2 ? '#f8
 
 /** Chain dash afterimages: fading type-colored copies of the player along the lunge. */
 const drawAfterimages = (ctx: Ctx, g: Game, calm: boolean) => {
-  const p = g.player
+  const p = localPlayer(g)
   const s = playerSprites(g, megaLook(g, calm).form)
   for (const a of g.attacks) {
     if (a.visual !== 'afterimage' || a.age < 0) continue
@@ -646,7 +647,7 @@ const drawAfterimages = (ctx: Ctx, g: Game, calm: boolean) => {
 
 /** `calm` (Flashes: reduced): a hit tints the player dim red, and nothing on it flickers white. */
 const drawPlayer = (ctx: Ctx, g: Game, calm: boolean) => {
-  const p = g.player
+  const p = localPlayer(g)
   // A Mega wears its Mega form (flickering white while it transforms); a legend its own (`playerSprites`); Aegislash its Blade Forme in Blade stance.
   const mega = megaLook(g, calm)
   const s = playerSprites(g, mega.form)
@@ -660,17 +661,17 @@ const drawPlayer = (ctx: Ctx, g: Game, calm: boolean) => {
   // Fly (the shop TM) lifts the player off the ground: a species with a Fly sheet flaps its wings.
   const flying = shopTm2PlayerLook(g)
   const anim: AnimName = p.hurt > 0 ? 'Hurt' : airborne(s, inSky(g) || flying !== null, p.moving ? 'Walk' : 'Idle')
-  const charging = g.special.charge > 0 && Math.floor(p.animTime * 16) % 2 === 0
-  const blink = p.iframes > 0 && g.special.active <= 0 && Math.floor(p.iframes * 20) % 2 === 0
+  const charging = p.special.charge > 0 && Math.floor(p.animTime * 16) % 2 === 0
+  const blink = p.iframes > 0 && p.special.active <= 0 && Math.floor(p.iframes * 20) % 2 === 0
   // Aegislash flashes white for a moment as it swaps stance.
-  const swapped = g.special.stance !== null && g.special.total - g.special.cooldown < 0.12
+  const swapped = localPlayer(g).special.stance !== null && localPlayer(g).special.total - localPlayer(g).special.cooldown < 0.12
   const flash = Math.max(mega.flash, calm ? 0 : p.hurt > 0.2 ? 0.7 : charging || swapped ? 0.6 : 0)
   const tint = calm && p.hurt > 0.2 ? HURT_TINT : undefined
   // Burrowed or out of sight (Dig): a faint ghost of the player.
   // Moves can lift the sprite (Body Slam's leap, Heavy Slam's hop, Fly) or hide it under the mound (Dig).
   const egg = flying ?? eggPlayerLook(g) ?? egg3PlayerLook(g)
   // Invulnerable after a hit: blinking, or a steady see-through when calm.
-  const faded = calm ? p.iframes > 0 && g.special.active <= 0 : blink
+  const faded = calm ? p.iframes > 0 && localPlayer(g).special.active <= 0 : blink
   const alpha = egg ? egg.alpha : p.hidden ? 0.3 : faded && mega.flash === 0 ? (calm ? 0.65 : 0.45) : 1
   if (alpha > 0) drawPokemon(ctx, s, anim, p.dir, p.animTime, p.x, p.y - (egg?.lift ?? 0), { alpha, flash, tint, outline: mega.outline })
   // The shiny entrance plays shortly after the run starts.
@@ -681,7 +682,7 @@ const drawPlayer = (ctx: Ctx, g: Game, calm: boolean) => {
 
 /** GBA-style HP bar under the player's feet. */
 const drawHpBar = (ctx: Ctx, g: Game) => {
-  const p = g.player
+  const p = localPlayer(g)
   const w = 22
   const x = Math.round(p.x - w / 2)
   const y = Math.round(p.y + 4)
@@ -734,7 +735,7 @@ const drawPickups = (ctx: Ctx, g: Game, t: number) => {
 
 /** The evolution scene. `calm` (Flashes: reduced) slows the silhouettes' swap and drops the white screen flashes. */
 const drawEvolution = (ctx: Ctx, g: Game, t: number, calm: boolean) => {
-  const evo = g.evolution
+  const evo = localPlayer(g).evolution
   if (!evo) return
   const { w, h } = g.view
   const k = evo.t
@@ -745,8 +746,8 @@ const drawEvolution = (ctx: Ctx, g: Game, t: number, calm: boolean) => {
   const cy = Math.round(h / 2 + 24)
   // A legend's awakening plays the same scene on itself, landing in its form; the big ones at 1×.
   const look = evo.awakening ? awakeningLook(g, evo.from, evo.form) : null
-  const from = look?.before ?? sprites(evo.from, g.player.shiny)
-  const to = look?.after ?? sprites(evo.to, g.player.shiny)
+  const from = look?.before ?? sprites(evo.from, localPlayer(g).shiny)
+  const to = look?.after ?? sprites(evo.to, localPlayer(g).shiny)
   const scale = look?.scale ?? 2
   const flashStart = 0.7
   const flashEnd = 3.7
@@ -927,7 +928,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   solidsInView(g, camX, camY, w, h, drawables)
   // Mid-jump leapers sort last so they fly over the horde, and so does a flyer over a rock or a mountain.
   const depth = (d: Drawable) =>
-    d === 'player' ? g.player.y : d === 'companion' ? (companion?.y ?? 0) : isSolid(d) ? d.y : isAirborne(d) || (overTerrain(d) && inSolid(g, d.x, d.y, 4)) ? d.y + 4096 : d.y
+    d === 'player' ? localPlayer(g).y : d === 'companion' ? (companion?.y ?? 0) : isSolid(d) ? d.y : isAirborne(d) || (overTerrain(d) && inSolid(g, d.x, d.y, 4)) ? d.y + 4096 : d.y
   // Filled by index and cut to size (emptying them would drop their storage every frame).
   const n = drawables.length
   for (let i = 0; i < n; i++) {
@@ -947,7 +948,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
     if (d === 'player') {
       if (hidden) continue
       const body = playerSprites(g).bodyW
-      shadow(ctx, g.player.x, g.player.y, body)
+      shadow(ctx, localPlayer(g).x, localPlayer(g).y, body)
       drawWading(ctx, g, body, t)
       drawLegendAura(ctx, g, t, calm)
     }

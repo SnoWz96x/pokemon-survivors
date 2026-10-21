@@ -79,15 +79,13 @@ export type PlaceState = {
   nextAt: number
   entrance: PlaceEntrance | null
   inside: PlaceInterior | null
-  /** Places whose entrance opened, that the player went into, and whose goal they reached this run, in order. */
+  /** Places whose entrance opened, that the team went into, and whose goal they reached this run, in order. (The wings picked up are each player's, `Player.wings`.) */
   offered: PlaceId[]
   visited: PlaceId[]
   cleared: PlaceId[]
-  /** Wings picked up in the sky this run: each raises a stat for the rest of it (`wingDeltas`). */
-  wings: Partial<Record<WingId, number>>
 }
 
-export const createPlaceState = (): PlaceState => ({ nextAt: PLACE.firstAt, entrance: null, inside: null, offered: [], visited: [], cleared: [], wings: {} })
+export const createPlaceState = (): PlaceState => ({ nextAt: PLACE.firstAt, entrance: null, inside: null, offered: [], visited: [], cleared: [] })
 
 /** The longest a place keeps the player inside. */
 const LONGEST = Math.max(...PLACE_IDS.map((id) => PLACES[id].time))

@@ -7,6 +7,8 @@ import { burst } from './effects'
 import { chargePortal, endlessRiftAt, pickLegend, riftAt, riftDue } from './rift'
 import { enterArena } from './riftArena'
 import { clearSpot } from './terrain'
+import { teamLegend } from './legend'
+import { anchorPlayer, playerWithin } from './players'
 import type { Game } from './types'
 import { setWeather } from './weather'
 import * as dm from '../engine/dmath'
@@ -14,7 +16,7 @@ import * as dm from '../engine/dmath'
 /**
  * The map side of a rift: when one is due its omen plays (a legendary with a
  * domain takes the sky with its weather), then a portal opens past the screen
- * edge, waits a while and sends the player in once they stand in it for
+ * edge, waits a while and sends the team in once a player stands in it for
  * `RIFT.enterTime`: into the legendary's domain (`enterDomain`) or its old
  * arena (`enterArena`). Any other map system can open the same door.
  */
@@ -24,9 +26,9 @@ const PORTAL_COLORS = ['#7850c8', '#c8a8f8', '#ffffff'] as const
 /** How far a portal's step-in reaches: a domain's huge tear takes the player in from farther. */
 export const portalReach = (legend: RiftLegend) => (domainOf(legend) ? RIFT.tearRadius : RIFT.portalRadius)
 
-/** Opens `legend`'s portal at (x, y), or just past the screen edge in a random direction. */
+/** Opens `legend`'s portal at (x, y), or just past a player's screen edge (`anchorPlayer`) in a random direction. */
 export const openPortal = (g: Game, legend: RiftLegend, at?: { x: number; y: number }) => {
-  const p = g.player
+  const p = anchorPlayer(g)
   const a = range(g.rng, 0, TAU)
   const d = dm.hypot(g.view.w, g.view.h) / 2 + 60
   const { x, y } = at ?? clearSpot(g, { x: p.x + dm.cos(a) * d, y: p.y + dm.sin(a) * d }, portalReach(legend) + 4)
@@ -35,11 +37,11 @@ export const openPortal = (g: Game, legend: RiftLegend, at?: { x: number; y: num
 }
 
 /**
- * The next rift begins: its legendary is drawn (one not met yet this run), its
+ * The next rift begins: its legendary is drawn (one not met yet this run, never the team's own legend: `teamLegend`), its
  * weather takes the sky and holds until the rift is over (`setWeather`, with
  * no next change due), and the one after it is scheduled.
  */
-export const startOmen = (g: Game, legend: RiftLegend = pickLegend(g.rng, g.rift.met, g.legend?.id)) => {
+export const startOmen = (g: Game, legend: RiftLegend = pickLegend(g.rng, g.rift.met, teamLegend(g)?.id)) => {
   const rift = g.rift
   rift.omen = { legend, left: RIFT.omenTime }
   rift.met.push(legend)
@@ -53,14 +55,14 @@ export const startOmen = (g: Game, legend: RiftLegend = pickLegend(g.rng, g.rift
   g.events.push({ kind: 'riftOmen', enemy: legend })
 }
 
-/** The rift is over without the player going in: a held omen weather moves on soon. */
+/** The rift is over without the team going in: a held omen weather moves on soon. */
 const releaseSky = (g: Game) => {
   if (g.weather.next === Infinity) g.weather.next = g.time + 4
 }
 
-/** Starts omens on schedule, opens their portals, ticks the open one and steps the player in. */
+/** Starts omens on schedule, opens their portals, ticks the open one and, once a player stands in it long enough, sends the team in. */
 export const updateRiftPortal = (g: Game, dt: number) => {
-  // An open portal waits on the map, like the rest of the world, while the player is inside a place.
+  // An open portal waits on the map, like the rest of the world, while the team is inside a place.
   if (g.place.inside) return
   const rift = g.rift
   const omen = rift.omen
@@ -87,9 +89,7 @@ export const updateRiftPortal = (g: Game, dt: number) => {
     g.events.push({ kind: 'riftClosed' })
     return
   }
-  const p = g.player
-  const reach = portalReach(portal.legend)
-  const inside = dm.sq(p.x - portal.x) + dm.sq(p.y - portal.y) < dm.sq(reach)
+  const inside = playerWithin(g, portal.x, portal.y, portalReach(portal.legend)) !== null
   portal.charge = chargePortal(portal.charge, inside, dt)
   // Motes drift up out of the portal; denser while it charges.
   if (g.rng() < (inside ? 0.6 : 0.2)) {

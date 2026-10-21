@@ -1,6 +1,7 @@
 import { range } from '../../engine/rng'
 import { spawnHazard } from '../bosses'
 import type { DomainHooks } from '../domainHooks'
+import { anchorPlayer } from '../players'
 
 /**
  * Rayquaza's Sky Pillar (`data/domains/rayquaza.ts`) beyond its data: gusts
@@ -14,7 +15,8 @@ const SHEAR = { every: 3.4, ahead: [60, 130], windup: 1.15, duration: 0.3, width
 export const RAYQUAZA_HOOKS: DomainHooks = {
   crossing: (g, d, dt) => {
     if (Math.floor(d.age / SHEAR.every) === Math.floor((d.age - dt) / SHEAR.every) || d.age < SHEAR.every) return
-    const p = g.player
+    // Aimed at a player: they take turns (`anchorPlayer`).
+    const p = anchorPlayer(g)
     const lines = g.rng() < 0.35 ? 2 : 1
     for (let i = 0; i < lines; i++) {
       const y = p.y - range(g.rng, SHEAR.ahead[0], SHEAR.ahead[1]) - i * 46

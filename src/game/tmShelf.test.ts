@@ -94,7 +94,7 @@ describe('the TM shelf', () => {
 /** A run past the opening draft. */
 const run = (start: ReplayStart): Game => {
   const g = startGame(start)
-  chooseOffer(g, g.offers[0]!)
+  chooseOffer(g, g.player.offers[0]!)
   return g
 }
 
@@ -104,7 +104,7 @@ describe('armed TMs in a run', () => {
     killEnemy(g, spawnEnemy(g, 'onix', 40, 0))
     expect(g.pickups.find((k) => k.kind === 'tm')).toMatchObject({ move: 'payDay', source: 'boss' })
     expect(openTutor(g)).toBe(true)
-    expect(g.offers[0]).toMatchObject({ kind: 'tm', id: 'iceBeam', source: 'tutor' })
+    expect(g.player.offers[0]).toMatchObject({ kind: 'tm', id: 'iceBeam', source: 'tutor' })
     g.phase = 'playing'
     g.pickups.length = 0
     killEnemy(g, spawnEnemy(g, 'snorlax', 40, 0))
@@ -125,7 +125,7 @@ describe('armed TMs in a run', () => {
     while (g.time < 12 && g.phase !== 'gameover') {
       if (g.phase !== 'playing' && g.phase !== 'evolving') {
         recordEvent(rec, ['offer', 0])
-        chooseOffer(g, g.offers[0]!)
+        chooseOffer(g, g.player.offers[0]!)
         continue
       }
       angle += (bot() - 0.5) * 0.4

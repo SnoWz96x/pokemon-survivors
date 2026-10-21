@@ -14,6 +14,7 @@ import { isAlive, nearestEnemy } from './queries'
 import { addMoveBuff } from './signatureMoves'
 import { spawnAttack } from './spawn'
 import { applyStatus, type StatusSpec } from './status'
+import { ownAttack } from './players'
 import type { Attack, Enemy, Game } from './types'
 import { weatherHere } from './weather'
 
@@ -445,7 +446,7 @@ export const EGG_MOVES_2 = {
     // Crackling with electricity, the player runs faster and their body shocks every foe they touch; each shock costs a little HP.
     fire: (g, s) => {
       const p = g.player
-      const live = g.attacks.find((a) => a.visual === 'wildCharge')
+      const live = g.attacks.find((a) => ownAttack(g, a) && a.visual === 'wildCharge')
       if (live) {
         live.ttl = live.age + s.duration
         live.damage = s.damage

@@ -60,7 +60,7 @@ export const abilitySet = (starter: PlayableId, branch: BranchId | null): Abilit
 }
 
 /** The ability in play: none while a Mega form lasts, whose own ability replaces it. */
-export const activeAbility = (g: Game): AbilityId | null => (g.mega.active > 0 ? null : g.ability.id)
+export const activeAbility = (g: Game): AbilityId | null => (g.player.mega.active > 0 ? null : g.player.ability.id)
 
 const NONE: readonly AbilityEffect[] = []
 const joined = new Map<string, readonly AbilityEffect[]>()
@@ -71,10 +71,10 @@ const joined = new Map<string, readonly AbilityEffect[]>()
  */
 const effectsOf = (g: Game): readonly AbilityEffect[] => {
   const id = activeAbility(g)
-  const innate = innateEffects(g.starter)
+  const innate = innateEffects(g.player.starter)
   if (innate.length === 0) return id ? ABILITIES[id].effects : NONE
   if (!id) return innate
-  const key = `${g.starter}|${id}`
+  const key = `${g.player.starter}|${id}`
   let effects = joined.get(key)
   if (!effects) joined.set(key, (effects = [...innate, ...ABILITIES[id].effects]))
   return effects
@@ -84,7 +84,7 @@ const effectsOf = (g: Game): readonly AbilityEffect[] => {
 const proc = (g: Game, e: AbilityEffect) => {
   const id = activeAbility(g)
   const own: readonly AbilityEffect[] = id ? ABILITIES[id].effects : NONE
-  const owner = id && own.includes(e) ? id : innateAbility(g.starter)
+  const owner = id && own.includes(e) ? id : innateAbility(g.player.starter)
   if (owner) g.events.push({ kind: 'ability', id: owner, moment: 'proc' })
 }
 
@@ -100,7 +100,7 @@ const effectOf = <K extends AbilityEffect['kind']>(g: Game, kind: K) =>
 
 /** Picks the ability: fresh state, and any summoned weather comes on the next tick. The caller rebuilds the stats. */
 export const grantAbility = (g: Game, id: AbilityId) => {
-  g.ability = { ...createAbilityState(), id }
+  g.player.ability = { ...createAbilityState(), id }
   g.events.push({ kind: 'ability', id, moment: 'picked' })
 }
 
@@ -135,7 +135,7 @@ const effectOn = (g: Game, e: AbilityEffect) => {
 }
 
 /** Whole stacks the ability holds (onKill, timer, onHurt). */
-export const abilityStacks = (g: Game) => Math.floor(g.ability.stacks)
+export const abilityStacks = (g: Game) => Math.floor(g.player.ability.stacks)
 
 /**
  * What the ability adds to the stats right now. `emptySlots` are the held
@@ -165,7 +165,7 @@ export const abilityDeltas = (g: Game, emptySlots: number): StatDelta[] =>
       case 'onHurt':
         return abilityStacks(g) > 0 ? [scaled(e.stats, abilityStacks(g))] : []
       case 'moody':
-        return g.ability.mood >= 0 && e.options[g.ability.mood] ? [e.options[g.ability.mood]!] : []
+        return g.player.ability.mood >= 0 && e.options[g.player.ability.mood] ? [e.options[g.player.ability.mood]!] : []
       case 'unburden':
         return emptySlots > 0 ? [scaled(e.stats, emptySlots)] : []
       default:
@@ -179,16 +179,16 @@ export const abilityKey = (g: Game) => {
   effectsOf(g).forEach((e, i) => {
     if (effectOn(g, e)) bits |= 1 << i
   })
-  return bits + 256 * (abilityStacks(g) + 64 * (g.ability.mood + 1))
+  return bits + 256 * (abilityStacks(g) + 64 * (g.player.ability.mood + 1))
 }
 
 /** Whether the ability is doing something right now, for the HUD: a condition met, stacks held, a guard or Sturdy waiting. */
 export const abilityLit = (g: Game) =>
   effectsOf(g).some((e) =>
-    e.kind === 'guard' ? g.ability.guard <= 0
-    : e.kind === 'sturdy' ? !g.ability.spent
+    e.kind === 'guard' ? g.player.ability.guard <= 0
+    : e.kind === 'sturdy' ? !g.player.ability.spent
     : e.kind === 'onKill' || e.kind === 'timer' || e.kind === 'onHurt' ? abilityStacks(g) > 0
-    : e.kind === 'moody' ? g.ability.mood >= 0
+    : e.kind === 'moody' ? g.player.ability.mood >= 0
     : effectOn(g, e),
   )
 
@@ -210,7 +210,7 @@ const strike = (g: Game, e: Enemy, amount: number) => {
   const dmg = Math.max(1, Math.round(amount))
   e.hp -= dmg
   e.flash = 0.12
-  g.damageByMove.ability = (g.damageByMove.ability ?? 0) + dmg
+  g.player.damageByMove.ability = (g.player.damageByMove.ability ?? 0) + dmg
   damageText(g, e, dmg, '#f8e8b0')
   if (e.hp <= 0) killEnemy(g, e, 'ability')
 }
@@ -238,8 +238,8 @@ export const abilityTakes = (g: Game, amount: number, types: readonly PokeType[]
       p.iframes = Math.max(p.iframes, ABILITY.guardIframes)
       return null
     }
-    if (e.kind === 'guard' && g.ability.guard <= 0) {
-      g.ability.guard = e.every
+    if (e.kind === 'guard' && g.player.ability.guard <= 0) {
+      g.player.ability.guard = e.every
       p.iframes = Math.max(p.iframes, ABILITY.guardIframes)
       burst(g, p.x, p.y - 12, { colors: ['#f8f8ff', '#b8a8f8', '#8878d8'], count: 18, speed: 90, ttl: 0.4 })
       if (e.reflect && from && isAlive(from)) strike(g, from, amount * 2 + contactPower(g))
@@ -254,16 +254,16 @@ export const abilityTakes = (g: Game, amount: number, types: readonly PokeType[]
 export const abilityHurt = (g: Game) => {
   const e = effectOf(g, 'onHurt')
   if (!e) return
-  g.ability.stacks = Math.min(e.max, Math.floor(g.ability.stacks) + 1)
-  g.ability.clock = e.seconds
+  g.player.ability.stacks = Math.min(e.max, Math.floor(g.player.ability.stacks) + 1)
+  g.player.ability.clock = e.seconds
 }
 
 /** The player would faint: Sturdy holds once, at 1 HP. True when it held. */
 export const abilityHolds = (g: Game) => {
   const sturdy = effectOf(g, 'sturdy')
-  if (g.ability.spent || !sturdy) return false
+  if (g.player.ability.spent || !sturdy) return false
   const p = g.player
-  g.ability.spent = true
+  g.player.ability.spent = true
   p.hp = 1
   p.iframes = Math.max(p.iframes, ABILITY.sturdyIframes)
   burst(g, p.x, p.y - 12, { colors: ['#f8d030', '#ffffff', '#b89848'], count: 40, speed: 140, ttl: 0.6, size: 2 })
@@ -284,7 +284,7 @@ export const strikeBonus = (g: Game, e: Enemy) => {
 export const abilityKill = (g: Game, e: Enemy) => {
   for (const effect of effectsOf(g)) {
     if (effect.kind === 'onKill') {
-      const s = g.ability
+      const s = g.player.ability
       if (++s.kills < effect.per) continue
       s.kills = 0
       if (s.stacks >= effect.max) continue
@@ -332,7 +332,7 @@ const auraPulse = (g: Game, e: Extract<AbilityEffect, { kind: 'aura' }>) => {
  * True when its conditions changed, so the caller rebuilds the stats.
  */
 export const updateAbility = (g: Game, dt: number) => {
-  const s = g.ability
+  const s = g.player.ability
   for (const e of effectsOf(g)) {
     switch (e.kind) {
       case 'summon':

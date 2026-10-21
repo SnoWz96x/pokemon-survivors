@@ -11,7 +11,7 @@ describe('falling in a rift arena', () => {
   it('holds the world while the rift throws the player out, then lands them back alive with their Revive kept', () => {
     const g = createGame('charmander', { w: 480, h: 270 }, 1)
     const outside = g.enemies
-    g.revives = 1
+    g.player.revives = 1
     enterArena(g, 'lugia', g.player.x, g.player.y)
     g.player.iframes = 0
     hurtPlayer(g, g.player.stats.maxHp * 100)
@@ -27,7 +27,7 @@ describe('falling in a rift arena', () => {
     expect(g.rift.arena).toBeNull()
     expect(g.enemies).toBe(outside)
     expect(g.player.hp).toBe(Math.round(g.player.stats.maxHp * RIFT.fallHp))
-    expect(g.revives).toBe(1)
+    expect(g.player.revives).toBe(1)
     expect(g.rift.cleared).toEqual([])
     expect(g.events.some((e) => e.kind === 'riftExit' && e.outcome === 'fallen')).toBe(true)
   })

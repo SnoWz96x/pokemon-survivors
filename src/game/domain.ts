@@ -19,7 +19,8 @@ import { exitArena, LAVA_BURN, riftWin } from './riftArena'
 import { keepOnFloor, setAside } from './room'
 import { rollShiny } from './shiny'
 import { groundAt, inSolid, playerTypes, type Solid } from './terrain'
-import type { Enemy, Game } from './types'
+import { actAs, aimScreen, anchorPlayer, centerScreen, placeTeam, standing } from './players'
+import type { Enemy, Game, Player } from './types'
 import * as dm from '../engine/dmath'
 
 /**
@@ -70,7 +71,7 @@ export const arenaPoint = (arena: RiftArena, d: DomainState, [x, y]: Pt) => {
   return { x: arena.x + at[0] + x, y: arena.y + at[1] + y }
 }
 
-/** The domain the player is in, if any. */
+/** The domain the team is in, if any. */
 export const domainHere = (g: Game) => {
   const arena = g.rift.arena
   return arena?.domain ? { arena, d: arena.domain, def: defOf(arena.domain) } : null
@@ -88,7 +89,7 @@ const solidsOf = (def: LegendDomain, x: number, y: number): Solid[] => {
 /** How far ahead (north) the camera looks in the crossing, as a share of the view's height. */
 const LOOK_AHEAD = 0.16
 
-/** Sends the player into `legend`'s domain, its origin where the portal stood, at the crossing's start. */
+/** Sends the team into `legend`'s domain, its origin where the portal stood, at the crossing's start (side by side). */
 export const enterDomain = (g: Game, legend: RiftLegend, x: number, y: number) => {
   const def = domainOf(legend)
   if (!def) return
@@ -113,13 +114,12 @@ export const enterDomain = (g: Game, legend: RiftLegend, x: number, y: number) =
     memo: [],
     pair: null,
   }
-  const p = g.player
-  p.x = x + crossing.start[0]
-  p.y = y + crossing.start[1]
-  p.vx = 0
-  p.vy = 0
-  g.camera.x = p.x - g.view.w / 2
-  g.camera.y = p.y - 10 - g.view.h * (0.5 + LOOK_AHEAD)
+  placeTeam(g, x + crossing.start[0], y + crossing.start[1])
+  for (const p of g.players) {
+    p.vx = 0
+    p.vy = 0
+  }
+  for (const p of g.players) aimScreen(g, p, p.x - g.view.w / 2, p.y - 10 - g.view.h * (0.5 + LOOK_AHEAD))
   g.rift.arena = {
     legend,
     shiny,
@@ -143,16 +143,17 @@ export const enterDomain = (g: Game, legend: RiftLegend, x: number, y: number) =
 
 /* ---------------- Crossing ---------------- */
 
-/** Brings in a retinue wave just past the top of the screen, on floor clear of scenery. */
+/** Brings in a retinue wave just past the top of a player's screen (they take turns, `anchorPlayer`), on floor clear of scenery. */
 const spawnRetinue = (g: Game, arena: RiftArena, def: LegendDomain) => {
   const r = def.crossing.retinue
   let alive = 0
   for (const e of g.enemies) if (e.dying < 0 && !e.boss) alive++
   const n = Math.min(r.count, r.max - alive)
-  const row = g.camera.y - 18
+  const screen = anchorPlayer(g).screen
+  const row = screen.y - 18
   for (let i = 0; i < n; i++) {
     for (let tries = 0; tries < 8; tries++) {
-      const x = g.camera.x + 12 + g.rng() * (g.view.w - 24)
+      const x = screen.x + 12 + g.rng() * (g.view.w - 24)
       const y = row - g.rng() * 30
       if (!onFloor(arena.layout.floor, x - arena.x, y - arena.y, -10) || inSolid(g, x, y, 10)) continue
       const member = weightedPick(g.rng, r.members.map((m) => [m, m.weight] as const))
@@ -176,21 +177,34 @@ const STING: Record<ThreatKind, readonly string[]> = {
   mist: ['#f8c8e0', '#ffffff', '#e8e0f8'],
 }
 
+/** The standing player furthest south in the crossing (the threat's front chases them), or furthest north (`lead`: the first to reach the gate). */
+const endOfTeam = (g: Game, lead: boolean): Player => {
+  let best = g.players[0]!
+  for (const p of g.players) if (standing(g, p) && (lead ? p.y < best.y : p.y > best.y)) best = p
+  return best
+}
+
 const crossingTick = (g: Game, arena: RiftArena, d: DomainState, def: LegendDomain, dt: number) => {
-  const p = g.player
   const { threat, retinue } = def.crossing
-  d.front = advanceFront(d.front, p.y - arena.y, d.age, dt, threat)
+  d.front = advanceFront(d.front, endOfTeam(g, false).y - arena.y, d.age, dt, threat)
   if (Math.abs(d.front - d.laidFront) >= 1) {
     d.laidFront = d.front
     arena.layout = composePlan(def, false, [], threatGround(threat, d.front))
   }
-  // Behind the front the threat bites and carries the player on.
-  if (p.y - arena.y > d.front) {
-    p.y -= threat.push * dt
+  // Behind the front the threat bites and carries the players on (one bite clock for everyone behind it).
+  let behind = false
+  for (const p of g.players) if (standing(g, p) && p.y - arena.y > d.front) behind = true
+  if (behind) {
     d.sting -= dt
-    if (d.sting <= 0) {
-      d.sting = threat.every
+    const bite = d.sting <= 0
+    if (bite) d.sting = threat.every
+    for (const p of g.players) {
+      if (!standing(g, p) || p.y - arena.y <= d.front) continue
+      p.y -= threat.push * dt
+      if (!bite) continue
+      const before = actAs(g, p)
       hurtPlayer(g, p.stats.maxHp * threat.damage, undefined, [], 'hazard')
+      actAs(g, before)
       burst(g, p.x, p.y - 4, { colors: STING[threat.kind], count: 8, speed: 70, ttl: 0.4, gravity: 120 })
     }
   } else d.sting = 0
@@ -200,10 +214,10 @@ const crossingTick = (g: Game, arena: RiftArena, d: DomainState, def: LegendDoma
     spawnRetinue(g, arena, def)
   }
   DOMAIN_HOOKS[d.legend]?.crossing?.(g, d, dt)
-  if (p.y - arena.y < def.crossing.gate && arena.fall === null) startEncounter(g, arena, d, def)
+  if (endOfTeam(g, true).y - arena.y < def.crossing.gate && arena.fall === null) startEncounter(g, arena, d, def)
 }
 
-/** The player reached the arena: the way back seals, the retinue is left behind, and the encounter scene begins. */
+/** A player reached the arena: the way back seals, the retinue is left behind, the team gathers at the arena's start and the encounter scene begins. */
 const startEncounter = (g: Game, arena: RiftArena, d: DomainState, def: LegendDomain) => {
   d.act = 'encounter'
   d.age = 0
@@ -212,23 +226,18 @@ const startEncounter = (g: Game, arena: RiftArena, d: DomainState, def: LegendDo
   g.enemies.length = 0
   g.hazards.length = 0
   arena.layout = composePlan(def, true, [])
-  const p = g.player
   const start = arenaPoint(arena, d, def.arena.player)
-  p.x = start.x
-  p.y = start.y
-  p.vx = 0
-  p.vy = 0
+  placeTeam(g, start.x, start.y)
+  for (const p of g.players) {
+    p.vx = 0
+    p.vy = 0
+  }
   g.shake = Math.max(g.shake, 7)
   g.events.push({ kind: 'quake' })
 }
 
 /* ---------------- Encounter and capture scenes ---------------- */
 
-/** The camera centered on (x, y) (the player's framing: 10 px above their feet). */
-const centerOn = (g: Game, x: number, y: number) => {
-  g.camera.x = x - g.view.w / 2
-  g.camera.y = y - 10 - g.view.h / 2
-}
 
 /** The legendary shows itself: it's brought in at its spot, with a flash, a jolt and its title card. */
 const reveal = (g: Game, arena: RiftArena, d: DomainState, def: LegendDomain) => {
@@ -268,7 +277,6 @@ export const updateDomainScene = (g: Game, dt: number) => {
   d.scene += dt
   updateEffects(g, dt)
   g.flash = Math.max(0, g.flash - dt * 1.5)
-  const p = g.player
   if (d.act === 'encounter') {
     if (before < REVEAL_AT && d.scene >= REVEAL_AT) reveal(g, arena, d, def)
     const beat = encounterBeat(d.scene)
@@ -277,7 +285,7 @@ export const updateDomainScene = (g: Game, dt: number) => {
     const at = arenaPoint(arena, d, def.partner ? [(bx + def.partner.at[0]) / 2, (by + def.partner.at[1]) / 2] : def.arena.boss)
     // The ground rumbles harder as the legendary comes in.
     if (beat.entrance > 0 && beat.entrance < 1) g.shake = Math.max(g.shake, 2 + beat.entrance * 5)
-    centerOn(g, p.x + (at.x - p.x) * beat.camera, p.y + (at.y - p.y) * beat.camera)
+    for (const p of g.players) centerScreen(g, p, p.x + (at.x - p.x) * beat.camera, p.y + (at.y - p.y) * beat.camera)
     if (d.scene >= ENCOUNTER_LENGTH) {
       d.act = 'battle'
       d.age = 0
@@ -286,7 +294,7 @@ export const updateDomainScene = (g: Game, dt: number) => {
   }
   const c = d.capture!
   // On the legendary, a little low on screen so the news at the top doesn't cover it; the throw comes in from the player's side.
-  centerOn(g, c.partner ? (c.x + c.partner.x) / 2 : c.x, (c.partner ? (c.y + c.partner.y) / 2 : c.y) - 50)
+  for (const p of g.players) centerScreen(g, p, c.partner ? (c.x + c.partner.x) / 2 : c.x, (c.partner ? (c.y + c.partner.y) / 2 : c.y) - 50)
   if (before < CAPTURE.settle && d.scene >= CAPTURE.settle) {
     c.settled = true
     g.events.push({ kind: 'riftCapture', enemy: d.legend, shiny: c.shiny })
@@ -367,29 +375,32 @@ export const updateDomain = (g: Game, arena: RiftArena, d: DomainState, dt: numb
   else if (d.act === 'battle') battleTick(g, arena, d, def, dt)
   if (g.rift.arena !== arena || arena.fall !== null) return
   keepInDomain(g, arena.layout, arena)
-  const p = g.player
-  if (groundAt(g, p.x, p.y) === 'lava' && !playerTypes(g).includes('fire')) hurtPlayer(g, p.stats.maxHp * (def.lavaBurn ?? LAVA_BURN), undefined, ['fire'], 'lava')
+  for (const p of g.players) {
+    if (groundAt(g, p.x, p.y) !== 'lava') continue
+    const before = actAs(g, p)
+    if (!playerTypes(g).includes('fire')) hurtPlayer(g, p.stats.maxHp * (def.lavaBurn ?? LAVA_BURN), undefined, ['fire'], 'lava')
+    actAs(g, before)
+  }
   if (d.act !== 'after' || arena.loot === null) return
   for (const k of g.pickups) k.attracted = true
   arena.loot -= dt
   if (arena.loot <= 0) exitArena(g, 'won')
 }
 
-/** Keeps the player on the floor and out of its holes, walkers on the floor (the legendary and the retinue swim the holes), and breaks shots past its edge. */
+/** Keeps the players on the floor and out of its holes, walkers on the floor (the legendary and the retinue swim the holes), and breaks shots past its edge. */
 const keepInDomain = (g: Game, plan: FloorPlan, arena: RiftArena) => {
-  const p = g.player
-  keepOnFloor(p, arena, plan.floor, plan.holes ?? [], p.radius)
+  for (const p of g.players) keepOnFloor(p, arena, plan.floor, plan.holes ?? [], p.radius)
   for (const e of g.enemies) if (e.dying < 0 && !offstage(e)) keepOnFloor(e, arena, plan.floor, [], e.boss ? e.radius * 0.5 : e.radius * 0.8)
   retain(g.hazards, (h) => h.kind !== 'shot' || h.phantom > 0 || onFloor(plan.floor, h.x - arena.x, h.y - arena.y, 6))
 }
 
 /* ---------------- Camera ---------------- */
 
-/** How far from the view's edges the player always stays while the camera frames the legendary too, px (the HUD sits on top). */
+/** How far from the view's edges a player always stays while their screen frames the legendary too, px (the HUD sits on top). */
 const FRAME = { side: 44, top: 90, bottom: 44 } as const
 
 /**
- * The camera in a domain (outside its scenes): ahead of the player in the
+ * The acting player's screen in a domain (outside its scenes): ahead of them in the
  * crossing, and in the battle on the middle of the player and the
  * legendary, a little low so the HUD doesn't cover the legendary, but never
  * so far the player leaves the frame. It eases there; positions become whole
@@ -409,8 +420,8 @@ export const domainCamera = (g: Game, dt: number) => {
     y = Math.max(p.y - (h - FRAME.bottom), Math.min(p.y - FRAME.top, (p.y + boss.y) / 2 - h / 2 - 24))
   }
   const k = 1 - dm.exp(-5 * dt)
-  g.camera.x += (x - g.camera.x) * k
-  g.camera.y += (y - g.camera.y) * k
+  const s = p.screen
+  aimScreen(g, p, s.x + (x - s.x) * k, s.y + (y - s.y) * k)
   return true
 }
 

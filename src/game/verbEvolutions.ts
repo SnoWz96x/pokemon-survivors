@@ -10,6 +10,7 @@ import { clusterSpots, electroMult, farthest, gyroMult, inArc, mostHurt, ringPoi
 import { enemiesInView, nearestEnemy } from './queries'
 import { spawnAttack } from './spawn'
 import type { DamageBonus } from './kitRules'
+import { ownAttack, ownerOf } from './players'
 import type { Attack, Enemy, Game, OwnedMove } from './types'
 import { chainKids, cycle, driftLinks, driftRadius, leadOf, segmentDistance, spoutMult, toughest, zigzagLegs } from './verbEvolvedRules'
 import { weatherHere } from './weather'
@@ -74,7 +75,7 @@ export const FURY = {
  * carrier for the run (the cloak itself), refreshed by each cast.
  */
 const ragingFury: Cast = (g, s) => {
-  const carrier = g.attacks.find((a) => a.move === 'ragingFury' && a.trailer)
+  const carrier = g.attacks.find((a) => ownAttack(g, a) && a.move === 'ragingFury' && a.trailer)
   if (carrier?.trailer) {
     carrier.damage = s.damage
     carrier.status = s.status
@@ -237,7 +238,7 @@ const electroDrift: Cast = (g, s) => {
 /** Per tick: the link's orbs spiral out, and the lightning between them hurts the foes it crosses. */
 const driftTick = (g: Game, link: Attack) => {
   const area = link.shape.kind === 'circle' ? link.shape.r / DRIFT.link : 1
-  const orbs = g.attacks.filter((a) => a.visual === 'electroDrift' && a.memo === link.id)
+  const orbs = g.attacks.filter((a) => ownAttack(g, a) && a.visual === 'electroDrift' && a.memo === link.id)
   const k = link.age / link.ttl
   for (const o of orbs) if (o.motion.kind === 'orbit') o.motion.radius = driftRadius(k, DRIFT.from, DRIFT.to) * area
   const half = DRIFT.link * area
@@ -576,7 +577,7 @@ const stoneAxe: Cast = (g, s) => {
     damage: s.damage, knockback: s.knockback, status: s.status, ttl: AXE.chop + 0.4, activeFrom: AXE.chop, activeUntil: AXE.chop + 0.05,
     from: { x: p.x, y: p.y - 10 }, flip: at.x < p.x,
   })
-  const splinters = g.attacks.filter((a) => a.visual === 'axeSplinter')
+  const splinters = g.attacks.filter((a) => ownAttack(g, a) && a.visual === 'axeSplinter')
   const extra = splinters.length + s.amount - AXE.keep
   for (let i = 0; i < extra && i < splinters.length; i++) splinters[i]!.ttl = splinters[i]!.age
   ringPoints({ x: e.x, y: e.y }, s.amount, AXE.ring * s.area, g.rng() * TAU).forEach((pt, i) => {
@@ -740,9 +741,12 @@ const sparkle = (g: Game, a: Attack) => {
  * scan of the attacks and nothing else when none of these moves is out.
  */
 export const updateVerbEvolved = (g: Game, dt: number) => {
+  const actor = g.player
   for (let i = 0; i < g.attacks.length; i++) {
     const a = g.attacks[i]!
     if (a.age < 0) continue
+    // Each hitbox acts as the player who cast it.
+    g.player = ownerOf(g, a.owner)
     switch (a.visual) {
       case 'ragingFury':
         furyTick(g, a)
@@ -764,6 +768,7 @@ export const updateVerbEvolved = (g: Game, dt: number) => {
         if (crossed(a, a.activeFrom === Infinity ? 0 : a.activeFrom, dt)) impact(g, a)
     }
   }
+  g.player = actor
 }
 
 /* ---------------- The moves ---------------- */

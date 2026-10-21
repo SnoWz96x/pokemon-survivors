@@ -5,6 +5,7 @@ import { LEAF, WHIRL } from './legendaryMoves'
 import { moveStats, type MoveId } from './moves'
 import { nearestEnemy } from './queries'
 import { spawnAttack } from './spawn'
+import { ownAttack } from './players'
 import type { Attack, Game } from './types'
 
 /**
@@ -33,7 +34,7 @@ const launchSpeed = (g: Game, move: MoveId) => {
 /** Foes already chased by a launched hitbox of `move`, so the next one picks another. */
 const chased = (g: Game, move: MoveId) => {
   const ids = new Set<number>()
-  for (const a of g.attacks) if (a.move === move && a.motion.kind === 'homing' && a.motion.target) ids.add(a.motion.target.id)
+  for (const a of g.attacks) if (ownAttack(g, a) && a.move === move && a.motion.kind === 'homing' && a.motion.target) ids.add(a.motion.target.id)
   return ids
 }
 
@@ -66,7 +67,7 @@ export const updateLegendary = (g: Game) => {
   updateLegendary2(g)
   const speeds = new Map<MoveId, number>()
   for (const a of g.attacks) {
-    if (a.age < 0 || a.move === 'special' || a.move === 'ability') continue
+    if (a.age < 0 || a.move === 'special' || a.move === 'ability' || !ownAttack(g, a)) continue
     // The big impacts shake the screen the moment they land.
     if ((a.visual === 'ascentImpact' || a.visual === 'timeSnap' || a.visual === 'boostBurst') && a.memo === 0) {
       g.shake = Math.max(g.shake, a.visual === 'boostBurst' ? 1.5 : 3)

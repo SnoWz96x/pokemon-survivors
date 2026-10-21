@@ -14,6 +14,7 @@ import {
 import { enemiesInView, nearestEnemy } from './queries'
 import { refreshMods } from './mods'
 import { spawnAttack } from './spawn'
+import { ownAttack } from './players'
 import type { Game, OwnedMove } from './types'
 import { weatherHere } from './weather'
 
@@ -54,7 +55,7 @@ export const FLAME_WHEEL = { every: 11, r: 9, hitInterval: 0.4 } as const
  * refreshes its numbers, like Whirlpool's aura.
  */
 export const flameWheel: Cast = (g, s) => {
-  const carrier = g.attacks.find((a) => a.move === 'flameWheel' && a.trailer)
+  const carrier = g.attacks.find((a) => ownAttack(g, a) && a.move === 'flameWheel' && a.trailer)
   if (carrier?.trailer) {
     carrier.damage = s.damage
     carrier.status = s.status
@@ -286,7 +287,7 @@ export const GYRO = { radius: 34, r: 9, hitInterval: 0.45 } as const
 export const gyroBall: Cast = (g, s) => {
   const p = g.player
   const damage = s.damage * gyroMult(dm.hypot(p.vx, p.vy))
-  const gears = g.attacks.filter((a) => a.move === 'gyroBall')
+  const gears = g.attacks.filter((a) => ownAttack(g, a) && a.move === 'gyroBall')
   if (gears.length === s.amount) {
     for (const a of gears) {
       a.damage = damage
@@ -394,7 +395,7 @@ export const STEALTH = { radius: 42, r: 7, hitInterval: 0.6 } as const
  */
 export const stealthRock: Cast = (g, s) => {
   const p = g.player
-  const stones = g.attacks.filter((a) => a.move === 'stealthRock')
+  const stones = g.attacks.filter((a) => ownAttack(g, a) && a.move === 'stealthRock')
   // Attacks stay in spawn order: the first ones are the oldest.
   const extra = stones.length + s.amount - s.amount * STEALTH_RINGS
   for (let i = 0; i < extra && i < stones.length; i++) stones[i]!.ttl = stones[i]!.age

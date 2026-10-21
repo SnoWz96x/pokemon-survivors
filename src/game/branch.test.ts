@@ -89,7 +89,7 @@ describe('replays', () => {
   const staged = () => {
     const g = startGame(start)
     // Past the opening draft first.
-    if (g.phase === 'levelup') chooseOffer(g, g.offers[0]!)
+    if (g.phase === 'levelup') chooseOffer(g, g.player.offers[0]!)
     g.player.level = 20
     advancePhase(g)
     return g
@@ -100,15 +100,15 @@ describe('replays', () => {
   it('re-simulate the branch and ability picks to the same run', () => {
     const drawn = staged()
     expect(drawn.phase).toBe('branch')
-    const branch = drawn.offers[1]
+    const branch = drawn.player.offers[1]
     const a = staged()
     const b = staged()
     // The boards show the branch the replay took, so it comes back with the result.
-    expect(resimulate(replay, a).branch).toBe(a.branch)
+    expect(resimulate(replay, a).branch).toBe(a.player.branch)
     resimulate(replay, b)
     expect(a.phase).toBe('playing')
-    expect(branch?.kind === 'form' && a.branch).toBe(branch?.kind === 'form' && branch.id)
-    expect(a.ability.id).not.toBeNull()
-    expect([b.branch, b.ability.id, b.player.stage, b.time]).toEqual([a.branch, a.ability.id, a.player.stage, a.time])
+    expect(branch?.kind === 'form' && a.player.branch).toBe(branch?.kind === 'form' && branch.id)
+    expect(a.player.ability.id).not.toBeNull()
+    expect([b.player.branch, b.player.ability.id, b.player.stage, b.time]).toEqual([a.player.branch, a.player.ability.id, a.player.stage, a.time])
   })
 })

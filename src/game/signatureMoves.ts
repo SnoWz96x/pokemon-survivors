@@ -11,6 +11,7 @@ import {
 import { spawnAttack } from './spawn'
 import type { DamageBonus } from './kitRules'
 import type { StatDelta } from './stats'
+import { ownAttack } from './players'
 import type { Game } from './types'
 import * as dm from '../engine/dmath'
 
@@ -493,7 +494,7 @@ export const SIGNATURE_MOVES = {
     },
     onGuard: (g, s, _owned, from) => {
       const p = g.player
-      const quills = g.attacks.find((a) => a.visual === 'needleArm' && a.age < a.ttl)
+      const quills = g.attacks.find((a) => ownAttack(g, a) && a.visual === 'needleArm' && a.age < a.ttl)
       if (from && from.dying < 0) {
         const jab = spawnAttack(g, {
           ...look('needleArm', 'grass', 'needle'), x: p.x, y: p.y - 9,

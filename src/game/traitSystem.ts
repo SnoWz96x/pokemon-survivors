@@ -24,6 +24,7 @@ import {
   wardAmount,
   type TraitAct,
 } from './traits'
+import { nearestPlayer, standing } from './players'
 import type { Enemy, Game } from './types'
 import * as dm from '../engine/dmath'
 
@@ -108,8 +109,12 @@ const explode = (g: Game, e: Enemy) => {
   const k = TRAITS.kamikaze
   const r = blastRadius(e.radius)
   const dmg = e.damage * k.damage
-  const p = g.player
-  if (inBlast(e.x, e.y, r, p.x, p.y, p.radius * 0.7)) hurtPlayer(g, dmg, undefined, [], 'blast')
+  const before = g.player
+  for (const p of g.players) {
+    g.player = p
+    if (standing(g, p) && inBlast(e.x, e.y, r, p.x, p.y, p.radius * 0.7)) hurtPlayer(g, dmg, undefined, [], 'blast')
+  }
+  g.player = before
   // Self-destruct: it faints without EXP, but whatever the blast takes down drops as usual.
   e.dying = 0
   e.hp = 0
@@ -124,7 +129,7 @@ const explode = (g: Game, e: Enemy) => {
 
 const fuse = (g: Game, e: Enemy, act: Act<'kamikaze'>, dt: number) => {
   const k = TRAITS.kamikaze
-  const p = g.player
+  const p = nearestPlayer(g, e.x, e.y)
   if (act.fuse < 0) {
     if (dm.hypot(p.x - e.x, p.y - e.y) - e.radius - p.radius > k.trigger) return
     act.fuse = 0
@@ -138,8 +143,8 @@ const fuse = (g: Game, e: Enemy, act: Act<'kamikaze'>, dt: number) => {
 
 const beam = (g: Game, e: Enemy, act: Act<'beam'>, dt: number) => {
   const b = TRAITS.beam
-  const p = g.player
   if (act.phase === 'idle') {
+    const p = nearestPlayer(g, e.x, e.y)
     act.cooldown -= dt
     if (act.cooldown > 0 || dm.sq(p.x - e.x) + dm.sq(p.y - e.y) > dm.sq(b.range) || !onScreen(g, e)) return
     // The aim locks now: the line on the ground is exactly where the beam will go.
@@ -162,7 +167,12 @@ const beam = (g: Game, e: Enemy, act: Act<'beam'>, dt: number) => {
     act.t = 0
     g.events.push({ kind: 'trait', trait: 'beam', phase: 'fire' })
   }
-  if (onBeam(act.ox, act.oy, act.dx, act.dy, b.length, b.width / 2, p.x, p.y - p.radius, p.radius * 0.7)) hurtPlayer(g, e.damage * b.damage, undefined, [], 'beam')
+  const before = g.player
+  for (const p of g.players) {
+    g.player = p
+    if (standing(g, p) && onBeam(act.ox, act.oy, act.dx, act.dy, b.length, b.width / 2, p.x, p.y - p.radius, p.radius * 0.7)) hurtPlayer(g, e.damage * b.damage, undefined, [], 'beam')
+  }
+  g.player = before
   if (act.t >= b.fire) {
     act.phase = 'idle'
     act.cooldown = b.every
@@ -171,8 +181,12 @@ const beam = (g: Game, e: Enemy, act: Act<'beam'>, dt: number) => {
 
 const land = (g: Game, e: Enemy, act: Act<'leaper'>) => {
   const l = TRAITS.leaper
-  const p = g.player
-  if (inBlast(act.toX, act.toY, l.radius, p.x, p.y, p.radius * 0.7)) hurtPlayer(g, e.damage * l.damage, e)
+  const before = g.player
+  for (const p of g.players) {
+    g.player = p
+    if (standing(g, p) && inBlast(act.toX, act.toY, l.radius, p.x, p.y, p.radius * 0.7)) hurtPlayer(g, e.damage * l.damage, e)
+  }
+  g.player = before
   burst(g, act.toX, act.toY, { colors: ['#c8b080', '#a08858', '#f0e0b8'], count: 16, speed: l.radius * 5, ttl: 0.4, drag: 6 })
   g.shake = Math.max(g.shake, 2)
   act.phase = 'idle'
@@ -182,8 +196,8 @@ const land = (g: Game, e: Enemy, act: Act<'leaper'>) => {
 
 const leap = (g: Game, e: Enemy, act: Act<'leaper'>, dt: number) => {
   const l = TRAITS.leaper
-  const p = g.player
   if (act.phase === 'idle') {
+    const p = nearestPlayer(g, e.x, e.y)
     act.cooldown -= dt
     if (act.cooldown > 0 || !onScreen(g, e)) return
     const d = dm.hypot(p.x - e.x, p.y - e.y)
@@ -221,14 +235,14 @@ const spitShots = (g: Game) => {
 }
 
 /**
- * A spitter's volley, aimed at where the player stands: shots fanned around
- * the aim that fly `TRAITS.spitter.range`, or, with a puddle (sludge), lobbed
- * to that spot, where each leaves a puddle as it lands.
+ * A spitter's volley, aimed at where the player nearest to it stands: shots
+ * fanned around the aim that fly `TRAITS.spitter.range`, or, with a puddle
+ * (sludge), lobbed to that spot, where each leaves a puddle as it lands.
  */
 const volley = (g: Game, e: Enemy, flavor: SpitFlavor) => {
   const s = TRAITS.spitter
   if (spitShots(g) >= s.shots) return
-  const p = g.player
+  const p = nearestPlayer(g, e.x, e.y)
   const tune = SPITTERS[g.difficulty]
   const aim = dm.atan2(p.y - e.y, p.x - e.x)
   const dist = Math.min(dm.hypot(p.x - e.x, p.y - e.y), s.range)
@@ -268,10 +282,10 @@ const volley = (g: Game, e: Enemy, flavor: SpitFlavor) => {
   g.events.push({ kind: 'trait', trait: 'spitter', phase: 'fire' })
 }
 
-/** Glows for its flavor's `charge` once the player is on screen and in reach, then spits. Holds fire during the finale's duel. */
+/** Glows for its flavor's `charge` once a player is on screen and in reach, then spits. Holds fire during the finale's duel. */
 const spit = (g: Game, e: Enemy, act: Act<'spitter'>, dt: number, duel: boolean) => {
-  const p = g.player
   if (act.phase === 'idle') {
+    const p = nearestPlayer(g, e.x, e.y)
     act.cooldown -= dt
     if (act.cooldown > 0 || duel || !onScreen(g, e) || dm.sq(p.x - e.x) + dm.sq(p.y - e.y) > dm.sq(TRAITS.spitter.reach)) return
     act.phase = 'charge'

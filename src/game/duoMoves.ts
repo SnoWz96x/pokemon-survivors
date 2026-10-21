@@ -10,6 +10,7 @@ import { clusterSpots } from './moveVerbRules'
 import { isAlive } from './queries'
 import { addMoveBuff } from './signatureMoves'
 import { spawnAttack } from './spawn'
+import { ownAttack } from './players'
 import type { Attack, Enemy, Game } from './types'
 import { weatherHere } from './weather'
 
@@ -176,7 +177,7 @@ export const DUO_MOVES = {
       const p = g.player
       const r = SWAMP.r * s.area
       const l = look('grassPledge', 'grass', 'pledgePillar')
-      const swamp = g.attacks.find((a) => a.move === 'grassPledge' && a.visual === 'swamp')
+      const swamp = g.attacks.find((a) => ownAttack(g, a) && a.move === 'grassPledge' && a.visual === 'swamp')
       if (swamp) {
         swamp.damage = s.damage * SWAMP.share
         swamp.status = s.status
@@ -250,7 +251,7 @@ export const DUO_MOVES = {
         })
       }
       // Over the cap, the oldest puddles dry up.
-      const puddles = g.attacks.filter((a) => a.visual === 'ionPuddle' && a.move === 'ionDeluge' && a.age < a.ttl - 0.25)
+      const puddles = g.attacks.filter((a) => ownAttack(g, a) && a.visual === 'ionPuddle' && a.move === 'ionDeluge' && a.age < a.ttl - 0.25)
       for (let i = 0; i < puddles.length - ION.max; i++) puddles[i]!.ttl = Math.max(0, puddles[i]!.age) + 0.25
       cast(g, 'ionDeluge')
     },
@@ -324,7 +325,7 @@ export type DuoMoveId = keyof typeof DUO_MOVES
 /** A comet's landing this tick: the ground shakes and the shell hears the boom. */
 export const updateDuos = (g: Game, dt: number) => {
   for (const a of g.attacks) {
-    if (a.visual !== 'comet' || a.age >= a.activeFrom || a.age + dt < a.activeFrom) continue
+    if (a.visual !== 'comet' || a.age >= a.activeFrom || a.age + dt < a.activeFrom || !ownAttack(g, a)) continue
     g.shake = Math.max(g.shake, 5)
     g.events.push({ kind: a.type === 'electric' ? 'thunder' : 'quake' })
   }

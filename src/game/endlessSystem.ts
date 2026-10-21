@@ -8,6 +8,7 @@ import { blastHorde, spawnEnemy } from './enemies'
 import { dropCoins, dropPickup } from './pickups'
 import { hasTrait } from './roster'
 import { spawnRing, spawnSwarm } from './spawner'
+import { anchorPlayer, nearestPlayer } from './players'
 import type { Enemy, Game } from './types'
 import * as dm from '../engine/dmath'
 import { roomOf } from './room'
@@ -23,9 +24,9 @@ export const continueEndless = (g: Game) => {
   g.phase = 'playing'
 }
 
-/** Arceus descends just past the top of the screen and blasts the horde away. */
+/** Arceus descends just past the top of a player's screen (`anchorPlayer`) and blasts the horde away. */
 const summonReaper = (g: Game, s: EndlessState) => {
-  const p = g.player
+  const p = anchorPlayer(g)
   const reaper = spawnEnemy(g, REAPER, p.x, p.y - g.view.h / 2 - 24)
   reaper.hp = reaper.maxHp = Math.round(reaperHp(s.reaperDefeats) * runMods(g).enemyHp)
   s.reaperId = reaper.id
@@ -50,10 +51,10 @@ const reaperDown = (g: Game, s: EndlessState, reaper: Enemy | undefined) => {
   g.events.push({ kind: 'reaperDown', defeats: s.reaperDefeats })
 }
 
-/** Arceus speeds up as it hunts, and never loses track: past the screen it blinks back to the edge. */
+/** Arceus speeds up as it hunts the nearest player, and never loses track: past their screen it blinks back to the edge. */
 const hunt = (g: Game, s: EndlessState, reaper: Enemy) => {
   reaper.speed = reaperSpeed(ENEMIES[REAPER].speed, g.time - s.reaperSince)
-  const p = g.player
+  const p = nearestPlayer(g, reaper.x, reaper.y)
   const far = dm.hypot(g.view.w, g.view.h) * 0.75
   const dx = reaper.x - p.x
   const dy = reaper.y - p.y

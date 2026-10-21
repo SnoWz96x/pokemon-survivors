@@ -11,6 +11,8 @@ import type { Save } from './meta'
 import { isRecord, wholeNumber } from './parse'
 import { isSupporter } from './supporters'
 import type { Roster } from './roster'
+import { teamLegend } from './legend'
+import { nearestPlayer } from './players'
 import type { Enemy, Game } from './types'
 import * as dm from '../engine/dmath'
 
@@ -158,19 +160,19 @@ const TRICK_COLORS = ['#a058e0', '#e0c0ff', '#58f0b0', '#ffffff'] as const
 /**
  * A jack-o'-lantern cracked open at (x, y): doces ou travessuras! Mostly a
  * treat, candies spilling out; else a trick, a ring of the stage's ghost
- * closing in on the player (and still one candy).
+ * closing in on the player nearest to it (and still one candy).
  */
 export const crackPumpkin = (g: Game, x: number, y: number) => {
   const p = HALLOWEEN.pumpkin
   const treat = chance(g.rng, p.treat)
-  const ghost = treat ? null : hauntAt(stageIndexAt(g.time), g.legend !== null)
+  const ghost = treat ? null : hauntAt(stageIndexAt(g.time), teamLegend(g) !== null)
   burst(g, x, y - 6, { colors: PUMPKIN_COLORS, count: 22, speed: 100, ttl: 0.55, gravity: 90 })
   if (!ghost) {
     dropCandies(g, x, y - 4, p.treatCandies)
   } else {
     dropCandies(g, x, y - 4, p.trickCandies)
     const offset = range(g.rng, 0, Math.PI * 2)
-    const { x: px, y: py } = g.player
+    const { x: px, y: py } = nearestPlayer(g, x, y)
     for (let i = 0; i < p.trickGhosts; i++) {
       const a = offset + (i / p.trickGhosts) * Math.PI * 2
       const gx = px + dm.cos(a) * p.trickRadius

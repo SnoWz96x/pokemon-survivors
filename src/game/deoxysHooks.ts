@@ -1,6 +1,7 @@
 import { range } from '../engine/rng'
 import { spawnHazard } from './bosses'
 import type { DomainHooks } from './domainHooks'
+import { anchorPlayer } from './players'
 
 /**
  * Deoxys's crossing (`data/domains/deoxys.ts`): a meteor shower over the
@@ -13,7 +14,8 @@ export const DEOXYS_HOOKS: DomainHooks = {
   crossing: (g, d, dt) => {
     const n = Math.floor(d.age / SHOWER.every)
     if (n === Math.floor((d.age - dt) / SHOWER.every) || d.age < 2) return
-    const p = g.player
+    // Aimed at a player: they take turns (`anchorPlayer`).
+    const p = anchorPlayer(g)
     const big = n % SHOWER.bigEvery === 0
     const x = big ? p.x + p.vx * SHOWER.delay : p.x + range(g.rng, -90, 90)
     const y = big ? p.y + p.vy * SHOWER.delay : p.y + range(g.rng, -130, 30)

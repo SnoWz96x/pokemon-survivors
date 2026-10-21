@@ -4,6 +4,7 @@ import { hash2 } from '../engine/rng'
 import type { Attack, Game } from '../game/types'
 import { COMET_PALETTES, DUO_ICONS } from './duoArt'
 import { dashedRing } from './strokes'
+import { localPlayer } from '../game/players'
 
 /**
  * Art of the duo moves (`game/duoMoves.ts`). `draw.ts` calls two passes a
@@ -500,12 +501,12 @@ const puddleArcs = (ctx: Ctx, g: Game, t: number) => {
  * buff lasts, wide enough to span the screen, fading in and out.
  */
 const rainbow = (ctx: Ctx, g: Game, t: number) => {
-  const buff = g.player.moveBuffs.find((b) => b.move === 'waterPledge')
+  const buff = localPlayer(g).moveBuffs.find((b) => b.move === 'waterPledge')
   if (!buff) return
   // Fades out over its last half second (each cast refreshes it).
   const alpha = Math.min(1, buff.left / 0.5) * 0.5
-  const cx = Math.round(g.player.x)
-  const cy = Math.round(g.player.y + g.view.h * 0.25)
+  const cx = Math.round(localPlayer(g).x)
+  const cy = Math.round(localPlayer(g).y + g.view.h * 0.25)
   const r0 = Math.round(Math.max(g.view.w * 0.5, g.view.h * 0.75))
   ctx.globalAlpha = alpha
   // The arc is wider than the screen: only the dots in view (with room for the screen shake) are drawn, most of them on a phone held upright.

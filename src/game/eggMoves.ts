@@ -18,6 +18,7 @@ import { maxMoveLevel, MOVE_IDS, MOVES, moveStats, type CastStats, type MoveDef,
 import { enemiesInView, isAlive, nearestEnemy } from './queries'
 import { spawnAttack } from './spawn'
 import { applyStatus } from './status'
+import { ownAttack } from './players'
 import type { Attack, Enemy, EggMoveVisual, Game, OwnedMove } from './types'
 
 /**
@@ -199,7 +200,7 @@ export const twister = (g: Game, s: CastStats) => {
 export const sandTomb = (g: Game, s: CastStats) => {
   const p = g.player
   const r = SAND_R * s.area
-  const live = g.attacks.find((a) => a.move === 'sandTomb')
+  const live = g.attacks.find((a) => ownAttack(g, a) && a.move === 'sandTomb')
   if (live) {
     live.ttl = live.age + s.duration
     live.shape = { kind: 'circle', r }
@@ -328,7 +329,7 @@ export const dynamicPunchHit = (g: Game, a: Attack) => landing(g, a, 4, 0.04)
 /** For `duration` the player rolls along (the stick steers): each consecutive hit doubles the next, up to ×5. */
 export const rollout = (g: Game, s: CastStats) => {
   const p = g.player
-  if (g.attacks.some((a) => a.move === 'rollout' && a.motion.kind === 'roll')) return
+  if (g.attacks.some((a) => ownAttack(g, a) && a.move === 'rollout' && a.motion.kind === 'roll')) return
   spawnAttack(g, {
     ...look('rollout', 'rock', 'rollout'), x: p.x, y: p.y - 8,
     shape: { kind: 'circle', r: 14 * s.area }, motion: { kind: 'roll', speed: s.speed },
@@ -381,7 +382,7 @@ const FURY_RECORD = 6
  */
 export const furyCutter = (g: Game, s: CastStats, owned: OwnedMove) => {
   const p = g.player
-  const prev = g.attacks.filter((a) => a.move === 'furyCutter')
+  const prev = g.attacks.filter((a) => ownAttack(g, a) && a.move === 'furyCutter')
   if (prev.length > 0) {
     owned.stacks = furyNext(stacksOf(owned), prev.some((a) => a.hits.size > 0))
     for (const a of prev) a.ttl = a.age
@@ -622,7 +623,7 @@ export const curse = (g: Game, s: CastStats) => {
   }
   for (const e of foes) {
     // A curse already on it is renewed, not doubled.
-    for (const a of g.attacks) if (a.move === 'curse' && a.motion.kind === 'tether' && a.motion.target === e) a.ttl = a.age
+    for (const a of g.attacks) if (ownAttack(g, a) && a.move === 'curse' && a.motion.kind === 'tether' && a.motion.target === e) a.ttl = a.age
     spawnAttack(g, {
       ...look('curse', 'ghost', 'curse'), x: e.x, y: e.y - e.radius,
       shape: { kind: 'circle', r: 6 }, motion: { kind: 'tether', target: e, every: CURSE_EVERY, next: CURSE_EVERY },

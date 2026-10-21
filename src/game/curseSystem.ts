@@ -2,6 +2,7 @@ import type { CurseId } from '../data/curses'
 import { chestCurse, CURSE, curseDrain } from './curses'
 import { burst, floatText } from './effects'
 import { recomputeStats } from './leveling'
+import { setPhase } from './players'
 import type { Game } from './types'
 
 /** Purple of everything cursed: the frame, the sparks, the HP it takes. */
@@ -13,19 +14,19 @@ export const CURSE_COLORS = ['#a050e0', '#e0b0ff', '#401060'] as const
  * like a level-up (`chooseOffer`), so the replay records the choice.
  */
 export const openCursedChest = (g: Game, x: number, y: number) => {
-  const id = chestCurse(g.curses.held, g.time, g.rng)
+  const id = chestCurse(g.player.curses.held, g.time, g.rng)
   if (!id) return
   burst(g, x, y - 10, { colors: [...CURSE_COLORS, '#ffffff'], count: 36, speed: 90, ttl: 0.9, gravity: -40 })
-  g.phase = 'curse'
-  g.offers = [{ kind: 'curse', id, take: true }, { kind: 'curse', id, take: false }]
+  setPhase(g, 'curse')
+  g.player.offers = [{ kind: 'curse', id, take: true }, { kind: 'curse', id, take: false }]
   g.events.push({ kind: 'curse', id, moment: 'found' })
 }
 
 /** The player's call on a chest's cursed item. */
 export const decideCurse = (g: Game, id: CurseId, take: boolean) => {
   const p = g.player
-  if (take && !g.curses.held.includes(id)) {
-    g.curses.held.push(id)
+  if (take && !g.player.curses.held.includes(id)) {
+    g.player.curses.held.push(id)
     recomputeStats(g)
     burst(g, p.x, p.y - 12, { colors: [...CURSE_COLORS, '#ffffff'], count: 46, speed: 120, ttl: 0.8, gravity: -30 })
     g.shake = Math.max(g.shake, 3)
@@ -46,7 +47,7 @@ const bite = (g: Game, id: CurseId, share: number) => {
 
 /** Life Orb: a move went off, and that costs HP (at most once every `CURSE.lifeOrb.gap` seconds). */
 export const curseCast = (g: Game) => {
-  const c = g.curses
+  const c = g.player.curses
   if (!c.held.includes('lifeOrb') || g.now < c.recoilAt) return
   c.recoilAt = g.now + CURSE.lifeOrb.gap
   bite(g, 'lifeOrb', CURSE.lifeOrb.cost)
@@ -56,7 +57,7 @@ export const curseCast = (g: Game) => {
 
 /** Flame Orb's burn, every tick of it: some HP and a few embers off the player. */
 export const updateCurses = (g: Game) => {
-  const c = g.curses
+  const c = g.player.curses
   if (!c.held.includes('flameOrb') || g.now < c.burnAt) return
   c.burnAt = g.now + CURSE.flameOrb.tick
   bite(g, 'flameOrb', CURSE.flameOrb.perSecond * CURSE.flameOrb.tick)

@@ -7,6 +7,7 @@ import type { Attack, Game } from '../game/types'
 import { moveIconSprite } from './art'
 import { EGG_FX } from './eggMoveArt'
 import { dashedRing } from './strokes'
+import { localPlayer } from '../game/players'
 
 /**
  * Visuals of the egg families' signature moves (`game/eggMoves.ts`). Like
@@ -580,7 +581,7 @@ const drawDart = (ctx: Ctx, a: Attack, t: number) => {
 
 /** How the player's sprite shows: lifted mid-leap (Body Slam), or hidden under the mound (Dig). */
 export const eggPlayerLook = (g: Game) => {
-  if (g.player.hidden?.move === 'dig') return { lift: 0, alpha: 0 }
+  if (localPlayer(g).hidden?.move === 'dig') return { lift: 0, alpha: 0 }
   for (const a of g.attacks) {
     if (a.visual !== 'bodySlam' || a.motion.kind !== 'lunge' || a.age < 0) continue
     const k = 1 - a.motion.left / SLAM_LEAP
@@ -591,7 +592,7 @@ export const eggPlayerLook = (g: Game) => {
 
 /** Meteor Mash's might (steel glints circling the feet, one per stack) and Giga Impact's recharge (dizzy swirl over the head). */
 export const drawEggPlayer = (ctx: Ctx, g: Game, t: number) => {
-  const p = g.player
+  const p = localPlayer(g)
   const mash = p.moves.find((m) => m.id === 'meteorMash')?.stacks ?? 0
   for (let i = 0; i < mash; i++) {
     const angle = t * 3 + (i * TAU) / mash

@@ -52,7 +52,7 @@ import { updateProps } from './props'
 import { withHoney, withOutbreak } from './outbreak'
 import { withHaunts } from './halloween'
 import { createTerrain, groundAt, playerWaterPace, updateTerrain } from './terrain'
-import { createLandmarkState, updateLandmarks, updateTunnel } from './landmarks'
+import { createLandmarkState, createPlayerLandmarks, updateLandmarks, updateTunnel } from './landmarks'
 import { drawRoster, type Roster } from './roster'
 import { clockRuns, createRiftState } from './rift'
 import { createPlaceState } from './place'
@@ -74,7 +74,8 @@ import { createWeather, updateWeather } from './weather'
 import { updateTraits } from './traitSystem'
 import { BASE_STATS } from './stats'
 import { TERRAIN } from '../data/terrain'
-import type { Game, Offer, OwnedMove } from './types'
+import { actAs, eachPlayer, followPlayers, phaseOf, setPhase } from './players'
+import type { Game, Offer, OwnedMove, Player } from './types'
 import * as dm from '../engine/dmath'
 
 export const EVOLUTION_TIME = 4.6
@@ -115,6 +116,90 @@ export type RunOptions = {
 }
 
 /**
+ * One player's side of a run: their Pokémon, Poké Mart ranks, whether it plays
+ * shiny from the start (`RunOptions.shiny`) and what their save brings along
+ * (Bag items, armed TMs, evolution items, Bottle Caps; `RunOptions`).
+ */
+export type PlayerSetup = {
+  starter: PlayableId
+  ranks: Ranks
+  shiny: boolean
+  bag?: readonly BagItem[]
+  tms?: readonly MoveId[]
+  evo?: readonly EvoItemId[]
+  caps?: number
+}
+
+/**
+ * A fresh player at `slot` standing at (x, 0), before `recomputeStats` builds
+ * their stats. `lucky`: their 1/64 shiny roll hit.
+ */
+export const createPlayer = (slot: number, setup: PlayerSetup, lucky: boolean, x: number, view: Game['view']): Player => {
+  const def = PLAYABLE[setup.starter]
+  const bag = setup.bag ?? []
+  return {
+    slot,
+    starter: setup.starter,
+    ranks: setup.ranks,
+    phase: 'playing',
+    screen: { x: x - view.w / 2, y: -view.h / 2 },
+    x, y: 0,
+    facing: { x: 1, y: 0 },
+    vx: 0, vy: 0,
+    dir: 0,
+    moving: false,
+    hp: 0,
+    level: 1,
+    xp: 0,
+    xpNext: xpFor(1),
+    iframes: 0,
+    hurt: 0,
+    stage: 0,
+    moves: [{ id: def.signature, level: 1, cooldown: 0.4, path: 0 }],
+    items: [],
+    stats: BASE_STATS,
+    radius: playerRadius(def.line[0].dex, isLegend(setup.starter)),
+    animTime: 0,
+    shiny: lucky || setup.shiny,
+    luckyShiny: lucky,
+    walked: 0,
+    still: 0,
+    guard: null,
+    hidden: null,
+    drain: { left: 0, at: 0 },
+    rooted: 0,
+    moveBuffs: [],
+    special: createSpecialState(),
+    mega: createMegaState(),
+    ...runCharges(setup.ranks),
+    banished: new Set(),
+    castMods: 0,
+    damageByMove: {},
+    pendingLevelUps: 0,
+    freshMoves: 0,
+    offers: [],
+    evolution: null,
+    branch: null,
+    ability: createAbilityState(),
+    curses: createCurseState(),
+    revives: 0,
+    buffs: [],
+    tm: createTmState(setup.tms),
+    prize: null,
+    bag,
+    maxRevive: bag.includes('maxRevive'),
+    everstone: bag.includes('everstone'),
+    evoItems: setup.evo ?? [],
+    evoFound: [],
+    evoHeld: false,
+    boost: runBoost(setup.caps ?? 0, bag),
+    legend: createLegendState(setup.starter),
+    wings: {},
+    landmark: createPlayerLandmarks(),
+  }
+}
+
+/**
  * A fresh run. Pass `roster` when the shell drew it ahead of time to preload
  * its sprites (see `drawRoster`); otherwise it's drawn from the run's rng.
  */
@@ -126,46 +211,18 @@ export const createGame = (
   roster?: Roster,
   options: RunOptions = {},
 ): Game => {
-  const def = PLAYABLE[starter]
   const bag = options.bag ?? []
   const rng = createRng(seed)
   const lucky = rollShiny(rng, SHINY_ODDS.player)
-  const shiny = lucky || options.shiny === true
+  const player = createPlayer(0, { starter, ranks, shiny: options.shiny === true, bag, tms: options.tms, evo: options.evo, caps: options.caps }, lucky, 0, view)
   const g: Game = {
-    starter,
     difficulty: options.difficulty ?? DEFAULT_DIFFICULTY,
     rng,
     time: 0,
     phase: 'playing',
     nextId: 1,
-    player: {
-      x: 0, y: 0,
-      facing: { x: 1, y: 0 },
-      vx: 0, vy: 0,
-      dir: 0,
-      moving: false,
-      hp: 0,
-      level: 1,
-      xp: 0,
-      xpNext: xpFor(1),
-      iframes: 0,
-      hurt: 0,
-      stage: 0,
-      moves: [{ id: def.signature, level: 1, cooldown: 0.4, path: 0 }],
-      items: [],
-      stats: BASE_STATS,
-      radius: playerRadius(def.line[0].dex, isLegend(starter)),
-      animTime: 0,
-      shiny,
-      luckyShiny: lucky,
-      walked: 0,
-      still: 0,
-      guard: null,
-      hidden: null,
-      drain: { left: 0, at: 0 },
-      rooted: 0,
-      moveBuffs: [],
-    },
+    players: [player],
+    player,
     enemies: [],
     attacks: [],
     hazards: [],
@@ -177,21 +234,8 @@ export const createGame = (
     camera: { x: -view.w / 2, y: -view.h / 2 },
     shake: 0,
     hitstop: 0,
-    special: createSpecialState(),
-    mega: createMegaState(),
     kills: 0,
-    ranks,
     coins: 0,
-    ...runCharges(ranks),
-    banished: new Set(),
-    castMods: 0,
-    damageByMove: {},
-    pendingLevelUps: 0,
-    freshMoves: 0,
-    offers: [],
-    evolution: null,
-    branch: null,
-    ability: createAbilityState(),
     // A legend never meets itself among the bosses (`avoidLegend`), nor the outbreak's basic in its horde (`LEGEND_HORDE`).
     roster: avoidLegend(
       withHoney(
@@ -207,10 +251,7 @@ export const createGame = (
     props: [],
     brokenProps: new Set(),
     terrain: createTerrain(seed),
-    buffs: [],
     mapEvents: createMapEvents(),
-    curses: createCurseState(),
-    revives: 0,
     flash: 0,
     biome: createBiome(),
     weather: createWeather(),
@@ -218,7 +259,7 @@ export const createGame = (
     rift: createRiftState(),
     place: createPlaceState(),
     landmarks: createLandmarkState(),
-    tm: createTmState(options.tms),
+    tutors: 0,
     endless: null,
     tally: createTally(),
     eggs: { found: [], lucky: options.luckyEgg === true, boost: bag.includes('incense') ? BAG_ITEMS.incense.effect.eggOdds : 1 },
@@ -226,37 +267,28 @@ export const createGame = (
     halloween: options.halloween === true,
     candies: 0,
     shinyBoost: shinyBoost(ranks.shinyCharm, bag.includes('lure')),
-    bag,
-    maxRevive: bag.includes('maxRevive'),
-    everstone: bag.includes('everstone'),
-    evoItems: options.evo ?? [],
-    evoFound: [],
-    evoHeld: false,
-    boost: runBoost(options.caps ?? 0, bag),
     dexLog: createDexLog(),
     // Only a lucky roll is news: a shiny picked (or hatched) is shiny every run.
     events: lucky && !options.shiny ? [{ kind: 'shinyPlayer' }] : [],
     tension: createTension(),
     alphas: createAlphaClock(options.difficulty ?? DEFAULT_DIFFICULTY),
     worldHazards: createWorldHazards(),
-    prize: null,
-    legend: createLegendState(starter),
     now: 0,
     legendScene: null,
   }
   recomputeStats(g)
-  g.player.hp = g.player.stats.maxHp
+  player.hp = player.stats.maxHp
   // A Rare Candy starts the run a few levels up: their level-ups come right after the opening draft.
   if (bag.includes('rareCandy')) {
-    g.player.level = BAG_ITEMS.rareCandy.effect.startLevel
-    g.player.xpNext = xpFor(g.player.level)
-    g.pendingLevelUps = g.player.level - 1
+    player.level = BAG_ITEMS.rareCandy.effect.startLevel
+    player.xpNext = xpFor(player.level)
+    player.pendingLevelUps = player.level - 1
   }
   if (options.draft) {
-    g.phase = 'levelup'
-    g.pendingLevelUps++
-    g.offers = draftOffers(loadout(g), g.rng)
-  } else if (g.pendingLevelUps > 0) advancePhase(g)
+    player.pendingLevelUps++
+    player.offers = draftOffers(loadout(g), g.rng)
+    setPhase(g, 'levelup')
+  } else if (player.pendingLevelUps > 0) advancePhase(g)
   return g
 }
 
@@ -265,12 +297,12 @@ export const createGame = (
  * starts once it's picked. The draft is the first of the run's level-ups
  * (a Rare Candy's come after it, at the same 0:00).
  */
-export const drafting = (g: Game) => g.phase === 'levelup' && g.time === 0 && g.pendingLevelUps === g.player.level
+export const drafting = (g: Game) => phaseOf(g) === 'levelup' && g.time === 0 && g.player.pendingLevelUps === g.player.level
 
-/** How a run rolls its level-up cards: rarity on, with its Shiny Charm's odds and the luck of an ability (Jirachi's Serene Grace). */
+/** How a player rolls their level-up cards: rarity on, with their Shiny Charm's odds and the luck of their ability (Jirachi's Serene Grace). */
 const rolling = (g: Game): RollOptions => {
   const luck = abilityLuck(g)
-  return { shiny: shinyOfferOdds(g.ranks.shinyCharm) * luck.shiny, rare: luck.rare }
+  return { shiny: shinyOfferOdds(g.player.ranks.shinyCharm) * luck.shiny, rare: luck.rare }
 }
 
 /**
@@ -279,6 +311,10 @@ const rolling = (g: Game): RollOptions => {
  */
 export type StepInput = { move: Vec; special: boolean; mega?: boolean; lunge?: boolean }
 
+/** A player with no input this tick: stands still, presses nothing. */
+const STILL: StepInput = { move: { x: 0, y: 0 }, special: false }
+
+/** Walks the acting player with the stick `input`. */
 const updatePlayer = (g: Game, input: Vec, dt: number) => {
   const p = g.player
   const slow = specialSpeedFactor(g)
@@ -324,32 +360,34 @@ const updatePlayer = (g: Game, input: Vec, dt: number) => {
 /** Fires a move with its fork mods stamped on what it spawns (`mods.ts`); an Echo schedules its re-cast. */
 const castMove = (g: Game, owned: OwnedMove, s: CastStats) => {
   const from = g.attacks.length
-  g.castMods = s.mods
+  g.player.castMods = s.mods
   const def: MoveDef = MOVES[owned.id]
   def.fire(g, s, owned)
-  g.castMods = 0
+  g.player.castMods = 0
   afterModCast(g, from, s)
   if (hasMod(s.mods, 'echo')) owned.echo = MOD.echo.delay
 }
 
 /**
- * Casts every move whose cooldown ran out. A manual move instead waits,
- * recharged, for a `press`, and holds it while the special moves the player.
+ * Casts every move of the acting player whose cooldown ran out. A manual move
+ * instead waits, recharged, for a `press`, and holds it while the special
+ * moves the player.
  */
 const updateMoves = (g: Game, press: boolean, dt: number) => {
-  for (const owned of g.player.moves) {
+  const p = g.player
+  for (const owned of p.moves) {
     if (owned.echo !== undefined && owned.echo > 0) {
       owned.echo -= dt
-      if (owned.echo <= 0) castMove(g, owned, echoStats(moveStats(owned.id, owned.level, g.player.stats, owned.path)))
+      if (owned.echo <= 0) castMove(g, owned, echoStats(moveStats(owned.id, owned.level, p.stats, owned.path)))
     }
     if (isManual(owned.id)) {
       owned.cooldown = Math.max(0, owned.cooldown - dt)
-      if (!press || owned.cooldown > 0 || specialBusy(g.special)) continue
+      if (!press || owned.cooldown > 0 || specialBusy(p.special)) continue
     } else {
       owned.cooldown -= dt
       if (owned.cooldown > 0) continue
     }
-    const s = moveStats(owned.id, owned.level, g.player.stats, owned.path)
+    const s = moveStats(owned.id, owned.level, p.stats, owned.path)
     castMove(g, owned, s)
     owned.cooldown += s.cooldown
     afterCast(g, owned)
@@ -358,14 +396,16 @@ const updateMoves = (g: Game, press: boolean, dt: number) => {
 }
 
 /**
- * After level-ups resolve: open the next level-up, ask where a branching
- * evolution goes, start an evolution, or resume. Exported for the dev console.
+ * After the acting player's level-ups resolve: open their next level-up, ask
+ * where a branching evolution goes, start an evolution, or resume. Exported
+ * for the dev console.
  */
 export const advancePhase = (g: Game): void => {
-  g.prize = null
-  if (g.pendingLevelUps > 0) {
-    g.phase = 'levelup'
-    g.offers = rollOffers(loadout(g), g.rng, 3, rolling(g))
+  const p = g.player
+  p.prize = null
+  if (p.pendingLevelUps > 0) {
+    p.offers = rollOffers(loadout(g), g.rng, 3, rolling(g))
+    setPhase(g, 'levelup')
     g.events.push({ kind: 'levelup' })
     return
   }
@@ -373,27 +413,27 @@ export const advancePhase = (g: Game): void => {
   // Held in its first form by an Everstone (or a one-stage family), the Pokémon still picks its Ability when it would have evolved.
   if (abilityDueInForm(g)) return offerAbilities(g)
   if (!pendingEvolution(g)) {
-    g.phase = 'playing'
+    setPhase(g, 'playing')
     return
   }
-  const branches = g.branch === null ? branchesAt(g.starter, g.player.stage + 1) : []
+  const branches = p.branch === null ? branchesAt(p.starter, p.stage + 1) : []
   if (branches.length > 0) {
     const offers = evolutionOffers(g.rng, branches, branchContext(g), runEvoItems(g))
     if (offers.length === 0) return holdEvolution(g)
-    g.evoHeld = false
+    p.evoHeld = false
     // A single way to go (no items, or a held one's first): it evolves without asking.
     if (offers.length === 1) {
-      g.branch = offers[0]!.id
+      p.branch = offers[0]!.id
       return startEvolution(g)
     }
-    g.phase = 'branch'
-    g.offers = offers.map(({ id, favor }) => ({ kind: 'form', id, favor }))
+    p.offers = offers.map(({ id, favor }) => ({ kind: 'form', id, favor }))
+    setPhase(g, 'branch')
     g.events.push({ kind: 'branchChoice' })
     return
   }
   // A line step that names an item (Porygon2's Up-Grade) waits for it, like a closed branch.
   if (!stepOpen(g)) return holdEvolution(g)
-  g.evoHeld = false
+  p.evoHeld = false
   startEvolution(g)
 }
 
@@ -401,225 +441,297 @@ export const advancePhase = (g: Game): void => {
 const SOLO_ABILITY_LEVEL = 12
 
 /**
- * The Ability pick is due without an evolution: an Everstone run, or one held
- * for an item, reached its first evolution's level, or a one-stage family
- * reached `SOLO_ABILITY_LEVEL`, without an Ability yet.
+ * The acting player's Ability pick is due without an evolution: an Everstone
+ * run, or one held for an item, reached its first evolution's level, or a
+ * one-stage family reached `SOLO_ABILITY_LEVEL`, without an Ability yet.
  */
 const abilityDueInForm = (g: Game) => {
-  if (g.ability.id !== null || g.legend) return false
-  const line: readonly EvolutionStage[] = PLAYABLE[g.starter].line
-  if (line.length === 1) return g.player.level >= SOLO_ABILITY_LEVEL
+  const p = g.player
+  if (p.ability.id !== null || p.legend) return false
+  const line: readonly EvolutionStage[] = PLAYABLE[p.starter].line
+  if (line.length === 1) return p.level >= SOLO_ABILITY_LEVEL
   const first = line[0]!
-  return (g.everstone || g.evoHeld) && first.evolveAt !== undefined && g.player.level >= first.evolveAt
+  return (p.everstone || p.evoHeld) && first.evolveAt !== undefined && p.level >= first.evolveAt
 }
 
 /**
- * The evolution is due but none of its branches is open (Scyther, Charcadet
- * without an item), or its line step needs an item the run lacks (Porygon
- * without the Up-Grade): the run stays in its form, as strong as with an
- * Everstone, picks its Ability there, and goes on once an item turns up
- * (`evolutionFreed`, checked every tick).
+ * The acting player's evolution is due but none of its branches is open
+ * (Scyther, Charcadet without an item), or its line step needs an item they
+ * lack (Porygon without the Up-Grade): the Pokémon stays in its form, as
+ * strong as with an Everstone, picks its Ability there, and goes on once an
+ * item turns up (`evolutionFreed`, checked every tick).
  */
 const holdEvolution = (g: Game) => {
-  if (!g.evoHeld) {
-    g.evoHeld = true
+  const p = g.player
+  if (!p.evoHeld) {
+    p.evoHeld = true
     recomputeStats(g)
     g.events.push({ kind: 'evoHeld', items: missingEvoItems(g) })
   }
   if (abilityDueInForm(g)) return offerAbilities(g)
-  g.phase = 'playing'
+  setPhase(g, 'playing')
 }
 
 const startEvolution = (g: Game) => {
   const evo = pendingEvolution(g)
   if (!evo) return advancePhase(g)
-  g.phase = 'evolving'
-  g.evolution = { ...evo, t: 0 }
+  g.player.evolution = { ...evo, t: 0 }
+  setPhase(g, 'evolving')
   g.events.push({ kind: 'evolve', ...evo })
 }
 
-/** A legend's awakening starts: the evolution's scene, on the same species (in its new form, where it takes one). */
+/** The acting player's legend awakens: the evolution's scene, on the same species (in its new form, where it takes one). */
 const startAwakening = (g: Game): void => {
-  const s = g.legend
+  const p = g.player
+  const s = p.legend
   const n = pendingAwakening(g)
   if (!s || n === 0) return advancePhase(g)
   const dex = playerDex(g)
   const form = formAfter(s.id, n)?.key
-  g.phase = 'evolving'
-  g.evolution = { from: dex, to: dex, t: 0, awakening: n, ...(form && { form }) }
+  p.evolution = { from: dex, to: dex, t: 0, awakening: n, ...(form && { form }) }
+  setPhase(g, 'evolving')
   g.events.push({ kind: 'awaken', legend: s.id, n })
 }
 
 /**
- * The awakening lands: its stats, a heal, an Esquecer charge and an aura
- * burst that throws the horde back; the first one opens the Ability pick.
+ * The acting player's awakening lands: its stats, a heal, an Esquecer charge
+ * and an aura burst that throws the horde back; the first one opens the
+ * Ability pick.
  */
 const awaken = (g: Game, n: number): void => {
-  const s = g.legend
-  if (!s) return advancePhase(g)
   const p = g.player
+  const s = p.legend
+  if (!s) return advancePhase(g)
   s.awakened = n
   recomputeStats(g)
   healPlayer(g, p.stats.maxHp * AWAKENING.heal)
-  g.banishes++
+  p.banishes++
   blastHorde(g, AWAKENING.push)
-  const color = PLAYABLE[g.starter].color
+  const color = PLAYABLE[p.starter].color
   burst(g, p.x, p.y - 12, { colors: [color, '#ffffff', '#f8e8a0'], count: 80, speed: 190, ttl: 0.9, size: 2, drag: 3 })
   g.shake = Math.max(g.shake, 8)
   g.flash = Math.max(g.flash, 0.4)
-  g.evolution = null
+  p.evolution = null
   g.events.push({ kind: 'awakened', legend: s.id, n, form: formAfter(s.id, n)?.key ?? null })
-  if (g.ability.id === null) offerAbilities(g)
+  if (p.ability.id === null) offerAbilities(g)
   else advancePhase(g)
 }
 
 /** After the first evolution: the abilities to pick from (Honedge's lone Stance Change is just granted). Exported for the dev console. */
 export const offerAbilities = (g: Game) => {
-  const set = abilitySet(g.starter, g.branch)
+  const p = g.player
+  const set = abilitySet(p.starter, p.branch)
   if (set.length === 1) {
     grantAbility(g, set[0])
     recomputeStats(g)
     return advancePhase(g)
   }
-  g.phase = 'ability'
-  g.offers = set.map((id, i) => ({ kind: 'ability', id, hidden: isHidden(set, i) }))
+  p.offers = set.map((id, i) => ({ kind: 'ability', id, hidden: isHidden(set, i) }))
+  setPhase(g, 'ability')
 }
 
-/** Whether the cards on screen are a fork's two branches (picked from a move card that reached one). */
-export const choosingBranch = (g: Game) => g.offers.some((o) => o.kind === 'branch')
+/** Whether the cards on a player's screen are a fork's two branches (picked from a move card that reached one). */
+export const choosingBranch = (g: Game, p: Player = g.player) => p.offers.some((o) => o.kind === 'branch')
 
-/**
- * The player's pick from `offers`: a level-up upgrade, where a branching
- * evolution goes, the ability, whether to take a chest's cursed item or a
- * Poké Ball's new move or item, or a TM's choice.
- * Replays reach it through the `offer` event.
- * A move card that reaches a fork opens its two branches instead (picked the
- * same way); a shiny card is a free pick, so a fresh set of cards follows
- * without using the level-up up.
- */
-export const chooseOffer = (g: Game, offer: Offer) => {
-  if (g.phase === 'branch' && offer.kind === 'form') {
-    g.branch = offer.id
+/** The acting player's pick (`chooseOffer`). */
+const pickOffer = (g: Game, offer: Offer) => {
+  const p = g.player
+  const phase = phaseOf(g)
+  if (phase === 'branch' && offer.kind === 'form') {
+    p.branch = offer.id
     return startEvolution(g)
   }
-  if (g.phase === 'ability' && offer.kind === 'ability') {
+  if (phase === 'ability' && offer.kind === 'ability') {
     grantAbility(g, offer.id)
     recomputeStats(g)
     return advancePhase(g)
   }
   // A TM's screen: learn, forget a move for it, or pass (`tms.ts`).
-  if (g.phase === 'tm') {
+  if (phase === 'tm') {
     if (pickTm(g, offer)) advancePhase(g)
     return
   }
-  if (g.phase === 'curse' && offer.kind === 'curse') {
+  if (phase === 'curse' && offer.kind === 'curse') {
     decideCurse(g, offer.id, offer.take)
     return advancePhase(g)
   }
-  if (g.phase === 'pokeball') {
+  if (phase === 'pokeball') {
     decidePokeball(g, offer)
     return advancePhase(g)
   }
-  if (g.phase !== 'levelup' || offer.kind === 'form' || offer.kind === 'ability' || offer.kind === 'curse' || offer.kind === 'tm' || offer.kind === 'forget' || offer.kind === 'pass') return
+  if (phase !== 'levelup' || offer.kind === 'form' || offer.kind === 'ability' || offer.kind === 'curse' || offer.kind === 'tm' || offer.kind === 'forget' || offer.kind === 'pass') return
   if (offer.kind === 'move' && forkAt(offer.id, offer.level)) {
-    g.offers = branchOffers(offer)
+    p.offers = branchOffers(offer)
     return
   }
   applyOffer(g, offer)
   if ('rarity' in offer && offer.rarity === 'shiny') {
-    g.offers = rollOffers(loadout(g), g.rng, 3, rolling(g))
+    p.offers = rollOffers(loadout(g), g.rng, 3, rolling(g))
     g.events.push({ kind: 'shinyOffer' })
     return
   }
-  g.pendingLevelUps--
-  g.freshMoves = Math.max(0, g.freshMoves - 1)
+  p.pendingLevelUps--
+  p.freshMoves = Math.max(0, p.freshMoves - 1)
   advancePhase(g)
 }
 
 /**
- * Takes the level-ups with nothing to choose (`nothingToChoose`: only the Oran
- * Berry), one after another, so no screen opens for them. The shell calls it,
- * and `record` notes each pick first: a replay makes them as `offer` events,
- * like a tap. Returns how many it took.
+ * A player's pick from their `offers` (the acting player's by default): a
+ * level-up upgrade, where a branching evolution goes, the ability, whether to
+ * take a chest's cursed item or a Poké Ball's new move or item, or a TM's
+ * choice. Replays reach it through the `offer` event.
+ * A move card that reaches a fork opens its two branches instead (picked the
+ * same way); a shiny card is a free pick, so a fresh set of cards follows
+ * without using the level-up up.
  */
-export const takeBerryLevelUps = (g: Game, record: (index: number) => void) => {
+export const chooseOffer = (g: Game, offer: Offer, p: Player = g.player) => {
+  const before = actAs(g, p)
+  pickOffer(g, offer)
+  actAs(g, before)
+}
+
+/**
+ * Takes a player's level-ups with nothing to choose (`nothingToChoose`: only
+ * the Oran Berry), one after another, so no screen opens for them. The shell
+ * calls it, and `record` notes each pick first: a replay makes them as
+ * `offer` events, like a tap. Returns how many it took.
+ */
+export const takeBerryLevelUps = (g: Game, record: (index: number) => void, p: Player = g.player) => {
   let taken = 0
-  while (g.phase === 'levelup' && nothingToChoose(g.offers)) {
+  while (phaseOf(g, p) === 'levelup' && nothingToChoose(p.offers)) {
     record(0)
-    chooseOffer(g, g.offers[0]!)
+    chooseOffer(g, p.offers[0]!, p)
     taken++
   }
   return taken
 }
 
-/** Spends a Poké Mart reroll: draws a fresh set of level-up offers (a fresh draft at the start). */
-export const rerollOffers = (g: Game) => {
-  if (g.phase !== 'levelup' || g.rerolls <= 0 || choosingBranch(g)) return
-  g.rerolls--
-  g.offers = drafting(g) ? draftOffers(loadout(g), g.rng) : rollOffers(loadout(g), g.rng, 3, rolling(g))
+/** Spends a player's Poké Mart reroll: draws a fresh set of level-up offers (a fresh draft at the start). */
+export const rerollOffers = (g: Game, p: Player = g.player) => {
+  if (phaseOf(g, p) !== 'levelup' || p.rerolls <= 0 || choosingBranch(g, p)) return
+  const before = actAs(g, p)
+  p.rerolls--
+  p.offers = drafting(g) ? draftOffers(loadout(g), g.rng) : rollOffers(loadout(g), g.rng, 3, rolling(g))
+  actAs(g, before)
 }
 
 /** Whether a card can be forgotten: moves and items can, berries, evolutions and fork branches can't. */
 export const canBanish = (offer: Offer) => offer.kind === 'move' || offer.kind === 'item'
 
 /**
- * Spends an Esquecer charge on the card at `index`: its move or item never
- * comes back this run, and that slot alone is drawn again (from the
- * learnset's new moves during the opening draft). The slot changes in place,
- * so the shell keeps the screen and redraws just that card.
+ * Spends a player's Esquecer charge on their card at `index`: its move or
+ * item never comes back to them this run, and that slot alone is drawn again
+ * (from the learnset's new moves during the opening draft). The slot changes
+ * in place, so the shell keeps the screen and redraws just that card.
  */
-export const banishOffer = (g: Game, index: number) => {
-  const offer = g.offers[index]
-  if (g.phase !== 'levelup' || g.banishes <= 0 || !offer || !canBanish(offer)) return
+export const banishOffer = (g: Game, index: number, p: Player = g.player) => {
+  const offer = p.offers[index]
+  if (phaseOf(g, p) !== 'levelup' || p.banishes <= 0 || !offer || !canBanish(offer)) return
   const id = offerSubject(offer)
   if (id === null) return
-  g.banishes--
-  g.banished.add(id)
-  const shown = g.offers.filter((_, i) => i !== index)
+  const before = actAs(g, p)
+  p.banishes--
+  p.banished.add(id)
+  const shown = p.offers.filter((_, i) => i !== index)
   const ids = new Set(shown.map(offerSubject))
   const fresh = drafting(g)
-    ? draftOffers({ ...loadout(g), banished: new Set([...g.banished, ...shown.flatMap((o) => (o.kind === 'move' ? [o.id] : []))]) }, g.rng, 1)
+    ? draftOffers({ ...loadout(g), banished: new Set([...p.banished, ...shown.flatMap((o) => (o.kind === 'move' ? [o.id] : []))]) }, g.rng, 1)
     : rollOffers(loadout(g), g.rng, 1, { ...rolling(g), shown })
   const next = fresh.find((o) => !ids.has(offerSubject(o))) ?? { kind: 'berry' }
-  g.offers[index] = next
+  p.offers[index] = next
   g.events.push({ kind: 'banish' })
+  actAs(g, before)
 }
 
-/** Spends a Poké Mart skip: discards this level-up without picking anything. */
-export const skipLevelUp = (g: Game) => {
-  if (g.phase !== 'levelup' || g.skips <= 0 || choosingBranch(g)) return
-  g.skips--
-  g.pendingLevelUps--
-  g.freshMoves = Math.max(0, g.freshMoves - 1)
+/** Spends a player's Poké Mart skip: discards this level-up without picking anything. */
+export const skipLevelUp = (g: Game, p: Player = g.player) => {
+  if (phaseOf(g, p) !== 'levelup' || p.skips <= 0 || choosingBranch(g, p)) return
+  const before = actAs(g, p)
+  p.skips--
+  p.pendingLevelUps--
+  p.freshMoves = Math.max(0, p.freshMoves - 1)
   advancePhase(g)
+  actAs(g, before)
 }
 
+/** Plays the acting player's evolution, if one is under way; at its end the new form lands and their next pick (or play) follows. */
 const updateEvolution = (g: Game, dt: number) => {
-  const evo = g.evolution
+  const p = g.player
+  const evo = p.evolution
   if (!evo) return
   evo.t += dt
   if (evo.t < EVOLUTION_TIME) return
   if (evo.awakening) return awaken(g, evo.awakening)
-  const p = g.player
   p.stage++
   p.radius = playerRadius(evo.to, false)
   recomputeStats(g)
   healPlayer(g, p.stats.maxHp * 0.5)
   // Every evolution earns an Esquecer charge (`banishOffer`), and the moves it unlocks come up more for a while.
-  g.banishes++
-  g.freshMoves = FRESH_LEVELUPS
-  g.evolution = null
+  p.banishes++
+  p.freshMoves = FRESH_LEVELUPS
+  p.evolution = null
   g.events.push({ kind: 'evolved', to: evo.to })
-  if (g.ability.id === null) offerAbilities(g)
+  if (p.ability.id === null) offerAbilities(g)
   else advancePhase(g)
 }
 
-/** One fixed-timestep simulation tick. */
-export const step = (g: Game, input: StepInput, dt: number) => {
-  if (g.phase === 'evolving') return updateEvolution(g, dt)
+/** Any player's Mega Evolution holds the world while it plays. True while one still does. */
+const updateMegaIntros = (g: Game, dt: number) => {
+  const before = g.player
+  let busy = false
+  for (const p of g.players) {
+    g.player = p
+    if (updateMegaIntro(g, dt)) busy = true
+  }
+  g.player = before
+  return busy
+}
+
+/**
+ * The first half of a player's tick: walking (or a tunnel carrying them),
+ * cursed items, a legend's presence, the Mega form, the ability and the special.
+ */
+const stepPlayer = (g: Game, input: StepInput, dt: number) => {
+  // Under a tunnel's ridge the player is carried through instead of walking.
+  if (!updateTunnel(g, dt)) updatePlayer(g, input.move, dt)
+  updateCurses(g)
+  if (updateLegend(g)) recomputeStats(g)
+  updateMega(g, input.mega === true, dt)
+  if (updateAbility(g, dt)) recomputeStats(g)
+  updateSpecial(g, input.special, dt)
+}
+
+/** A player's moves: their kit's running state, signatures, shop TMs, legendary move, the casts and duo moves. */
+const stepMoves = (g: Game, input: StepInput, dt: number) => {
+  updateMoveKit(g, dt)
+  updateSignatures(g, dt)
+  updateShopTms(g, dt)
+  updateLegendary(g)
+  updateMoves(g, input.lunge === true, dt)
+  updateDuos(g, dt)
+}
+
+/** One fixed-timestep simulation tick of a solo run. */
+export const step = (g: Game, input: StepInput, dt: number) => stepTeam(g, [input], dt)
+
+/**
+ * One fixed-timestep simulation tick with each player's input by slot (a
+ * missing one stands still). Per-player systems run as each player in slot
+ * order (`actAs`); world systems run once for everyone.
+ */
+export const stepTeam = (g: Game, inputs: readonly StepInput[], dt: number) => {
+  if (g.phase === 'evolving') {
+    const before = g.player
+    for (const p of g.players) {
+      g.player = p
+      updateEvolution(g, dt)
+    }
+    g.player = before
+    return
+  }
   if (g.phase !== 'playing') return
-  // The Mega Evolution plays with the world held still, and so does a dungeon floor's title card.
-  if (updateMegaIntro(g, dt)) return
+  // A Mega Evolution plays with the world held still, and so does a dungeon floor's title card.
+  if (updateMegaIntros(g, dt)) return
   if (updatePlaceIntro(g, dt)) return
   // So does the rift throwing a fainted player back out, or a rescue out of a place, a domain's encounter and capture scenes and a wave legendary's.
   if (updateArenaFall(g, dt)) return
@@ -642,13 +754,12 @@ export const step = (g: Game, input: StepInput, dt: number) => {
     updateBiome(g)
     updateWeather(g, dt)
   }
-  // Under a tunnel's ridge the player is carried through instead of walking.
-  if (!updateTunnel(g, dt)) updatePlayer(g, input.move, dt)
-  updateCurses(g)
-  if (updateLegend(g)) recomputeStats(g)
-  updateMega(g, input.mega === true, dt)
-  if (updateAbility(g, dt)) recomputeStats(g)
-  updateSpecial(g, input.special, dt)
+  const actor = g.player
+  for (const p of g.players) {
+    g.player = p
+    stepPlayer(g, inputs[p.slot] ?? STILL, dt)
+  }
+  g.player = actor
   if (!inArena) updateSpawner(g, dt)
   rebuildGrid(g)
   updateAlphas(g, dt)
@@ -661,16 +772,15 @@ export const step = (g: Game, input: StepInput, dt: number) => {
   updateArena(g, dt)
   updatePlaceEntrance(g, dt)
   updatePlace(g, dt)
-  updateLandmarks(g, dt)
+  eachPlayer(g, updateLandmarks, dt)
   updateEndless(g)
   rebuildGrid(g)
   updateTraits(g, dt)
-  updateMoveKit(g, dt)
-  updateSignatures(g, dt)
-  updateShopTms(g, dt)
-  updateLegendary(g)
-  updateMoves(g, input.lunge === true, dt)
-  updateDuos(g, dt)
+  for (const p of g.players) {
+    g.player = p
+    stepMoves(g, inputs[p.slot] ?? STILL, dt)
+  }
+  g.player = actor
   updateAttacks(g, dt)
   updateVerbEvolved(g, dt)
   updateTerrain(g, dt)
@@ -684,12 +794,14 @@ export const step = (g: Game, input: StepInput, dt: number) => {
   updateEffects(g, dt)
 
   // In a legendary's domain the camera looks ahead and frames the fight (`domainCamera`); elsewhere it sits on the player.
-  if (!domainCamera(g, dt)) {
-    g.camera.x = g.player.x - g.view.w / 2
-    g.camera.y = g.player.y - 10 - g.view.h / 2
-  }
+  followPlayers(g, (g) => domainCamera(g, dt))
   updateSightings(g, dt)
 
-  // Level-ups, or a held evolution whose item was just found.
-  if (g.phase === 'playing' && (g.pendingLevelUps > 0 || evolutionFreed(g))) advancePhase(g)
+  // Level-ups earned this tick, or a held evolution whose item was just found, open everyone's next pick at once.
+  if (g.phase !== 'playing') return
+  for (const p of g.players) {
+    g.player = p
+    if (p.pendingLevelUps > 0 || evolutionFreed(g)) advancePhase(g)
+  }
+  g.player = actor
 }

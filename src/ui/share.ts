@@ -25,6 +25,7 @@ import { boxSpecies, caughtShinies } from './pcBox'
 import { loadSave } from './save'
 import { damageSource, hint, menu, type Screen } from './screens'
 import { uiDpr, uiViewport } from './uiScale'
+import { localPlayer } from '../game/players'
 
 /**
  * Sharing a card: the data each card shows (built from the run or the save),
@@ -79,7 +80,7 @@ export const runShare = (g: Game, dexBase: Pokedex, place: Promise<ChallengePlac
   const form = playerForm(g)
   const trainer = trainerLine(loadSave().title)
   const outcome = g.endless ? 'endless' : g.phase === 'victory' ? 'victory' : 'fainted'
-  const moves = (Object.entries(g.damageByMove) as Array<[DamageSource, number]>)
+  const moves = (Object.entries(localPlayer(g).damageByMove) as Array<[DamageSource, number]>)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([id, damage]) => {
@@ -89,11 +90,11 @@ export const runShare = (g: Game, dexBase: Pokedex, place: Promise<ChallengePlac
   const shinies = [...g.dexLog.shinies]
   const card: RunCardData = {
     date: new Date(),
-    mon: { dex: form.dex, name: form.name, shiny: g.player.shiny },
+    mon: { dex: form.dex, name: form.name, shiny: localPlayer(g).shiny },
     outcome,
     difficulty: g.difficulty,
     time: g.time,
-    level: g.player.level,
+    level: localPlayer(g).level,
     kills: g.kills,
     shinies: shinies.map((dex) => mon(dex, true)),
     newShinies: dexNews(dexBase, g.dexLog).shinies,
@@ -106,7 +107,7 @@ export const runShare = (g: Game, dexBase: Pokedex, place: Promise<ChallengePlac
   return {
     kind: 'run',
     draw: async () => drawRunCard({ ...card, challenge: place ? await officialPlace(place) : null }, wornStyle()),
-    text: t().share.runText({ name: form.name, shiny: g.player.shiny, time: formatTime(g.time), outcome, shinies: shinies.length, link: trainer.url }),
+    text: t().share.runText({ name: form.name, shiny: localPlayer(g).shiny, time: formatTime(g.time), outcome, shinies: shinies.length, link: trainer.url }),
     file: `pokemon-survivors-${form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`,
   }
 }

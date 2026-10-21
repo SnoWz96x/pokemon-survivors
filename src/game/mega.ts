@@ -68,23 +68,23 @@ export const tickMega = (s: Pick<MegaState, 'active' | 'charge'>, dt: number): '
 /** Whether a Mega fits the run's branch: a branch's own Mega (Gallade's) only once the run took that branch. */
 const fitsBranch = (g: Game, mega: MegaId) => {
   const branch = MEGA_BRANCH[mega]
-  return !branch || g.branch === null || g.branch === branch
+  return !branch || g.player.branch === null || g.player.branch === branch
 }
 
 /** The Megas the run can still reach: the line's, less those of a branch it didn't take. */
-export const runMegas = (g: Game) => megasOf(g.starter).filter((id) => fitsBranch(g, id))
+export const runMegas = (g: Game) => megasOf(g.player.starter).filter((id) => fitsBranch(g, id))
 
 /**
  * The Mega the run holds the stone of, or null. A stone of the branch the run
  * didn't take (a Glalitite for a Froslass) is dead weight: the next rift drops a fitting one, if any.
  */
-export const heldMega = (g: Game): MegaDef | null => (g.mega.stone && fitsBranch(g, g.mega.stone) ? MEGAS[g.mega.stone] : null)
+export const heldMega = (g: Game): MegaDef | null => (g.player.mega.stone && fitsBranch(g, g.player.mega.stone) ? MEGAS[g.player.mega.stone] : null)
 
 /** The final stage the held Mega Evolves from: the branch's own for a branch's Mega (Gallade), else the run's. */
 export const megaBaseName = (g: Game) => {
-  const stone = g.mega.stone
-  const line = PLAYABLE[g.starter].line
-  return formAt(g.starter, (stone && MEGA_BRANCH[stone]) || g.branch, line.length - 1).name
+  const stone = g.player.mega.stone
+  const line = PLAYABLE[g.player.starter].line
+  return formAt(g.player.starter, (stone && MEGA_BRANCH[stone]) || g.player.branch, line.length - 1).name
 }
 
 /** Gap between the two stones of a line with two Megas, so the player can walk to just one. */
@@ -105,9 +105,9 @@ export const dropMegaStones = (g: Game, x: number, y: number) => {
 
 /** A Mega Stone was picked up: it picks the Mega, the others on the ground crumble, and Mega Evolution is ready from the final stage on. */
 export const grantStone = (g: Game, mega: MegaId) => {
-  if (heldMega(g) || MEGAS[mega].line !== g.starter) return
-  g.mega.stone = mega
-  g.mega.charge = 0
+  if (heldMega(g) || MEGAS[mega].line !== g.player.starter) return
+  g.player.mega.stone = mega
+  g.player.mega.charge = 0
   for (const k of g.pickups) {
     if (k.kind !== 'megaStone' || k.mega === mega || k.age < 0) continue
     burst(g, k.x, k.y, { colors: ['#a8a0b8', '#686078', '#ffffff'], count: 14, speed: 60, ttl: 0.5, gravity: 60 })
@@ -123,20 +123,20 @@ export const rainbow = ['#f85858', '#f8a838', '#f8e858', '#68d868', '#58a8f8', '
 
 /** Starts the transformation (the simulation waits for it, see `updateMegaIntro`). */
 const startIntro = (g: Game) => {
-  g.mega.intro = MEGA.intro
+  g.player.mega.intro = MEGA.intro
   g.events.push({ kind: 'megaStart' })
 }
 
 /** The transformation's last tick: the Mega form, its burst, its ability, and a fresh special. */
 const transform = (g: Game, def: MegaDef) => {
-  const s = g.mega
+  const s = g.player.mega
   const p = g.player
   s.intro = 0
   s.active = MEGA.duration
   s.pulse = 0
   s.count++
   recomputeStats(g)
-  g.special.cooldown = 0
+  g.player.special.cooldown = 0
   p.iframes = Math.max(p.iframes, MEGA.iframes)
   const { radius, power, knockback } = MEGA.wave
   spawnAttack(g, {
@@ -164,7 +164,7 @@ const revert = (g: Game) => {
 const auraTick = (g: Game, def: MegaDef, dt: number) => {
   const effect = def.effect
   if (effect.kind !== 'aura') return
-  const s = g.mega
+  const s = g.player.mega
   s.pulse -= dt
   if (s.pulse > 0) return
   s.pulse += effect.every
@@ -178,9 +178,9 @@ const auraTick = (g: Game, def: MegaDef, dt: number) => {
 /** Runs the transformation while the simulation waits. True while it's still playing. */
 export const updateMegaIntro = (g: Game, dt: number) => {
   const def = heldMega(g)
-  if (!def || g.mega.intro <= 0) return false
-  g.mega.intro -= dt
-  if (g.mega.intro <= 0) transform(g, def)
+  if (!def || g.player.mega.intro <= 0) return false
+  g.player.mega.intro -= dt
+  if (g.player.mega.intro <= 0) transform(g, def)
   return true
 }
 
@@ -188,8 +188,8 @@ export const updateMegaIntro = (g: Game, dt: number) => {
 export const updateMega = (g: Game, pressed: boolean, dt: number) => {
   const def = heldMega(g)
   if (!def) return
-  const s = g.mega
-  const final = isFinalStage(g.starter, g.player.stage)
+  const s = g.player.mega
+  const final = isFinalStage(g.player.starter, g.player.stage)
   if (pressed && megaPhase(s, final) === 'ready') return startIntro(g)
   const tick = tickMega(s, dt)
   if (tick === 'end') revert(g)

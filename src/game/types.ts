@@ -17,7 +17,7 @@ import type { AbilityId, HitKind } from '../data/abilities'
 import type { BranchId } from '../data/branches'
 import type { AbilityState } from './abilities'
 import type { LandmarkId } from '../data/landmarks'
-import type { LandmarkMoment, LandmarkState } from './landmarks'
+import type { LandmarkMoment, LandmarkState, PlayerLandmarks } from './landmarks'
 import type { BranchFavor } from './branch'
 import type { BiomeState } from './biomes'
 import type { Ranks } from './meta'
@@ -35,7 +35,7 @@ import type { Roster } from './roster'
 import type { RiftState } from './rift'
 import type { LegendScene } from './legendScene'
 import type { PlaceNotice, PlaceState } from './place'
-import type { PlaceId } from '../data/places'
+import type { PlaceId, WingId } from '../data/places'
 import type { SpecialState } from './special'
 import type { Stance } from './stance'
 import type { RunTally } from './tally'
@@ -80,7 +80,23 @@ export type MoveWindow = { left: number; move: MoveId }
 export type MoveBuff = { move: MoveId; left: number; stats: StatDelta; applied: boolean }
 export type OwnedItem = { id: ItemId; level: number }
 
+/**
+ * One player of a run: their Pokémon and everything that is theirs (moves,
+ * items, picks, the special, the Mega form, the ability, cursed items, the
+ * level-up charges). `Game.players` holds them all (one solo); per-player code
+ * reads `g.player`, the one acting (`players.ts`).
+ */
 export type Player = {
+  /** Index in `Game.players` (0 solo), whose input drives them and whose hitboxes say so (`Attack.owner`). */
+  slot: number
+  /** The Pokémon this player plays: a starter or a hatched family. */
+  starter: PlayableId
+  /** Permanent Poké Mart ranks this player started with. */
+  ranks: Ranks
+  /** What this player is doing: playing, on a pick screen of theirs, or evolving (`phaseOf`). */
+  phase: PlayerPhase
+  /** Where this player's screen sits in the world (its top-left), moved at the end of every step; spawns and despawns check it. */
+  screen: { x: number; y: number }
   x: number
   y: number
   /** Last non-zero movement direction (unit vector). Aimed moves use it. */
@@ -122,6 +138,59 @@ export type Player = {
   rooted: number
   /** Moves' timed stat effects on the player (`signatures.ts`). */
   moveBuffs: MoveBuff[]
+  special: SpecialState
+  /** Mega Stone, Mega form and its recharge (`mega.ts`). */
+  mega: MegaState
+  /** Level-up rerolls/skips left this run. */
+  rerolls: number
+  skips: number
+  /** Esquecer charges left (`banishOffer`): from the Poké Mart, plus one per boss defeated and per evolution. */
+  banishes: number
+  /** Moves and items forgotten this run: they never come back as offers. */
+  banished: Set<MoveId | ItemId>
+  /** Mods of the move being cast right now (`updateMoves`), stamped on every hitbox it spawns; 0 otherwise. */
+  castMods: number
+  damageByMove: Partial<Record<DamageSource, number>>
+  pendingLevelUps: number
+  /** Level-ups left in which the moves the last evolution unlocked weigh double (`FRESH_LEVELUPS` in `learnsets.ts`). */
+  freshMoves: number
+  /** The cards of this player's pick screen (`phase`). */
+  offers: Offer[]
+  evolution: Evolution | null
+  /** Where a branching evolution went (`game/branch.ts`); null until it does, and for the lines that don't branch. */
+  branch: BranchId | null
+  /** The ability picked at the first evolution and its running state (`game/abilities.ts`). */
+  ability: AbilityState
+  /** Cursed items taken from locked chests and their clocks (`curses.ts`). */
+  curses: CurseState
+  /** Revives held (0 or 1). Auto-used on fainting. */
+  revives: number
+  /** Timed effects of consumables and altars (`consumables.ts`). */
+  buffs: Buff[]
+  /** TM lessons taken, whether a legendary TM was learned, the TMs armed at the shop still to come, Pay Day's and Thief's loot (`game/tms.ts`). */
+  tm: TmState
+  /** The level-up on screen is a prize (`openPrizeLevelUp`), and where it came from; its title says so. */
+  prize: PrizeSource | null
+  /** Bag items this player took into the run (`game/bag.ts`), in catalog order. */
+  bag: readonly BagItem[]
+  /** The Bag's Max Revive is still unspent: the first faint gets back up (`tryMaxRevive`). */
+  maxRevive: boolean
+  /** The Bag's Everstone: this player's Pokémon never evolves (`pendingEvolution`) and its form is stronger (`boost`). */
+  everstone: boolean
+  /** Evolution items this player's save owns (`game/evoItems.ts`): they unlock their branches (`evolutionOffers`). */
+  evoItems: readonly EvoItemId[]
+  /** Evolution items this player found in the run (`game/evoGate.ts`), which unlock their branches like owned ones until it ends. */
+  evoFound: EvoItemId[]
+  /** The evolution is due but no branch is open without an item (Scyther, Charcadet): the Pokémon stays in its form, as strong as with an Everstone (`recomputeStats`), until one turns up. */
+  evoHeld: boolean
+  /** Share every stat grows by: the Pokémon's Bottle Caps and an Everstone (`runBoost`, applied by `recomputeStats`). */
+  boost: number
+  /** The Legend mode's state (`legend.ts`) when this player plays a legend: its awakenings; null otherwise. */
+  legend: LegendState | null
+  /** The wings this player picked up in places (`place.ts`, `wingDeltas`). */
+  wings: Partial<Record<WingId, number>>
+  /** The treasure this player is opening and the tunnel they're stepping into or walking (`landmarks.ts`). */
+  landmark: PlayerLandmarks
 }
 
 export type EnemyBehavior =
@@ -327,6 +396,8 @@ export type Trailer = { every: number; acc: number; walked: number; visual: Visu
 /** Any damaging hitbox: projectiles, auras, strikes, zones. */
 export type Attack = {
   id: number
+  /** Slot of the player who cast it: its hits, kills and heals are theirs (`updateAttacks` acts as them). */
+  owner: number
   move: DamageSource
   type: PokeType
   visual: Visual
@@ -498,7 +569,11 @@ export type TmOffer = { kind: 'tm'; id: MoveId; level: number; source: TmSource;
  * the ability after the first, whether to take a locked chest's cursed item, a TM's move to learn (and which to forget
  * for it), and whether to take a Poké Ball's new move or item.
  */
-export type Phase = 'playing' | 'levelup' | 'branch' | 'evolving' | 'ability' | 'curse' | 'tm' | 'pokeball' | 'paused' | 'gameover' | 'victory'
+/** A player's own phase: playing, one of their pick screens, or their evolution playing. */
+export type PlayerPhase = 'playing' | 'levelup' | 'branch' | 'evolving' | 'ability' | 'curse' | 'tm' | 'pokeball'
+
+/** The world's phase: a player's (the world waits on their pick or evolution), or paused or over. */
+export type Phase = PlayerPhase | 'paused' | 'gameover' | 'victory'
 
 /** Fire-and-forget notifications for audio/UI. Drained by the shell every frame. */
 export type GameEvent =
@@ -645,15 +720,17 @@ export type Buff = { id: BuffId; left: number; total: number }
 export type Evolution = { from: number; to: number; t: number; awakening?: number; form?: LegendForm }
 
 export type Game = {
-  /** The Pokémon this run plays: a starter or a hatched family. */
-  starter: PlayableId
   /** Multipliers this run plays with (`difficulty.ts`). */
   difficulty: Difficulty
   rng: Rng
   /** The run clock, in seconds: it stops inside a rift (`clockRuns`). */
   time: number
+  /** What the world is doing: playing, paused, over, or held while players pick or evolve (`setPhase`). */
   phase: Phase
   nextId: number
+  /** Everyone in the run, by slot (one solo). */
+  players: Player[]
+  /** The player acting right now: per-player systems run as each player in turn (`actAs`); the first one otherwise. */
   player: Player
   enemies: Enemy[]
   attacks: Attack[]
@@ -663,37 +740,14 @@ export type Game = {
   texts: FloatText[]
   grid: Grid
   view: { w: number; h: number }
+  /** Where the screen drawn sits: the first player's (`followPlayers`); a co-op shell aims it at its own player. */
   camera: { x: number; y: number }
   shake: number
   /** Seconds the simulation stays frozen for impact (hit-stop). */
   hitstop: number
-  special: SpecialState
-  /** Mega Stone, Mega form and its recharge (`mega.ts`). */
-  mega: MegaState
   kills: number
-  /** Permanent Poké Mart ranks this run was started with. */
-  ranks: Ranks
   /** Poké Dollars collected this run (already multiplied by greed). */
   coins: number
-  /** Level-up rerolls/skips left this run. */
-  rerolls: number
-  skips: number
-  /** Esquecer charges left (`banishOffer`): from the Poké Mart, plus one per boss defeated and per evolution. */
-  banishes: number
-  /** Moves and items forgotten this run: they never come back as offers. */
-  banished: Set<MoveId | ItemId>
-  /** Mods of the move being cast right now (`updateMoves`), stamped on every hitbox it spawns; 0 otherwise. */
-  castMods: number
-  damageByMove: Partial<Record<DamageSource, number>>
-  pendingLevelUps: number
-  /** Level-ups left in which the moves the last evolution unlocked weigh double (`FRESH_LEVELUPS` in `learnsets.ts`). */
-  freshMoves: number
-  offers: Offer[]
-  evolution: Evolution | null
-  /** Where a branching evolution went (`game/branch.ts`); null until it does, and for the lines that don't branch. */
-  branch: BranchId | null
-  /** The ability picked at the first evolution and its running state (`game/abilities.ts`). */
-  ability: AbilityState
   /** This run's wild cast, drawn at the start (`game/roster.ts`), with the day's outbreak in every stage. */
   roster: Roster
   /** The day's outbreak species, or null (`game/outbreak.ts`): its kills count toward missions (`countKill`). */
@@ -715,27 +769,8 @@ export type Game = {
   terrain: TerrainState
   /** The landmarks' treasures taken, names shown and the tunnel being walked (`game/landmarks.ts`). */
   landmarks: LandmarkState
-  buffs: Buff[]
   /** Points of interest placed by the event director (`mapEvents.ts`). */
   mapEvents: MapEventsState
-  /** Cursed items taken from locked chests and their clocks (`curses.ts`). */
-  curses: CurseState
-  /** Revives held (0 or 1). Auto-used on fainting. */
-  revives: number
-  /** Bag items the run took (`game/bag.ts`), in catalog order. */
-  bag: readonly BagItem[]
-  /** The Bag's Max Revive is still unspent: the first faint gets back up (`tryMaxRevive`). */
-  maxRevive: boolean
-  /** The Bag's Everstone: the run never evolves (`pendingEvolution`) and its form is stronger (`boost`). */
-  everstone: boolean
-  /** Evolution items the save owns (`game/evoItems.ts`): they unlock their branches (`evolutionOffers`). */
-  evoItems: readonly EvoItemId[]
-  /** Evolution items found in this run (`game/evoGate.ts`), which unlock their branches like owned ones until it ends. */
-  evoFound: EvoItemId[]
-  /** The evolution is due but no branch is open without an item (Scyther, Charcadet): the run stays in its form, as strong as with an Everstone (`recomputeStats`), until one turns up. */
-  evoHeld: boolean
-  /** Share every stat grows by in this run: the Pokémon's Bottle Caps and an Everstone (`runBoost`, applied by `recomputeStats`). */
-  boost: number
   /** Full-screen white flash strength (Explosion), decays to 0. */
   flash: number
   /** Biome the run is in (`game/biomes.ts`). */
@@ -748,8 +783,8 @@ export type Game = {
   rift: RiftState
   /** Places (`place.ts`): the entrance on the map, the inside the player is in and the wings picked up. */
   place: PlaceState
-  /** TMs and Move Tutors this run (`game/tms.ts`): tutors met, lessons taken, the legendary TM, the armed TMs still to come, Pay Day's and Thief's loot. */
-  tm: TmState
+  /** Move Tutors met this run (their tent's odds, `mapEvents.ts`). */
+  tutors: number
   /** Set once the player goes on past Mewtwo (endless mode). */
   endless: EndlessState | null
   /** Species seen, defeated and caught this run, for the Pokédex (`game/dex.ts`). */
@@ -765,10 +800,6 @@ export type Game = {
   alphas: AlphaClock
   /** The world's own attacks on the player (`game/hazards.ts`). */
   worldHazards: WorldHazardState
-  /** The level-up on screen is a prize (`openPrizeLevelUp`), and where it came from; its title says so. */
-  prize: PrizeSource | null
-  /** The Legend mode's state (`legend.ts`): the legend played and its awakenings; null in every other run. */
-  legend: LegendState | null
   /**
    * Seconds simulated since the run began, never paused. `time` is the run
    * clock, which stops inside a rift; hit cooldowns, ages and animation phases use `now`.

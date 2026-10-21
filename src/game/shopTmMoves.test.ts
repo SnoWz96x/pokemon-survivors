@@ -16,7 +16,7 @@ const START: ReplayStart = { seed: 3, starter: 'squirtle', difficulty: 'normal',
 
 const run = (): Game => {
   const g = startGame(START)
-  chooseOffer(g, g.offers[0]!)
+  chooseOffer(g, g.player.offers[0]!)
   return g
 }
 
@@ -39,7 +39,7 @@ describe('the shop-exclusive TMs', () => {
     const sure = coin(g, 1)
     def.onHit!(g, sure, e)
     expect(g.pickups.filter((k) => k.kind === 'coin')).toEqual([expect.objectContaining({ value: PAY_DAY.coin })])
-    g.tm.coins = PAY_DAY.cap
+    g.player.tm.coins = PAY_DAY.cap
     def.onHit!(g, sure, e)
     expect(g.pickups.filter((k) => k.kind === 'coin')).toHaveLength(1)
     // Its coin luck is the base chance plus the cast's status chance (the forks raise it).
@@ -57,7 +57,7 @@ describe('the shop-exclusive TMs', () => {
     for (let i = 0; i < 40; i++) def.onHit!(g, hit, boss)
     expect(g.pickups.filter((k) => k.kind === 'consumable')).toHaveLength(1)
     expect(g.pickups.filter((k) => k.kind === 'coin')).toHaveLength(1)
-    expect(g.tm.stolen.has(boss.id)).toBe(true)
+    expect(g.player.tm.stolen.has(boss.id)).toBe(true)
   })
 
   it('Protect lets no hit through while its bubble lasts', () => {
