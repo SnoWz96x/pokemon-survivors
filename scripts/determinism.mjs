@@ -204,7 +204,7 @@ const benchmark = async () => {
   const code = await bundle()
   const H = await loadHarness()
   const engines = [nodeEngine(), ...(await Promise.all((flag('engines')?.split(',') ?? []).filter((e) => e !== 'node').map((name) => browserEngine(name, code))))]
-  const [run] = H.HARNESS_SCENARIOS
+  const run = H.HARNESS_SCENARIOS.find((r) => !('team' in r.scenario))
   for (const e of engines) {
     const rows = await e.call('bench', run.scenario, [5, 10, 15, 25])
     console.log(`${e.name} ${e.version}, ${run.name}:`)
