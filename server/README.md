@@ -20,7 +20,16 @@ The merge rules are not here: `mergeSaves` and `applyPush` live in `src/game/syn
 | `GET /boards/:difficulty` | `?period=day\|week\|all&starter=<id>&friends=1`. `{ entries, me }`: the top 50, each player once with their best run (its id in `run`, to report it), and the asker's own line. Banned players never show |
 | `GET /challenge/:day` | `?friends=1`. `ChallengeBoard`: the day's official attempts (top 50, the asker's line), how many took part and whether the asker made theirs (`attempted`) |
 | `GET /profiles/:handle` | The public profile: name, title, Pokédex counts, records, recent runs, follower counts. 404 if nobody has the handle, or its player is banned |
-| `PUT /follows/:handle`, `DELETE /follows/:handle` | Follows or unfollows. `{ followed, followers }` |
+| `PUT /follows/:handle`, `DELETE /follows/:handle` | Follows or unfollows. `{ followed, followers, friend }`: following someone who follows back makes friends (see [Friends, presence and co-op invites](#friends-presence-and-co-op-invites)). 429 past 60 follows in an hour |
+| `GET /players` | `?q=` a handle prefix (2+ characters, with or without `@`). `{ players }`: up to 8 `PlayerMatch` (`src/game/friends.ts`), each with its `relation` to the asker (`none`, `following`, `follower`, `friend`), never the asker. 429 past 30 searches a minute (120 per IP) |
+| `GET /friends` | `FriendList`: `friends` (mutual follows), `incoming` (requests: they follow me) and `outgoing` (I follow them), by handle |
+| `DELETE /followers/:handle` | Declines `handle`'s request (drops their follow). `{ ok }`, 404 unknown handle |
+| `DELETE /friends/:handle` | Unfriends: drops the follows both ways. `{ ok }`, 404 unknown handle |
+| `PUT /presence` | Body `PresenceUpdate` `{ activity, room? }`: a heartbeat (`lobby`, `room` with its code, or `run`, with the code in a co-op run). `PresenceView`: `{ friends, invites, appearOffline, beatMs }`, every friend's `FriendPresence` (`online`, `activity`, `room`), the live co-op invites, and when to beat next. 400 invalid, 429 past 12 a minute |
+| `DELETE /presence` | Offline now (the player left the lobby or signed out). `{ offline }` |
+| `PUT /presence/settings` | Body `{ appearOffline }`. `{ appearOffline }` |
+| `POST /coop-invites` | Body `{ to, room }`: invites the friend `to` into a co-op room. 201 `{ expiresAt }` (10 minutes). 404 when `to` isn't a friend (or nobody has the handle), 429 past one per friend every 10 s or 30 in 10 minutes |
+| `DELETE /coop-invites/:id` | Dismisses an invite the player got. `{ dismissed }`, 404 unknown |
 | `GET /gifts` | `{ gifts }`: the player's unclaimed Mystery Gifts (`{ id, content, reason, at }`), oldest first, 20 at most |
 | `POST /gifts/claim` | Body `{ ids }`: marks those gifts claimed once the game applied them. `{ claimed }` |
 | `POST /referral` | Body `{ ref }`: the inviter's handle a new account came with. `{ referred }`, whether it counted |
@@ -45,7 +54,7 @@ The merge rules are not here: `mergeSaves` and `applyPush` live in `src/game/syn
 | `POST /admin/moderation` | Body `{ userId, action, run?, reason? }` (`parseModeration`): `remove` (the run leaves the boards), `reset` (wipes the save, see [Resetting a save](#resetting-a-save)), `ban` (a reason is required), `unban` or `dismiss`. Resolves the reports it answers. `{ resolved }`, 404 for an unknown player or run |
 | `PUT /admin/suggestions/:id` | Body `{ status }`: `done` (shipped, stamps `done_at`), `open` again, or `hidden` (off the board). `{ status }`, 404 for an unknown idea |
 
-`/save`, `/me`, `/runs` (and its chunks), `/follows`, `/gifts`, `/referral`, `/donations/redeem`, `/me/supporter`, `PUT /poll`, `POST /suggestions`, `PUT /suggestions/:id/vote`, `POST /reports` and `/admin` need `Authorization: Bearer <Clerk session token>`. `/boards`, `/challenge`, `/profiles`, `GET /suggestions` and `POST /bug-reports` are public and read the token when there is one (`friends=1` needs it). CORS allows `https://www.pokemonsurvivors.com`, `https://pokemonsurvivors.com`, any `http://localhost` port and whatever `CORS_ORIGINS` adds.
+`/save`, `/me`, `/runs` (and its chunks), `/follows`, `/players`, `/friends`, `/followers`, `/presence`, `/coop-invites`, `/gifts`, `/referral`, `/donations/redeem`, `/me/supporter`, `PUT /poll`, `POST /suggestions`, `PUT /suggestions/:id/vote`, `POST /reports` and `/admin` need `Authorization: Bearer <Clerk session token>`. `/boards`, `/challenge`, `/profiles`, `GET /suggestions` and `POST /bug-reports` are public and read the token when there is one (`friends=1` needs it). CORS allows `https://www.pokemonsurvivors.com`, `https://pokemonsurvivors.com`, any `http://localhost` port and whatever `CORS_ORIGINS` adds.
 
 ### Ranked runs
 
@@ -124,6 +133,15 @@ Invites are counted here, never on the device:
 - `POST /referral` records `referred_by` only for a new account: no save stored yet, first seen in the last 48 hours, no inviter yet, and not the player's own handle (`canRefer` in `src/game/referral.ts`). The game sends it on a device's first sync, before the save goes up. Both players then follow each other and the newcomer gets a Friendship Egg (`key` `welcome`).
 - After each finished run (`PUT /runs/:token` calls `credit`), once the newcomer has 3 runs that didn't fail their check the invite counts for the inviter (once: `referral_credited_at`), who gets the milestone's gifts (`key` `friends:<count>:<i>`): 1 friend, a Friendship Egg; 3, the Ambassador title and frame; 10, a shiny Munchlax.
 - Public profiles show `brought`, the friends whose invite counted.
+
+### Friends, presence and co-op invites
+
+Friends are mutual follows (`src/friends.ts`, rules in `src/game/friends.ts`): following someone is a friend request (the other player sees it in `incoming`), following back accepts it, `DELETE /followers/:handle` declines it and `DELETE /friends/:handle` drops both follows. Guests have no friends: they join co-op rooms by link.
+
+- **Presence is short polling, not a socket.** While the game is somewhere friends care about it sends `PUT /presence` every `beatMs` (20 s in the lobby or a co-op room, 3 min in a run) while the page is visible, and stops (`DELETE /presence`) when it leaves. A player reads online until two beats of their activity plus 10 s went by (`presenceOnline`). Each heartbeat is one upsert and two reads; nothing stays open, so idle players cost nothing, and the state is in Postgres, so a deploy (two instances side by side) changes nothing.
+- Only mutual friends see a player's presence, and their room code. "Appear offline" (`users.appear_offline`) shows them offline to everyone, room included.
+- An invite (`POST /coop-invites`) is one row per sender and friend (a new one replaces the last), shown in the friend's next heartbeat for 10 minutes unless dismissed, and only while both still follow each other. It goes whether the friend looks online or not, so appearing offline gives nothing away. The room code is checked loosely (`parseRoomCode`); the relay owns its format.
+- The rate limits (searches, follows, invites, heartbeats) are in memory per instance (`src/rateLimit.ts`).
 
 ### Supporters
 
@@ -236,6 +254,7 @@ Migrations are plain SQL files in `migrations/`, run in name order at boot (each
 - `users.supporter_points`, `supporter_since`, `supporter_public`: a supporter's total, since when, and whether they show it. `poll_votes`: the supporters' poll.
 - `suggestions`: the idea board (`status` `open`, `done` or `hidden`, `score` recounted from the votes on every vote, `done_at`). `suggestion_votes`: one vote per player per idea (1 or -1; taking it back deletes the row).
 - `users.discord_id`, `discord_name`: the Discord account a player linked (one game account per Discord account).
+- `presence`: each signed-in player's last heartbeat (`activity`, `room`, `seen_at`). `coop_invites`: one co-op invite per sender and friend (`room`, `expires_at`, `dismissed_at`). `users.appear_offline`: friends see the player offline. `users_handle_prefix` serves the `/players` prefix search.
 - `bug_reports`: each bug report (`user_id`, null for a guest; `text`; `tech`, the `BugTech` JSON or null; `thread_id`, the forum thread once posted).
 - `users.save_reset_revision`, `save_resets`: the revision a reset stored (see [Resetting a save](#resetting-a-save)), and what each reset wiped.
 - `users.banned_at`, `banned_reason`: a ban, since when and why (null for everyone else). `reports`: each report (`reporter_id`, `target_id`, `run_id` when it's about a run, `reason`, `note`), unique per reporter and run (or player, without a run), and how it was resolved (`resolved_at`, `resolved_by`, `resolution`: the `ModerationAction`).

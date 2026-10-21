@@ -11,6 +11,7 @@ import { isPollOption } from '../../src/data/supporters'
 import { isDayKey } from '../../src/game/day'
 import { isDifficulty } from '../../src/game/difficulty'
 import { halloweenAt } from '../../src/game/halloween'
+import { parseHandlePrefix, parsePresenceUpdate, parseRoomCode } from '../../src/game/friends'
 import { parseSaveData } from '../../src/game/meta'
 import { outbreakAt } from '../../src/game/outbreak'
 import { isRecord } from '../../src/game/parse'
@@ -28,6 +29,7 @@ import type { SaveStore } from './db'
 import type { DiscordLink } from './discordLink'
 import type { Report } from './errors'
 import type { Donate } from './donations'
+import type { FriendStore } from './friends'
 import type { GiftStore } from './gifts'
 import type { ModerationStore } from './moderation'
 import type { RankingStore } from './ranking'
@@ -38,6 +40,8 @@ import { abacateDonation, ABACATE_REF, stripeDonation, verifyAbacate, verifyStan
 export type AppDeps = {
   store: SaveStore
   ranking: RankingStore
+  /** Friends (mutual follows), presence and co-op invites. */
+  friends: FriendStore
   gifts: Pick<GiftStore, 'inbox' | 'claim' | 'refer' | 'credit' | 'invites'>
   /** Re-simulates finished runs after the answer went out. */
   checks: Pick<Checks, 'schedule'>
@@ -94,6 +98,9 @@ const SUGGESTION_ERRORS = { profile: 403, limit: 429, unknown: 404, closed: 409 
 /** What a report answers when it's refused, by `Reported`: only what's about the reporter. */
 const REPORT_ERRORS = { self: 400, limit: 429 } as const
 
+/** What inviting a friend answers when it doesn't go, by `Invited`'s error. */
+const INVITE_ERRORS = { notFriend: 404, limit: 429 } as const
+
 /** What a run's end answers when it's refused, by `FinishError`. */
 const FINISH_ERRORS = { unknown: 404, replaced: 409, mismatch: 409, seed: 400, clock: 422, challenge: 400, rewrite: 409 } as const
 
@@ -147,7 +154,19 @@ const CHUNK_ERRORS = { unknown: 404, replaced: 409, committed: 409, gap: 409, cl
  *   `friends` needs a token. `mode=legend` is the Legend mode's board (runs played with a legend); without it, the regular one.
  * - `GET /challenge/:day?friends=1`: `ChallengeBoard`, the day's official attempts. `friends` needs a token.
  * - `GET /profiles/:handle`: `PublicProfile`, 404 if nobody has that handle.
- * - `PUT|DELETE /follows/:handle` (auth): follows or unfollows. `{ followed, followers }`.
+ * - `PUT|DELETE /follows/:handle` (auth): follows or unfollows. `{ followed, followers, friend }`: following
+ *   someone who follows back makes friends (`friend`). 429 past the follows rate limit.
+ * - `GET /players?q=` (auth): `{ players }`, up to `FRIENDS.searchMax` `PlayerMatch` whose handle starts
+ *   with `q` (2+ characters), without the asker. 429 past the search rate limit (player and IP).
+ * - `GET /friends` (auth): `FriendList`, friends and pending requests both ways.
+ * - `DELETE /followers/:handle` (auth): declines `handle`'s request. `DELETE /friends/:handle` (auth):
+ *   unfriends (drops both follows). `{ ok }`, 404 for an unknown handle.
+ * - `PUT /presence` (auth) `PresenceUpdate`: a heartbeat. `PresenceView`: the friends' presence and the
+ *   co-op invites waiting. 400 invalid, 429 past the heartbeat rate limit. `DELETE /presence` (auth): offline now.
+ * - `PUT /presence/settings` (auth) `{ appearOffline }`: friends see the player offline. `{ appearOffline }`.
+ * - `POST /coop-invites` (auth) `{ to, room }`: invites the friend `to` into the co-op room. 201
+ *   `{ expiresAt }`; 404 when `to` isn't a friend, 429 past the invite rate limit.
+ * - `DELETE /coop-invites/:id` (auth): dismisses an invite the player got. `{ dismissed }`, 404 unknown.
  * - `GET /gifts` (auth): `{ gifts }`, the player's unclaimed Mystery Gifts, oldest first.
  * - `POST /gifts/claim` (auth) `{ ids }`: marks those gifts claimed (the game applied them). `{ claimed }`.
  * - `POST /referral` (auth) `{ ref }`: the inviter's handle a new account came with. `{ referred }`:
@@ -191,7 +210,7 @@ const CHUNK_ERRORS = { unknown: 404, replaced: 409, committed: 409, gap: 409, cl
  *   `remove` a run from the boards, `reset` the save, `ban` (with a reason) or `unban`, or `dismiss`,
  *   resolving the reports it answers. `{ resolved }`, 404 for an unknown player or run.
  */
-export const createApp = ({ store, ranking, gifts, checks, verify, donate, supporters, suggestions, bugReports, discord, admin, moderation, webhooks, allowedOrigin, ping, report }: AppDeps) => {
+export const createApp = ({ store, ranking, friends, gifts, checks, verify, donate, supporters, suggestions, bugReports, discord, admin, moderation, webhooks, allowedOrigin, ping, report }: AppDeps) => {
   // `userId` is set by `auth` or `maybeAuth` on the routes that ask who's calling; `onError` reports it.
   const app = new Hono<MaybeAuth>()
 
@@ -326,10 +345,61 @@ export const createApp = ({ store, ranking, gifts, checks, verify, donate, suppo
   for (const [method, on] of [['put', true], ['delete', false]] as const) {
     app[method]('/follows/:handle', auth, async (c) => {
       const handle = parseHandle(c.req.param('handle'))
+      if (on && !friends.takeFollow(c.var.userId)) return c.json({ error: 'too many follows' }, 429)
       const followed = handle ? await ranking.follow(c.var.userId, handle, on) : null
-      return followed ? c.json(followed) : c.json({ error: 'no such player' }, 404)
+      if (!followed || !handle) return c.json({ error: 'no such player' }, 404)
+      return c.json({ ...followed, friend: on && (await friends.followsBack(c.var.userId, handle)) })
     })
   }
+
+  app.get('/players', auth, async (c) => {
+    const prefix = parseHandlePrefix(c.req.query('q'))
+    if (!prefix) return c.json({ players: [] })
+    if (!friends.takeSearch(c.var.userId, clientIp(c.req.header('X-Real-IP'), c.req.header('X-Forwarded-For')))) return c.json({ error: 'too many searches' }, 429)
+    return c.json({ players: await friends.search(prefix, c.var.userId) })
+  })
+
+  app.get('/friends', auth, async (c) => c.json(await friends.list(c.var.userId)))
+
+  for (const [path, drop] of [['/followers/:handle', friends.decline], ['/friends/:handle', friends.unfriend]] as const) {
+    app.delete(path, auth, async (c) => {
+      const handle = parseHandle(c.req.param('handle'))
+      return handle && (await drop(c.var.userId, handle)) ? c.json({ ok: true }) : c.json({ error: 'no such player' }, 404)
+    })
+  }
+
+  app.put('/presence', auth, smallBody, async (c) => {
+    const update = parsePresenceUpdate(await json(c))
+    if (!update) return c.json({ error: 'expected { activity, room? }' }, 400)
+    if (!friends.takeBeat(c.var.userId)) return c.json({ error: 'too many heartbeats' }, 429)
+    return c.json(await friends.beat(c.var.userId, update))
+  })
+
+  app.delete('/presence', auth, async (c) => {
+    await friends.offline(c.var.userId)
+    return c.json({ offline: true })
+  })
+
+  app.put('/presence/settings', auth, smallBody, async (c) => {
+    const body = await json(c)
+    if (!isRecord(body) || typeof body.appearOffline !== 'boolean') return c.json({ error: 'expected { appearOffline }' }, 400)
+    await friends.setAppearOffline(c.var.userId, body.appearOffline)
+    return c.json({ appearOffline: body.appearOffline })
+  })
+
+  app.post('/coop-invites', auth, smallBody, async (c) => {
+    const body = await json(c)
+    const to = isRecord(body) ? parseHandle(body.to) : null
+    const room = isRecord(body) ? parseRoomCode(body.room) : null
+    if (!to || !room) return c.json({ error: 'expected { to, room }' }, 400)
+    const invited = await friends.invite(c.var.userId, to, room)
+    return invited.ok ? c.json({ expiresAt: invited.expiresAt }, 201) : c.json({ error: invited.error }, INVITE_ERRORS[invited.error])
+  })
+
+  app.delete('/coop-invites/:id', auth, async (c) => {
+    const id = c.req.param('id')
+    return SUGGESTION_ID.test(id) && (await friends.dismiss(c.var.userId, id)) ? c.json({ dismissed: true }) : c.json({ error: 'unknown invite' }, 404)
+  })
 
   app.get('/gifts', auth, async (c) => c.json({ gifts: await gifts.inbox(c.var.userId) }))
 
