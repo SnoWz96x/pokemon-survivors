@@ -16,7 +16,7 @@ import { createTraitState, isAirborne, traitPace } from './traits'
 import { dungeonNav } from './dungeon'
 import { underground } from './landmarks'
 import { TRAITS } from '../data/traits'
-import { actAs, nearestPlayer, ownerOf, standing } from './players'
+import { actAs, nearestPlayer, nearestSeen, ownerOf, standing } from './players'
 import { coopScale } from './coop'
 import { COOP } from '../data/coop'
 import type { DamageSource, Enemy, EnemyBehavior, Game } from './types'
@@ -171,7 +171,8 @@ export const updateEnemies = (g: Game, dt: number) => {
       }
       continue
     }
-    const p = nearestPlayer(g, e.x, e.y)
+    // A hidden teammate (Dig, a tunnel) is passed over for one the foe can see.
+    const p = nearestSeen(g, e.x, e.y)
     const lost = underground(g, p)
     const nav = navs?.[p.slot] ?? null
     const frozen = e.status.stun > 0 || isFrozen(e.status)

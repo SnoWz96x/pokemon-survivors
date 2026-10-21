@@ -81,6 +81,27 @@ export const nearestPlayer = (g: Game, x: number, y: number): Player => {
   return best ?? players[0]!
 }
 
+/**
+ * The player in play nearest to (x, y) the horde can see: not hidden (Dig,
+ * Phantom Force) nor under a tunnel's ridge. When nobody in play can be seen,
+ * the nearest in play (`nearestPlayer`): the foe loses track of them. Solo, the player.
+ */
+export const nearestSeen = (g: Game, x: number, y: number): Player => {
+  const { players } = g
+  if (players.length === 1) return players[0]!
+  let best: Player | null = null
+  let bestD = Infinity
+  for (const p of players) {
+    if (!inPlay(p) || p.hidden || p.landmark.transit !== null) continue
+    const d = dm.sq(p.x - x) + dm.sq(p.y - y)
+    if (d < bestD) {
+      bestD = d
+      best = p
+    }
+  }
+  return best ?? nearestPlayer(g, x, y)
+}
+
 /** The first player in play within `r` px of (x, y) (plus their body radius with `body`), or null. */
 export const playerWithin = (g: Game, x: number, y: number, r: number, body = false): Player | null => {
   for (const p of g.players) {
