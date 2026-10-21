@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { PlayableId } from '../data/hatchlings'
+import { PLAYABLE_IDS } from '../data/hatchlings'
 import { createCoopGame } from '../game/game'
 import { NO_RANKS } from '../game/meta'
 import { createTeamCamera, cycleWatched, spectating, updateTeamCamera, watched } from './teamCamera'
 
-const createLocalGame = (n: number, starters: readonly PlayableId[], seed: number) =>
+const createLocalGame = (n: number, starters: readonly (typeof PLAYABLE_IDS)[number][], seed: number) =>
   createCoopGame(seed, starters.slice(0, n).map((starter, i) => ({ starter, ranks: NO_RANKS, shiny: false, name: `P${i + 1}` })), { draft: false })
 
 describe('team camera', () => {

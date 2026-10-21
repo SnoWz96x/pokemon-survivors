@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { PLAYABLE_IDS } from '../data/hatchlings'
 import type { CoopInvite } from '../game/friends'
 import type { Member, RoomView } from '../net/protocol'
-import { betaOn, buildAdvice, coopAccess, freshInvites, memberState, readiness } from './lobby'
+import { betaOn, buildAdvice, coopAccess, coopStarter, freshInvites, memberState, readiness } from './lobby'
 
 const member = (seat: number, o: Partial<Member> = {}): Member => ({
   seat,
@@ -95,5 +96,13 @@ describe('coopAccess', () => {
     expect(coopAccess(true, { kind: 'busy' })).toBe('wait')
     // A dev build without accounts plays as a guest on the dev relay.
     expect(coopAccess(false, { kind: 'guest' })).toBe('open')
+  })
+})
+
+describe('coopStarter', () => {
+  it('brings the partner, or the first starter for a legend (no Legend mode in co-op)', () => {
+    expect(coopStarter('gible')).toBe('gible')
+    expect(coopStarter('squirtle')).toBe('squirtle')
+    expect(coopStarter('mewtwo')).toBe(PLAYABLE_IDS[0])
   })
 })

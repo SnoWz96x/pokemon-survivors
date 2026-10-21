@@ -163,7 +163,7 @@ import { bugReportForm, crashPrompt } from './ui/bugReport'
 import { localPlayer, phaseOf } from './game/players'
 import { addBots, bankCoopRun, botCount, buildRefusal, coopClient, coopEntry, coopEventFor, coopUrl, linkedRoom, linkRoom, markBuildReload, onCoopEntry, refreshCoopEntry, removeBots, reportHeal, setCoopBeta, setCoopUrl, surrenderBots } from './coopShell'
 import type { CloseWhy, CoopClient } from './coop/client'
-import { coopAccess, freshInvites } from './coop/lobby'
+import { coopAccess, coopStarter, freshInvites } from './coop/lobby'
 import { REF_PARAM } from './game/referral'
 import { PROTOCOL, parseRoomCode } from './net/protocol'
 import { isRecord } from './game/parse'
@@ -2026,8 +2026,7 @@ const joinCoop = async (code: string, via: 'code' | 'link' | 'invite' | null) =>
   if (via) track('coop', { step: 'join', via })
   linkRoom(code)
   const save = loadSave()
-  // The Legend mode stays solo (`COOP_LOCKS`): a legend partner brings the first starter instead.
-  const starter = PLAYABLE_IDS.find((id) => id === save.partner) ?? PLAYABLE_IDS[0]!
+  const starter = coopStarter(save.partner)
   client.setLoadout({ starter, ranks: save.ranks, shiny: playsShiny(save, starter) })
   const me = res.room.members.find((m) => m.seat === res.seat)
   if (me && !me.host) client.setReady(true)
@@ -2287,18 +2286,19 @@ const showCoopPartner = () => {
     ui,
     input,
     {
+      // The co-op select has no Lendários tab; `coopStarter` keeps the type honest.
       pick: (id) => {
-        updateSave((s) => ({ ...s, partner: id }))
+        const starter = coopStarter(id)
+        updateSave((s) => ({ ...s, partner: starter }))
         const save = loadSave()
-        coopClient()?.setLoadout({ starter: id, ranks: save.ranks, shiny: playsShiny(save, id) })
+        coopClient()?.setLoadout({ starter, ranks: save.ranks, shiny: playsShiny(save, starter) })
         setTimeout(showRoom, 250)
       },
       back: () => showRoom(),
-      mart: () => setScreen(shop(ui, input, () => showCoopPartner())),
       settings: () => setScreen(openSettings(ui, input, () => showCoopPartner())),
       incubator: () => showIncubator(() => showCoopPartner()),
     },
-    loadSave().partner,
+    coopStarter(loadSave().partner),
     { coop: true },
   )
   setScreen(select)

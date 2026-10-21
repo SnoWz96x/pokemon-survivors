@@ -1,3 +1,4 @@
+import { PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
 import type { CoopInvite } from '../game/friends'
 import type { Member, RoomView } from '../net/protocol'
 
@@ -41,6 +42,9 @@ export const buildAdvice = (o: { own: string; room: string | null; latest: strin
   if (o.latest === null) return 'reload'
   return (o.room ?? o.latest) === o.latest && o.own !== o.latest ? 'reload' : 'oldRoom'
 }
+
+/** The Pokémon a player brings to a room: their partner, unless it's a legend (the Legend mode stays solo, `COOP_LOCKS`), then the first starter. */
+export const coopStarter = (partner: PlayableId) => PLAYABLE_IDS.find((id) => id === partner) ?? PLAYABLE_IDS[0]!
 
 /** What co-op needs before it opens: nothing, an account (`signIn`), its @handle (`handle`), or a moment while the account is settling (`wait`). */
 export type CoopAccess = 'open' | 'signIn' | 'handle' | 'wait'
