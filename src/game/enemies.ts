@@ -143,6 +143,8 @@ const mateOf = (g: Game, e: Enemy) => {
   return mate && mate.dying < 0 && !mate.fight?.down ? mate : null
 }
 
+/** Each player's way through the cave's corridors this tick, by slot (`dungeonNav`), reused every tick. */
+const caveNavs: ReturnType<typeof dungeonNav>[] = []
 /** Where a walker heads instead of the player (a dungeon's corridor), reused every tick. */
 const waypoint = { x: 0, y: 0 }
 /** Where a boss with phases heads (`steerBoss`), reused every tick. */
@@ -159,7 +161,12 @@ export const updateEnemies = (g: Game, dt: number) => {
   const inside = g.place.inside
   const cave = inside?.id === 'cave' && inside.state.plan ? inside : null
   const plan = cave?.state.plan
-  const navs = cave && plan ? g.players.map((p) => dungeonNav(plan, p.x - cave.x, p.y - cave.y)) : null
+  let navs: typeof caveNavs | null = null
+  if (cave && plan) {
+    navs = caveNavs
+    navs.length = g.players.length
+    for (let i = 0; i < g.players.length; i++) navs[i] = dungeonNav(plan, g.players[i]!.x - cave.x, g.players[i]!.y - cave.y)
+  }
   const band = spitBand(g.view)
 
   for (const e of g.enemies) {

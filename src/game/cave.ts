@@ -206,11 +206,14 @@ export const updateCave = (g: Game, inside: CaveInside, dt: number) => {
   }
   // Any player at the stairs takes the team down; any player at the chest opens it.
   const stairs = s.stairs
-  if (stairs && g.players.some((p) => dm.sq(p.x - inside.x - stairs[0]) + dm.sq(p.y - inside.y - stairs[1]) < dm.sq(CAVE.stairsRadius + p.radius * 0.5))) return descendCave(g, inside)
+  if (stairs) {
+    for (const p of g.players) if (dm.sq(p.x - inside.x - stairs[0]) + dm.sq(p.y - inside.y - stairs[1]) < dm.sq(CAVE.stairsRadius + p.radius * 0.5)) return descendCave(g, inside)
+  }
   const chest = s.chest
   if (chest && !chest.open) {
     if (!s.house) return springHouse(g, inside)
-    const near = g.players.some((p) => dm.sq(p.x - inside.x - chest.x) + dm.sq(p.y - inside.y - chest.y) < dm.sq(CAVE.chestRadius + p.radius))
+    let near = false
+    for (const p of g.players) near ||= dm.sq(p.x - inside.x - chest.x) + dm.sq(p.y - inside.y - chest.y) < dm.sq(CAVE.chestRadius + p.radius)
     const before = chest.progress
     chest.progress = clamp(chest.progress + (near ? dt : -dt * 0.5) / CAVE.chestTime, 0, 1)
     if (chest.progress > before && Math.floor(chest.progress * 5) !== Math.floor(before * 5)) notifyPlace(g, 'cave', { kind: 'chestTick' })

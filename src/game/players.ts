@@ -175,17 +175,19 @@ export const aimScreen = (g: Game, p: Player, x: number, y: number) => {
 /** Centers player `p`'s screen on (x, y), framed like a player: 10 px above their feet. */
 export const centerScreen = (g: Game, p: Player, x: number, y: number) => aimScreen(g, p, x - g.view.w / 2, y - 10 - g.view.h / 2)
 
+const noFrame = () => false
+
 /**
  * Moves every player's screen to where they stand (centered, a little above
- * their feet) unless `frame` aims it itself (a legendary's domain eases it to
- * frame the fight: `domainCamera`, run as each player); the drawn camera goes
- * with the first one's.
+ * their feet) unless `frame` aims it itself over `dt` (a legendary's domain
+ * eases it to frame the fight: `domainCamera`, run as each player); the drawn
+ * camera goes with the first one's. A module function, so a tick allocates no closure.
  */
-export const followPlayers = (g: Game, frame: (g: Game) => boolean = () => false) => {
+export const followPlayers = (g: Game, dt = 0, frame: (g: Game, dt: number) => boolean = noFrame) => {
   const before = g.player
   for (const p of g.players) {
     g.player = p
-    if (!frame(g)) centerScreen(g, p, p.x, p.y)
+    if (!frame(g, dt)) centerScreen(g, p, p.x, p.y)
   }
   g.player = before
 }
