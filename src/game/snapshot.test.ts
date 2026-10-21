@@ -4,17 +4,45 @@ import { forkDriver, scenarios, startScenario, tickScenario, type Driver, type S
 import { deflate, decodeSnapshot, inflate, restore, snapshot, stateHash } from './snapshot'
 import { diffGames, diffStates } from './stateDiff'
 import { RULES_VERSION } from './replay'
+import { enterDomain } from './domain'
+import { gainXp } from './leveling'
+import { maxMoveLevel } from './moves'
+import { enterPlace } from './placeInterior'
+import { spawnWaveBoss } from './spawner'
+import { featureAt } from './terrain'
 import type { Attack, Game } from './types'
+
+/** The nearest tunnel on the run's map. */
+const tunnelNear = (g: Game) => {
+  for (let r = 2; r < 40; r++) {
+    for (let cx = -r; cx <= r; cx++) {
+      for (const cy of [-r, r]) {
+        const lm = featureAt(g.terrain.seed, cx, cy)?.landmark
+        if (lm?.id === 'tunnel') return lm
+      }
+    }
+  }
+  throw new Error('no tunnel')
+}
 
 /** Ticks the restored copy and the original play on after a checkpoint. */
 const AFTER = 240
 
-/** The moments worth a checkpoint besides random ticks: a pick waiting, an evolution, a rift, a boss, a Mega, endless mode. */
+/**
+ * The moments worth a checkpoint besides random ticks: a pick waiting, an
+ * evolution (a legend's awakening), a rift (a domain's act), a place, a
+ * tunnel, a wave legendary's scene, a boss, a Mega, a called sky, endless mode.
+ */
 const moments = (g: Game): string[] => [
   ...(g.phase !== 'playing' ? [g.phase] : []),
-  ...(g.rift.arena ? ['arena'] : []),
+  ...(g.player.evolution?.awakening ? ['awakening'] : []),
+  ...(g.rift.arena ? [g.rift.arena.domain ? `domain:${g.rift.arena.domain.act}` : 'arena'] : []),
+  ...(g.place.inside ? [`place:${g.place.inside.id}`] : []),
+  ...(g.player.landmark.transit ? ['tunnel'] : []),
+  ...(g.legendScene ? [`legendScene:${g.legendScene.kind}`] : []),
   ...(g.bossId !== null ? ['boss'] : []),
   ...(g.player.mega.active > 0 ? ['mega'] : []),
+  ...(g.weather.held ? ['weatherCall'] : []),
   ...(g.endless ? ['endless'] : []),
 ]
 
@@ -23,8 +51,9 @@ const moments = (g: Game): string[] => [
  * snapshot that plays on `AFTER` ticks beside the original. Returns how many
  * checkpoints it made and the moments they covered.
  */
-const proveRestores = (s: Scenario, ticks: number, every: number) => {
+const proveRestores = (s: Scenario, ticks: number, every: number, stage?: (g: Game) => void) => {
   const d = startScenario(s)
+  stage?.(d.g)
   const pick = createRng(s.seed)
   const covered = new Set<string>()
   let next = Math.floor(pick() * every)
@@ -59,13 +88,39 @@ describe('snapshot and restore', () => {
     const covered = new Set<string>()
     let checkpoints = 0
     for (const s of scenarios(3, 11)) {
-      const r = proveRestores(s, 60 * 60 * 4, 1500)
+      const r = proveRestores(s, 60 * 60 * 7, 1500)
       checkpoints += r.checkpoints
       for (const m of r.covered) covered.add(m)
     }
     expect(checkpoints).toBeGreaterThan(20)
-    expect([...covered].sort()).toEqual(expect.arrayContaining(['arena', 'boss', 'evolving', 'levelup']))
+    // A legend's awakening, a whole domain, the places and a tunnel come up along the way (`moments`).
+    expect([...covered].sort()).toEqual(expect.arrayContaining(['awakening', 'boss', 'domain:battle', 'domain:capture', 'domain:crossing', 'evolving', 'levelup', 'place:cave', 'place:graveyard', 'tunnel']))
   }, 120_000)
+
+  it.each([
+    { name: 'the cave', s: { seed: 61, starter: 'pidgey' }, stage: (g: Game) => enterPlace(g, 'cave', g.player.x, g.player.y), covers: 'place:cave' },
+    { name: 'the graveyard, haunted', s: { seed: 62, starter: 'gastly', halloween: true }, stage: (g: Game) => enterPlace(g, 'graveyard', g.player.x, g.player.y), covers: 'place:graveyard' },
+    { name: 'the sky', s: { seed: 63, starter: 'pidgey' }, stage: (g: Game) => enterPlace(g, 'sky', g.player.x, g.player.y), covers: 'place:sky' },
+    { name: "Dialga's domain", s: { seed: 64, starter: 'charmander' }, stage: (g: Game) => enterDomain(g, 'dialga', g.player.x, g.player.y), covers: 'domain:crossing' },
+    { name: 'a tunnel', s: { seed: 65, starter: 'squirtle' }, stage: (g: Game) => {
+      const lm = tunnelNear(g)
+      Object.assign(g.player, lm.mouths[0])
+      g.player.landmark.entering = { cell: lm.cell, mouth: 0, t: 0.39 }
+    }, covers: 'tunnel' },
+    { name: "Mewtwo's entrance on the map", s: { seed: 66, starter: 'gible' }, stage: (g: Game) => {
+      spawnWaveBoss(g, 'mewtwo', g.time, true)
+    }, covers: 'legendScene:entrance' },
+    { name: "a legend's awakening, with a full Bag", s: { seed: 67, starter: 'kyogre', bag: ['rareCandy', 'luckyEgg', 'xAttack', 'maxRevive'] }, stage: (g: Game) => {
+      gainXp(g, 4000)
+    }, covers: 'awakening' },
+    { name: 'shop TMs calling the sky, armed TMs and Bottle Caps', s: { seed: 68, starter: 'riolu', tms: ['payDay', 'thief'], caps: 3 }, stage: (g: Game) => {
+      g.player.moves.push(...(['rainDance', 'swordsDance', 'thief', 'fly'] as const).map((id) => ({ id, level: maxMoveLevel(id), cooldown: 0, path: 0 })))
+    }, covers: 'weatherCall' },
+  ] as const)('restore inside $name and play on exactly the same', ({ s, stage, covers }) => {
+    const r = proveRestores({ difficulty: 'normal', maxRanks: true, ...s }, 60 * 50, 240, stage)
+    expect(r.checkpoints).toBeGreaterThan(5)
+    expect([...r.covered]).toContain(covers)
+  }, 60_000)
 
   it('restore in a fresh module context, with nothing carried over by module state', async () => {
     const [s] = scenarios(1, 5)
@@ -87,7 +142,9 @@ describe('snapshot and restore', () => {
     const copy: Driver = { ...saved, g: fresh.snapshot.restore(bytes), bot: fresh.rng.rngFrom(saved.bot), over: false }
     for (let i = 0; i < 600; i++) fresh.scenario.tickScenario(copy)
     expect(fresh.snapshot.stateHash(copy.g)).toBe(stateHash(d.g))
-    expect(fresh.snapshot.snapshot(copy.g)).toEqual(snapshot(d.g))
+    // Down to the last value. Not byte for byte: foes spawned before the snapshot share their species' `types` table with
+    // the ones spawned after it in the original, while the copy holds its own (a place's stash keeps such foes for long).
+    expect(diffGames(d.g, copy.g)).toEqual([])
   }, 60_000)
 
   it('play a run the same in a fresh module context as in one that played other runs before', async () => {

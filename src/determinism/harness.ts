@@ -1,6 +1,7 @@
 import { decodeSnapshot, deflate, restore, snapshot, stateHash } from '../game/snapshot'
 import { diffStates } from '../game/stateDiff'
 import { PLAYABLE_IDS } from '../data/hatchlings'
+import { LEGEND_IDS } from '../data/legends'
 import { startScenario, tickScenario, type Driver, type Scenario } from './scenario'
 
 /**
@@ -14,15 +15,23 @@ export { decodeSnapshot, diffStates, restore, snapshot, stateHash }
 
 /**
  * The runs the harness plays: long, busy ones (bosses, rifts, evolutions, a
- * Mega line, a branching one, endless mode, every difficulty), then every
- * playable for a few minutes, so each family's own moves get played too.
+ * Mega line, a branching one, endless mode, every difficulty, a haunted
+ * Legend-mode run, a run with Bag items, armed shop TMs and Bottle Caps), then
+ * every playable (legends too) for a few minutes, so each family's own moves
+ * get played too.
  */
 export const HARNESS_SCENARIOS: ReadonlyArray<{ name: string; scenario: Scenario; minutes: number }> = [
   { name: 'squirtle-normal-25min', scenario: { seed: 2, starter: 'squirtle', difficulty: 'normal', maxRanks: true }, minutes: 25 },
   { name: 'charmander-hard-mega-15min', scenario: { seed: 31, starter: 'charmander', difficulty: 'hard', maxRanks: true }, minutes: 15 },
   { name: 'eevee-nightmare-12min', scenario: { seed: 977, starter: 'eevee', difficulty: 'nightmare', maxRanks: true }, minutes: 12 },
   { name: 'gible-normal-10min', scenario: { seed: 4242, starter: 'gible', difficulty: 'normal', maxRanks: false }, minutes: 10 },
-  ...PLAYABLE_IDS.map((starter, i) => ({
+  { name: 'kyogre-legend-haunted-12min', scenario: { seed: 5150, starter: 'kyogre', difficulty: 'normal', maxRanks: true, halloween: true }, minutes: 12 },
+  {
+    name: 'bulbasaur-bag-tms-caps-10min',
+    scenario: { seed: 777, starter: 'bulbasaur', difficulty: 'hard', maxRanks: true, bag: ['rareCandy', 'luckyEgg', 'xAttack', 'maxRevive'], tms: ['payDay', 'thief', 'rainDance', 'swordsDance'], caps: 3 },
+    minutes: 10,
+  },
+  ...[...PLAYABLE_IDS, ...LEGEND_IDS].map((starter, i) => ({
     name: `${starter}-3min`,
     scenario: { seed: 100 + i, starter, difficulty: (['normal', 'hard', 'nightmare'] as const)[i % 3]!, maxRanks: true },
     minutes: 3,

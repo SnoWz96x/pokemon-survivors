@@ -1,6 +1,7 @@
 import { createRng, rngFrom, type SeededRng } from '../engine/rng'
 import * as dm from '../engine/dmath'
 import { PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
+import { LEGEND_IDS } from '../data/legends'
 import { continueEndless } from '../game/endlessSystem'
 import { banishOffer, chooseOffer, rerollOffers, skipLevelUp, step } from '../game/game'
 import { UPGRADE_IDS, UPGRADES, type Ranks } from '../game/meta'
@@ -11,10 +12,12 @@ import type { Game } from '../game/types'
 /**
  * Scripted solo runs for the determinism proofs (`snapshot.test.ts`) and the
  * cross-engine harness (`npm run determinism`). A bot plays like a busy
- * player: it kites the horde, walks into rifts and map events, presses the
- * special, the Mega button and the lunge, picks cards (now and then forgetting,
- * rerolling or skipping one), turns the screen once and goes on into endless
- * mode. A guardian tops the player's HP up when it runs low and keeps a
+ * player: it kites the horde, walks into rifts, places and map events (and,
+ * inside, to a domain's gate, the cave's stairs and chest, the sky's wings),
+ * presses the special, the Mega button and the lunge, picks cards (now and
+ * then forgetting, rerolling or skipping one), turns the screen once and goes
+ * on into endless mode. A scenario can bring what a save brings: a haunted
+ * night, Bag items, armed shop TMs, evolution items and Bottle Caps. A guardian tops the player's HP up when it runs low and keeps a
  * revive in the bag, so runs last long enough to reach the late game; it's
  * the harness's hand, not a rule.
  *
@@ -23,7 +26,12 @@ import type { Game } from '../game/types'
  * inputs. The bot's rng is its own: the game's draws stay the game's.
  */
 
-export type Scenario = { seed: number; starter: PlayableId; difficulty: Difficulty; maxRanks: boolean }
+export type Scenario = {
+  seed: number
+  starter: PlayableId
+  difficulty: Difficulty
+  maxRanks: boolean
+} & Partial<Pick<ReplayStart, 'halloween' | 'bag' | 'tms' | 'evo' | 'caps'>>
 
 const FULL_RANKS = Object.fromEntries(UPGRADE_IDS.map((id) => [id, UPGRADES[id].maxRank])) as Ranks
 const NO_RANKS_SET = Object.fromEntries(UPGRADE_IDS.map((id) => [id, 0])) as Ranks
@@ -36,8 +44,11 @@ export const scenarioStart = (s: Scenario): ReplayStart => ({
   shiny: false,
   luckyEgg: true,
   outbreak: null,
-  lure: true,
-  incense: true,
+  halloween: s.halloween ?? false,
+  bag: s.bag ?? ['lure', 'incense'],
+  ...(s.tms ? { tms: s.tms } : {}),
+  ...(s.evo ? { evo: s.evo } : {}),
+  ...(s.caps ? { caps: s.caps } : {}),
   view: { w: 480, h: 270 },
 })
 
@@ -49,7 +60,24 @@ export const startScenario = (s: Scenario): Driver => ({ g: startGame(scenarioSt
 /** The same bot, at the same point, playing `g` (a restored copy of its game): its own rng state goes along. */
 export const forkDriver = (d: Driver, g: Game): Driver => ({ ...d, g, bot: rngFrom({ ...d.bot.state }) })
 
-/** The bot's stick: away from the foes close by, towards a rift portal or a map event, plus a wander. */
+/** Where the bot heads: a rift portal or a place's door on the map, a domain's gate, the cave's stairs or chest, a wing in the sky, else a map event. */
+const goalOf = (g: Game): { x: number; y: number } | null => {
+  const p = g.player
+  const inside = g.place.inside
+  const domain = g.rift.arena?.domain
+  if (domain?.act === 'crossing') return { x: p.x, y: p.y - 200 }
+  if (inside?.id === 'cave') {
+    const { stairs, chest } = inside.state
+    if (stairs) return { x: inside.x + stairs[0], y: inside.y + stairs[1] }
+    if (chest && !chest.open) return { x: inside.x + chest.x, y: inside.y + chest.y }
+  }
+  if (inside?.id === 'sky') return inside.state.wings[0] ?? null
+  if (inside || g.rift.arena) return null
+  const door = g.place.entrance?.open ? g.place.entrance : null
+  return g.rift.portal ?? door ?? g.mapEvents.list.find((ev) => ev.gone < 0) ?? null
+}
+
+/** The bot's stick: away from the foes close by, towards its goal (`goalOf`), plus a wander. */
 const stick = (d: Driver) => {
   const { g } = d
   const p = g.player
@@ -66,7 +94,7 @@ const stick = (d: Driver) => {
     x += dx * k * 40
     y += dy * k * 40
   }
-  const goal = g.rift.portal ?? g.mapEvents.list.find((ev) => ev.gone < 0) ?? null
+  const goal = goalOf(g)
   if (goal) {
     const len = dm.hypot(goal.x - p.x, goal.y - p.y)
     if (len > 4) {
@@ -127,14 +155,28 @@ export const tickScenario = (d: Driver) => {
   return true
 }
 
-/** A few scenarios that cover the playables, the difficulties and the Poké Mart. */
+/** Every Pokémon a run can play: the starters, the hatched families and the legends (Legend mode). */
+const PLAYS: readonly PlayableId[] = [...PLAYABLE_IDS, ...LEGEND_IDS]
+
+/** What a save brings along, by turns: nothing but the usual Lure and Incense, a full Bag, armed shop TMs and Bottle Caps, evolution items, an Everstone. */
+const SAVES: ReadonlyArray<Partial<Scenario>> = [
+  {},
+  { bag: ['lure', 'incense', 'rareCandy', 'luckyEgg', 'luckIncense', 'xAttack', 'maxRevive'] },
+  { tms: ['payDay', 'thief', 'rainDance', 'swordsDance'], caps: 3 },
+  { evo: ['waterStone', 'thunderStone', 'fireStone', 'dawnStone', 'metalCoat', 'kingsRock', 'upgrade'] },
+  { bag: ['everstone', 'honey'] },
+]
+
+/** A few scenarios that cover the playables (legends included), the difficulties, the Poké Mart, haunted nights and what a save brings. */
 export const scenarios = (count: number, first = 1): Scenario[] =>
   Array.from({ length: count }, (_, i) => {
     const seed = first + i * 7919
     return {
       seed,
-      starter: PLAYABLE_IDS[(seed * 31) % PLAYABLE_IDS.length]!,
+      starter: PLAYS[(seed * 31) % PLAYS.length]!,
       difficulty: (['normal', 'hard', 'nightmare'] as const)[i % 3]!,
       maxRanks: i % 2 === 0,
+      halloween: i % 4 === 1,
+      ...SAVES[(seed >> 1) % SAVES.length],
     }
   })
