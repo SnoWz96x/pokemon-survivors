@@ -259,8 +259,12 @@ const PERSONAL: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>([
   'evoItem', 'evoHeld', 'maxRevive', 'stolen', 'awaken', 'awakened',
 ])
 
-/** Events solo banks into the save that co-op never shows: a legendary's defeat counting toward its capture (solo's progression, `COOP_LOCKS`). */
-const SOLO_ONLY: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>(['legendBeaten'])
+/**
+ * Events tied to solo's progression that co-op never shows (`COOP_LOCKS`): a
+ * legendary's defeat counting toward its capture, a night boss ticking the
+ * Caça aos Fantasmas off (the Noite das Bruxas is off in co-op anyway).
+ */
+const SOLO_ONLY: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>(['legendBeaten', 'nightBoss'])
 
 /**
  * Whether an event of the simulation is this client's to see and hear: the
