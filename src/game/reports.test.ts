@@ -38,6 +38,7 @@ describe('banGated', () => {
       ['POST', '/suggestions'],
       ['PUT', `/suggestions/${RUN}/vote`],
       ['PUT', '/poll'],
+      ['POST', '/coop-invites'],
     ]) {
       expect(banGated(method!, path!), `${method} ${path}`).toBe(true)
     }

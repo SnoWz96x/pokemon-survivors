@@ -10,6 +10,7 @@ import { createRibbons } from './challenge'
 import { discordStore, startDiscord } from './discord'
 import { discordLink } from './discordLink'
 import { abacatePay } from './donations'
+import { friendStore } from './friends'
 import { giftStore } from './gifts'
 import { moderationStore } from './moderation'
 import { rankingStore } from './ranking'
@@ -45,6 +46,7 @@ if (env.discord) startDiscord(env.discord, { store: discordStore(sql), ranking }
 const app = createApp({
   store: saveStore(sql),
   ranking,
+  friends: friendStore(sql),
   gifts,
   checks,
   verify: clerkVerifier(env),
