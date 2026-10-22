@@ -150,6 +150,16 @@ describe('clock', () => {
     expect(frames(out, 'c1')).toEqual([{ t: 'frame', from: 1, to: 2, ticks: [[1, [[0, 'move', 2], [1, 'pick', 0, 3]]]] }])
   })
 
+  it('stamps a batch as its messages one by one at once: same tick, in order, newest stick only', () => {
+    const { state, t0 } = playing()
+    tick(state, t0 + 17)
+    say(state, 'c1', { t: 'in', k: 'move', d: [5, 1] }, t0 + 19)
+    const pong = say(state, 'c0', { t: 'batch', m: [{ t: 'in', k: 'move', d: [1, 7] }, { t: 'in', k: 'special', d: [] }, { t: 'in', k: 'move', d: [2, 8] }, { t: 'ping', at: 4 }] }, t0 + 20)
+    expect(of(sent(pong, 'c0'), 'pong')).toHaveLength(1)
+    say(state, 'c1', { t: 'in', k: 'pick', d: [0, 3] }, t0 + 26)
+    expect(frames(tick(state, t0 + 34), 'c1')).toEqual([{ t: 'frame', from: 1, to: 2, ticks: [[1, [[1, 'move', 5, 1], [0, 'special'], [0, 'move', 2, 8], [1, 'pick', 0, 3]]]] }])
+  })
+
   it('derives ticks from elapsed time: a late timer sends the whole range at once', () => {
     const { state, t0 } = playing()
     expect(frames(tick(state, t0 + 1000 / 60 * 10 + 1), 'c0')).toEqual([{ t: 'frame', from: 0, to: 10, ticks: [] }])
@@ -359,6 +369,13 @@ describe('hashes, snapshots and the end', () => {
 })
 
 describe('rate limit', () => {
+  it('charges a batch a token per message it carries', () => {
+    const { state, t0 } = playing()
+    const batch = { t: 'batch', m: Array.from({ length: 16 }, () => ({ t: 'in', k: 'move', d: [1] })) } as const
+    const out = Array.from({ length: 8 }, () => say(state, 'c0', batch, t0)).flat()
+    expect(of(sent(out, 'c0'), 'slow')).toHaveLength(1)
+  })
+
   it('drops a burst past the bucket, says so once, and closes only a flood', () => {
     const { state, t0 } = playing()
     const out = Array.from({ length: 200 }, () => say(state, 'c0', { t: 'in', k: 'move', d: [1] }, t0)).flat()

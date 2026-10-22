@@ -17,4 +17,14 @@ describe('protocol', () => {
     expect(parseClientMessage(chunk)).toMatchObject({ t: 'snap', part: 0 })
     expect(parseClientMessage(JSON.stringify({ t: 'hash', tick: 61, h: 'ab' }))).toBeNull()
   })
+
+  it('takes a batch of the messages a batch may carry, and nothing else', () => {
+    const one = { t: 'in', k: 'move', d: [3, 1] }
+    expect(parseClientMessage(JSON.stringify({ t: 'batch', m: [one, { t: 'ping', at: 5 }] }))).toEqual({ t: 'batch', m: [one, { t: 'ping', at: 5 }] })
+    expect(parseClientMessage(JSON.stringify({ t: 'batch', m: [] }))).toBeNull()
+    expect(parseClientMessage(JSON.stringify({ t: 'batch', m: Array(LIMITS.batch + 1).fill(one) }))).toBeNull()
+    expect(parseClientMessage(JSON.stringify({ t: 'batch', m: [one, { t: 'in', k: 'away', d: [] }] }))).toBeNull()
+    expect(parseClientMessage(JSON.stringify({ t: 'batch', m: [{ t: 'batch', m: [one] }] }))).toBeNull()
+    expect(parseClientMessage(JSON.stringify({ t: 'batch', m: [{ t: 'snap', tick: 600, h: 'ab', part: 0, parts: 1, data: 'AA==' }] }))).toBeNull()
+  })
 })

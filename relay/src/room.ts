@@ -62,7 +62,7 @@ export const MAX_DUMPS = 3
 /** Snapshots a seat may call bad (`badSnap`) per run, at most: past that it can't make the team drop another. */
 export const MAX_BAD_SNAPS = 2
 
-/** Per-socket token bucket: burst and refill per second. Touch input coalesced to 30/s stays well inside. */
+/** Per-socket token bucket: burst and refill per second, a token per message (each of a `batch`'s too). The stick, at most 30/s, stays well inside. */
 export const BUCKET = { capacity: 120, perSecond: 60 } as const
 
 /** Dropped messages within `window` ms past which a socket is closed as abusive. */
@@ -480,7 +480,7 @@ export const hello = (state: State, connId: ConnId, h: Hello, identity: Identity
   out.push({ k: 'save' })
   const run = room.run
   if (room.phase === 'playing' && run && !run.ended) out.push(...heard(state, room, seat, now), ...settle(state, room, now))
-  out.push(send(connId, { t: 'welcome', seat: seat.seat, secret: seat.secret, room: roomView(state, room) }))
+  out.push(send(connId, { t: 'welcome', seat: seat.seat, secret: seat.secret, room: roomView(state, room), batch: true }))
   out.push(...broadcastRoom(state, room).filter((e) => e.k !== 'send' || e.to !== connId))
   if (room.phase === 'playing' && run && !run.ended && inRun(run, seat.seat)) {
     const s = syncFor(run, h.resume)
@@ -523,8 +523,12 @@ const admit = (state: State, conn: Conn, msg: ClientMessage | null, now: number)
   return { ok: false, effects }
 }
 
-/** A message from a socket (`null` when it didn't parse: it only costs the sender tokens). */
+/**
+ * A message from a socket (`null` when it didn't parse: it only costs the sender tokens). A `batch` is its
+ * messages one by one, in order, at the same instant: its inputs land in the same tick, and each pays a token.
+ */
 export const message = (state: State, connId: ConnId, msg: ClientMessage | null, now: number): Effect[] => {
+  if (msg?.t === 'batch') return msg.m.flatMap((m) => message(state, connId, m, now))
   const conn = state.live.conns.get(connId)
   const room = state.room
   if (!conn || !room) return []
