@@ -8,12 +8,12 @@ compares the players' state hashes, keeps the latest snapshot a majority agreed
 on, heals a diverged client and records a desync dump. It runs no game code: it
 imports only `../src/net/protocol.ts`, which imports nothing (a test checks it).
 
-Storage comes two ways (the doc block atop `src/room.ts`). Rare state (seats,
-run start and end, the agreed snapshot, pauses) is a durable room save: the
-output gate holds every message until it commits. The input log, decided
-hashes, clock bound and snapshot chunks are written with `allowUnconfirmed`
-(KV keys; `sql.exec` always takes the gate), so frames and pongs never wait on
-a commit. A crash can lose the newest second of log: the clock bound, written
+Storage comes two ways (the doc block atop `src/room.ts`; `src/store.ts` writes
+and reads it for both shells). Rare state (seats, run start and end, the agreed
+snapshot, pauses) is a durable room save: the output gate holds every message
+until it commits. The input log, decided hashes, clock bound and snapshot
+chunks are written with `allowUnconfirmed` (KV keys; `sql.exec` always takes
+the gate), so frames and pongs never wait on a commit. A crash can lose the newest second of log: the clock bound, written
 3 s ahead with every batch (never under 2 s, so a lost batch is covered while
 its commit takes under 2 s; the worst measured took 1.1 s), keeps the
 restarted room from sending a tick twice, the clients resume from their own
@@ -100,10 +100,17 @@ Cloudflare has no Durable Objects in South America, so a Brazilian room runs in 
   volume, a 60 Hz timer per running room, the Worker's routes, origin checks, Clerk tokens,
   rate limits (by `X-Real-Ip` from Traefik) and the dump vault. An exclusive lock on
   `/data/relay.lock` keeps a second container off the same rooms.
-- **A deploy or a crash loses only sockets:** SIGTERM closes them with 1012 (clients reconnect
-  at once and resume) and rooms load back from the volume. A room whose step throws starts
-  over from its file without touching the others. Logs are the Workers' JSON lines, plus
-  `relay.stats` a minute (rooms, sockets, event-loop lag, CPU, memory).
+- **Storage as the Durable Object's (`src/store.ts`):** the same log batch a second with its
+  clock bound (3 s ahead, never under 2 s), the same keys (rows of the room's `kv` here) and the
+  same restart (the clock resumes at the newest batch's bound). No output gate: a step's writes
+  go in one local transaction (microseconds) before anything it sends.
+- **A deploy or a crash loses only sockets:** SIGTERM writes the log still in memory, closes
+  the sockets with 1012 (clients reconnect at once and resume) and rooms load back from the
+  volume. A crash may lose the newest second of log, covered as on Cloudflare. A room whose
+  step throws starts over from its file without touching the others. Logs are the room's
+  events as on the Workers, plus `relay.stats` a minute (rooms, sockets, event-loop lag, CPU,
+  memory); the telemetry (`run.summary`, `conn.*`, `welcome`'s `net`, kept runs) is
+  Cloudflare's only for now.
 
 ```bash
 cd node && npm ci
