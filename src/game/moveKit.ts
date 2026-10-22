@@ -1,8 +1,9 @@
 import { fromAngle, TAU } from '../engine/math'
 import { spawnAttack } from './spawn'
 import type { CastStats, Look, MoveId } from './moves'
-import type { DamageSource, Enemy, Game } from './types'
+import type { DamageSource, Enemy, Game, Player } from './types'
 import * as dm from '../engine/dmath'
+import { wardOpens } from './kitRules'
 
 /**
  * The move kit: building blocks for new move mechanics. A move stays a data
@@ -51,6 +52,8 @@ import * as dm from '../engine/dmath'
  *   `onGuard(g, s, owned, from?)` (Counter's wave, Protect's reflect).
  * - `burrow(g, move, seconds)`: invulnerable and lost to the foes (they
  *   wander) until it ends, then the move's `emerge(g, s, owned)` (Dig, Fly).
+ * Both return false when the window doesn't open: windows from different
+ * moves don't chain (`wardOpens`), so a move whose point is the window bails.
  *
  * FOES: `throwFoe(e, angle, force, damage, move)` hurls a foe that hurts
  * every foe it crashes into while its knockback is fast (Circle Throw).
@@ -147,14 +150,37 @@ export const trailer = (g: Game, s: CastStats, look: Look, o: { every: number; r
   })
 }
 
-/** Opens a guard window: the next hit within `seconds` is negated and calls `move`'s `onGuard`. */
-export const guard = (g: Game, move: MoveId, seconds: number) => {
-  g.player.guard = { left: seconds, move }
+/** The move whose immunity window is open on the player now (a burrow, else a guard), or null. */
+export const wardHolder = (p: Player) => p.hidden?.move ?? p.guard?.move ?? null
+
+/** Stamps the player's ward: `move`'s window stands at `now` (`updateMoveKit` keeps it fresh while it's open). */
+export const stampWard = (p: Player, move: MoveId, now: number) => {
+  if (p.ward) {
+    p.ward.move = move
+    p.ward.at = now
+  } else p.ward = { move, at: now }
 }
 
-/** Burrows the player for `seconds`: no damage, foes lose track; then `move`'s `emerge` runs. */
+/** Claims the player's immunity for `move`, unless another move's window holds it or closed too recently (`wardOpens`). */
+const claimWard = (g: Game, move: MoveId) => {
+  const p = g.player
+  if (!wardOpens(p.ward, wardHolder(p), move, g.now)) return false
+  stampWard(p, move, g.now)
+  return true
+}
+
+/** Opens a guard window: the next hit within `seconds` is negated and calls `move`'s `onGuard`. False when it doesn't open. */
+export const guard = (g: Game, move: MoveId, seconds: number) => {
+  if (!claimWard(g, move)) return false
+  g.player.guard = { left: seconds, move }
+  return true
+}
+
+/** Burrows the player for `seconds`: no damage, foes lose track; then `move`'s `emerge` runs. False when it doesn't open. */
 export const burrow = (g: Game, move: MoveId, seconds: number) => {
+  if (!claimWard(g, move)) return false
   g.player.hidden = { left: seconds, move }
+  return true
 }
 
 /**

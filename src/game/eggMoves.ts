@@ -147,10 +147,10 @@ export const forcePalm = (g: Game, s: CastStats) => {
 
 /* ---------------- Gible: Dig ---------------- */
 
-/** Manual: burrows for `duration` (no damage, the horde loses you; you can still move), then `digEmerge`. */
+/** Manual: burrows for `duration` (no damage, the horde loses you; you can still move), then `digEmerge`. Fails right after another move's protection (`wardOpens`). */
 export const dig = (g: Game, s: CastStats) => {
   const p = g.player
-  burrow(g, 'dig', s.duration)
+  if (!burrow(g, 'dig', s.duration)) return
   spawnAttack(g, {
     ...look('dig', 'ground', 'digMound'), x: p.x, y: p.y,
     shape: { kind: 'circle', r: 8 }, motion: { kind: 'follow', ox: 0, oy: 0 }, damage: 0, ttl: s.duration, activeFrom: Infinity,
