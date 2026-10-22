@@ -27,13 +27,64 @@ export type ChangelogUpdate = {
  */
 export const CHANGELOG: readonly ChangelogUpdate[] = [
   {
+    date: '2026-10-22',
+    title: { pt: 'A economia ganhou sentido', en: 'The economy gets a purpose', es: 'La economía cobra sentido' },
+    highlights: [
+      { pt: 'Ovo do Kecleon sem o limite de um por dia: até 6, e cada um custa o dobro do anterior (₽ 10.000, 20.000, 40.000…). A conta zera à meia-noite.', en: 'The Kecleon Egg is no longer one a day: up to 6, each costing double the last (₽ 10,000, 20,000, 40,000…). The count resets at midnight.', es: 'El Huevo Kecleon ya no es uno por día: hasta 6, y cada uno cuesta el doble del anterior (₽ 10.000, 20.000, 40.000…). La cuenta vuelve a cero a medianoche.' },
+      { pt: 'Incubadora maior: a 4ª e a 5ª vaga, suas para sempre, e a Incubadora Rápida, que faz um ovo andar o dobro.', en: 'A bigger incubator: the 4th and 5th slots, yours for good, and the Quick Incubator, which makes an egg walk twice as fast.', es: 'Una incubadora más grande: el 4.º y el 5.º espacio, tuyos para siempre, y la Incubadora Rápida, que hace que un huevo avance el doble.' },
+      { pt: 'As partidas pagam cerca de metade do ₽, agora que a loja tem onde gastar. O que você já guardou continua valendo o mesmo.', en: 'Runs pay about half the ₽, now that the shop has somewhere to spend it. What you already saved keeps its full value.', es: 'Las partidas pagan cerca de la mitad de los ₽, ahora que la tienda tiene en qué gastarlos. Lo que ya ahorraste sigue valiendo lo mismo.' },
+    ],
+    changes: [
+      {
+        title: { pt: 'Ovo do Kecleon', en: 'Kecleon Egg', es: 'Huevo Kecleon' },
+        notes: [
+          {
+            pt: 'O Ovo do Kecleon deixou de ser um por dia. O primeiro do dia custa ₽ 10.000, e cada um depois custa o dobro do anterior (₽ 20.000, 40.000, 80.000, 160.000 e 320.000), até 6 por dia; a conta volta a ₽ 10.000 à meia-noite de Brasília. O card mostra quantos você levou hoje e quanto custa o próximo. Ele choca em 4.000 passos, e um repetido vira ₽ 2.500.',
+            en: "The Kecleon Egg is no longer one a day. The day's first costs ₽ 10,000, and each one after costs double the last (₽ 20,000, 40,000, 80,000, 160,000 and 320,000), up to 6 a day; the count goes back to ₽ 10,000 at midnight Brasília time. The card shows how many you took today and what the next one costs. It hatches in 4,000 steps, and a duplicate turns into ₽ 2,500.",
+            es: 'El Huevo Kecleon ya no es uno por día. El primero del día cuesta ₽ 10.000, y cada uno después cuesta el doble del anterior (₽ 20.000, 40.000, 80.000, 160.000 y 320.000), hasta 6 por día; la cuenta vuelve a ₽ 10.000 a la medianoche de Brasilia. La carta muestra cuántos llevaste hoy y cuánto cuesta el siguiente. Eclosiona en 4.000 pasos, y uno repetido se convierte en ₽ 2.500.',
+          },
+          {
+            pt: 'Com a incubadora cheia, o Kecleon não vende: choque um ovo para abrir espaço e comprar o próximo, sem ver um ovo caro virar só ₽ 2.500.',
+            en: "With the incubator full, Kecleon won't sell: hatch an egg to make room for the next one, instead of watching a pricey egg turn into just ₽ 2,500.",
+            es: 'Con la incubadora llena, Kecleon no vende: eclosiona un huevo para hacer espacio y comprar el siguiente, sin ver un huevo caro convertirse en solo ₽ 2.500.',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Incubadora', en: 'Incubator', es: 'Incubadora' },
+        notes: [
+          {
+            pt: 'A nova aba da loja vende mais vagas para a incubadora, suas para sempre: a 4ª por ₽ 150 mil (a partir da Tenda) e a 5ª por ₽ 500 mil (a partir do Kecleon Mart). E a Incubadora Rápida (₽ 8 mil): toque num ovo na incubadora para usar, e ele anda o dobro até chocar.',
+            en: 'The shop\'s new tab sells more incubator slots, yours for good: the 4th for ₽150k (from the Tent) and the 5th for ₽500k (from the Kecleon Mart). And the Quick Incubator (₽8k): tap an egg in the incubator to use it, and that egg walks twice as fast until it hatches.',
+            es: 'La nueva pestaña de la tienda vende más espacios para la incubadora, tuyos para siempre: el 4.º por ₽ 150 mil (desde la Tienda de campaña) y el 5.º por ₽ 500 mil (desde el Kecleon Mart). Y la Incubadora Rápida (₽ 8 mil): toca un huevo en la incubadora para usarla, y ese huevo avanza el doble hasta eclosionar.',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Economia', en: 'Economy', es: 'Economía' },
+        notes: [
+          {
+            pt: 'As partidas pagam menos ₽ agora que a Loja do Kecleon tem onde gastar: os inimigos soltam metade das moedas, chefes, Alfas, shinies e lendários das fendas incluídos, e os baús e o Meowth fujão pagam metade.',
+            en: 'Runs pay fewer ₽ now that the Kecleon Shop has somewhere to spend them: foes drop half the coins, bosses, Alphas, shinies and rift legendaries included, and chests and the fleeing Meowth pay half.',
+            es: 'Las partidas pagan menos ₽ ahora que la Tienda Kecleon tiene en qué gastarlos: los enemigos sueltan la mitad de las monedas, jefes, Alfas, shinies y legendarios de las grietas incluidos, y los cofres y el Meowth que huye pagan la mitad.',
+          },
+          {
+            pt: 'No modo infinito, os inimigos comuns soltam moedas com metade da frequência de novo, cada minuto depois de 15:00 paga ₽60 no bônus (eram ₽90), e cada Arceus derrotado paga ₽2.500 no bônus (eram ₽5.000) e solta metade dos sacos de ₽.',
+            en: 'In endless mode, regular foes drop coins half as often again, every minute past 15:00 pays ₽60 in the bonus (it was ₽90), and every defeated Arceus pays ₽2,500 in the bonus (it was ₽5,000) and drops half the bags of ₽.',
+            es: 'En el modo infinito, los enemigos comunes sueltan monedas con la mitad de frecuencia otra vez, cada minuto después de las 15:00 paga ₽60 en la bonificación (eran ₽90), y cada Arceus derrotado paga ₽2.500 en la bonificación (eran ₽5.000) y suelta la mitad de las bolsas de ₽.',
+          },
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-10-21',
     title: { pt: 'Noite das Bruxas, lendários jogáveis e co-op em beta', en: 'Halloween Night, playable legendaries and co-op in beta', es: 'Noche de Brujas, legendarios jugables y co-op en beta' },
     highlights: [
       { pt: 'Modo Lendário: vença os 23 lendários como chefes, no mapa ou nas novas fendas épicas, para capturá-los e jogar com eles, com ranking próprio.', en: 'Legend Mode: beat all 23 legendaries as bosses, on the map or in the new epic rifts, to catch them and play as them, with their own ranking.', es: 'Modo Legendario: vence a los 23 legendarios como jefes, en el mapa o en las nuevas grietas épicas, para capturarlos y jugar con ellos, con su propio ranking.' },
       { pt: 'Noite das Bruxas de 24/10 a 2/11: partidas assombradas, à noite, com um surto de fantasma por dia, abóboras pelo mapa e 12 chefes da noite no lugar do Onix e do Snorlax. Os doces enchem um pote de prêmios.', en: 'Halloween Night from Oct 24 to Nov 2: haunted runs, at night, with a ghost outbreak every day, jack-o\'-lanterns all over the map and 12 night bosses in Onix\'s and Snorlax\'s places. Candies fill a jar of prizes.', es: 'Noche de Brujas del 24/10 al 2/11: partidas embrujadas, de noche, con un brote de fantasma por día, calabazas por el mapa y 12 jefes de la noche en el lugar de Onix y Snorlax. Los dulces llenan un frasco de premios.' },
-      { pt: 'Dois ovos que só a praça vende, cada um com 4 famílias que nenhum outro ovo traz: o Ovo Assombrado do Duskull, um por dia na Noite das Bruxas (Litwick, Phantump, Drifloon e Sandygast), e o Ovo do Kecleon, sempre na Vitrine, até 6 por dia (Porygon, Exeggcute, Scraggy e o Smeargle, que copia golpes com o Sketch).', en: 'Two eggs only the plaza sells, each with 4 families no other egg brings: Duskull\'s Haunted Egg, one a day on Halloween Night (Litwick, Phantump, Drifloon and Sandygast), and the Kecleon Egg, always in the Showcase, up to 6 a day (Porygon, Exeggcute, Scraggy and Smeargle, which copies moves with Sketch).', es: 'Dos huevos que solo vende la plaza, cada uno con 4 familias que ningún otro huevo trae: el Huevo Embrujado de Duskull, uno por día en la Noche de Brujas (Litwick, Phantump, Drifloon y Sandygast), y el Huevo Kecleon, siempre en la Vitrina, hasta 6 por día (Porygon, Exeggcute, Scraggy y Smeargle, que copia movimientos con Sketch).' },
-      { pt: 'Loja do Kecleon: vá até a praça, pegue o brinde grátis do dia, leve consumíveis na Mochila, compre TMs (10 exclusivas, do Pay Day ao Fly, com Rain Dance e Sunny Day mudando o clima), itens de evolução (sem a Dawn Stone, nada de Gallade) e Tampinhas, e invista para a loja crescer em 5 níveis, com vagas extras para a incubadora. Nos fins de semana, a caravana do Meowth; todo dia, um carimbo no cartão fidelidade.', en: 'Kecleon Shop: walk to the plaza, take the free daily gift, pack consumables in your Bag, buy TMs (10 exclusives, from Pay Day to Fly, with Rain Dance and Sunny Day changing the weather), evolution items (no Dawn Stone, no Gallade) and Bottle Caps, and invest to grow the shop through 5 levels, with extra incubator slots. On weekends, Meowth\'s caravan; every day, a stamp on your loyalty card.', es: 'Tienda Kecleon: ve hasta la plaza, toma el regalo gratis del día, lleva consumibles en la Mochila, compra MTs (10 exclusivas, de Pay Day a Fly, con Rain Dance y Sunny Day cambiando el clima), objetos evolutivos (sin Dawn Stone, no hay Gallade) y Chapas, e invierte para que la tienda crezca en 5 niveles, con espacios extra para la incubadora. Los fines de semana, la caravana de Meowth; cada día, un sello en tu tarjeta de cliente.' },
+      { pt: 'Dois ovos que só a praça vende, um por dia, cada um com 4 famílias que nenhum outro ovo traz: o Ovo Assombrado do Duskull, na Noite das Bruxas (Litwick, Phantump, Drifloon e Sandygast), e o Ovo do Kecleon, sempre na Vitrine (Porygon, Exeggcute, Scraggy e o Smeargle, que copia golpes com o Sketch).', en: 'Two eggs only the plaza sells, one a day, each with 4 families no other egg brings: Duskull\'s Haunted Egg, on Halloween Night (Litwick, Phantump, Drifloon and Sandygast), and the Kecleon Egg, always in the Showcase (Porygon, Exeggcute, Scraggy and Smeargle, which copies moves with Sketch).', es: 'Dos huevos que solo vende la plaza, uno por día, cada uno con 4 familias que ningún otro huevo trae: el Huevo Embrujado de Duskull, en la Noche de Brujas (Litwick, Phantump, Drifloon y Sandygast), y el Huevo Kecleon, siempre en la Vitrina (Porygon, Exeggcute, Scraggy y Smeargle, que copia movimientos con Sketch).' },
+      { pt: 'Loja do Kecleon: vá até a praça, pegue o brinde grátis do dia, leve consumíveis na Mochila, compre TMs (10 exclusivas, do Pay Day ao Fly, com Rain Dance e Sunny Day mudando o clima), itens de evolução (sem a Dawn Stone, nada de Gallade) e Tampinhas, e invista para a loja crescer em 5 níveis. Nos fins de semana, a caravana do Meowth; todo dia, um carimbo no cartão fidelidade.', en: 'Kecleon Shop: walk to the plaza, take the free daily gift, pack consumables in your Bag, buy TMs (10 exclusives, from Pay Day to Fly, with Rain Dance and Sunny Day changing the weather), evolution items (no Dawn Stone, no Gallade) and Bottle Caps, and invest to grow the shop through 5 levels. On weekends, Meowth\'s caravan; every day, a stamp on your loyalty card.', es: 'Tienda Kecleon: ve hasta la plaza, toma el regalo gratis del día, lleva consumibles en la Mochila, compra MTs (10 exclusivas, de Pay Day a Fly, con Rain Dance y Sunny Day cambiando el clima), objetos evolutivos (sin Dawn Stone, no hay Gallade) y Chapas, e invierte para que la tienda crezca en 5 niveles. Los fines de semana, la caravana de Meowth; cada día, un sello en tu tarjeta de cliente.' },
       { pt: 'Apoiadores até 2/11 trocam o coração por uma abóbora, para sempre, e ganham o Pumpkaboo como companheiro (shiny no Ouro).', en: 'Supporters by Nov 2 swap their heart for a jack-o\'-lantern, forever, and get Pumpkaboo as a companion (shiny for Gold).', es: 'Quien apoye hasta el 2/11 cambia el corazón por una calabaza, para siempre, y gana a Pumpkaboo como compañero (shiny en Oro).' },
     ],
     changes: [
@@ -126,14 +177,9 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
         title: { pt: 'Ovo do Kecleon', en: 'Kecleon Egg', es: 'Huevo Kecleon' },
         notes: [
           {
-            pt: 'A Vitrine do dia ganhou um card fixo, fora do sorteio e da oferta: o Ovo do Kecleon, em qualquer nível da loja. O primeiro do dia custa ₽ 10.000, e cada um depois custa o dobro do anterior (₽ 20.000, 40.000, 80.000, 160.000 e 320.000), até 6 por dia; a conta volta a ₽ 10.000 à meia-noite de Brasília. O card mostra quantos você levou hoje e quanto custa o próximo. Ele choca em 4.000 passos, e um repetido vira ₽ 2.500.',
-            en: "Today's Showcase has a fixed card, outside the draw and the deal: the Kecleon Egg, at any shop level. The day's first costs ₽ 10,000, and each one after costs double the last (₽ 20,000, 40,000, 80,000, 160,000 and 320,000), up to 6 a day; the count goes back to ₽ 10,000 at midnight Brasília time. The card shows how many you took today and what the next one costs. It hatches in 4,000 steps, and a duplicate turns into ₽ 2,500.",
-            es: 'La Vitrina del día tiene una carta fija, fuera del sorteo y de la oferta: el Huevo Kecleon, en cualquier nivel de la tienda. El primero del día cuesta ₽ 10.000, y cada uno después cuesta el doble del anterior (₽ 20.000, 40.000, 80.000, 160.000 y 320.000), hasta 6 por día; la cuenta vuelve a ₽ 10.000 a la medianoche de Brasilia. La carta muestra cuántos llevaste hoy y cuánto cuesta el siguiente. Eclosiona en 4.000 pasos, y uno repetido se convierte en ₽ 2.500.',
-          },
-          {
-            pt: 'Com a incubadora cheia, o Kecleon não vende: choque um ovo para abrir espaço e comprar o próximo, sem ver um ovo caro virar só ₽ 2.500.',
-            en: "With the incubator full, Kecleon won't sell: hatch an egg to make room for the next one, instead of watching a pricey egg turn into just ₽ 2,500.",
-            es: 'Con la incubadora llena, Kecleon no vende: eclosiona un huevo para hacer espacio y comprar el siguiente, sin ver un huevo caro convertirse en solo ₽ 2.500.',
+            pt: 'A Vitrine do dia ganhou um card fixo, fora do sorteio: o Ovo do Kecleon, por ₽ 10.000, um por dia em qualquer nível da loja. Ele choca em 4.000 passos, e um repetido vira ₽ 2.500.',
+            en: "Today's Showcase has a fixed card, outside the draw: the Kecleon Egg, for ₽ 10,000, one a day at any shop level. It hatches in 4,000 steps, and a duplicate turns into ₽ 2,500.",
+            es: 'La Vitrina del día tiene una carta fija, fuera del sorteo: el Huevo Kecleon, por ₽ 10.000, uno por día en cualquier nivel de la tienda. Eclosiona en 4.000 pasos, y uno repetido se convierte en ₽ 2.500.',
           },
           {
             pt: 'Dele saem 4 famílias novas, 25% cada, que nenhum outro ovo ou desafio traz: Porygon (Porygon2 pede o Up-Grade e Porygon-Z o Dubious Disc), Exeggcute (o Exeggutor pede a Leaf Stone, a mesma do Leafeon), Scraggy (Scrafty no Nv 20) e Smeargle, que não evolui: o rabo-pincel copia o golpe do inimigo mais perto (o de um chefe, mais forte) e usa ele 3 vezes antes de pintar outro. O Up-Grade e o Dubious Disc estão na prateleira de Evolução e também caem de chefes.',
@@ -246,29 +292,9 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
             es: 'Gran Almacén (Nv 5): el título Magnate, el marco Kecleon Dorado y la estatua dorada de Kecleon en la plaza. Y en fechas especiales aparece un puesto en la plaza: en la Noche de Brujas es el de Duskull, junto al frasco de dulces.',
           },
           {
-            pt: 'Incubadora: a nova aba da loja vende mais vagas para a incubadora, suas para sempre: a 4ª por ₽ 150 mil (a partir da Tenda) e a 5ª por ₽ 500 mil (a partir do Kecleon Mart). E a Incubadora Rápida (₽ 8 mil): toque num ovo na incubadora para usar, e ele anda o dobro até chocar.',
-            en: 'Incubator: the shop\'s new tab sells more incubator slots, yours for good: the 4th for ₽150k (from the Tent) and the 5th for ₽500k (from the Kecleon Mart). And the Quick Incubator (₽8k): tap an egg in the incubator to use it, and that egg walks twice as fast until it hatches.',
-            es: 'Incubadora: la nueva pestaña de la tienda vende más espacios para la incubadora, tuyos para siempre: el 4.º por ₽ 150 mil (desde la Tienda de campaña) y el 5.º por ₽ 500 mil (desde el Kecleon Mart). Y la Incubadora Rápida (₽ 8 mil): toca un huevo en la incubadora para usarla, y ese huevo avanza el doble hasta eclosionar.',
-          },
-          {
             pt: 'O Kecleon fala com você: dá boas-vindas a quem chega pela primeira vez, comemora uma vitória contra o Mewtwo, lembra dos fregueses de todo dia, comenta o seu parceiro e agradece cada compra. E de vez em quando o balcão parece vazio...',
             en: 'Kecleon talks to you: it welcomes first-timers, cheers a win against Mewtwo, remembers its daily regulars, has a word about your partner and thanks you for every purchase. And every now and then the counter looks empty...',
             es: 'Kecleon habla contigo: da la bienvenida a quien llega por primera vez, celebra una victoria contra Mewtwo, recuerda a sus clientes de todos los días, comenta sobre tu compañero y agradece cada compra. Y de vez en cuando el mostrador parece vacío...',
-          },
-        ],
-      },
-      {
-        title: { pt: 'Economia', en: 'Economy', es: 'Economía' },
-        notes: [
-          {
-            pt: 'As partidas pagam menos ₽ agora que a Loja do Kecleon tem onde gastar: os inimigos soltam metade das moedas, chefes, Alfas, shinies e lendários das fendas incluídos, e os baús e o Meowth fujão pagam metade.',
-            en: 'Runs pay fewer ₽ now that the Kecleon Shop has somewhere to spend them: foes drop half the coins, bosses, Alphas, shinies and rift legendaries included, and chests and the fleeing Meowth pay half.',
-            es: 'Las partidas pagan menos ₽ ahora que la Tienda Kecleon tiene en qué gastarlos: los enemigos sueltan la mitad de las monedas, jefes, Alfas, shinies y legendarios de las grietas incluidos, y los cofres y el Meowth que huye pagan la mitad.',
-          },
-          {
-            pt: 'No modo infinito, os inimigos comuns soltam moedas com metade da frequência de novo, cada minuto depois de 15:00 paga ₽60 no bônus (eram ₽90), e cada Arceus derrotado paga ₽2.500 no bônus (eram ₽5.000) e solta metade dos sacos de ₽.',
-            en: 'In endless mode, regular foes drop coins half as often again, every minute past 15:00 pays ₽60 in the bonus (it was ₽90), and every defeated Arceus pays ₽2,500 in the bonus (it was ₽5,000) and drops half the bags of ₽.',
-            es: 'En el modo infinito, los enemigos comunes sueltan monedas con la mitad de frecuencia otra vez, cada minuto después de las 15:00 paga ₽60 en la bonificación (eran ₽90), y cada Arceus derrotado paga ₽2.500 en la bonificación (eran ₽5.000) y suelta la mitad de las bolsas de ₽.',
           },
         ],
       },
