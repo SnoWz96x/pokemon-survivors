@@ -5,7 +5,7 @@ import type { Attack, Game } from '../game/types'
 import { art, FX } from './art'
 import { dashedRing } from './strokes'
 import * as A from './typeEvolvedArt'
-import { localPlayer } from '../game/players'
+import { ownerOf } from '../game/players'
 
 /**
  * Visuals of the moves the newer type items (and a few generic ones) evolve
@@ -496,13 +496,13 @@ export const drawTypeEvolvedAttack = (ctx: Ctx, a: Attack, t: number) => {
 }
 
 /**
- * Giga Drain's vines, from the player to each foe they latch onto, with motes
- * of life flowing back. Drawn after the attacks (they need the player).
+ * Giga Drain's vines, from the caster to each foe they latch onto, with motes
+ * of life flowing back. Drawn after the attacks (they need the caster).
  */
 export const drawDrainVines = (ctx: Ctx, g: Game, t: number) => {
-  const p = localPlayer(g)
   for (const a of g.attacks) {
     if (a.visual !== 'gigaDrain' || a.age < 0) continue
+    const p = ownerOf(g, a.owner)
     const x0 = p.x
     const y0 = p.y - 10
     const dx = a.x - x0

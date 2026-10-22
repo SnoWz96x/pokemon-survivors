@@ -8,7 +8,7 @@ import type { Attack, Game } from '../game/types'
 import { LEGEND_FX } from './legendaryArt'
 import { dashedRing } from './strokes'
 import { detail } from './quality'
-import { localPlayer } from '../game/players'
+import { actAs, ownerOf } from '../game/players'
 
 /**
  * Art of the legendary moves (`game/legendaryMoves.ts`), the biggest effects
@@ -492,7 +492,10 @@ const drawTimeClock = (ctx: Ctx, g: Game, a: Attack) => {
   const r = Math.round(14 * pop - 4 * settle)
   if (r < 2) return
   const x = Math.round(a.x)
-  const y = Math.round(localPlayer(g).y - bodyOf(playerForm(g).dex).bodyH - r - 3)
+  const p = ownerOf(g, a.owner)
+  const before = actAs(g, p)
+  const y = Math.round(p.y - bodyOf(playerForm(g).dex).bodyH - r - 3)
+  actAs(g, before)
   const end = a.ttl - 0.25
   const hand = a.age < TIME.time * 0.6 ? -a.age * 30 : a.age > end ? -TIME.time * 18 + (a.age - end) * 40 : -TIME.time * 18
   ctx.globalAlpha = fadeOut(a, 0.2)
@@ -610,7 +613,7 @@ const drawMistCloud = (ctx: Ctx, a: Attack, t: number) => {
 
 const drawLusterBeam = (ctx: Ctx, g: Game, a: Attack, t: number) => {
   if (a.motion.kind !== 'orbit') return
-  const p = localPlayer(g)
+  const p = ownerOf(g, a.owner)
   const ox = p.x
   const oy = p.y - 8
   const length = a.memo
@@ -791,7 +794,8 @@ const drawAncientRock = (ctx: Ctx, g: Game, a: Attack, t: number, ground: boolea
     if (!waiting) return
     // Dust and a crack where the stone tore out of the ground.
     ctx.globalAlpha = 0.7 * (1 - rise * 0.6)
-    blitEllipse(ctx, 7, 3, '#806848', a.x, localPlayer(g).y + 2 + (a.y - localPlayer(g).y + 10) * 0.4)
+    const p = ownerOf(g, a.owner)
+    blitEllipse(ctx, 7, 3, '#806848', a.x, p.y + 2 + (a.y - p.y + 10) * 0.4)
     ctx.globalAlpha = 1
     return
   }
@@ -818,9 +822,9 @@ const drawAncientRock = (ctx: Ctx, g: Game, a: Attack, t: number, ground: boolea
   blitRotated(ctx, rock, a.x, a.y, a.age * 9, scale)
 }
 
-/** While Ancient Power's raise lasts, a pink and gold aura shimmers up around the player. */
-const drawAncientAura = (ctx: Ctx, g: Game, t: number) => {
-  const p = localPlayer(g)
+/** While Ancient Power's raise lasts, a pink and gold aura shimmers up around `g`'s player (`draw.ts` draws it for each player). */
+export const drawAncientAura = (ctx: Ctx, g: Game, t: number) => {
+  const p = g.player
   const buff = p.moveBuffs.find((b) => b.move === 'ancientPower')
   if (!buff) return
   ctx.globalAlpha = buff.left < 1 && Math.floor(t * 12) % 2 === 0 ? 0.3 : 0.7
@@ -898,7 +902,6 @@ export const drawLegendaryAir = (ctx: Ctx, g: Game, t: number, visible: (x: numb
   // The veil goes first, so the clock and the rings shine over it.
   for (const a of g.attacks) if (a.age >= 0 && a.visual === 'timeClock') drawTimeVeil(ctx, g, a)
   drawStoppedFoes(ctx, g, t, visible)
-  drawAncientAura(ctx, g, t)
   for (const a of g.attacks) {
     if (a.age < 0) continue
     // Rings and beams span the screen: they draw even when their center is off it.

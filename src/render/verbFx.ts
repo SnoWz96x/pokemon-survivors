@@ -5,17 +5,19 @@ import { stacksOf } from '../game/kitRules'
 import { moveStats } from '../game/moves'
 import { focusCharge, SOLAR, SUCKER, TAIL } from '../game/moveVerbs'
 import { gyroMult, roostSettle } from '../game/moveVerbRules'
-import type { Attack, Game } from '../game/types'
+import type { Attack, Game, Player } from '../game/types'
 import { VERB_FX } from './art'
 import { dashedRing } from './strokes'
-import { localPlayer } from '../game/players'
+import { localPlayer, ownerOf } from '../game/players'
 
 /**
  * Art of the verb moves (`game/moveVerbs.ts`). `draw.ts` calls the two passes
  * once a frame: `drawVerbGround` under the Pokémon (fire patches, puddles,
- * rings on the floor, the roost and focus auras' back half) and `drawVerbAir`
- * over them (orbs, beams, fists, columns). Both walk `g.attacks` themselves,
- * so they can read the player (Gyro Ball's grind, Roost, Focus Punch's charge).
+ * rings on the floor) and `drawVerbAir` over them (orbs, beams, fists,
+ * columns). Both walk `g.attacks` themselves, so they can read each hitbox's
+ * caster (`ownerOf`: Gyro Ball's grind, Solar Beam's mouth). What a player
+ * wears from their own state (Roost, Focus Punch's charge, Sucker Punch's
+ * zone) is `drawVerbPlayerGround` and `drawVerbPlayerAir`, drawn for each player.
  * Everything snaps to whole pixels.
  */
 
@@ -79,9 +81,8 @@ const drawFlameTrail = (ctx: Ctx, a: Attack, t: number) => {
   ctx.globalAlpha = 1
 }
 
-/** Flame Wheel's carrier: a wheel of fire rolling around the player's feet while they walk; embers waiting while still. */
-const drawFlameWheel = (ctx: Ctx, g: Game, t: number) => {
-  const p = localPlayer(g)
+/** Flame Wheel's carrier: a wheel of fire rolling around `p`'s feet while they walk; embers waiting while still. */
+const drawFlameWheel = (ctx: Ctx, p: Player, t: number) => {
   const spin = p.walked * 0.12
   const lit = p.moving
   const n = 8
@@ -185,12 +186,17 @@ const drawFocusGround = (ctx: Ctx, g: Game, t: number) => {
   ctx.globalAlpha = 1
 }
 
-/** Ground layer (under the Pokémon). */
-export const drawVerbGround = (ctx: Ctx, g: Game, t: number) => {
+/** On the floor around `g`'s player, from their own moves: Sucker Punch's zone, Focus Punch's charge, Roost. */
+export const drawVerbPlayerGround = (ctx: Ctx, g: Game, t: number) => {
   drawSuckerZone(ctx, g, t)
   drawFocusGround(ctx, g, t)
   drawRoostGround(ctx, g, t)
-  let wheel = false
+}
+
+/** Ground layer (under the Pokémon). */
+export const drawVerbGround = (ctx: Ctx, g: Game, t: number) => {
+  // Players rolling a Flame Wheel, one bit per slot.
+  let wheels = 0
   for (const a of g.attacks) {
     if (a.age < 0) continue
     switch (a.visual) {
@@ -198,7 +204,7 @@ export const drawVerbGround = (ctx: Ctx, g: Game, t: number) => {
         drawFlameTrail(ctx, a, t)
         break
       case 'flameWheel':
-        wheel = true
+        wheels |= 1 << a.owner
         break
       case 'sheerCold':
         drawSheerColdGround(ctx, a)
@@ -238,7 +244,7 @@ export const drawVerbGround = (ctx: Ctx, g: Game, t: number) => {
       }
     }
   }
-  if (wheel) drawFlameWheel(ctx, g, t)
+  for (let slot = 0; wheels >> slot; slot++) if ((wheels >> slot) & 1) drawFlameWheel(ctx, ownerOf(g, slot), t)
 }
 
 /* ---------------- Air pass ---------------- */
@@ -249,9 +255,9 @@ const drawSolarCharge = (ctx: Ctx, g: Game, a: Attack, t: number) => {
   if (m.kind !== 'orbit') return
   const k = Math.min(1, a.age / a.ttl)
   // Where the sweep will go: the dormant tip of the same beam tells how long it is.
-  const tip = g.attacks.find((o) => o.move === 'solarBeam' && o.flip && o.age < 0 && o.motion.kind === 'orbit' && Math.abs(o.motion.angle - m.angle) < 1e-6)
+  const tip = g.attacks.find((o) => o.move === 'solarBeam' && o.owner === a.owner && o.flip && o.age < 0 && o.motion.kind === 'orbit' && Math.abs(o.motion.angle - m.angle) < 1e-6)
   const length = tip && tip.motion.kind === 'orbit' ? tip.motion.radius : SOLAR.length
-  const p = localPlayer(g)
+  const p = ownerOf(g, a.owner)
   ctx.globalAlpha = 0.25 + 0.35 * k
   const dots = 18
   for (let i = 0; i <= dots; i++) {
@@ -283,7 +289,6 @@ const drawSolarCharge = (ctx: Ctx, g: Game, a: Attack, t: number) => {
  * slice covers the gap to its neighbors.
  */
 const drawSolarBeams = (ctx: Ctx, g: Game, t: number) => {
-  const p = localPlayer(g)
   const layers = [
     { k: 1.5, color: 'rgba(120,200,80,0.6)', flick: true },
     { k: 0.95, color: '#d8f8a0', flick: false },
@@ -293,6 +298,7 @@ const drawSolarBeams = (ctx: Ctx, g: Game, t: number) => {
     for (const a of g.attacks) {
       const m = a.motion
       if (a.visual !== 'solarBeam' || a.age < 0 || m.kind !== 'orbit') continue
+      const p = ownerOf(g, a.owner)
       const r = radiusOf(a)
       const k = a.age / a.ttl
       // Swells in fast, narrows out at the end.
@@ -485,7 +491,7 @@ const drawFocusShock = (ctx: Ctx, a: Attack) => {
 
 /** Gyro Ball's gear: spinning faster and throwing sparks the harder it grinds. */
 const drawGear = (ctx: Ctx, g: Game, a: Attack, t: number) => {
-  const p = localPlayer(g)
+  const p = ownerOf(g, a.owner)
   const grind = gyroMult(Math.hypot(p.vx, p.vy))
   const frames = VERB_FX.gear()
   const r = radiusOf(a)
@@ -580,7 +586,7 @@ const drawUTurn = (ctx: Ctx, a: Attack) => {
 const drawDragonTail = (ctx: Ctx, g: Game, a: Attack) => {
   const m = a.motion
   if (m.kind !== 'orbit') return
-  const p = localPlayer(g)
+  const p = ownerOf(g, a.owner)
   const r = radiusOf(a) * 0.8
   const swept = Math.min(TAIL.swing, a.age) * m.spin
   const start = m.angle - swept
@@ -626,10 +632,14 @@ const drawSheerColdRing = (ctx: Ctx, a: Attack, t: number) => {
   ctx.globalAlpha = 1
 }
 
-/** Air layer (over the Pokémon). */
-export const drawVerbAir = (ctx: Ctx, g: Game, t: number, visible: (x: number, y: number, m?: number) => boolean) => {
+/** Over `g`'s player, from their own moves: Focus Punch's charge, Roost's feathers. */
+export const drawVerbPlayerAir = (ctx: Ctx, g: Game, t: number) => {
   drawFocusAura(ctx, g, t)
   drawRoostAir(ctx, g, t)
+}
+
+/** Air layer (over the Pokémon). */
+export const drawVerbAir = (ctx: Ctx, g: Game, t: number, visible: (x: number, y: number, m?: number) => boolean) => {
   drawSolarBeams(ctx, g, t)
   for (const a of g.attacks) {
     if (a.age < 0 || !visible(a.x, a.y, 200)) continue

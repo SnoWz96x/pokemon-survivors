@@ -3,6 +3,7 @@ import { TAU } from '../engine/math'
 import { hash2 } from '../engine/rng'
 import { FLY, type ShopTmMove2Id } from '../game/shopTmMoves2'
 import type { Attack, Game } from '../game/types'
+import { ownAttack, ownerOf } from '../game/players'
 import { px, sprite, thickLine } from './shopTmFx'
 import { dashedRing } from './strokes'
 
@@ -169,7 +170,7 @@ const drawPunch = (ctx: Ctx, a: Attack, g: Game) => {
     }
   }
   if (a.hits.size > 0) {
-    const p = g.player
+    const p = ownerOf(g, a.owner)
     for (let i = 0; i < 5; i++) {
       const f = (k + i / 5) % 1
       px(ctx, x + (p.x - x) * f, y + (p.y - 12 - y) * f - Math.sin(f * Math.PI) * 6, i % 2 ? '#78f878' : '#d8f8c8', 2, 2)
@@ -235,7 +236,7 @@ export const drawShopTm2Air = (ctx: Ctx, g: Game, t: number, visible: (x: number
 /** How high Fly has the player now (0 on the ground): a quick climb, a hover, a dive. */
 export const flyLift = (g: Game) => {
   if (g.player.hidden?.move !== 'fly') return 0
-  const a = g.attacks.find((x) => x.visual === 'flyLift' && x.age >= 0 && x.age < x.ttl)
+  const a = g.attacks.find((x) => x.visual === 'flyLift' && x.age >= 0 && x.age < x.ttl && ownAttack(g, x))
   if (!a) return 0
   const k = a.age / a.ttl
   return Math.round(FLY.lift * Math.min(1, Math.sin(k * Math.PI) * 1.6))
@@ -253,7 +254,7 @@ export const drawShopTm2Player = (ctx: Ctx, g: Game, t: number, head: number) =>
   const p = g.player
   const top = head - flyLift(g)
   for (const a of g.attacks) {
-    if (a.age < 0 || a.age >= a.ttl) continue
+    if (a.age < 0 || a.age >= a.ttl || !ownAttack(g, a)) continue
     if (a.visual === 'rainDance') {
       const y = top - 8 + Math.round(Math.sin(t * 2) * 1)
       blitCentered(ctx, CLOUD(), p.x, y)

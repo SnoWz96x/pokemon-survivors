@@ -8,14 +8,15 @@ import { AURORA, dischargeCharge, ICE_BEAM } from '../game/tmMoves'
 import type { Attack, Game, Pickup } from '../game/types'
 import { tmDisc, TM_FX } from './tmArt'
 import { dashedRing } from './strokes'
-import { localPlayer } from '../game/players'
+import { localPlayer, ownerOf } from '../game/players'
 
 /**
  * Art of the TM moves (`game/tmMoves.ts`) and the TM discs on the ground.
  * `draw.ts` calls the passes once a frame like the verb moves': `drawTmGround`
  * under the Pokémon (shadows, lava pools, dust), `drawTmAir` over them
  * (rocks, beams, bubbles, fangs, orbs) and `drawTmPlayer` for what a move
- * leaves on the player (Discharge's charge, Meteor Beam's boost, the iron body).
+ * leaves on a player (Discharge's charge, Meteor Beam's boost, the iron body),
+ * drawn for each player from their copy of the game.
  * Everything snaps to whole pixels; flicker comes from `hash2`, never from Math.random.
  */
 
@@ -247,12 +248,12 @@ const drawYawnBubble = (ctx: Ctx, a: Attack, t: number) => {
 
 /** Beams made of orbit slices (Ice Beam, Aurora Beam), layer by layer over every slice so they join into one. */
 const drawBeams = (ctx: Ctx, g: Game, t: number) => {
-  const p = localPlayer(g)
   for (let layer = 0; layer < 3; layer++) {
     for (const a of g.attacks) {
       const m = a.motion
       if ((a.visual !== 'iceBeam' && a.visual !== 'auroraBeam') || a.age < 0 || m.kind !== 'orbit') continue
       const ice = a.visual === 'iceBeam'
+      const p = ownerOf(g, a.owner)
       const r = radiusOf(a)
       const k = a.age / a.ttl
       const w = r * Math.min(1, a.age / 0.05) * Math.min(1, (1 - k) / 0.3 + 0.15)
@@ -603,7 +604,7 @@ const drawIronBody = (ctx: Ctx, g: Game, a: Attack, t: number) => {
 
 export const drawTmPlayer = (ctx: Ctx, g: Game, t: number) => {
   const p = localPlayer(g)
-  for (const a of g.attacks) if (a.visual === 'ironHead' && a.age >= 0) drawIronBody(ctx, g, a, t)
+  for (const a of g.attacks) if (a.visual === 'ironHead' && a.age >= 0 && a.owner === p.slot) drawIronBody(ctx, g, a, t)
   // Discharge's charge crackles around the player as they walk.
   const discharge = p.moves.find((m) => m.id === 'discharge')
   if (discharge) {
