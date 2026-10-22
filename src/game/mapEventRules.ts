@@ -117,8 +117,8 @@ export const CHEST = {
 export const chestProgress = (progress: number, inside: boolean, dt: number) =>
   clamp(progress + (inside ? dt : -dt * CHEST.decay) / CHEST.unlock, 0, 1)
 
-/** Coins in an opened chest: four ₽50 coins, one more every two minutes. */
-export const chestCoins = (time: number): number[] => Array.from({ length: 4 + Math.floor(time / 120) }, () => COIN_VALUES[1])
+/** Coins in an opened chest: two ₽50 coins, one more every four minutes (halved with the foes' coins, `FOE_COINS`). */
+export const chestCoins = (time: number): number[] => Array.from({ length: 2 + Math.floor(time / 240) }, () => COIN_VALUES[1])
 
 /* ---------------- Traps ---------------- */
 
@@ -170,7 +170,7 @@ export const MEOWTH = {
   radius: 8,
   /** Coins dropped by every hit, and the Pay Day jackpot when it faints. */
   hitCoins: [COIN_VALUES[0]],
-  jackpot: [COIN_VALUES[2], COIN_VALUES[1], COIN_VALUES[1], COIN_VALUES[1]],
+  jackpot: [COIN_VALUES[1], COIN_VALUES[1], COIN_VALUES[1], COIN_VALUES[1]],
 } as const
 
 /** Meowth's run speed at `dist` px from the player: panics up close, slows down far away. */

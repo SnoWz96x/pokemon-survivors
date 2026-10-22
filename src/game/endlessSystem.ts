@@ -17,7 +17,7 @@ import { roomOf } from './room'
 import { legendEntrance } from './legendScene'
 
 /** Extra Poké Balls and ₽ dropped by a defeated Arceus, on top of a boss's usual drop. */
-const REAPER_LOOT = { pokeballs: 3, coins: [250, 250, 250, 250, 250, 250, 250, 250] } as const
+const REAPER_LOOT = { pokeballs: 3, coins: [250, 250, 250, 250] } as const
 
 /** Chosen on the victory screen: the run goes on past Mewtwo, with no end but fainting. */
 export const continueEndless = (g: Game) => {

@@ -258,6 +258,21 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
         ],
       },
       {
+        title: { pt: 'Economia', en: 'Economy', es: 'Economía' },
+        notes: [
+          {
+            pt: 'As partidas pagam menos ₽ agora que a Loja do Kecleon tem onde gastar: os inimigos soltam metade das moedas, chefes, Alfas, shinies e lendários das fendas incluídos, e os baús e o Meowth fujão pagam metade.',
+            en: 'Runs pay fewer ₽ now that the Kecleon Shop has somewhere to spend them: foes drop half the coins, bosses, Alphas, shinies and rift legendaries included, and chests and the fleeing Meowth pay half.',
+            es: 'Las partidas pagan menos ₽ ahora que la Tienda Kecleon tiene en qué gastarlos: los enemigos sueltan la mitad de las monedas, jefes, Alfas, shinies y legendarios de las grietas incluidos, y los cofres y el Meowth que huye pagan la mitad.',
+          },
+          {
+            pt: 'No modo infinito, os inimigos comuns soltam moedas com metade da frequência de novo, cada minuto depois de 15:00 paga ₽60 no bônus (eram ₽90), e cada Arceus derrotado paga ₽2.500 no bônus (eram ₽5.000) e solta metade dos sacos de ₽.',
+            en: 'In endless mode, regular foes drop coins half as often again, every minute past 15:00 pays ₽60 in the bonus (it was ₽90), and every defeated Arceus pays ₽2,500 in the bonus (it was ₽5,000) and drops half the bags of ₽.',
+            es: 'En el modo infinito, los enemigos comunes sueltan monedas con la mitad de frecuencia otra vez, cada minuto después de las 15:00 paga ₽60 en la bonificación (eran ₽90), y cada Arceus derrotado paga ₽2.500 en la bonificación (eran ₽5.000) y suelta la mitad de las bolsas de ₽.',
+          },
+        ],
+      },
+      {
         title: { pt: 'Pesquisa de dificuldade', en: 'Difficulty survey', es: 'Encuesta de dificultad' },
         notes: [
           {

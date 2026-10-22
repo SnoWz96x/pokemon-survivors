@@ -116,7 +116,7 @@ describe('save parsing', () => {
 
 describe('earning ₽', () => {
   it('bosses and shinies always pay out, bosses the most', () => {
-    const sum = (v: number[]) => v.reduce((a, b) => a + b, 0)
+    const sum = (v: readonly number[]) => v.reduce((a, b) => a + b, 0)
     const rng = createRng(3)
     expect(sum(coinDrops(rng, { boss: true, xp: 60 }))).toBeGreaterThan(sum(coinDrops(rng, { boss: false, xp: 1, shiny: true })))
     expect(sum(coinDrops(rng, { boss: false, xp: 1, shiny: true }))).toBeGreaterThan(0)
@@ -130,6 +130,16 @@ describe('earning ₽', () => {
     expect(rate).toBeLessThan(0.08)
   })
 
+  it('regular enemies drop coins half as often in endless mode', () => {
+    const count = (endless: boolean) => {
+      const rng = createRng(7)
+      return Array.from({ length: 100_000 }, () => coinDrops(rng, { boss: false, xp: 4 }, endless).length).reduce((a, b) => a + b, 0)
+    }
+    const ratio = count(true) / count(false)
+    expect(ratio).toBeGreaterThan(0.45)
+    expect(ratio).toBeLessThan(0.55)
+  })
+
   it('pays a bigger bonus for longer runs, more kills, victory and greed', () => {
     const base = { time: 300, kills: 400, victory: false, greed: 1 }
     expect(runBonus(base)).toBe(250)
@@ -138,11 +148,11 @@ describe('earning ₽', () => {
     expect(runBonus({ ...base, greed: 1.5 })).toBe(375)
   })
 
-  it('pays every endless minute past Mewtwo triple, plus a fortune per defeated Arceus', () => {
+  it('pays every endless minute past Mewtwo double, plus a fortune per defeated Arceus', () => {
     const won = { time: 900, kills: 0, victory: true, greed: 1 }
     const fiveMore = runBonus({ ...won, time: 900 + 300 })
-    expect(fiveMore - runBonus(won)).toBe(5 * 90)
-    expect(runBonus({ ...won, reaperDefeats: 1 }) - runBonus(won)).toBe(5000)
+    expect(fiveMore - runBonus(won)).toBe(5 * 60)
+    expect(runBonus({ ...won, reaperDefeats: 1 }) - runBonus(won)).toBe(2500)
     // Overtime only counts after a victory.
     expect(runBonus({ ...won, time: 1200, victory: false })).toBe(600)
   })
