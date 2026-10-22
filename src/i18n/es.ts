@@ -781,7 +781,13 @@ export const es: Messages = {
       },
     },
     kecleonEgg: {
-      text: (steps) => `Eclosiona en ${steps} pasos: familias que ningún otro huevo trae. Uno por día.`,
+      text: (steps) => `Eclosiona en ${steps} pasos: familias que ningún otro huevo trae.`,
+      ladder: (max, prices) => `Hasta ${max} por día, cada uno por el doble del anterior: ${prices}.`,
+      today: (n, max) => `${n}/${max} hoy`,
+      next: (price) => `luego ${price}`,
+      last: 'último del día',
+      full: 'Tu incubadora está llena: eclosiona un huevo para comprar otro.',
+      confirm: (price) => `¿Comprar otro Huevo Kecleon por ${price}?`,
     },
     stall: {
       intro: (until) => `Puesto de Duskull · Noche de Brujas · hasta el ${until}`,
@@ -1521,7 +1527,7 @@ export const es: Messages = {
     lockedBlurb: (egg) => `Todavía está en el huevo. Sale de un *${egg}*.`,
     friendBlurb: 'Solo sale del *Huevo de la Amistad*: invita amigos con tu enlace para ganar uno.',
     hauntedBlurb: 'Solo sale del *Huevo Embrujado*, que Duskull vende en la plaza durante la Noche de Brujas. Después, hasta el año que viene.',
-    kecleonBlurb: 'Solo sale del *Huevo Kecleon*, que la Vitrina de la tienda vende, uno por día.',
+    kecleonBlurb: 'Solo sale del *Huevo Kecleon*, que la Vitrina de la tienda vende, hasta 6 por día.',
     lockedButton: 'Aún en el huevo',
     incubator: (n, slots) => `Incubadora ${n}/${slots}`,
     readyBadge: (n) => (n === 1 ? '¡1 huevo listo!' : `¡${n} huevos listos!`),

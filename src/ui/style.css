@@ -4956,6 +4956,19 @@ button {
   color: #8890a8;
 }
 
+/* Under the price, the Kecleon Egg's next rung ("depois ₽ 20.000"): it wraps before the price on narrow cards. */
+.shop-next {
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 1;
+  color: #8890a8;
+  text-wrap: balance;
+}
+
+.shop-next:empty {
+  display: none;
+}
+
 .shop-badges {
   position: absolute;
   top: 4px;

@@ -15,6 +15,7 @@ import { armedTms, armTm, buyTm, isRegularTm, nextTmDay, shelfOf, tmBlock, tmLim
 import { EGG_TIERS, EGGS, hatchOdds, type EggTier } from '../game/eggs'
 import { buyUpgrade, refundAll, totalSpent, UPGRADE_IDS, UPGRADES, upgradePrice, type Save } from '../game/meta'
 import {
+  boughtToday,
   buyFromVitrine,
   buyKecleonEgg,
   buyStyle,
@@ -25,6 +26,7 @@ import {
   investInShop,
   isDeal,
   kecleonEggBlock,
+  kecleonEggPrice,
   nextAppearance,
   nextShopLevel,
   onPick,
@@ -197,39 +199,64 @@ const blockText = (block: VitrineBlock | null) => (block === null || block === '
 
 /**
  * The Kecleon Egg's fixed card: beside the day's cards (never one of them),
- * one a day at any level, with the odds of each of its four families for this
- * save. Kecleon has a word for whoever takes one.
+ * several a day at any level, each double the last (`kecleonEggPrice`): the
+ * card shows how many today, this one's price and the next one's, and the
+ * odds of each of its four families for this save. Kecleon has a word for
+ * whoever takes one.
  */
 const kecleonEggCard = (v: Vitrine): Card => {
   const sh = t().shop
   const k = sh.kecleonEgg
-  const { price: cost } = VITRINE.kecleonEgg
+  const max = vitrineStock('kecleonEgg')
   const name = t().eggs.tiers.kecleon
   const { el, badges, sub, price } = shell(shopIcon('kecleonEgg'), name)
+  const next = h('span', { class: 'shop-next' })
+  el.append(next)
   el.classList.add('kecleon-egg')
-  const odds = (save: Save) => hatchOdds('kecleon', save.hatched)
+  const bought = (save: Save) => boughtToday(save.shop, v, 'kecleonEgg')
   const blocked = (save: Save) => {
     const block = kecleonEggBlock(save, v)
     return block === null || block === 'poor' ? null : sh.blocks[block]
+  }
+  /** The line under the price: the egg after this one, or that this is the day's last; nothing while blocked. */
+  const nextLine = (save: Save) => {
+    if (blocked(save)) return ''
+    const after = kecleonEggPrice(bought(save) + 1)
+    // A no-break space keeps ₽ beside its number when the line wraps on a narrow card.
+    return after === null ? k.last : k.next(formatPokeDollars(after).replace(/ /g, ' '))
   }
   return {
     el,
     refresh: (save) => {
       const block = kecleonEggBlock(save, v)
       setBadges(badges, [badge('exclusive', sh.badges.exclusive)])
-      setText(sub, `${odds(save).filter(([id]) => save.hatched[id]).length}/${odds(save).length}`)
-      setText(price, blocked(save) ?? formatPokeDollars(cost))
+      setText(sub, k.today(bought(save), max))
+      setText(price, blocked(save) ?? formatPokeDollars(kecleonEggPrice(bought(save)) ?? 0))
+      setText(next, nextLine(save))
       el.classList.toggle('sold', block === 'soldOut' || block === 'full')
       el.classList.toggle('poor', block === 'poor')
     },
     describe: (save) => ({
       icon: shopIcon('kecleonEgg'),
       title: name,
-      // The odds first: on a phone the strip shows a few lines before it scrolls.
-      text: [eggOdds('kecleon', save), k.text(formatNumber(EGG_TIERS.kecleon.steps)), t().shop.stall.duplicate(formatPokeDollars(EGG_TIERS.kecleon.refund)), sh.stock(stockLeft(save.shop, v, 'kecleonEgg'), vitrineStock('kecleonEgg'))].join(' '),
-      action: blocked(save) ?? t().mart.buy(formatPokeDollars(cost)),
+      // The odds first (a full incubator's hint before them): on a phone the strip shows a few lines before it scrolls.
+      text: [
+        kecleonEggBlock(save, v) === 'full' && k.full,
+        eggOdds('kecleon', save),
+        k.text(formatNumber(EGG_TIERS.kecleon.steps)),
+        k.ladder(max, VITRINE.kecleonEgg.prices.map(formatPokeDollars).join(', ')),
+        t().shop.stall.duplicate(formatPokeDollars(EGG_TIERS.kecleon.refund)),
+        sh.stock(stockLeft(save.shop, v, 'kecleonEgg'), max),
+      ]
+        .filter((l): l is string => typeof l === 'string')
+        .join(' '),
+      action: blocked(save) ?? t().mart.buy(formatPokeDollars(kecleonEggPrice(bought(save)) ?? 0)),
       disabled: kecleonEggBlock(save, v) !== null,
     }),
+    confirm: (save) => {
+      const cost = kecleonEggPrice(bought(save))
+      return cost !== null && cost >= VITRINE.kecleonEgg.confirmFrom && kecleonEggBlock(save, v) === null ? k.confirm(formatPokeDollars(cost)) : null
+    },
     act: (save) => buyKecleonEgg(save, v),
     said: (before, after) => (after.wallet < before.wallet ? { text: t().plaza.lines.kecleonEgg, emotion: 'Inspired' } : null),
   }
