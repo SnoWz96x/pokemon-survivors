@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChangelogUpdate } from '../../src/site/changelog'
-import { greetMessage, hasWords, introDecision, patchMessage, patchPlan, podiumMessage } from './discordMessages'
+import { greetMessage, hasWords, introDecision, patchMessage, patchPlan, podiumMessage, reviewDecision, reviewMessage } from './discordMessages'
 
 const update = (date: string): ChangelogUpdate => {
   const text = { pt: date, en: date, es: date }
@@ -66,5 +66,22 @@ describe('the podium', () => {
     expect(text).toContain('🥈 **\\*Misty\\*** (@misty) · 10:00')
     expect(text).toContain('12 trainers took part')
     expect(podiumMessage('2026-10-18', [], 0, null)).toBeNull()
+  })
+})
+
+describe('the idea review', () => {
+  it('reads a check or a thumbs up (any skin tone) as approved, a cross or a thumbs down as hidden, anything else as nothing', () => {
+    expect(reviewDecision('✅')).toBe('open')
+    expect(reviewDecision('✔️')).toBe('open')
+    expect(reviewDecision('👍🏽')).toBe('open')
+    expect(reviewDecision('❌')).toBe('hidden')
+    expect(reviewDecision('👎🏻')).toBe('hidden')
+    expect(reviewDecision('🔥')).toBeNull()
+  })
+
+  it('quotes the idea without letting its text format or ping', () => {
+    const m = reviewMessage({ title: 'More bosses', body: '**Mewtwo**\n@everyone', handle: 'ash_ketchum' })
+    expect(m.allowed_mentions).toEqual({ parse: [] })
+    expect(m.embeds?.[0]?.description).toBe('> \\*\\*Mewtwo\\*\\*\n> @everyone\n\nSuggested by @ash\\_ketchum in the game')
   })
 })

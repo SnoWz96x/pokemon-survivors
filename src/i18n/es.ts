@@ -1073,12 +1073,14 @@ export const es: Messages = {
 
   ideas: {
     title: 'IDEAS',
-    lead: 'Pide lo que quieres ver en el juego y vota las ideas de otros entrenadores. ¡Las más votadas entran en la fila!',
-    tabs: { top: 'Más votadas', new: 'Nuevas', done: 'Hechas' },
+    lead: 'Pide lo que quieres ver en el juego y vota las ideas de otros entrenadores. El equipo revisa cada idea antes de que entre al Backlog, ¡y las más votadas entran en la fila!',
+    columns: { open: 'Backlog', todo: 'Por hacer', cooking: 'Cocinando', done: 'Listo' },
     loading: 'Cargando…',
     offline: 'Sin conexión con el muro de ideas. Inténtalo de nuevo en un rato.',
     retry: 'Reintentar',
-    empty: { top: 'Todavía no hay ideas. ¿Por qué no envías la primera?', new: 'Todavía no hay ideas. ¿Por qué no envías la primera?', done: 'Nada entregado todavía, ¡pero ya viene!' },
+    empty: { open: 'Todavía no hay ideas. ¿Por qué no envías la primera?', todo: 'Nada en la fila ahora.', cooking: 'Nada en el fuego ahora.', done: 'Nada entregado todavía, ¡pero ya viene!' },
+    pending: 'En revisión',
+    pendingNote: 'Solo tú ves esta idea hasta que el equipo la apruebe.',
     you: 'tuya',
     done: 'Hecha',
     doneOn: (date) => `En el juego desde el ${date}`,
@@ -1091,7 +1093,7 @@ export const es: Messages = {
     createProfile: 'Crea tu perfil para sugerir',
     voteGuest: 'Entra con una cuenta para votar.',
     closed: 'Esta idea ya no está abierta a votos.',
-    posted: '¡Idea enviada! Ahora a esperar los votos.',
+    posted: '¡Idea enviada! El equipo le echa un vistazo y entra al Backlog.',
     form: {
       title: 'NUEVA IDEA',
       titleField: 'Tu idea',
@@ -1111,7 +1113,7 @@ export const es: Messages = {
         offline: 'Sin conexión. Inténtalo de nuevo en un rato.',
       },
     },
-    hintKeys: '↑ ↓ ← → elegir · ENTER votar · Q E pestaña · N nueva idea · ESC volver',
+    hintKeys: '↑ ↓ ← → elegir · ENTER votar · Q E columna · N nueva idea · ESC volver',
     hintTouch: 'Toca ▲ o ▼ para votar',
   },
 

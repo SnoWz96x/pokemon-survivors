@@ -6,11 +6,14 @@ import type { DayKey } from '../../src/game/day'
 import { DISCORD_GIFT } from '../../src/game/gifts'
 import type { Difficulty } from '../../src/game/difficulty'
 import { isHalloweenDay } from '../../src/game/halloween'
+import type { Suggestion } from '../../src/game/suggestions'
 import type { ChangelogUpdate } from '../../src/site/changelog'
+import type { Review } from './suggestions'
 
 /**
  * What the Discord bot says, as pure functions: the community server's
- * introduction gate, its patch notes and its daily posts. The server speaks
+ * introduction gate, its patch notes, its daily posts and the ideas it
+ * hands staff to review. The server speaks
  * English, so every text here is English. `discord.ts` sends them.
  */
 
@@ -188,3 +191,37 @@ export const outbreakMessage = (day: DayKey, id: EnemyId): OutgoingMessage => {
     ],
   }
 }
+
+/* ---------------- Idea review ---------------- */
+
+const GREEN = 0x30a050
+
+/** The reactions that approve an idea (into the Backlog) or hide it, without their variation selector or skin tone. */
+const APPROVE = new Set(['✅', '✔', '☑', '👍', '👌', '💯', '🆗'])
+const REJECT = new Set(['❌', '✖', '👎', '🚫', '🗑'])
+
+/** What a staff reaction in #idea-review decides: the Backlog (`open`), off the board (`hidden`) or nothing. */
+export const reviewDecision = (emoji: string): Review | null => {
+  const bare = emoji.replace(/[\u{FE0F}\u{1F3FB}-\u{1F3FF}]/gu, '')
+  return APPROVE.has(bare) ? 'open' : REJECT.has(bare) ? 'hidden' : null
+}
+
+/** A new idea from the game, for staff to approve (the bot reacts ✅ and ❌ under it, so a tap does it). */
+export const reviewMessage = (idea: Pick<Suggestion, 'title' | 'body' | 'handle'>): OutgoingMessage => ({
+  allowed_mentions: { parse: [] },
+  embeds: [
+    {
+      title: `💡 ${idea.title}`.slice(0, 256),
+      description: [idea.body && escape(idea.body).split('\n').map((l) => `> ${l}`).join('\n'), `Suggested by @${escape(idea.handle)} in the game`].filter(Boolean).join('\n\n'),
+      color: YELLOW,
+      footer: { text: 'React ✅ to put it on the board (Backlog), ❌ to hide it.' },
+    },
+  ],
+})
+
+/** The line the review message gets once an idea was decided (a mention in it never pings: the edit sends `allowed_mentions: { parse: [] }`). `by` is null when the bot was away. */
+export const reviewedNote = (review: Review, by: string | null) =>
+  `${review === 'open' ? '✅ On the board, in the Backlog' : '❌ Hidden'}${by ? ` · <@${by}>` : ''}`
+
+/** The review message's color once decided. */
+export const reviewedColor = (review: Review) => (review === 'open' ? GREEN : 0x707890)

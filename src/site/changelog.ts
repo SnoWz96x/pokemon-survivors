@@ -258,6 +258,21 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
         ],
       },
       {
+        title: { pt: 'Mural de ideias em colunas', en: 'Ideas board in columns', es: 'Muro de ideas en columnas' },
+        notes: [
+          {
+            pt: 'O mural de ideias virou um quadro com quatro colunas: Backlog, A fazer, Cozinhando e Pronto. Dá para ver o que vem por aí e o que já está sendo feito, e votar em tudo que ainda não saiu.',
+            en: 'The ideas board is now a board with four columns: Backlog, To do, Cooking and Done. See what\'s coming and what\'s being made right now, and vote on anything that hasn\'t shipped yet.',
+            es: 'El muro de ideas ahora es un tablero con cuatro columnas: Backlog, Por hacer, Cocinando y Listo. Puedes ver lo que viene y lo que ya se está haciendo, y votar todo lo que todavía no salió.',
+          },
+          {
+            pt: 'Cada ideia nova passa pela equipe antes de entrar no Backlog. Enquanto isso, só você a vê, marcada como Em análise.',
+            en: 'Every new idea goes past the team before it lands in the Backlog. Meanwhile only you see it, marked In review.',
+            es: 'Cada idea nueva pasa por el equipo antes de entrar al Backlog. Mientras tanto, solo tú la ves, marcada como En revisión.',
+          },
+        ],
+      },
+      {
         title: { pt: 'Partidas inteiras no celular', en: 'Whole runs on your phone', es: 'Partidas enteras en el celular' },
         notes: [
           {

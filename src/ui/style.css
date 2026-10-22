@@ -10814,16 +10814,17 @@ button.hall-tile:hover {
 
 /* ---------- Ideias: the idea board ---------- */
 
-/* A list reads from the top, in one column as wide as a phone's or a comfortable line. */
+/* The kanban fills the screen under the lead; each column scrolls on its own. */
 .ideas-screen .shell-body {
   justify-content: flex-start;
-}
-
-.ideas-screen .shell-body > * {
-  width: min(680px, 100%);
+  align-items: stretch;
+  gap: 10px;
+  overflow: hidden;
 }
 
 .ideas-lead {
+  align-self: center;
+  width: min(680px, 100%);
   margin: 0;
   font-size: 20px;
   line-height: 1.1;
@@ -10832,10 +10833,95 @@ button.hall-tile:hover {
   text-shadow: 2px 2px 0 #283040;
 }
 
-.idea-list {
+/* Loading or unreachable: a message in the middle. */
+.idea-board {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Side by side; on a phone, a column at a time, swiped sideways. */
+.idea-board.columns {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(270px, 1fr);
+  align-items: stretch;
+  gap: 10px;
+  padding: 2px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  touch-action: pan-x pan-y;
+}
+
+@media (max-width: 640px) {
+  .idea-board.columns {
+    grid-auto-columns: 88%;
+  }
+}
+
+/* A short landscape phone needs every line for the cards. */
+@media (max-height: 480px) {
+  .ideas-lead {
+    display: none;
+  }
+}
+
+.idea-column {
+  --col: #6878a8;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  scroll-snap-align: start;
+  padding: 8px 4px 4px;
+  background: rgba(24, 30, 48, 0.72);
+  border: 2px solid #283040;
+  border-radius: 10px;
+}
+
+.idea-column.todo {
+  --col: #f8d030;
+}
+
+.idea-column.cooking {
+  --col: #e86830;
+}
+
+.idea-column.done {
+  --col: #30a050;
+}
+
+.idea-column-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 6px 8px;
+  padding-left: 8px;
+  font-family: var(--title);
+  font-size: 10px;
+  font-weight: 400;
+  color: #fff;
+  border-left: 4px solid var(--col);
+}
+
+.idea-column-head small {
+  font-family: var(--body);
+  font-size: 18px;
+  color: #a0a8c0;
+}
+
+.idea-column-list {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 2px 4px 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .ideas-status {
@@ -10845,6 +10931,12 @@ button.hall-tile:hover {
   line-height: 1.2;
   text-align: center;
   color: #e8e8f8;
+}
+
+.ideas-status.small {
+  padding: 10px;
+  font-size: 18px;
+  color: #a0a8c0;
 }
 
 .ideas-retry {
@@ -10862,8 +10954,12 @@ button.hall-tile:hover {
   --frame: #2a5aa8;
 }
 
-.idea.shipped {
+.idea.done {
   --frame: #30a050;
+}
+
+.idea.pending {
+  --frame: #e86830;
 }
 
 /* ▲ score ▼, thumb-sized. */
@@ -10912,7 +11008,7 @@ button.hall-tile:hover {
   font-size: 10px;
 }
 
-.idea.shipped .idea-score {
+.idea.done .idea-score {
   color: #30a050;
 }
 
@@ -10929,7 +11025,7 @@ button.hall-tile:hover {
 .idea-title {
   margin: 0;
   font-family: var(--body);
-  font-size: 25px;
+  font-size: 23px;
   font-weight: 400;
   line-height: 1;
   overflow-wrap: anywhere;
@@ -10978,6 +11074,10 @@ button.hall-tile:hover {
   background: #30a050;
 }
 
+.idea-tag.pending {
+  background: #e86830;
+}
+
 .idea-done {
   display: flex;
   flex-wrap: wrap;
@@ -10986,6 +11086,10 @@ button.hall-tile:hover {
   margin: 0;
   font-size: 17px;
   color: #308048;
+}
+
+.idea-done.pending {
+  color: #b85820;
 }
 
 .idea-admin {

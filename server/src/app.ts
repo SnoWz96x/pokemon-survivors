@@ -185,10 +185,12 @@ const CHUNK_ERRORS = { unknown: 404, replaced: 409, committed: 409, gap: 409, cl
  * - `GET /me/supporter` (auth): `SupporterStatus`. `PUT /me/supporter` (auth) `{ public }`: shows or hides the badge and name.
  * - `GET /supporters`: `{ supporters, hidden }`, the wall (`WallEntry[]`, with each one's title and Hall da Fama Pokémon) and how many supporters per tier stay off it.
  * - `GET /poll`: `Poll`. `PUT /poll` (auth) `{ choice }`: a supporter's vote, 403 for anyone else.
- * - `GET /suggestions?sort=top|new|done`: `{ suggestions }` (`Suggestion[]`), a tab of the idea board, with the asker's votes.
- * - `POST /suggestions` (auth) `{ title, body }`: posts an idea (`parseSuggestionDraft`), 201 `{ suggestion }`.
+ * - `GET /suggestions?sort=board|top|new|done`: `{ suggestions }` (`Suggestion[]`), the idea board's columns (`board`,
+ *   with the asker's own ideas waiting for review) or an earlier build's tab, with the asker's votes.
+ * - `POST /suggestions` (auth) `{ title, body }`: posts an idea (`parseSuggestionDraft`), 201 `{ suggestion }`, `pending`
+ *   until staff approve it in the Discord.
  *   400 invalid, 403 before the player has a handle, 429 past `SUGGESTION.perDay` in 24 hours.
- * - `PUT /suggestions/:id/vote` (auth) `{ vote }` (1, -1, or 0 to take it back): `{ score, vote }`. 404 unknown, 409 shipped.
+ * - `PUT /suggestions/:id/vote` (auth) `{ vote }` (1, -1, or 0 to take it back): `{ score, vote }`. 404 unknown (or under review), 409 shipped.
  * - `POST /bug-reports` `{ text, tech? }`: a bug report (`parseBugReport`), from a guest or (with a token)
  *   a player. 201 `{ id }`, stored and on its way to Discord. 400 invalid, 429 past `BUG_REPORT.perHour`
  *   for the IP or the account.
@@ -203,8 +205,8 @@ const CHUNK_ERRORS = { unknown: 404, replaced: 409, committed: 409, gap: 409, cl
  *   `GET /admin`: `{ admin: true }`. `GET /admin/users?q=`: `{ users }` (`AdminUser[]`) by handle or email.
  *   `POST /admin/gifts` `{ userId, content, request }`: sends a gift (`parseAdminGift`), `{ sent }`
  *   (false when that `request` already went); 404 for an unknown player. `GET /admin/gifts`: `{ gifts }`
- *   (`AdminSent[]`), the latest sent by hand. `PUT /admin/suggestions/:id` `{ status }`: marks an idea
- *   `done` (shipped), `open` again or `hidden` (off the board). `{ status }`, 404 for an unknown idea.
+ *   (`AdminSent[]`), the latest sent by hand. `PUT /admin/suggestions/:id` `{ status }`: moves an idea
+ *   to a column (`open` the Backlog, `todo`, `cooking`, `done` shipped) or `hidden` (off the board). `{ status }`, 404 for an unknown idea.
  *   `GET /admin/reports`: `{ groups, open }`, the open reports grouped by run or player (`ReportGroup[]`)
  *   and how many are open. `POST /admin/moderation` (`parseModeration`) `{ userId, action, run?, reason? }`:
  *   `remove` a run from the boards, `reset` the save, `ban` (with a reason) or `unban`, or `dismiss`,

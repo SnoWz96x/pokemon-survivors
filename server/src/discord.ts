@@ -2,6 +2,7 @@ import { dailyChallenge, ribbonsDue } from '../../src/game/challenge'
 import { brasiliaDay, previousDay } from '../../src/game/day'
 import { outbreakOf } from '../../src/game/outbreak'
 import { isRecord } from '../../src/game/parse'
+import type { Suggestion } from '../../src/game/suggestions'
 import { CHANGELOG } from '../../src/site/changelog'
 import type { Sql } from './db'
 import {
@@ -13,10 +14,15 @@ import {
   patchPlan,
   podiumMessage,
   emptyMessage,
+  reviewDecision,
+  reviewedColor,
+  reviewedNote,
+  reviewMessage,
   welcomeMessage,
   type OutgoingMessage,
 } from './discordMessages'
 import type { RankingStore } from './ranking'
+import type { SuggestionStore } from './suggestions'
 
 /**
  * The community Discord's bot (`scripts/discord/setup.mjs` builds the server):
@@ -26,7 +32,11 @@ import type { RankingStore } from './ranking'
  * - #patch-notes gets each new changelog update when the API boots;
  * - #daily-challenge and #daily-outbreak get the day's challenge and outbreak
  *   when the Brasília day starts, and the challenge's podium once its day
- *   settled (`ribbonsDue`, with the ribbons).
+ *   settled (`ribbonsDue`, with the ribbons);
+ * - #idea-review (staff only) gets each idea posted in the game, with ✅ and
+ *   ❌ under it: a staff reaction puts it on the board's Backlog or hides it
+ *   (`reviewDecision`). Ideas it missed are posted on the next round of
+ *   daily posts, and reactions it missed are read when the gateway connects.
  * Channels and roles are found by name. Every post claims a key in
  * `discord_posts` first, so two instances (a rolling deploy) never post twice.
  */
@@ -34,8 +44,8 @@ import type { RankingStore } from './ranking'
 const API = 'https://discord.com/api/v10'
 const GATEWAY = 'wss://gateway.discord.gg/?v=10&encoding=json'
 
-/** GUILDS, GUILD_MEMBERS, GUILD_MESSAGES and MESSAGE_CONTENT (both privileged: on in the Developer Portal). */
-const INTENTS = (1 << 0) | (1 << 1) | (1 << 9) | (1 << 15)
+/** GUILDS, GUILD_MEMBERS, GUILD_MESSAGES, GUILD_MESSAGE_REACTIONS and MESSAGE_CONTENT (GUILD_MEMBERS and MESSAGE_CONTENT are privileged: on in the Developer Portal). */
+const INTENTS = (1 << 0) | (1 << 1) | (1 << 9) | (1 << 10) | (1 << 15)
 
 /** Close codes that retrying won't fix: a bad token, a bad intent. */
 const FATAL_CLOSES = new Set([4004, 4010, 4011, 4012, 4013, 4014])
@@ -48,6 +58,7 @@ const NAMES = {
   patchNotes: 'patch-notes',
   challenge: 'daily-challenge',
   outbreak: 'daily-outbreak',
+  ideaReview: 'idea-review',
   trainer: 'Trainer',
   patchPing: 'Patch Notes Ping',
   challengePing: 'Daily Challenge Ping',
@@ -71,6 +82,8 @@ export const discordStore = (sql: Sql) => ({
     await sql`update discord_posts set message_id = ${messageId} where key = ${key}`
   },
   messageOf: async (key: string) => (await sql<{ message_id: string | null }[]>`select message_id from discord_posts where key = ${key}`)[0]?.message_id ?? null,
+  /** The key whose post became `messageId`. */
+  keyOf: async (messageId: string) => (await sql<{ key: string }[]>`select key from discord_posts where message_id = ${messageId}`)[0]?.key ?? null,
   /** The keys taken that start with `prefix`, without it. */
   taken: async (prefix: string) => (await sql<{ key: string }[]>`select key from discord_posts where starts_with(key, ${prefix})`).map((r) => r.key.slice(prefix.length)),
 })
@@ -179,19 +192,32 @@ const connectGateway = (token: string, onEvent: (type: string, data: unknown) =>
   open()
 }
 
-/** Starts the bot: patch notes now, the daily posts every `EVERY_MS` and the gateway for the gate. Never throws. */
-export const startDiscord = (config: DiscordConfig, deps: { store: DiscordStore; ranking: Pick<RankingStore, 'podium'> }) => {
-  const call = restClient(config.token)
-  const { store, ranking } = deps
-  const guild = `/guilds/${config.guildId}`
+/** A reaction from the gateway or a message's reactions: the emoji's name (a custom emoji's name never matches `reviewDecision`). */
+const emojiName = (v: unknown) => (isRecord(v) && isRecord(v.emoji) ? (str(v.emoji.name) ?? '') : '')
 
-  /** Posts `message` in `channelId` once per `key`; a failure gives the key back for the next try. */
+/**
+ * Starts the bot: patch notes now, the daily posts every `EVERY_MS` and the
+ * gateway for the gate and the idea review. Never throws. `reviewIdea` hands
+ * it an idea just posted in the game (dropped while the bot is starting: the
+ * daily round posts it).
+ */
+export const startDiscord = (
+  config: DiscordConfig,
+  deps: { store: DiscordStore; ranking: Pick<RankingStore, 'podium'>; ideas: Pick<SuggestionStore, 'pending' | 'review'> },
+) => {
+  const call = restClient(config.token)
+  const { store, ranking, ideas } = deps
+  const guild = `/guilds/${config.guildId}`
+  let reviewIdea: ((idea: Suggestion) => Promise<void>) | null = null
+
+  /** Posts `message` in `channelId` once per `key`; the message's id, or null when the key was taken. A failure gives the key back for the next try. */
   const post = async (key: string, channelId: string, message: OutgoingMessage | null) => {
-    if (!(await store.claim(key)) || !message) return
+    if (!(await store.claim(key)) || !message) return null
     try {
       const sent = await call('POST', `/channels/${channelId}/messages`, message)
       const id = isRecord(sent) ? str(sent.id) : null
       if (id) await store.setMessage(key, id)
+      return id
     } catch (err) {
       await store.release(key)
       throw err
@@ -211,7 +237,9 @@ export const startDiscord = (config: DiscordConfig, deps: { store: DiscordStore;
     const patchNotes = channel(NAMES.patchNotes)
     const challenge = channel(NAMES.challenge)
     const outbreak = channel(NAMES.outbreak)
+    const review = channel(NAMES.ideaReview)
     const trainer = role(NAMES.trainer)
+    let botId: string | null = null
 
     // Patch notes: what the changelog gained since the last boot.
     if (patchNotes) {
@@ -225,6 +253,42 @@ export const startDiscord = (config: DiscordConfig, deps: { store: DiscordStore;
       }
     }
 
+    /** Posts an idea for review once, with ✅ and ❌ already under it so staff decide with a tap. */
+    const postIdea = async (idea: Suggestion) => {
+      if (!review) return
+      const id = await post(`idea:${idea.id}`, review, reviewMessage(idea))
+      if (!id) return
+      for (const emoji of ['✅', '❌']) await call('PUT', `/channels/${review}/messages/${id}/reactions/${encodeURIComponent(emoji)}/@me`)
+    }
+    reviewIdea = postIdea
+
+    /** A reaction on a review message: moves its idea when it decides something and the idea still waits, then marks the message. `by` is null when read from the history. */
+    const decide = async (messageId: string, emoji: string, by: string | null) => {
+      const decision = reviewDecision(emoji)
+      const key = decision && review ? await store.keyOf(messageId) : null
+      if (!decision || !review || !key?.startsWith('idea:')) return
+      const ideaId = key.slice('idea:'.length)
+      if (!(await ideas.review(ideaId, decision))) return
+      console.log(`suggestion ${ideaId} reviewed in discord: ${decision}${by ? ` by ${by}` : ''}`)
+      const message = await call('GET', `/channels/${review}/messages/${messageId}`)
+      const embeds = isRecord(message) && Array.isArray(message.embeds) ? message.embeds.filter(isRecord).map((e) => ({ ...e, color: reviewedColor(decision) })) : []
+      await call('PATCH', `/channels/${review}/messages/${messageId}`, { content: reviewedNote(decision, by), embeds, allowed_mentions: { parse: [] } })
+    }
+
+    /** Reactions added while the bot was away: a message staff reacted to one way only (besides the bot's own ✅ and ❌). */
+    const sweepReviews = async () => {
+      if (!review) return
+      const history = await call('GET', `/channels/${review}/messages?limit=100`)
+      for (const m of Array.isArray(history) ? history : []) {
+        const id = isRecord(m) ? str(m.id) : null
+        if (!id || !isRecord(m) || !Array.isArray(m.reactions)) continue
+        const picked = m.reactions.filter((r) => isRecord(r) && typeof r.count === 'number' && r.count > (r.me === true ? 1 : 0)).map(emojiName)
+        const decisions = new Set(picked.map(reviewDecision).filter((d) => d !== null))
+        const only = picked.find((e) => reviewDecision(e) !== null)
+        if (decisions.size === 1 && only) await decide(id, only, null)
+      }
+    }
+
     const daily = async (now = new Date()) => {
       const today = brasiliaDay(now)
       const yesterday = previousDay(today)
@@ -234,12 +298,15 @@ export const startDiscord = (config: DiscordConfig, deps: { store: DiscordStore;
         const { places, total } = await ranking.podium(yesterday)
         await post(`podium:${yesterday}`, challenge, podiumMessage(yesterday, places, total, role(NAMES.challengePing)))
       }
+      // Ideas posted while the bot was starting, or whose post failed.
+      if (review) for (const idea of await ideas.pending()) await postIdea(idea)
     }
     const tick = () => void daily().catch((err) => console.error('discord daily posts failed', err))
     tick()
     setInterval(tick, EVERY_MS).unref()
 
-    if (!intro || !trainer) return console.warn('discord: the introduction gate is off (no #introductions or Trainer role)')
+    const gateOn = intro !== null && trainer !== null
+    if (!gateOn) console.warn('discord: the introduction gate is off (no #introductions or Trainer role)')
 
     /** The member's roles, or null when they left the server. */
     const rolesOf = async (userId: string) => {
@@ -253,7 +320,7 @@ export const startDiscord = (config: DiscordConfig, deps: { store: DiscordStore;
 
     /** The gate's answer to one message. `nudge`: whether an empty one gets a reply (not when sweeping old ones). */
     const gate = async (m: IntroMessage, nudge: boolean) => {
-      if (m.bot) return
+      if (m.bot || !intro || !trainer) return
       const roles = m.roles ?? (await rolesOf(m.userId))
       if (!roles) return
       const decision = introDecision({ bot: m.bot, trainer: roles.includes(trainer), content: m.content })
@@ -271,6 +338,7 @@ export const startDiscord = (config: DiscordConfig, deps: { store: DiscordStore;
 
     /** Introductions posted while the bot was away (a deploy, a reconnect). */
     const sweep = async () => {
+      if (!intro) return
       const history = await call('GET', `/channels/${intro}/messages?limit=50`)
       const messages = (Array.isArray(history) ? history : []).map(introMessage).filter((m): m is IntroMessage => m !== null)
       // Each author's latest introduction with words; the gate checks whether they're a Trainer already.
@@ -282,12 +350,21 @@ export const startDiscord = (config: DiscordConfig, deps: { store: DiscordStore;
     }
 
     connectGateway(config.token, (type, data) => {
-      if (type === 'READY') void sweep().catch((err) => console.error('discord sweep failed', err))
-      if (type === 'GUILD_MEMBER_ADD' && isRecord(data) && data.guild_id === config.guildId && isRecord(data.user) && data.user.bot !== true) {
+      if (type === 'READY') {
+        botId = isRecord(data) && isRecord(data.user) ? str(data.user.id) : null
+        if (gateOn) void sweep().catch((err) => console.error('discord sweep failed', err))
+        void sweepReviews().catch((err) => console.error('discord review sweep failed', err))
+      }
+      if (type === 'MESSAGE_REACTION_ADD' && isRecord(data) && data.channel_id === review && data.guild_id === config.guildId) {
+        const messageId = str(data.message_id)
+        const userId = str(data.user_id)
+        if (messageId && userId && userId !== botId) void decide(messageId, emojiName(data), userId).catch((err) => console.error('discord review failed', err))
+      }
+      if (gateOn && type === 'GUILD_MEMBER_ADD' && isRecord(data) && data.guild_id === config.guildId && isRecord(data.user) && data.user.bot !== true) {
         const userId = str(data.user.id)
         if (userId) void post(`greet:${userId}`, intro, greetMessage(userId)).catch((err) => console.error('discord greet failed', err))
       }
-      if (type !== 'MESSAGE_CREATE' || !isRecord(data) || data.channel_id !== intro || data.guild_id !== config.guildId) return
+      if (!gateOn || type !== 'MESSAGE_CREATE' || !isRecord(data) || data.channel_id !== intro || data.guild_id !== config.guildId) return
       const m = introMessage(data)
       if (m) void gate(m, true).catch((err) => console.error('discord gate failed', err))
     })
@@ -295,4 +372,5 @@ export const startDiscord = (config: DiscordConfig, deps: { store: DiscordStore;
   }
 
   void run().catch((err) => console.error('discord failed to start', err))
+  return { reviewIdea: (idea: Suggestion) => void reviewIdea?.(idea).catch((err) => console.error(`suggestion ${idea.id} didn't reach #idea-review`, err)) }
 }

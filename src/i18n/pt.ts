@@ -25,7 +25,7 @@ import type { StallBlock } from '../game/stalls'
 import type { StallId } from '../data/visitors'
 import type { RibbonTier } from '../game/ribbons'
 import type { SupporterTier } from '../game/supporters'
-import type { SuggestionSort } from '../game/suggestions'
+import type { BoardColumn } from '../game/suggestions'
 import type { ReportReason } from '../game/reports'
 import type { EggTier } from '../game/eggs'
 import type { UpgradeId } from '../game/meta'
@@ -1245,12 +1245,15 @@ export const pt = {
   /** Ideias: the idea board, where players suggest things for the game and vote on them. Titles in the pixel font: unaccented or mixed case. */
   ideas: {
     title: 'IDEIAS',
-    lead: 'Peça o que você quer ver no jogo e vote nas ideias de outros treinadores. As mais votadas entram na fila!',
-    tabs: { top: 'Mais votadas', new: 'Novas', done: 'Feitas' } satisfies Record<SuggestionSort, string>,
+    lead: 'Peça o que você quer ver no jogo e vote nas ideias de outros treinadores. A equipe revisa cada ideia antes de ela entrar no Backlog, e as mais votadas vão para a fila!',
+    columns: { open: 'Backlog', todo: 'A fazer', cooking: 'Cozinhando', done: 'Pronto' } satisfies Record<BoardColumn, string>,
     loading: 'Carregando…',
     offline: 'Sem conexão com o mural de ideias. Tente de novo daqui a pouco.',
     retry: 'Tentar de novo',
-    empty: { top: 'Nenhuma ideia ainda. Que tal mandar a primeira?', new: 'Nenhuma ideia ainda. Que tal mandar a primeira?', done: 'Nada entregue ainda, mas vem coisa por aí!' } satisfies Record<SuggestionSort, string>,
+    empty: { open: 'Nenhuma ideia ainda. Que tal mandar a primeira?', todo: 'Nada na fila agora.', cooking: 'Nada no fogo agora.', done: 'Nada entregue ainda, mas vem coisa por aí!' } satisfies Record<BoardColumn, string>,
+    /** The tag on the asker's own idea while staff haven't approved it yet, and what it means. */
+    pending: 'Em análise',
+    pendingNote: 'Só você vê esta ideia até a equipe aprovar.',
     you: 'sua',
     /** The tag on a shipped idea, and when it shipped. */
     done: 'Feita',
@@ -1264,7 +1267,7 @@ export const pt = {
     createProfile: 'Criar perfil para sugerir',
     voteGuest: 'Entre com uma conta para votar.',
     closed: 'Essa ideia não está mais aberta para votos.',
-    posted: 'Ideia enviada! Agora é torcer pelos votos.',
+    posted: 'Ideia enviada! A equipe dá uma olhada e ela entra no Backlog.',
     form: {
       title: 'NOVA IDEIA',
       titleField: 'Sua ideia',
@@ -1284,7 +1287,7 @@ export const pt = {
         offline: 'Sem conexão. Tente de novo daqui a pouco.',
       },
     },
-    hintKeys: '↑ ↓ ← → escolher · ENTER votar · Q E aba · N nova ideia · ESC voltar',
+    hintKeys: '↑ ↓ ← → escolher · ENTER votar · Q E coluna · N nova ideia · ESC voltar',
     hintTouch: 'Toque em ▲ ou ▼ para votar',
   },
 
