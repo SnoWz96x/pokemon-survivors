@@ -1,7 +1,7 @@
 import { BUG_REPORT, clip, type BugError, type BugPerf, type BugReport, type BugRun, type BugTech } from '../../src/game/bugReport'
 import { isRecord } from '../../src/game/parse'
 import type { Sql } from './db'
-import { idsByName, restClient } from './discord'
+import { bareName, idsByName, restClient } from './discord'
 import { rateLimiter } from './rateLimit'
 
 /**
@@ -145,7 +145,7 @@ export const discordBugForum = (config: { token: string; guildId: string; forumI
   const call = restClient(config.token)
   const forumByName = async () => {
     const channels = await call('GET', `/guilds/${config.guildId}/channels`)
-    const forum = (Array.isArray(channels) ? channels : []).find((c) => isRecord(c) && c.name === 'bug-reports' && c.type === FORUM)
+    const forum = (Array.isArray(channels) ? channels : []).find((c) => isRecord(c) && typeof c.name === 'string' && bareName(c.name) === 'bug-reports' && c.type === FORUM)
     if (!isRecord(forum) || typeof forum.id !== 'string') throw new Error('discord: no #bug-reports forum')
     return forum.id
   }
