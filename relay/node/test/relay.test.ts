@@ -73,10 +73,21 @@ describe('São Paulo relay', () => {
     expect(health).toMatchObject({ ok: true, protocol: PROTOCOL, home: 'sa' })
     const code = await createRoom(relay)
     expect(homeOf(code)).toBe('sa')
+    expect(code).toMatch(/^[2-5]/)
     const c = await open(relay, 'K7QF2')
     say(c, hello('K7QF2', A))
     expect(await waitFor(c, (m) => (m.t === 'refused' ? m.code : null))).toBe('unavailable')
     await relay.close()
+  })
+
+  it('waits for the relay holding the data dir to stop before loading its rooms', async () => {
+    const first = await start()
+    let up = false
+    const second = start().then((r) => ((up = true), r))
+    await new Promise((r) => setTimeout(r, 600))
+    expect(up).toBe(false)
+    await first.close()
+    await (await second).close()
   })
 
   it('keeps a run through a restart: clients are told to reconnect, resume from their tick, the log survives', async () => {

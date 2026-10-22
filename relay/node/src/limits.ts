@@ -32,14 +32,11 @@ export const createLimiter = (limit: number, periodMs: number): Limiter => {
 export const LIMITS = { create: { limit: 30, periodMs: 60_000 }, connect: { limit: 300, periodMs: 60_000 } } as const
 
 /**
- * The player's address. Behind CloudFront (`trustProxy`; the security group
- * only lets CloudFront in) it's the `CloudFront-Viewer-Address` header
- * (`ip:port`); otherwise the socket's own.
+ * The player's address: behind the reverse proxy (Traefik on the VPS, the only
+ * way in) the header it sets (`ipHeader`, e.g. `x-real-ip`), else the socket's own.
  */
-export const clientIp = (header: string | undefined, remote: string | undefined, trustProxy: boolean) => {
-  if (trustProxy && header) {
-    const i = header.lastIndexOf(':')
-    return i > 0 ? header.slice(0, i) : header
-  }
-  return remote ?? 'unknown'
+export const clientIp = (headers: Record<string, string | string[] | undefined>, remote: string | undefined, ipHeader: string | null) => {
+  const v = ipHeader ? headers[ipHeader] : undefined
+  const ip = (Array.isArray(v) ? v[0] : v)?.split(',')[0]?.trim()
+  return ip || remote || 'unknown'
 }

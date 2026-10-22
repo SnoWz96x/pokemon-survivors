@@ -8,9 +8,9 @@ describe('rate limits', () => {
     expect(l.hit('a', 1000)).toBe(true)
   })
 
-  it('reads the player behind CloudFront only when told to trust it', () => {
-    expect(clientIp('203.0.113.9:51234', '10.0.0.5', true)).toBe('203.0.113.9')
-    expect(clientIp('2001:db8::7:51234', '10.0.0.5', true)).toBe('2001:db8::7')
-    expect(clientIp('203.0.113.9:51234', '10.0.0.5', false)).toBe('10.0.0.5')
+  it("reads the player's address from the proxy's header only when told to", () => {
+    expect(clientIp({ 'x-real-ip': '203.0.113.9' }, '10.0.1.5', 'x-real-ip')).toBe('203.0.113.9')
+    expect(clientIp({ 'x-real-ip': '203.0.113.9' }, '10.0.1.5', null)).toBe('10.0.1.5')
+    expect(clientIp({}, '10.0.1.5', 'x-real-ip')).toBe('10.0.1.5')
   })
 })

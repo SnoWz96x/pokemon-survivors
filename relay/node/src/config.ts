@@ -1,31 +1,36 @@
-/** The São Paulo relay's settings, from its environment (`/etc/ps-relay/env` on the instance, written by each deploy). */
+import { VPS_HOMES, type VpsHome } from '../../../src/net/protocol'
+
+/** A VPS relay's settings, from its environment (the Dokploy app's env vars; defaults in the Dockerfile). */
 export type Config = {
+  /** Which relay this is (`RELAY_HOMES`): the codes it makes start with its characters. */
+  home: VpsHome
   port: number
   host: string
-  /** Where the rooms' and the dumps' SQLite files live. */
+  /** Where the rooms' and the dumps' SQLite files live (the persistent volume). */
   dataDir: string
   /** The Clerk instance whose session tokens sign players in. */
   clerkIssuer: string
   /** Comma-separated origins the game is served from; `*` stands for one DNS label. */
   allowedOrigins: string
-  /** Seat guests (no Clerk token): a dev stage and local runs only. */
+  /** Seat guests (no Clerk token): a dev relay and local runs only. */
   allowGuests: boolean
   /** Bearer token of `/admin/dumps`; null answers 404 there. */
   adminToken: string | null
-  /** Behind CloudFront: the player's address is `CloudFront-Viewer-Address`. */
-  trustProxy: boolean
-  /** The deployed bundle's hash, shown by `/health` (a deploy is done when it changes). */
+  /** The header the reverse proxy (Traefik) puts the player's address in (`x-real-ip`); null: the socket's own. */
+  ipHeader: string | null
+  /** The build, shown by `/health` (a deploy is done when it changes). */
   version: string
 }
 
 export const configFrom = (env: Record<string, string | undefined>): Config => ({
+  home: VPS_HOMES.find((h) => h === env.RELAY_HOME) ?? 'sa',
   port: Number(env.PORT ?? 8080),
   host: env.HOST ?? '0.0.0.0',
-  dataDir: env.DATA_DIR ?? '/var/lib/ps-relay',
+  dataDir: env.DATA_DIR ?? '/data',
   clerkIssuer: env.CLERK_ISSUER ?? 'https://clerk.pokemonsurvivors.com',
   allowedOrigins: env.ALLOWED_ORIGINS ?? 'https://www.pokemonsurvivors.com,https://pokemonsurvivors.com',
   allowGuests: env.ALLOW_GUESTS === 'on',
   adminToken: env.ADMIN_TOKEN || null,
-  trustProxy: env.TRUST_PROXY === 'cloudfront',
+  ipHeader: env.IP_HEADER?.toLowerCase() || null,
   version: env.RELAY_VERSION ?? 'dev',
 })

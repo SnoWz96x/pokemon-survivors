@@ -3,11 +3,11 @@ import { configFrom } from './config'
 import { jsonLog, startRelay } from './server'
 
 /**
- * The São Paulo relay's process (systemd's `ps-relay` service on the
- * instance). SIGTERM (a deploy, `systemctl restart`) stops it gracefully:
- * players are told to reconnect at once and resume, and systemd starts the
- * new bundle. An uncaught error ends the process and systemd restarts it;
- * either way the rooms come back from disk.
+ * A VPS relay's process (the container Dokploy runs). SIGTERM (a deploy,
+ * `docker stop`) stops it gracefully: players are told to reconnect at once
+ * and resume, and the new container takes over. An uncaught error ends the
+ * process and Docker restarts it; either way the rooms come back from the
+ * `/data` volume.
  */
 
 /** How often a `relay.stats` line goes to the logs. */
@@ -15,7 +15,7 @@ const STATS_MS = 60_000
 
 const relay = await startRelay(configFrom(process.env))
 
-// The event loop's lateness is the frame timers' lateness: the number to watch on a small instance.
+// The event loop's lateness is the frame timers' lateness: the number to watch on a shared VPS.
 const loop = monitorEventLoopDelay({ resolution: 5 })
 loop.enable()
 let cpu = process.cpuUsage()

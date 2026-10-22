@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { RawData, WebSocket } from 'ws'
-import { CLOSE_CODES, LIMITS, parseClientMessage, type Auth, type CloseReason, type ServerMessage } from '../../../src/net/protocol'
+import { CLOSE_CODES, LIMITS, parseClientMessage, type Auth, type CloseReason, type ServerMessage, type VpsHome } from '../../../src/net/protocol'
 import { gen, randomCode, randomToken } from '../../src/codes'
 import { gzip } from '../../src/gzip'
 import {
@@ -26,7 +26,7 @@ import { createSchema, dumpJson, persist, readBound, readRoom, syncTexts, type S
 import { openRoomDb, roomCodes, type RoomDb, type Vault } from './db'
 
 /**
- * The rooms of the São Paulo relay: what the Durable Object (`roomObject.ts`)
+ * The rooms of a VPS relay: what the Durable Object (`roomObject.ts`)
  * does for one room, done here for every room in one process. Each room is
  * the same pure state machine (`room.ts`) with its own SQLite file, frame
  * timer (60 Hz while a run's clock runs, the same tick math) and alarm. A
@@ -61,6 +61,8 @@ type Shell = {
 }
 
 export type RoomsDeps = {
+  /** This relay's home: its room codes, and the rooms' `region`. */
+  home: VpsHome
   dataDir: string
   vault: Vault
   log: Log
@@ -251,13 +253,13 @@ export const createRooms = (deps: RoomsDeps) => {
   }
 
   /** Reserves a new room (`POST /rooms`): its code, or null when no free code turned up. */
-  const create = (build: string, region: string): string | null => {
+  const create = (build: string): string | null => {
     for (let i = 0; i < CREATE_TRIES; i++) {
-      const code = randomCode('sa')
+      const code = randomCode(deps.home)
       const existing = rooms.get(code)
       if (existing?.state.room) continue
       const shell = existing ?? shellFor(code, null, loadState(null, gen, now()))
-      const r = createRoom(shell.state, { code, build, region }, now())
+      const r = createRoom(shell.state, { code, build, region: `vps:${deps.home}` }, now())
       if (!r.ok) continue
       shell.db = openRoomDb(deps.dataDir, code)
       createSchema(shell.db.store.sql)

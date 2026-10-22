@@ -62,7 +62,7 @@ const createRoom = async (request: Request<unknown, IncomingRequestCfProperties>
   const hint = asked === 'auto' ? hintFor(request.cf) : asked
   const region: Region = hint ?? 'auto'
   for (let i = 0; i < CREATE_TRIES; i++) {
-    // Letters only: a code starting with a digit is the São Paulo relay's (`RELAY_HOMES`).
+    // Cloudflare's codes start with a letter: a digit names a VPS relay (`RELAY_HOMES`).
     const code = randomCode('cf')
     const stub = env.ROOMS.get(env.ROOMS.idFromName(code), hint ? { locationHint: hint } : undefined)
     if (await stub.create({ code, build, region })) return reply({ code, region })

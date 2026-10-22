@@ -4,7 +4,7 @@ import { DatabaseSync, type StatementSync } from 'node:sqlite'
 import { parseStored, type DumpInfo, type Lazy, type Sql, type Store } from '../../src/store'
 
 /**
- * SQLite on the instance's disk, through `node:sqlite` (synchronous: a write
+ * SQLite on the `/data` volume, through `node:sqlite` (synchronous: a write
  * is a few microseconds, so a room persists what it asks before it sends,
  * like the Durable Object). One file per room (`rooms/<CODE>.db`, its
  * table `kv` holding the room and the lazy keys, `store.ts`) and one for the
@@ -56,6 +56,29 @@ const lazyOf = (sql: Sql): Lazy => ({
 })
 
 const roomsDir = (dataDir: string) => join(dataDir, 'rooms')
+
+/**
+ * Makes this process the only one using `dataDir`: an exclusive SQLite lock
+ * on `relay.lock`, held until `release` or the process dying (the OS lets go
+ * then, `kill -9` included). A second container on the same volume (a deploy
+ * that starts the new one before the old one stops) waits here instead of
+ * loading rooms the other one is still running.
+ */
+export const lockDataDir = async (dataDir: string, onWait: () => void): Promise<{ release: () => void }> => {
+  mkdirSync(dataDir, { recursive: true })
+  for (let waited = false; ; waited = true) {
+    const db = new DatabaseSync(join(dataDir, 'relay.lock'))
+    try {
+      db.exec('PRAGMA locking_mode = EXCLUSIVE')
+      db.exec('BEGIN EXCLUSIVE')
+      return { release: () => db.close() }
+    } catch {
+      db.close()
+      if (!waited) onWait()
+      await new Promise((r) => setTimeout(r, 250))
+    }
+  }
+}
 
 /** The codes of the rooms on disk (each one's file). */
 export const roomCodes = (dataDir: string) => {

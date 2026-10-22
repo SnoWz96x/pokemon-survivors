@@ -1,6 +1,5 @@
-// Bundles the São Paulo relay into one file, dist/relay.mjs (ws included; node:sqlite is built in),
-// so a deploy ships a single artifact and the instance needs nothing but Node 24.
-// Prints the bundle's hash: deploys name the artifact by it, and /health shows it.
+// Bundles the VPS relay into one file, dist/relay.mjs (ws included; node:sqlite is built in),
+// so the image needs nothing but Node 24. Prints the bundle's hash: /health shows it as `version`.
 
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'

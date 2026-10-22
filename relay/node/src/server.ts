@@ -2,27 +2,27 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { WebSocketServer } from 'ws'
-import { LIMITS as WIRE, PROTOCOL, parseRoomCode, type CreateResponse } from '../../../src/net/protocol'
+import { LIMITS as WIRE, PROTOCOL, parseRoomCode, type CreateResponse, type Region, type VpsHome } from '../../../src/net/protocol'
 import { jwksKeys, verifyClerkToken } from '../../src/auth'
 import { parseCreate } from '../../src/codes'
 import { allowedOrigin } from '../../src/origins'
 import { RETENTION } from '../../src/store'
 import type { Config } from './config'
-import { openVault } from './db'
+import { lockDataDir, openVault } from './db'
 import { LIMITS, clientIp, createLimiter } from './limits'
 import { createRooms, type Log } from './rooms'
 
 /**
- * The São Paulo relay's HTTP server, the Worker's routes (`index.ts`) on Node:
+ * A VPS relay's HTTP server, the Worker's routes (`index.ts`) on Node:
  *
- * - `POST /rooms` `{ v, build, region? }` → `{ code, region: 'sam' }` (codes start with a digit, `RELAY_HOMES`)
+ * - `POST /rooms` `{ v, build, region? }` → `{ code, region }` (codes of this relay's home, `RELAY_HOMES`)
  * - `GET /rooms/<code>/ws` → WebSocket (first message: `hello`)
  * - `GET /health` → `{ ok, protocol, home, version }`
  * - `GET /admin/dumps`, `GET /admin/dumps/<id>` (gzipped JSON), `Authorization: Bearer <ADMIN_TOKEN>`
  */
 
-/** Where this relay's rooms say they live (the dumps' `region`). */
-const REGION = 'sa-east-1'
+/** The region each VPS relay answers `POST /rooms` with (the protocol's location names). */
+const REGION_OF = { sa: 'sam' } as const satisfies Record<VpsHome, Region>
 
 /** A `POST /rooms` body past this is refused unread. */
 const MAX_BODY = 2048
@@ -58,16 +58,18 @@ const readBody = (req: IncomingMessage) =>
 const refuseUpgrade = (socket: Duplex, status: number, text: string) =>
   socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)
 
-/** One JSON line per event, as the Workers logs (CloudWatch reads them from the instance). */
+/** One JSON line per event, as the Workers logs (Dokploy's Logs tab shows them). */
 export const jsonLog: Log = (ev, data = {}) => process.stdout.write(`${JSON.stringify({ ev, ...data })}\n`)
 
-/** Starts the relay: loads the rooms on disk, then listens. `close` is the graceful stop (a deploy). */
+/** Starts the relay: takes the data dir (waiting for any other relay on it to stop), loads its rooms, then listens. `close` is the graceful stop (a deploy). */
 export const startRelay = async (config: Config, log: Log = jsonLog) => {
+  const lock = await lockDataDir(config.dataDir, () => log('relay.waiting', { why: 'another relay holds the data dir' }))
   const vault = openVault(config.dataDir)
   vault.prune(Date.now(), RETENTION)
   const jwks = jwksKeys(`${config.clerkIssuer}/.well-known/jwks.json`)
   const origins = { ALLOWED_ORIGINS: config.allowedOrigins }
   const rooms = createRooms({
+    home: config.home,
     dataDir: config.dataDir,
     vault,
     log,
@@ -83,7 +85,7 @@ export const startRelay = async (config: Config, log: Log = jsonLog) => {
 
   const createLimit = createLimiter(LIMITS.create.limit, LIMITS.create.periodMs)
   const connectLimit = createLimiter(LIMITS.connect.limit, LIMITS.connect.periodMs)
-  const ipOf = (req: IncomingMessage) => clientIp(req.headers['cloudfront-viewer-address']?.toString(), req.socket.remoteAddress, config.trustProxy)
+  const ipOf = (req: IncomingMessage) => clientIp(req.headers, req.socket.remoteAddress, config.ipHeader)
 
   const json = (res: ServerResponse, body: unknown, status: number, headers: Record<string, string>) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers })
@@ -100,15 +102,15 @@ export const startRelay = async (config: Config, log: Log = jsonLog) => {
       res.writeHead(204, headers)
       return res.end()
     }
-    if (path === '/health' && req.method === 'GET') return json(res, { ok: true, protocol: PROTOCOL, home: 'sa', version: config.version }, 200, headers)
+    if (path === '/health' && req.method === 'GET') return json(res, { ok: true, protocol: PROTOCOL, home: config.home, version: config.version }, 200, headers)
     if (path === '/rooms' && req.method === 'POST') {
       const reply = (body: CreateResponse, status = 200) => json(res, body, status, headers)
       if (!createLimit.hit(ipOf(req), Date.now())) return reply({ error: 'rate' }, 429)
       const text = await readBody(req)
       const body = text === null ? ({ error: 'invalid', status: 400 } as const) : parseCreate(text)
       if ('error' in body) return reply({ error: body.error }, body.status)
-      const code = rooms.create(body.build, REGION)
-      return code ? reply({ code, region: 'sam' }) : reply({ error: 'busy' }, 503)
+      const code = rooms.create(body.build)
+      return code ? reply({ code, region: REGION_OF[config.home] }) : reply({ error: 'busy' }, 503)
     }
     if (/^\/rooms\/[^/]+\/ws$/.test(path)) return json(res, { error: 'Expected a WebSocket' }, 426, headers)
     if (path.startsWith('/admin/dumps') && req.method === 'GET') {
@@ -129,7 +131,7 @@ export const startRelay = async (config: Config, log: Log = jsonLog) => {
       if (!res.headersSent) json(res, { error: 'internal' }, 500, {})
     }),
   )
-  // Longer than CloudFront's origin keep-alive (60 s at most), so CloudFront always closes first.
+  // Longer than the proxy's keep-alive to us, so the proxy always closes an idle connection first.
   server.keepAliveTimeout = 65_000
   server.headersTimeout = 66_000
 
@@ -170,6 +172,7 @@ export const startRelay = async (config: Config, log: Log = jsonLog) => {
     await rooms.shutdown()
     wss.close()
     vault.close()
+    lock.release()
     server.closeAllConnections()
     log('relay.stopped', counts)
   }

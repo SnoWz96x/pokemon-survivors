@@ -82,68 +82,78 @@ JSON lines in Workers Logs (observability is on), one per event:
 
 Cloudflare has no Durable Objects in South America, so a Brazilian room runs in the US
 (116–140 ms away). `node/` runs the same room (`src/room.ts`, `src/store.ts`, `src/auth.ts`,
-`src/codes.ts`) on Node 24 in São Paulo (AWS sa-east-1), for rooms whose host is in South America.
-A room's code says its relay (`RELAY_HOMES` in the protocol): Cloudflare makes codes starting
-with a letter, São Paulo with a digit. The game (`src/coop/relays.ts`) creates on São Paulo
-when it answers within 70 ms and falls back to Cloudflare; without `VITE_COOP_URL_SA` every
-room is Cloudflare's.
+`src/codes.ts`) on Node 24 as a Docker image, on the VPS in São Paulo (Dokploy, next to the
+accounts API, ~9 ms from a Brazilian player), for rooms whose host is in South America.
 
-- One process, every room: one SQLite file per room (`node:sqlite`, WAL), a 60 Hz timer per
-  running room, the Worker's routes, origin checks, Clerk tokens, rate limits, the dump vault.
-- A deploy or a crash loses only sockets: SIGTERM closes them with 1012 (clients reconnect at
-  once and resume), and rooms load back from disk. A room whose step throws starts over from
-  its file without touching the others.
-- One `t4g.micro` behind CloudFront (TLS and a `wss://<id>.cloudfront.net` address, no domain;
-  only CloudFront reaches the instance). systemd restarts it, a timer restarts it when
-  `/health` hangs, EC2 alarms recover or reboot the machine, logs go to CloudWatch
-  (`/ps-relay/<stage>`, the same JSON lines as the Workers logs, plus `relay.stats` a minute).
+- **Routing:** a room's code says its relay (`RELAY_HOMES` in the protocol). Cloudflare makes
+  codes starting with a letter, São Paulo (`sa`) with 2 to 5; 6 to 9 are free for the next VPS
+  relay (one entry there, one in `RELAY_URLS` in `src/coopShell.ts`, one `VITE_COOP_URL_*`, and
+  this image with `RELAY_HOME`). The game (`src/coop/relays.ts`) creates on the nearest VPS
+  relay that answers within 70 ms and falls back to Cloudflare; a build without
+  `VITE_COOP_URL_SA` sends every room to Cloudflare.
+- **One process, every room:** one SQLite file per room (`node:sqlite`, WAL) on the `/data`
+  volume, a 60 Hz timer per running room, the Worker's routes, origin checks, Clerk tokens,
+  rate limits (by `X-Real-Ip` from Traefik) and the dump vault. An exclusive lock on
+  `/data/relay.lock` keeps a second container off the same rooms.
+- **A deploy or a crash loses only sockets:** SIGTERM closes them with 1012 (clients reconnect
+  at once and resume) and rooms load back from the volume. A room whose step throws starts
+  over from its file without touching the others. Logs are the Workers' JSON lines, plus
+  `relay.stats` a minute (rooms, sockets, event-loop lag, CPU, memory).
 
 ```bash
 cd node && npm ci
-npm test && npm run typecheck   # the Node shell (a restart test included)
-npm run typecheck:sst           # sst.config.ts (`sst install` needs no AWS account)
-npm run dev                     # :8795, guests on; the game: ps.coop('sa', 'http://localhost:8795')
+npm test && npm run typecheck   # the Node shell (restart, lock and rate-limit tests)
+npm run dev                     # :8795, guests on; the game: ps.coop('relay', 'sa', 'http://localhost:8795')
 node ../scripts/probe.mjs --url http://localhost:8795 --bots 3 --secs 40 --desync --rejoin
+docker build -f relay/node/Dockerfile -t ps-relay .   # from the repository root, as Dokploy does
 ```
 
 ### One-time setup (Pedro)
 
-Never use the client profiles on this Mac: the relay goes in a personal account.
-
-1. Make the personal AWS account and a profile for it (`aws configure sso --profile ps-personal`,
-   region `sa-east-1`). Check it: `aws sts get-caller-identity --profile ps-personal` shows the
-   personal account. A budget alert at US$ 25 in Billing is a good idea.
-2. `cd relay/node && npm ci && npx sst install`.
-3. The admin token (for `/admin/dumps`):
-   `openssl rand -base64 32 > ~/.config/ps-coop/sa-admin-token && chmod 600 ~/.config/ps-coop/sa-admin-token`, then
-   `AWS_PROFILE=ps-personal npx sst secret set AdminToken "$(cat ~/.config/ps-coop/sa-admin-token)" --stage production`.
-4. Deploy: `AWS_PROFILE=ps-personal npx sst deploy --stage production`. The first one bootstraps
-   SST's state in the account and waits for CloudFront (10–15 min); it prints `url`. Every deploy
-   ends only when the instance answers `/health` with the new bundle's `version`.
-5. Ship the Cloudflare relay's code change (`npm run deploy:prod` here: its codes now always start
+1. **DNS** (GoDaddy, `ns23`/`ns24.domaincontrol.com`): an `A` record, name `coop-sa`, value
+   `72.60.58.225` (the VPS, like `api`), TTL 600. Check: `dig +short coop-sa.pokemonsurvivors.com`.
+2. **Dokploy**, project **Pokémon Survivors**, a new application `coop-sa`:
+   - Source: this GitHub repository, branch `main`. Build type **Dockerfile**, Dockerfile
+     `relay/node/Dockerfile`, build context `.` (the repository root).
+   - Auto deploy on, with watch paths `relay/src/**`, `relay/node/**` and `src/net/protocol.ts`
+     (all the image bundles: game deploys never restart it).
+   - **Volume** (Advanced → Mounts): a volume mount, name `ps-relay-sa-data`, mount path `/data`.
+     Without it every deploy loses the rooms in play.
+   - **Rollout: stop-first** (Advanced → Swarm → Update config, `Order: stop-first`, Swarm's
+     default; not the API's start-first). Two relays can't share the rooms: a new container
+     started first would wait on the lock, never get healthy, and roll back.
+   - **Environment:**
+     ```
+     RELAY_HOME=sa
+     ALLOWED_ORIGINS=https://www.pokemonsurvivors.com,https://pokemonsurvivors.com
+     ALLOW_GUESTS=off
+     ADMIN_TOKEN=<openssl rand -base64 32, kept in ~/.config/ps-coop/sa-admin-token, mode 600>
+     ```
+     (`CLERK_ISSUER` defaults to `https://clerk.pokemonsurvivors.com`; `PORT`, `DATA_DIR` and
+     `IP_HEADER=x-real-ip` come from the image.)
+   - **Domain:** host `coop-sa.pokemonsurvivors.com`, path `/`, container port `8080`, HTTPS on,
+     certificate Let's Encrypt.
+3. Deploy, then check: `curl https://coop-sa.pokemonsurvivors.com/health` answers
+   `{"ok":true,"home":"sa","version":…}`. To soak it, deploy a second app with
+   `ALLOW_GUESTS=on` (or set it for a while) and run the probe with `--url https://coop-sa.pokemonsurvivors.com`:
+   it must keep its sockets well past a minute (Traefik's timeouts) and end with every check green.
+4. Ship the Cloudflare relay's code change (`npm run deploy:prod` here: its codes now always start
    with a letter) and wait 6 h, a room's longest life, so no live Cloudflare room has a digit code.
-6. Vercel: `VITE_COOP_URL_SA=<url>` in Production (and Preview, pointing at a `--stage dev` deploy
-   if wanted: that stage seats guests and takes `*.vercel.app`), then redeploy the site.
+5. Vercel: `VITE_COOP_URL_SA=https://coop-sa.pokemonsurvivors.com` in Production, then redeploy the site.
 
-No DNS record, certificate or Clerk change is needed.
+No Clerk change is needed: the issuer is the same, and a token's `azp` is checked against `ALLOWED_ORIGINS`.
 
 ### Running it
 
-```bash
-export AWS_PROFILE=ps-personal
-npx sst deploy --stage production                       # a new bundle: ~1 s of reconnect for live rooms
-aws logs tail /ps-relay/production --follow             # JSON lines
-aws ssm start-session --target <instance>               # a shell (no SSH)
-curl -s -H "Authorization: Bearer $(cat ~/.config/ps-coop/sa-admin-token)" <url>/admin/dumps
-```
-
-Rollback: deploy the older commit, or on the instance `ln -sfn /opt/ps-relay/relay-<old>.mjs
-/opt/ps-relay/relay.mjs && systemctl restart ps-relay` (the last 5 bundles stay).
-
-Costs a month in sa-east-1: the instance US$ 9.78, its public IPv4 US$ 3.65, 8 GB gp3 ~US$ 1.20,
-logs and alarms under US$ 1, CloudFront within its free tier (1 TB, 10M requests): **~US$ 16**.
-A 4-player room takes ~1.5% of a core; past ~8 busy rooms at once the burstable CPU spends credits
-(unlimited mode bills the surplus), and `t4g.small` (US$ 19.56) doubles the baseline.
+- **Deploy:** a push to `main` touching the watch paths, or Deploy in Dokploy. The old container
+  stops (1012 to every socket), the new one loads the rooms from the volume: players freeze for
+  about a second and resume.
+- **Rollback:** Dokploy's Deployments tab, redeploy the previous one (the volume stays).
+- **Logs:** the app's Logs tab in Dokploy (JSON lines: `run.*`, `seat.*`, `room.*`, `relay.stats`).
+- **Dumps:** `curl -s -H "Authorization: Bearer $(cat ~/.config/ps-coop/sa-admin-token)" https://coop-sa.pokemonsurvivors.com/admin/dumps`
+  (then `/admin/dumps/<id> | gunzip > dump.json`).
+- **Costs:** nothing extra; it shares the VPS. A 4-player room takes ~1–1.5% of a core and
+  ~1 MB of memory past the process's ~80 MB.
 
 ## Limits and costs
 
