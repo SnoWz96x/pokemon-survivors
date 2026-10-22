@@ -134,15 +134,15 @@ export type LogLine = Record<string, unknown> & { ev: string }
 
 export const connOpened = (t: Telemetry, id: ConnId, edge: Edge, now: number, code: string | null): LogLine => {
   t.conns.set(id, { edge, openedAt: now, seat: null })
-  return { ev: 'conn.open', code, conn: id.slice(0, 8), ...edge }
+  return { ev: 'conn.open', code: code ?? t.room?.code ?? null, conn: id.slice(0, 8), ...edge }
 }
 
-/** A socket went (`closeCode`/`reason` from the peer, or the relay's own reason); null when it was already logged. */
+/** A socket went (`closeCode`/`reason` from the peer, or the relay's own reason); null when it was already logged. `code`: the room's, else the last one seen (gone with a wipe). */
 export const connClosed = (t: Telemetry, id: ConnId, now: number, code: string | null, how: { closeCode: number | null; reason: string }): LogLine | null => {
   const meta = t.conns.get(id)
   if (!meta) return null
   t.conns.delete(id)
-  return { ev: 'conn.close', code, conn: id.slice(0, 8), seat: meta.seat, ...how, ms: now - meta.openedAt, colo: meta.edge.colo, country: meta.edge.country }
+  return { ev: 'conn.close', code: code ?? t.room?.code ?? null, conn: id.slice(0, 8), seat: meta.seat, ...how, ms: now - meta.openedAt, colo: meta.edge.colo, country: meta.edge.country }
 }
 
 /** What `welcome` tells a socket about where things run. */
@@ -221,7 +221,7 @@ export const labScore = (r: Pick<RunTally, 'reports' | 'edges'>) => {
 /** A finished (or dropped) run to keep for the lab: the Durable Object reads its log and offers it to the vault. */
 export type LabRun = { room: Room; run: number; tick: number; score: number; why: string; seats: Record<number, { edge: Edge | null; report: Report | null }> }
 
-const summary = (t: Telemetry, r: RunTally, room: Room | null, now: number, why: string): LogLine => {
+const summary = (t: Telemetry, r: RunTally, room: Room | null, now: number, why: string, final: boolean): LogLine => {
   closeSnap(r)
   const run = room?.run
   const seats = [...new Set([...Object.keys(r.edges), ...Object.keys(r.reports)].map(Number))].map((seat) => ({
@@ -240,6 +240,7 @@ const summary = (t: Telemetry, r: RunTally, room: Room | null, now: number, why:
     code: room?.code ?? null,
     run: r.run,
     why,
+    final,
     colo: t.where?.colo ?? null,
     region: room?.region ?? null,
     ticks: run?.ended?.tick ?? run?.next ?? null,
@@ -266,8 +267,11 @@ const summary = (t: Telemetry, r: RunTally, room: Room | null, now: number, why:
 /**
  * The room's effects of one batch, before they are applied (`room` as the
  * room is now, null once wiped): counts frames, writes and snapshots, follows
- * the run's start and end, and returns the log lines to print and, when a run
- * ends or is dropped with its room, the run to keep for the lab.
+ * the run's start and end, and returns the log lines to print and the run to
+ * offer the lab. A run is summed up and offered when it ends, when its room
+ * goes, and also when everyone left it (`run.paused`, `empty`; not final:
+ * an idle room's object is usually evicted before it expires, and its counts
+ * with it). Players coming back make it go on, and its end offers it again.
  */
 export const noteEffects = (t: Telemetry, room: Room | null, effects: readonly Effect[], now: number): { logs: LogLine[]; lab: LabRun | null } => {
   const last = room ?? t.room
@@ -278,25 +282,31 @@ export const noteEffects = (t: Telemetry, room: Room | null, effects: readonly E
   let frame: unknown = null
   // A batch that starts a run counts from its `run.started` (its effects before that already see the run on).
   const starting = effects.some((e) => e.k === 'event' && e.ev === 'run.started')
-  /** Sums up the run being counted (`why` it stopped) and, if it ran long enough, offers it to the lab. */
-  const finish = (why: string): LabRun | null => {
+  /**
+   * Sums up the run being counted (`why`; `final`: it stopped) and, if it ran long enough, offers it to the
+   * lab: not a tally that only saw the end of a run its restart had already left (it was offered before).
+   */
+  const sumUp = (why: string, final = true): LabRun | null => {
     const r = t.run
-    t.run = null
+    if (final) t.run = null
     if (!r || !last?.run || last.run.start.id !== r.run) return null
-    logs.push(summary(t, r, last, now, why))
+    logs.push(summary(t, r, last, now, why, final))
     const tick = last.run.ended?.tick ?? last.run.next
-    if (tick < LAB_MIN_TICKS) return null
+    if (tick < LAB_MIN_TICKS || (r.restarted && r.frames === 0)) return null
     const seats = Object.fromEntries(last.run.start.players.map((p) => [p.seat, { edge: r.edges[p.seat] ?? null, report: r.reports[p.seat] ?? null }] as const))
     return { room: last, run: r.run, tick, score: labScore(r), why, seats }
   }
   for (const e of effects) {
     if (e.k === 'event') {
       if (e.ev === 'run.started') {
-        lab = finish('replaced') ?? lab
+        lab = sumUp('replaced') ?? lab
         t.run = newTally(t, Number(e.data.run), now, false)
-      } else if (e.ev === 'run.over') lab = finish('over') ?? lab
-      else if (e.ev === 'room.ended') lab = finish(String(e.data.why)) ?? lab
-      else if (e.ev === 'run.paused' && t.run) t.run.pauses++
+      } else if (e.ev === 'run.over') lab = sumUp('over') ?? lab
+      else if (e.ev === 'room.ended') lab = sumUp(String(e.data.why)) ?? lab
+      else if (e.ev === 'run.paused' && t.run) {
+        t.run.pauses++
+        if (e.data.why === 'empty') lab = sumUp('left', false) ?? lab
+      }
       continue
     }
     if (e.k === 'send' && e.msg.t === 'welcome') {

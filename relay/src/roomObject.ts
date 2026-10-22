@@ -443,7 +443,8 @@ export class RoomObject extends DurableObject<Env> {
     }
     const body = `{"meta":${JSON.stringify(meta)},"log":[${rows.map(([t, v]) => `[${t},${v}]`).join(',')}],"hashes":[${hashes.map(([t, v]) => `[${t},${v}]`).join(',')}]}`
     const bytes = await gzip(body)
-    const id = `${room.code}-${e.run}-${e.tick}-${e.reason === 'run' ? 'run-' : ''}${randomToken(3)}`
+    // A kept run has one id (offered again as it goes on, the newer replaces it); a dump one per divergence.
+    const id = e.reason === 'run' ? `${room.code}-${e.run}-run-${room.createdAt.toString(36)}` : `${room.code}-${e.run}-${e.tick}-${randomToken(3)}`
     await vault.put({ id, code: room.code, run: e.run, tick: e.tick, at, size: bytes.byteLength, kind: e.reason, score: lab?.score ?? 0 }, bytes)
     log({ ev: 'dump.saved', id, kind: e.reason, bytes: bytes.byteLength, logTicks: rows.length })
   }

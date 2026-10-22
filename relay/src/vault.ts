@@ -51,6 +51,8 @@ export class Vault extends DurableObject<Env> {
       'INSERT OR REPLACE INTO dumps (id, code, run, tick, at, size, kind, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       info.id, info.code, info.run, info.tick, info.at, info.size, info.kind, info.score,
     )
+    // A dump put again (a kept run offered again) replaces all its parts.
+    sql.exec('DELETE FROM parts WHERE id = ?', info.id)
     for (let i = 0; i * PART_BYTES < bytes.byteLength; i++) {
       sql.exec('INSERT OR REPLACE INTO parts (id, part, data) VALUES (?, ?, ?)', info.id, i, bytes.slice(i * PART_BYTES, (i + 1) * PART_BYTES).buffer)
     }

@@ -31,5 +31,8 @@ describe('vault', () => {
     expect(kept.map((d) => d.id)).toEqual(expect.arrayContaining(['laggy', 'desync']))
     expect(kept.map((d) => d.id)).not.toContain('r0')
     expect(await vault.get('r0')).toBeNull()
+    // Offered again as it went on: the newer log replaces it whole.
+    await vault.put({ id: 'laggy', code: 'ABCDE', run: 1, tick: 7200, at: now, size: 2, kind: 'run', score: 500 }, new Uint8Array([7, 8]))
+    expect(await vault.get('laggy')).toEqual(new Uint8Array([7, 8]))
   })
 })

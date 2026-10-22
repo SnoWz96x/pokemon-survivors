@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PROTOCOL, TICK_HZ, type ClientMessage } from '../../src/net/protocol'
-import { TIMES, connect, createRoom, hello, loadState, message, tick, type Effect } from '../src/room'
+import { TIMES, connect, createRoom, disconnect, hello, loadState, message, tick, type Effect } from '../src/room'
 import { LAB_MIN_TICKS, connOpened, createTelemetry, labScore, noteEffects, noteInbound, parseTrace, welcomeNet, type LabRun, type LogLine } from '../src/telemetry'
 
 const T0 = 1_000_000
@@ -64,7 +64,7 @@ describe('telemetry', () => {
     d.say('c0', { t: 'over', tick: LAB_MIN_TICKS, h: 'end' }, end)
     d.say('c1', { t: 'over', tick: LAB_MIN_TICKS, h: 'end' }, end + 1)
     const summary = d.logs.find((l) => l.ev === 'run.summary')
-    expect(summary).toMatchObject({ code: 'ABCDE', run: 1, why: 'over', colo: 'MIA', region: 'enam', ticks: LAB_MIN_TICKS, frames: LAB_MIN_TICKS, multiTick: 0 })
+    expect(summary).toMatchObject({ code: 'ABCDE', run: 1, why: 'over', final: true, colo: 'MIA', region: 'enam', ticks: LAB_MIN_TICKS, frames: LAB_MIN_TICKS, multiTick: 0 })
     expect(summary).toMatchObject({ moveIn: LAB_MIN_TICKS, moveOut: LAB_MIN_TICKS / 2, coalesced: LAB_MIN_TICKS / 2, dropped: 0 })
     // A batch counts once, and each message it carries by its kind.
     expect(summary?.inbound).toMatchObject({ batch: LAB_MIN_TICKS / 2, in: LAB_MIN_TICKS })
@@ -85,6 +85,16 @@ describe('telemetry', () => {
     expect(d.state.room).toBeNull()
     expect(d.logs.filter((l) => l.ev === 'run.summary')).toEqual([expect.objectContaining({ run: 1, why: 'empty', ticks: 120 })])
     expect(d.labs).toEqual([])
+  })
+
+  it('sums up and offers a run everyone dropped out of, which goes on counting', () => {
+    const d = drive()
+    const end = d.play(0, LAB_MIN_TICKS)
+    d.apply(disconnect(d.state, 'c0', end), end)
+    d.apply(disconnect(d.state, 'c1', end), end)
+    expect(d.logs).toEqual([expect.objectContaining({ ev: 'run.summary', why: 'left', final: false, ticks: LAB_MIN_TICKS })])
+    expect(d.labs).toEqual([expect.objectContaining({ why: 'left', tick: LAB_MIN_TICKS })])
+    expect(d.t.run).not.toBeNull()
   })
 
   it('tells a welcome where the room runs and where its socket meets Cloudflare', () => {

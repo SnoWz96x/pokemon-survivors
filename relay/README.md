@@ -72,11 +72,11 @@ JSON lines in Workers Logs (observability is on), one per event:
 
 - `do.boot`: a room's object started (`colo` and `loc` where it runs, from Cloudflare's trace asked once per isolate; the run and tick it resumes at).
 - `conn.open` / `conn.close`: a socket, with where it meets Cloudflare (`colo`, `country`, `asn`, `rtt`: the edge's TCP round trip, set by the Worker in `X-PS-Edge`), and at close its code or the relay's reason and how long it lived.
-- `run.summary`: once per run, at its end or when its room goes (`why`): frames sent and those carrying more than a tick, the frame timer's lateness (p50, p99, max ms), messages in by kind, stick inputs coalesced and messages dropped, bytes per seat, storage writes by kind, snapshot sizes, pauses, and per seat its edge, how many times it joined, and its own link report (`net`: round trip, hold, underruns, stalls, reconnects, sent every 15 s).
+- `run.summary`: at a run's end or when its room goes (`why`, `final`), and also when everyone left it (`why: 'left'`, `final: false`: an idle room's object is usually evicted before it expires, and its counts with it): frames sent and those carrying more than a tick, the frame timer's lateness (p50, p99, max ms), messages in by kind, stick inputs coalesced and messages dropped, bytes per seat, storage writes by kind, snapshot sizes, pauses, and per seat its edge, how many times it joined, and its own link report (`net`: round trip, hold, underruns, stalls, reconnects, sent every 15 s).
 
 `welcome` also says where the room runs (`net`: `colo`, `region`, the socket's `edge` and `edgeRtt`), for the client's own `coop_net` event.
 
-**Kept runs.** A run that lasted a minute or more is offered to the vault when it ends or is dropped with its room: its input log, as a dump (`kind: 'run'`, `meta.why`, `meta.net` per seat, `score`), so a laggy run can be replayed in the lab. At most 20 a UTC day, the laggiest win (`score`: the worst seat's round trip p95, plus 20 per underrun and 50 per reconnect), kept 14 days. `/admin/dumps` lists them with the rest (`kind`, `score`).
+**Kept runs.** A run that lasted a minute or more is offered to the vault when it is summed up (above): its input log, as a dump (`kind: 'run'`, `meta.why`, `meta.net` per seat, `score`; one id per run, so an offer made when everyone left is replaced if the run goes on), so a laggy run can be replayed in the lab. At most 20 a UTC day, the laggiest win (`score`: the worst seat's round trip p95, plus 20 per underrun and 50 per reconnect), kept 14 days. `/admin/dumps` lists them with the rest (`kind`, `score`).
 
 ## Limits and costs
 
