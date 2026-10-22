@@ -157,20 +157,21 @@ describe('clock', () => {
     expect([...out, ...second].some((e) => e.k === 'save')).toBe(false)
   })
 
-  it('writes the clock bound far ahead, again once it runs short, with the log batch', () => {
+  it('writes the clock bound ahead with every batch, never letting a frame out within BOUND_REFRESH of it', () => {
     const { state, t0 } = playing()
     expect(roomOf(state).run?.bound).toBe(BOUND_AHEAD)
     const bounds: [number, number][] = []
+    let closest = Infinity
     for (let t = t0; t <= t0 + 13_000; t += 17) {
       alive(state, 2, t)
       for (const e of tick(state, t)) if (e.k === 'log') bounds.push([e.at, e.bound])
+      const run = roomOf(state).run
+      if (run) closest = Math.min(closest, run.bound - run.next)
     }
-    // No input: a batch only when the bound runs short, each one far past every tick sent.
-    expect(bounds.length).toBe(2)
-    for (const [at, bound] of bounds) {
-      expect(bound - at).toBe(BOUND_AHEAD)
-      expect(at).toBeGreaterThan(BOUND_AHEAD - BOUND_REFRESH)
-    }
+    // No input: a batch only to move the bound, each one `BOUND_AHEAD` past the ticks sent.
+    expect(bounds.length).toBeGreaterThanOrEqual(10)
+    for (const [at, bound] of bounds) expect(bound - at).toBe(BOUND_AHEAD)
+    expect(closest).toBeGreaterThanOrEqual(BOUND_REFRESH)
   })
 
   it('writes the log before a sync reads it back', () => {

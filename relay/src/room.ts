@@ -60,12 +60,16 @@ export const TIMES = {
 } as const
 
 /**
- * Ticks the persisted clock bound is written ahead of the last frame sent,
- * again once fewer than `BOUND_REFRESH` remain: a bound write lost in a crash
- * still leaves the one before it seconds ahead of any tick that went out.
+ * The persisted clock bound: written `BOUND_AHEAD` ticks past the last frame
+ * sent, again at each second's batch that would otherwise let fewer than
+ * `BOUND_REFRESH` remain before the next one (in practice every second). So a
+ * frame never goes out within 2 s of the bound, and a batch lost in a crash
+ * (its commit not done 2 s on; the worst measured took 1.1 s) still leaves the
+ * one before it past every tick sent. The price: a restarted room resumes
+ * 2 to 3 s ahead of where its clients are, ticks they play without input.
  */
-export const BOUND_AHEAD = 10 * TICK_HZ
-export const BOUND_REFRESH = 5 * TICK_HZ
+export const BOUND_AHEAD = 3 * TICK_HZ
+export const BOUND_REFRESH = 2 * TICK_HZ
 
 /** The log goes to storage in batches, one per this many ticks of the clock (a second). */
 export const LOG_BATCH = TICK_HZ
@@ -886,9 +890,9 @@ const emit = (state: State, run: Run, now: number): Effect[] => {
   state.live.pending = []
   run.next = due
   if (entries.length > 0) state.live.unlogged.ticks.push([from, entries])
-  // Checked once a second, so the bound rides on that second's batch (at least `BOUND_REFRESH - LOG_BATCH` ticks stay ahead).
+  // Checked once a second, so the bound rides on that second's batch, early enough that `BOUND_REFRESH` ticks stay ahead until the next.
   const second = Math.floor(due / LOG_BATCH) !== Math.floor(from / LOG_BATCH)
-  const short = second && run.bound - due < BOUND_REFRESH
+  const short = second && run.bound - due < BOUND_REFRESH + LOG_BATCH
   if (short) run.bound = due + BOUND_AHEAD
   const out = second ? flush(state, run, short) : []
   out.push(...toSeated(state, { t: 'frame', from, to: due, ticks: entries.length > 0 ? [[from, entries]] : [] }))

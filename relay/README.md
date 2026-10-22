@@ -14,10 +14,12 @@ output gate holds every message until it commits. The input log, decided
 hashes, clock bound and snapshot chunks are written with `allowUnconfirmed`
 (KV keys; `sql.exec` always takes the gate), so frames and pongs never wait on
 a commit. A crash can lose the newest second of log: the clock bound, written
-10 s ahead, keeps the restarted room from sending a tick twice, the clients
-resume from their own state, and the hash check heals anyone who rebuilt
-without it. The cost: after a restart the clock resumes at the bound, so the
-players get 4 to 10 s of ticks without their input.
+3 s ahead with every batch (never under 2 s, so a lost batch is covered while
+its commit takes under 2 s; the worst measured took 1.1 s), keeps the
+restarted room from sending a tick twice, the clients resume from their own
+state, and the hash check heals anyone who rebuilt without it. The cost: after
+a restart the clock resumes at the bound, so the players get 2 to 3 s of ticks
+without their input.
 
 - `src/room.ts`: the room as a pure state machine (all the rules, tested in `test/room.test.ts`).
 - `src/roomObject.ts`: the Durable Object, a thin shell doing the storage, sockets and timers the room asks for.
