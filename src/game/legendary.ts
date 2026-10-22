@@ -1,5 +1,5 @@
 import { dirTo, fromAngle } from '../engine/math'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { updateLegendary2 } from './legendary2'
 import { LEAF, WHIRL } from './legendaryMoves'
 import { moveStats, type MoveId } from './moves'
@@ -70,7 +70,7 @@ export const updateLegendary = (g: Game) => {
     if (a.age < 0 || a.move === 'special' || a.move === 'ability' || !ownAttack(g, a)) continue
     // The big impacts shake the screen the moment they land.
     if ((a.visual === 'ascentImpact' || a.visual === 'timeSnap' || a.visual === 'boostBurst') && a.memo === 0) {
-      g.shake = Math.max(g.shake, a.visual === 'boostBurst' ? 1.5 : 3)
+      shakeScreen(g, a.visual === 'boostBurst' ? 1.5 : 3)
       a.memo = 1
       continue
     }

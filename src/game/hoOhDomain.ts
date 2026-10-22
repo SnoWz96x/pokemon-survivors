@@ -3,7 +3,7 @@ import { HO_OH_DOMAIN } from '../data/domains/hoOh'
 import { spawnHazard } from './bosses'
 import type { DomainHooks } from './domainHooks'
 import { anchorPlayer } from './players'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 
 /**
  * Ho-Oh's hooks: in the burning Bell Tower, beams fall from the ceiling on
@@ -53,7 +53,7 @@ export const HO_OH_HOOKS: DomainHooks = {
     boss.hp = 1
     burst(g, boss.x, boss.y - boss.radius, { colors: ['#f83018', '#f8a020', '#fff0a0', '#ffffff'], count: 120, speed: 240, ttl: 0.9, size: 2, gravity: -60 })
     g.flash = Math.max(g.flash, 0.8)
-    g.shake = Math.max(g.shake, 12)
+    shakeScreen(g, 12, 'team')
     g.events.push({ kind: 'quake' })
   },
   battle: (g, _d, boss) => {

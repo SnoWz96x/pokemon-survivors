@@ -1,7 +1,7 @@
 import { weightedPick } from '../engine/rng'
 import { ENEMIES } from '../data/enemies'
 import { stageIndexAt } from '../data/waves'
-import { burst } from './effects'
+import { burst, setScreenShake } from './effects'
 import { ENDLESS, endlessEventSize, REAPER, reaperDue, reaperHp, reaperSpeed, startEndless, type EndlessState } from './endless'
 import { runMods } from './legend'
 import { blastHorde, spawnEnemy } from './enemies'
@@ -36,7 +36,7 @@ const summonReaper = (g: Game, s: EndlessState) => {
   g.bossId = reaper.id
   blastHorde(g, 320)
   g.flash = 1
-  g.shake = 12
+  setScreenShake(g, 12, 'team')
   g.events.push({ kind: 'reaper', defeats: s.reaperDefeats })
   legendEntrance(g, reaper)
 }

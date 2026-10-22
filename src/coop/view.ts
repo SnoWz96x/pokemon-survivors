@@ -1,5 +1,6 @@
 import { setLocalSlot } from '../game/players'
 import type { Attack, Enemy, Game, Player } from '../game/types'
+import type { GhostLook } from './predict'
 import type { Runner } from './runner'
 
 /**
@@ -54,9 +55,11 @@ const glued = (a: Attack) => a.motion.kind === 'follow' || a.motion.kind === 'or
 /**
  * Refreshes the draw view from the runner's game: `me` is where this player
  * is drawn, `view` the canvas size (world px), `alpha` how far real time is
- * past the last tick (0..1). Returns the game copy to draw and show.
+ * past the last tick (0..1), `look` the predicted player's facing and
+ * special (`Prediction.look`), so a turn or a press shows at once. Returns
+ * the game copy to draw and show.
  */
-export const updateDrawView = (dv: DrawView, r: Runner, me: { x: number; y: number }, view: { w: number; h: number }, alpha: number): Game => {
+export const updateDrawView = (dv: DrawView, r: Runner, me: { x: number; y: number }, view: { w: number; h: number }, alpha: number, look: GhostLook | null = null): Game => {
   const g = r.game
   const k = Math.max(0, Math.min(1, alpha))
   const before = r.before
@@ -68,6 +71,7 @@ export const updateDrawView = (dv: DrawView, r: Runner, me: { x: number; y: numb
     if (i === r.slot) {
       copy.x = me.x
       copy.y = me.y
+      if (look) Object.assign(copy, look)
     } else {
       const b = before.players[i]
       if (b && (p.x - b.x) ** 2 + (p.y - b.y) ** 2 < FAR) {

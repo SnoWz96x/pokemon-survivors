@@ -28,11 +28,12 @@ import {
 import type { BranchId } from '../../src/data/branches'
 import type { PlayableId } from '../../src/data/hatchlings'
 import { RIBBON_TIERS, type RibbonTier } from '../../src/game/ribbons'
-import { TICK, type Replay } from '../../src/game/replay'
+import { RULES_VERSION, TICK, type Replay } from '../../src/game/replay'
 import { parseBagItems } from '../../src/game/bag'
 import { boardListed, commitLag, sameSegment, settleReport, STREAM, streamedInTime, type ReplayChunk } from '../../src/game/replayStream'
 import { supporterTier } from '../../src/game/supporters'
 import type { Sql } from './db'
+import type { TokenRules } from './rulesGrace'
 
 /** Which board: a mode (regular or Legend), a difficulty and a period, optionally one Pokémon or only the friends of `viewer`. */
 export type BoardQuery = { mode: RunMode; difficulty: Difficulty; period: BoardPeriod; starter: PlayableId | null; friends: boolean; viewer: string | null }
@@ -179,6 +180,8 @@ export const rankingStore = (sql: Sql, { streamEnforce = false }: { streamEnforc
      * unfinished tokens of the same kind (regular or challenge) are replaced,
      * so nobody holds two seeds to pick from; replaced rows still count for the
      * rate limit. Old tokens that never finished are dropped on the way.
+     * The token is pinned to this API's `RULES_VERSION` (`runs.rules`), so the
+     * next API can take its run on these rules if it straddles a deploy (`rulesGrace.ts`).
      */
     startRun: async (userId: string, challenge: DayKey | null = null) => {
       await touchUser(userId)
@@ -193,9 +196,18 @@ export const rankingStore = (sql: Sql, { streamEnforce = false }: { streamEnforc
           update runs set replaced_at = now()
           where user_id = ${userId} and finished_at is null and replaced_at is null and (challenge is null) = ${challenge === null}`
         const seed = challenge ? dailyChallenge(challenge).seed : randomInt(0, RANKED.seedSpan)
-        const [row] = await tx<{ id: string }[]>`insert into runs (user_id, challenge, seed) values (${userId}, ${challenge}::date, ${seed}) returning id`
+        const [row] = await tx<{ id: string }[]>`
+          insert into runs (user_id, challenge, seed, rules) values (${userId}, ${challenge}::date, ${seed}, ${RULES_VERSION}) returning id`
         return { token: row!.id, seed }
       })
+    },
+
+    /** The rules the API pinned on the player's token as it dealt it, and the token's age in seconds; null for no such token. */
+    tokenRules: async (userId: string, token: string): Promise<TokenRules | null> => {
+      if (!UUID.test(token)) return null
+      const [row] = await sql<TokenRules[]>`
+        select rules, extract(epoch from now() - issued_at)::float8 as age from runs where id = ${token} and user_id = ${userId}`
+      return row ?? null
     },
 
     /**

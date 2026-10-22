@@ -33,6 +33,7 @@ import type { FriendStore } from './friends'
 import type { GiftStore } from './gifts'
 import type { ModerationStore } from './moderation'
 import type { RankingStore } from './ranking'
+import { rulesVerdict } from './rulesGrace'
 import type { SupporterStore } from './supporters'
 import { SUGGESTION_ID, type SuggestionStore } from './suggestions'
 import { abacateDonation, ABACATE_REF, stripeDonation, verifyAbacate, verifyStandard, verifyStripe } from './webhooks'
@@ -304,12 +305,15 @@ export const createApp = ({ store, ranking, friends, gifts, checks, verify, dona
     if (!replay || replay.start.starter !== result.starter || replay.start.difficulty !== result.difficulty) {
       return c.json({ error: 'replay of another run' }, 400)
     }
-    const standing = rulesStanding(replay.rules)
-    if (standing === 'older') return c.json({ error: 'outdated' }, 400)
-    if (standing === 'newer') return c.json({ error: 'api behind' }, 503)
+    // Older rules count only on a token pinned to them, within the grace window: a run that straddled a rules deploy.
     const token = c.req.param('token')
+    const pinned = rulesStanding(replay.rules) === 'older' ? await ranking.tokenRules(c.var.userId, token) : null
+    const verdict = rulesVerdict(replay.rules, pinned)
+    if (verdict === 'outdated') return c.json({ error: 'outdated' }, 400)
+    if (verdict === 'behind') return c.json({ error: 'api behind' }, 503)
     const finished = await ranking.finishRun(c.var.userId, token, result, replay)
     if (!finished.ok) return c.json({ error: finished.error }, FINISH_ERRORS[finished.error])
+    if (verdict === 'grace') console.log(`run ${token}: taken under the previous rules (${replay.rules})`)
     checks.schedule(token)
     void gifts.credit(c.var.userId).catch((err) => console.error('invite credit failed', err))
     const [ranks, challenge] = await Promise.all([

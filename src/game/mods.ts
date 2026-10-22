@@ -1,7 +1,7 @@
 import { TAU } from '../engine/math'
 import { range } from '../engine/rng'
 import { TYPE_COLORS } from '../data/types'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { chainTargets } from './moveRules'
 import { bonusApplies, type DamageBonus } from './kitRules'
 import { spawnAttack } from './spawn'
@@ -315,7 +315,7 @@ export const modKill = (g: Game, e: Enemy, a: Attack) => {
     damage: a.damage * MOD.burstOnKill.damage, knockback: 60, status: a.status,
     ttl: MOD.burstOnKill.ttl, activeUntil: 0.05, hits: new Map([[e.id, Infinity]]), mod: null,
   })
-  g.shake = Math.max(g.shake, 1.5)
+  shakeScreen(g, 1.5)
 }
 
 /** Drops a patch of lingering ground at the hitbox. */

@@ -2,7 +2,7 @@ import { dirTo, fromAngle } from '../engine/math'
 import { chance, range } from '../engine/rng'
 import * as dm from '../engine/dmath'
 import { damageEnemy } from './combat'
-import { burst, floatText } from './effects'
+import { burst, floatText, shakeScreen } from './effects'
 import {
   ACCEL, ACE_REACH, BALL_LOB, bestLine, BRAVE, BUBBLE_SPREAD, COTTON, crossCrit, CROSS_CRIT_MULT, FALL_GAP, FALL_RISE, FALL_STEP,
   lastResortMult, nearSegment, recoilCost, RESORT_NEED, RESORT_WINDUP, ROCK_GAP, ROUGH, SPORE_R, waterfallMult, weatherBallForm, WILD, ZAP,
@@ -320,7 +320,7 @@ export const EGG_MOVES_2 = {
     },
     onHit: (g, a) => {
       if (a.visual !== 'crossPoison' || a.tier !== 1 || a.hits.size !== 1) return
-      g.shake = Math.max(g.shake, 3)
+      shakeScreen(g, 3)
       g.hitstop = Math.max(g.hitstop, 0.04)
     },
   },
@@ -611,7 +611,7 @@ export const EGG_MOVES_2 = {
     },
     onHit: (g, a) => {
       if (a.visual !== 'lastResort' || a.tier !== 1 || a.hits.size !== 1) return
-      g.shake = Math.max(g.shake, 6)
+      shakeScreen(g, 6)
       g.hitstop = Math.max(g.hitstop, 0.07)
       g.events.push({ kind: 'quake' })
     },

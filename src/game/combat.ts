@@ -8,7 +8,7 @@ import { abilityHolds, abilityHurt, abilityImmune, abilityKill, abilityTakes, st
 import { enemyDrop, isRepelled, tryMaxRevive, tryRevive } from './consumables'
 import { logDefeat } from './dex'
 import { runMods } from './legend'
-import { burst, damageText, floatText } from './effects'
+import { burst, damageText, floatText, setScreenShake, shakeScreen } from './effects'
 import { bossEggSource } from './eggs'
 import { dropBossTm } from './tms'
 import { dropEvoItem } from './evoGate'
@@ -198,7 +198,7 @@ export const killEnemy = (g: Game, e: Enemy, source?: DamageSource | null) => {
     dropForEach(g, () => dropBossTm(g, e))
     dropForEach(g, () => dropEvoItem(g, e.x + 10, e.y + 2))
     if (g.bossId === e.id) g.bossId = null
-    g.shake = 6
+    setScreenShake(g, 6, e)
     // A wave legendary's capture plays where it fell; Mewtwo's victory waits for it.
     const captured = legendFell(g, e)
     // A faint earlier in the tick stands: the run is over, not won.
@@ -242,7 +242,7 @@ export const hurtPlayer = (g: Game, amount: number, from?: Enemy, types: readonl
   p.iframes = mods.iframes
   noteHarm(g, dmg)
   p.hurt = 0.3
-  g.shake = Math.max(g.shake, 3)
+  shakeScreen(g, 3)
   floatText(g, p.x, p.y - 28, String(dmg), '#ff5040', true)
   burst(g, p.x, p.y - 10, { colors: ['#ff5040', '#ffffff'], count: 6, speed: 80, ttl: 0.3 })
   g.events.push({ kind: 'hurt' })

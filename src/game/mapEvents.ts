@@ -7,7 +7,7 @@ import { addBuff } from './buffs'
 import { healPlayer, hurtPlayer, killEnemy } from './combat'
 import { dropItem } from './consumables'
 import { logDefeat } from './dex'
-import { burst, damageText, floatText } from './effects'
+import { burst, damageText, floatText, shakeScreen } from './effects'
 import { enemyScale, spawnEnemy } from './enemies'
 import { recomputeStats } from './leveling'
 import {
@@ -244,7 +244,7 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
       dropItem(g, ev.x - 8, ev.y, rollDrop(DROP_TABLES.itemBall, g.time, g.rng))
       awardEgg(g, 'chest', ev.x, ev.y)
       burst(g, ev.x, ev.y - 8, { colors: ['#f8d030', '#fff8c0', '#ffffff', '#c08800'], count: 50, speed: 140, ttl: 0.8, gravity: 60 })
-      g.shake = Math.max(g.shake, 3)
+      shakeScreen(g, 3, ev)
       notify(g, { kind: 'chestOpen', coins: coins.reduce((a, b) => a + b, 0) })
       spend(ev)
       // Sometimes there's a cursed item at the bottom: take it or leave it (whoever opened it).
@@ -289,7 +289,7 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
       if (s.fuse < BOMB.fuse) return
       trapHit(g, ev.x, ev.y, BOMB.radius, BOMB.damage * enemyScale(g).hp, BOMB.bossDamage, BOMB.playerDamage)
       burst(g, ev.x, ev.y - 6, { colors: ['#ffffff', '#f8e858', '#f87830', '#e83030', '#484848'], count: 50, speed: 180, ttl: 0.6 })
-      g.shake = Math.max(g.shake, 6)
+      shakeScreen(g, 6, ev)
       notify(g, { kind: 'boom' })
       spend(ev)
     },

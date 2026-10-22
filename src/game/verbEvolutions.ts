@@ -2,7 +2,7 @@ import { dirTo, fromAngle, TAU } from '../engine/math'
 import { range } from '../engine/rng'
 import * as dm from '../engine/dmath'
 import { damageEnemy } from './combat'
-import { burst, floatText } from './effects'
+import { burst, floatText, shakeScreen } from './effects'
 import { hpFraction, returnShot, stacksOf, sweep, throwFoe, trailer } from './moveKit'
 import { LUNGE_MIN_COOLDOWN, LUNGE_SEEK, lungeLength } from './moveRules'
 import type { CastStats, Look, MoveDef, MoveId, MoveStats } from './moves'
@@ -121,7 +121,7 @@ const furyTick = (g: Game, a: Attack) => {
     ttl: FURY.novaOpen + 0.3, activeUntil: FURY.novaOpen, grow: (FURY.nova * area - 8) / FURY.novaOpen,
   })
   burst(g, p.x, p.y - 8, { colors: ['#fff4b0', '#f8b030', '#e85818', '#a82010'], count: 26, speed: 170, ttl: 0.45, gravity: -60, size: 2 })
-  g.shake = Math.max(g.shake, 3)
+  shakeScreen(g, 3)
   cast(g, 'ragingFury')
 }
 
@@ -349,7 +349,7 @@ const explosion: Cast = (g, s) => {
   })
   blastAround(g, blast, p.x, p.y - 8, r, 0, s.area)
   burst(g, p.x, p.y - 8, { colors: ['#ffffff', '#fff0a0', '#f8a030', '#d84020', '#584848'], count: 70, speed: 280, ttl: 0.8, gravity: 140, size: 2 })
-  g.shake = Math.max(g.shake, 14)
+  shakeScreen(g, 14)
   g.flash = Math.max(g.flash, 0.75)
   g.hitstop = Math.max(g.hitstop, 0.08)
   cast(g, 'explosion')
@@ -361,7 +361,7 @@ const explosionTick = (g: Game, a: Attack, dt: number) => {
   const area = a.shape.r / EXPLOSION.chainR
   blastAround(g, a, a.x, a.y, a.shape.r, a.memo, area)
   burst(g, a.x, a.y, { colors: ['#ffffff', '#fff0a0', '#f8a030', '#d84020'], count: 12, speed: 140, ttl: 0.4, gravity: 80 })
-  g.shake = Math.max(g.shake, 4)
+  shakeScreen(g, 4)
   g.events.push({ kind: 'moveSound', sound: 'explosion' })
 }
 
@@ -650,7 +650,7 @@ const breakingSwipe: Cast = (g, s) => {
     damageEnemy(g, e, swing)
     if (e.dying < 0 && !e.boss) throwFoe(e, dm.atan2(e.y - p.y, e.x - p.x), SWIPE.force, s.damage * SWIPE.crash, 'breakingSwipe', p.slot)
   }
-  g.shake = Math.max(g.shake, 3)
+  shakeScreen(g, 3)
   cast(g, 'breakingSwipe')
 }
 
@@ -696,16 +696,16 @@ const crossed = (a: Attack, at: number, dt: number) => a.age >= at && a.age - dt
 const impact = (g: Game, a: Attack) => {
   switch (a.visual) {
     case 'skyUppercut':
-      g.shake = Math.max(g.shake, 7)
+      shakeScreen(g, 7)
       g.hitstop = Math.max(g.hitstop, 0.06)
       cast(g, 'skyUppercut')
       return burst(g, a.x, a.y + 6, { colors: ['#ffffff', '#f8d030', '#f87040', '#a07040'], count: 26, speed: 190, ttl: 0.45, gravity: 140, size: 2 })
     case 'hyperspaceBurst':
-      g.shake = Math.max(g.shake, 4)
+      shakeScreen(g, 4)
       cast(g, 'hyperspaceHole')
       return burst(g, a.x, a.y, { colors: ['#ffffff', '#ffd0e8', '#f85888', '#f8d860'], count: 22, speed: 170, ttl: 0.45 })
     case 'stoneAxe':
-      g.shake = Math.max(g.shake, 5)
+      shakeScreen(g, 5)
       cast(g, 'stoneAxe')
       return burst(g, a.x, a.y + 6, { colors: ['#ece4d4', '#a09888', '#666058', '#d8c080'], count: 20, speed: 150, ttl: 0.45, gravity: 220, size: 2 })
     case 'spoutDrop':
@@ -713,14 +713,14 @@ const impact = (g: Game, a: Attack) => {
     case 'thousandArrows':
       return burst(g, a.x, a.y + 2, { colors: ['#d8c080', '#a08048', '#58c878'], count: 5, speed: 70, ttl: 0.3, gravity: 200 })
     case 'lanceBurst':
-      g.shake = Math.max(g.shake, 2)
+      shakeScreen(g, 2)
       return burst(g, a.x, a.y, { colors: ['#ffffff', '#d8f0ff', '#98d8f8'], count: 18, speed: 130, ttl: 0.45, gravity: 120 })
     case 'seedBloom':
       return burst(g, a.x, a.y - 4, { colors: ['#ffffff', '#f8f8a0', '#78c850'], count: 8, speed: 90, ttl: 0.35 })
     case 'sludgeGeyser':
       return burst(g, a.x, a.y - 6, { colors: ['#d080e0', '#9038a0', '#b8f060'], count: 10, speed: 90, ttl: 0.45, gravity: 160 })
     case 'impressionBurst':
-      g.shake = Math.max(g.shake, 3)
+      shakeScreen(g, 3)
       return burst(g, a.x, a.y, { colors: ['#ffffff', '#e0f080', '#a8b820', '#f8d030'], count: 18, speed: 150, ttl: 0.4 })
   }
 }

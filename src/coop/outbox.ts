@@ -1,10 +1,10 @@
-import type { ClientMessage, Entry } from '../net/protocol'
+import type { BatchedMessage, Entry } from '../net/protocol'
 import { inputValues, isReliable, type Input, type ReliableInput } from './entries'
 
 /**
  * What the client still has to send of the player's inputs. The stick is
- * coalesced: only its latest value waits, sent at most `OUTBOX.moveHz` times a
- * second (half that after the relay said `slow`). Picks and the other screen
+ * coalesced: only its latest value waits (`stickPace.ts` decides when one is
+ * worth sending, slower after the relay said `slow`). Picks and the other screen
  * inputs are reliable: each carries a nonce and is sent again until it comes
  * back stamped in a frame, after a timeout or a reconnect (the relay can lose
  * what it hadn't stamped yet when it restarts). A duplicate is harmless: it
@@ -14,8 +14,6 @@ import { inputValues, isReliable, type Input, type ReliableInput } from './entri
  */
 
 export const OUTBOX = {
-  /** Stick updates a second, at most (the relay's bucket refills at 60 a second for everything). */
-  moveHz: 30,
   /** Reliable inputs waiting at once; past it the oldest goes (a stale screen's pick). */
   reliable: 16,
   /** A reliable input not seen back after max(this, 3 × RTT) ms is sent again. */
@@ -24,7 +22,7 @@ export const OUTBOX = {
   giveUpMs: 30_000,
   /** Reliable sends per `due` call, at most. */
   burst: 4,
-  /** Ms the stick stays at half rate after a `slow`. */
+  /** Ms the stick stays at half rate after a `slow` (`slowed`). */
   slowMs: 10_000,
 } as const
 
@@ -33,8 +31,6 @@ type Pending = { nonce: number; input: ReliableInput; queuedAt: number; sentAt: 
 export type Outbox = {
   /** The stick waiting to go out, or null. */
   move: Extract<Input, { k: 'move' }> | null
-  /** When the last stick went out (ms). */
-  movedAt: number
   /** Presses (special, Mega, lunge) waiting: a press lost in a crash window is fine, so they're sent once. */
   presses: Extract<Input, { k: 'special' | 'mega' | 'lunge' }>[]
   reliable: Pending[]
@@ -46,7 +42,6 @@ export type Outbox = {
 
 export const createOutbox = (): Outbox => ({
   move: null,
-  movedAt: -Infinity,
   presses: [],
   reliable: [],
   nonce: 1,
@@ -80,22 +75,20 @@ export const push = (o: Outbox, input: Input, now: number): number => {
   return nonce
 }
 
-const message = (input: Input, nonce = 0): ClientMessage => ({ t: 'in', k: input.k, d: inputValues(input, nonce) })
+const message = (input: Input, nonce = 0): BatchedMessage => ({ t: 'in', k: input.k, d: inputValues(input, nonce) })
 
 /**
- * What to send now: the presses, the stick if its rate allows, and the
+ * What to send now: the presses, the stick, and the
  * reliable inputs never sent or not seen back in time (a few per call). Marks
  * them sent. `rtt` is the last round trip (ms).
  */
-export const due = (o: Outbox, now: number, rtt: number): ClientMessage[] => {
-  const out: ClientMessage[] = []
+export const due = (o: Outbox, now: number, rtt: number): BatchedMessage[] => {
+  const out: BatchedMessage[] = []
   for (const p of o.presses) out.push(message(p))
   o.presses = []
-  const interval = 1000 / (now < o.slowUntil ? OUTBOX.moveHz / 2 : OUTBOX.moveHz)
-  if (o.move && now - o.movedAt >= interval) {
+  if (o.move) {
     out.push(message(o.move))
     o.move = null
-    o.movedAt = now
     o.stats.moves++
   }
   o.reliable = o.reliable.filter((p) => {
@@ -131,7 +124,6 @@ export const ack = (o: Outbox, seat: number, e: Entry) => {
 /** A fresh socket: the stick waiting is stale (the shell sends the current one), presses go, every reliable input goes again. */
 export const onReconnect = (o: Outbox) => {
   o.move = null
-  o.movedAt = -Infinity
   o.presses = []
   for (const p of o.reliable) p.sentAt = null
 }
@@ -140,6 +132,9 @@ export const onReconnect = (o: Outbox) => {
 export const onSlow = (o: Outbox, now: number) => {
   o.slowUntil = now + OUTBOX.slowMs
 }
+
+/** Whether the stick is slowed down (after a `slow`). */
+export const slowed = (o: Outbox, now: number) => now < o.slowUntil
 
 /** Inputs waiting (the soak checks it stays bounded). */
 export const queued = (o: Outbox) => o.reliable.length + o.presses.length + (o.move ? 1 : 0)

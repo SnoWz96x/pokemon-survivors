@@ -1,6 +1,7 @@
 import { abortAllDurableObjects } from 'cloudflare:test'
 import { exports } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
+import { LOG_BATCH } from '../src/room'
 import { PROTOCOL, type ClientMessage, type CreateResponse, type Hello, type ServerMessage } from '../../src/net/protocol'
 
 type Client = { ws: WebSocket; inbox: ServerMessage[]; closed: Promise<number> }
@@ -64,7 +65,7 @@ describe('relay', () => {
     expect(await res.json()).toMatchObject({ ok: true, protocol: PROTOCOL })
   })
 
-  it('keeps a run through a Durable Object restart: clients resume from their tick, the log survives', async () => {
+  it('keeps a run through a Durable Object restart that lost the newest second of log: clients resume, no tick is sent twice', async () => {
     const code = await createRoom()
     const a = await open(code)
     say(a, hello(code, A))
@@ -79,30 +80,37 @@ describe('relay', () => {
     say(a, { t: 'start' })
     await waitFor(b, (m) => (m.t === 'start' ? true : null))
 
+    const stampedAt = (c: Client, v: number) => waitFor(c, (m) => (m.t === 'frame' ? (m.ticks.find(([, es]) => es.some((e) => e[0] === 0 && e[2] === v))?.[0] ?? null) : null), 12_000)
     say(a, { t: 'in', k: 'move', d: [7] })
-    const stamped = await waitFor(b, (m) => (m.t === 'frame' ? (m.ticks.find(([, es]) => es.some((e) => e[0] === 0 && e[2] === 7))?.[0] ?? null) : null))
-    await new Promise((r) => setTimeout(r, 300))
-    const seen = Math.max(...a.inbox.flatMap((m) => (m.t === 'frame' ? [m.to] : [])))
-
-    // A crash or a deploy: the instance is torn down at once, storage stays.
+    const kept = await stampedAt(b, 7)
+    // The log goes to storage once a second of ticks: right after the batch holding move 7 is written...
+    const batch = (Math.floor(kept / LOG_BATCH) + 1) * LOG_BATCH
+    await waitFor(a, (m) => (m.t === 'frame' && m.to >= batch ? true : null))
+    // ...move 8 goes out to everyone, and the relay crashes before its batch is (a deploy tears it down at once, storage stays).
+    say(a, { t: 'in', k: 'move', d: [8] })
+    const lost = await stampedAt(b, 8)
     await abortAllDurableObjects()
     await Promise.all([a.closed, b.closed])
+    expect(lost).toBeLessThan(batch + LOG_BATCH)
+    const seen = (c: Client) => Math.max(...c.inbox.flatMap((m) => (m.t === 'frame' ? [m.to] : [])))
+    const sentTo = Math.max(seen(a), seen(b))
 
-    // A comes back with its state at `seen`: it gets the tail from there, nothing replayed.
+    // A comes back with its state (move 8 included): it resumes from its tick, and the clock goes on past every tick it ever sent.
     const a2 = await open(code)
-    say(a2, hello(code, A, { secret: secretA, resume: { run: 1, from: seen } }))
+    say(a2, hello(code, A, { secret: secretA, resume: { run: 1, from: seen(a) } }))
     const sync = await waitFor(a2, (m) => (m.t === 'sync' ? m : null))
-    expect(sync).toMatchObject({ reason: 'resume', from: seen })
-    expect(sync.to).toBeGreaterThanOrEqual(seen)
-    const live = await waitFor(a2, (m) => (m.t === 'frame' && m.from >= sync.to ? m : null))
+    expect(sync).toMatchObject({ reason: 'resume', from: seen(a) })
+    expect(sync.to).toBeGreaterThanOrEqual(sentTo)
+    const live = await waitFor(a2, (m) => (m.t === 'frame' && m.from >= sync.to ? m : null), 15_000)
     expect(live.from).toBe(sync.to)
 
-    // B lost its state: it starts from the seed and gets the whole (short) log, with A's input where it was stamped.
+    // B lost its state: it rebuilds from the seed and the log, which kept move 7 and lost move 8 (the hash check heals whoever ends up apart).
     const b2 = await open(code)
     say(b2, hello(code, B, { secret: secretB }))
     const fresh = await waitFor(b2, (m) => (m.t === 'sync' ? m : null))
     expect(fresh).toMatchObject({ reason: 'join', from: 0, base: null })
     const replayed = await waitFor(b2, (m) => (m.t === 'frame' && m.from === 0 ? m : null))
-    expect(replayed.ticks).toContainEqual([stamped, [[0, 'move', 7]]])
+    expect(replayed.ticks).toContainEqual([kept, [[0, 'move', 7]]])
+    expect(replayed.ticks.flatMap(([, es]) => es).some((e) => e[2] === 8)).toBe(false)
   })
 })

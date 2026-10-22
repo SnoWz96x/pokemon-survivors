@@ -4,7 +4,7 @@ import { ENEMIES, type EnemyDef, type EnemyId } from '../data/enemies'
 import { EVENTS, nightCandidates, stageIndexAt, type WaveEvent } from '../data/waves'
 import { brasiliaDay, dayNumber, previousDay, type DayKey } from './day'
 import { createFight } from './bossFight'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { spawnEnemy } from './enemies'
 import type { Gift, GiftContent } from './gifts'
 import type { Save } from './meta'
@@ -193,7 +193,7 @@ export const bustDisguise = (g: Game, e: Enemy) => {
   e.fight ??= createFight(g.rng, g.difficulty, { x: e.x, y: e.y })
   e.fight.busted = true
   e.flash = 0.3
-  g.shake = Math.max(g.shake, 4)
+  shakeScreen(g, 4, e)
   burst(g, e.x, e.y - e.radius, { colors: ['#f8e078', '#c8a048', '#584020', '#ffffff'], count: 30, speed: 110, ttl: 0.55, gravity: 120 })
   g.events.push({ kind: 'disguise', enemy: e.kind })
 }

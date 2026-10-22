@@ -16,7 +16,7 @@ import { legendSignature } from '../data/legends'
 import { blocksNewMoves } from './curses'
 import { readyDuos } from './duoRules'
 import { healPlayer } from './combat'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { rankDeltas } from './meta'
 import { learnable } from './kitRules'
 import { forkAt, isManual, maxMoveLevel, MOVES, withBranch, type MoveId } from './moves'
@@ -309,7 +309,7 @@ const evolveMove = (g: Game, from: MoveId, to: MoveId) => {
   const colors = [TYPE_COLORS[MOVES[to].type], '#ffffff', '#ffd830']
   burst(g, p.x, p.y - 10, { colors, count: 70, speed: 170, ttl: 0.9, size: 2, drag: 3 })
   burst(g, p.x, p.y - 10, { colors: ['#ffffff', '#fff8c0'], count: 30, speed: 60, ttl: 1.2, gravity: -50 })
-  g.shake = Math.max(g.shake, 5)
+  shakeScreen(g, 5)
   g.events.push({ kind: 'moveEvolved', from, to })
 }
 
@@ -338,7 +338,7 @@ const fuseMoves = (g: Game, from: readonly [MoveId, MoveId], to: MoveId) => {
   burst(g, p.x - 6, p.y - 10, { colors: [a!, '#ffffff'], count: 50, speed: 160, ttl: 0.9, size: 2, drag: 3 })
   burst(g, p.x + 6, p.y - 10, { colors: [b!, '#ffffff'], count: 50, speed: 160, ttl: 0.9, size: 2, drag: 3 })
   burst(g, p.x, p.y - 10, { colors: ['#ffffff', '#fff8c0', '#ffd830'], count: 40, speed: 70, ttl: 1.3, gravity: -50 })
-  g.shake = Math.max(g.shake, 6)
+  shakeScreen(g, 6)
   g.flash = Math.max(g.flash, 0.5)
   g.events.push({ kind: 'duoFused', from, to })
 }

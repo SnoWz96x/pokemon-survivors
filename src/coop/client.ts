@@ -1,10 +1,15 @@
+import { worldHeld } from '../game/coop'
 import { moveCode } from '../game/replay'
+import type { Game } from '../game/types'
 import type { Vec } from '../engine/math'
-import { PROTOCOL, REGIONS, type ClientMessage, type CloseReason, type CreateResponse, type Refusal, type Region, type RoomView, type RunStart, type ServerMessage } from '../net/protocol'
+import { LIMITS, NET_REPORT_MS, PROTOCOL, REGIONS, isRelayHome, type BatchedMessage, type ClientMessage, type CloseReason, type CreateResponse, type NetReport, type Refusal, type Region, type RelayHome, type RoomView, type VpsHome, type RunStart, type ServerMessage } from '../net/protocol'
+import { addSample, createNetStats, noteArrival, noteFrame, quantile, resetArrivalLine, type NetStats, type NetWhere, type ReconnectReason } from './netStats'
 import type { Store } from './bank'
 import type { Input } from './entries'
-import { ack, createOutbox, due, onReconnect, onSlow, push, queued, type Outbox } from './outbox'
+import { ack, createOutbox, due, onReconnect, onSlow, push, queued, slowed, type Outbox } from './outbox'
 import { advance, backlog, onEnded, onFrame, onSnapPart, onSync, syncProgress, createRunner, type Runner, type RunnerDeps } from './runner'
+import { createStickPace, paceStick, type StickPace } from './stickPace'
+import { measureRtt, pickHome, relayFor, type VpsUrls } from './relays'
 import { closeReason, parseServerMessage } from './wire'
 import { loadoutOf, settingsOf, type CoopPick, type CoopSettings } from './start'
 
@@ -25,6 +30,11 @@ import { loadoutOf, settingsOf, type CoopPick, type CoopSettings } from './start
  *   a fresh socket after `CONNECT.dead` without one or `CONNECT.uplink` without a pong.
  * - Final closes (`replaced`, `kicked`, `left`, `expired`, a refused build…)
  *   end the client with a typed reason and never reconnect.
+ * - Few messages up (the relay's Durable Object is billed per message it
+ *   receives): at most one a display frame, a `batch` of everything due
+ *   (`frame`). Inputs go at once; the hash, the ping and the heartbeat wait to
+ *   ride along with them (`CONNECT.lazy`, `CONNECT.heartbeat`), and the stick
+ *   goes out only when it changed enough (`stickPace.ts`).
  */
 
 export const CONNECT = {
@@ -43,11 +53,14 @@ export const CONNECT = {
   uplink: 4500,
   /** The run's end (`over`) is said again this often (ms) until the relay confirms it: one sent on a dying socket is lost. */
   over: 2000,
-  /** Pings and heartbeats (ms). The relay calls a seat silent for 5 s `away`. */
-  ping: 500,
+  /** A ping rides along with what goes out once this long (ms) after the last one. */
+  ping: 1000,
+  /** Nothing sent for this long (ms): a message goes anyway, ping and all (the relay calls a seat silent for 5 s `away`). */
   heartbeat: 1500,
-  /** A stick held unchanged is sent again this often (ms), so prediction stays anchored. */
-  stickEvery: 250,
+  /** A state hash waits at most this long (ms) for something to ride along with. */
+  lazy: 1000,
+  /** Walking, the stick in play is said again (an anchor for prediction) at least this often (ms). */
+  anchor: 1000,
   /** The hello must be answered within this long, or the socket is dropped and retried. */
   hello: 8000,
   /** Far behind (ticks): a resume would replay too much, a fresh join takes the agreed snapshot instead. */
@@ -65,7 +78,7 @@ export type Status =
   | { kind: 'playing' }
   | { kind: 'closed'; why: CloseWhy }
 
-export type CreateResult = { ok: true; code: string; region: Region } | { ok: false; why: Extract<CreateResponse, { error: string }>['error'] | 'offline' }
+export type CreateResult = { ok: true; code: string; region: Region; home: RelayHome } | { ok: false; why: Extract<CreateResponse, { error: string }>['error'] | 'offline' }
 
 export type JoinResult = { ok: true; seat: number; room: RoomView } | { ok: false; why: CloseWhy }
 
@@ -128,12 +141,14 @@ export const webSocket = (url: string, on: SocketHandlers): SocketLike => {
 }
 
 export type CoopDeps = {
-  /** The relay's base URL (`https://…`). */
+  /** Cloudflare's relay (`https://…`): every room but the VPS relays', and the fallback. */
   url: string
+  /** The VPS relays this build has (`relays.ts`), by home: São Paulo's for South American hosts' rooms. */
+  vps?: VpsUrls
   /** The simulation's build id (`__SIM_BUILD__`). */
   build: string
   socket: (url: string, on: SocketHandlers) => SocketLike
-  fetch: (url: string, init: { method: string; body: string; headers: Record<string, string> }) => Promise<{ json: () => Promise<unknown> }>
+  fetch: (url: string, init: { method: string; body?: string; headers?: Record<string, string>; signal?: AbortSignal }) => Promise<{ json: () => Promise<unknown> }>
   store: Store
   /** A fresh Clerk session token when signed in (asked on every connect), else null (a guest: dev and local relays only). */
   token: () => Promise<string | null>
@@ -144,6 +159,9 @@ export type CoopDeps = {
 
 /** Stick samples kept for prediction: far more than any round trip. */
 export const HISTORY = 256
+
+/** Special presses kept for prediction: a round trip never holds more than a few. */
+const SPECIALS_KEPT = 8
 
 export type ClientState = {
   status: Status
@@ -166,10 +184,20 @@ export type ClientState = {
   lastSentAt: number
   rtt: number
   hidden: boolean
-  /** The stick: input samples taken (60 a second while the run plays), their codes, and the last one sent. */
+  /**
+   * The stick: input samples taken (60 a second while the run plays) and the code in play at each (the last
+   * one sent, which is what the simulation reads), how it is paced, and when a stick last went out (ms).
+   */
   sample: number
   history: Uint8Array
-  stickSent: { code: number; at: number }
+  /** The samples the last special presses went out at (`SPECIALS_KEPT` of them, oldest first), for prediction to press them before the run does. */
+  specials: number[]
+  pace: StickPace
+  anchoredAt: number
+  /** Messages waiting to ride along with the next ones (the state hashes), and when each was queued (ms). */
+  later: { msg: BatchedMessage; at: number }[]
+  /** The relay takes `batch` messages (its `welcome` said so). */
+  batch: boolean
   /** Next rejoin should skip the resume (fresh: the agreed snapshot). */
   fresh: boolean
   /** A `role` that came before the run's runner. */
@@ -178,7 +206,14 @@ export type ClientState = {
   overAt: number
   /** The build the room runs, from a `build` refusal (else null): older or newer than this client's. */
   roomBuild: string | null
+  /** The run's link and pacing numbers (`netStats.ts`), for its `coop_net` event; started over with each run. */
+  net: NetStats
+  /** Where the relay runs and where this client meets Cloudflare (`welcome`). */
+  where: NetWhere
 }
+
+/** The team is held: a pick screen up, or the world waiting on away players. */
+const teamPaused = (g: Game) => (g.phase !== 'playing' && g.phase !== 'paused' && g.phase !== 'gameover' && g.phase !== 'victory') || worldHeld(g)
 
 export const createCoopClient = (deps: CoopDeps) => {
   const s: ClientState = {
@@ -202,23 +237,37 @@ export const createCoopClient = (deps: CoopDeps) => {
     hidden: false,
     sample: 0,
     history: new Uint8Array(HISTORY),
-    stickSent: { code: -1, at: -Infinity },
+    specials: [],
+    pace: createStickPace(),
+    anchoredAt: -Infinity,
+    later: [],
+    batch: false,
     fresh: false,
     uploader: false,
     overAt: -Infinity,
     roomBuild: null,
+    net: createNetStats(),
+    where: { relayColo: null, relayRegion: null, edgeColo: null, edgeRtt: null },
   }
   const listeners = new Set<(e: CoopEvent) => void>()
   const emit = (e: CoopEvent) => listeners.forEach((fn) => fn(e))
   let joining: ((r: JoinResult) => void) | null = null
+
+  /** A new socket for `why`: the count the indicator shows (unless the caller counts it), and the run's tally by reason. */
+  const noteReconnect = (why: ReconnectReason, counts = true) => {
+    if (counts) s.reconnects++
+    s.net.reconnects[why]++
+  }
 
   const setStatus = (status: Status) => {
     s.status = status
     emit({ kind: 'status', status })
   }
 
-  const httpUrl = deps.url.replace(/\/$/, '')
-  const wsUrl = (code: string) => `${httpUrl.replace(/^http/, 'ws')}/rooms/${code}/ws`
+  const base = (url: string) => url.replace(/\/$/, '')
+  const vps: VpsUrls = deps.vps ?? {}
+  const relayUrl = (home: RelayHome) => base((home === 'cf' ? undefined : vps[home]) ?? deps.url)
+  const wsUrl = (code: string) => `${base(relayFor(code, deps.url, vps)).replace(/^http/, 'ws')}/rooms/${code}/ws`
   const secretKey = (code: string) => `ps:coopSeat:${code}`
   const GUEST_KEY = 'ps:coopGuest'
 
@@ -243,13 +292,28 @@ export const createCoopClient = (deps: CoopDeps) => {
     }
   }
 
+  /** Sends what's due as one message (a `batch` when the relay takes them), or one by one. */
+  const sendAll = (msgs: readonly BatchedMessage[]) => {
+    if (!s.batch || msgs.length === 1) return msgs.forEach((m) => send(m))
+    for (let i = 0; i < msgs.length; i += LIMITS.batch) {
+      const m = msgs.slice(i, i + LIMITS.batch)
+      send(m.length === 1 ? m[0]! : { t: 'batch', m })
+    }
+  }
+
   const runnerDeps: RunnerDeps = {
-    send: (msg) => void send(msg),
+    // Hashes ride along with the next inputs (at most `CONNECT.lazy` late); snapshots and the end go at once.
+    send: (msg) => {
+      if (msg.t !== 'hash') return void send(msg)
+      s.later.push({ msg, at: deps.now() })
+      if (s.later.length > 8) s.later.shift()
+    },
     now: deps.now,
     onGame: (runner, why) => emit({ kind: 'game', runner, why }),
     onHealed: (_, tick, ms) => emit({ kind: 'healed', tick, ms }),
     onFailed: () => {
       s.fresh = true
+      noteReconnect('snapshot', false)
       reconnect()
     },
   }
@@ -332,7 +396,7 @@ export const createCoopClient = (deps: CoopDeps) => {
         // Refused before a welcome: the `refused` message already said why.
         if (why === 'refused') return finish(lastRefusal ?? 'unavailable')
         if (why) return finish(why)
-        s.reconnects++
+        noteReconnect('drop')
         if (s.wanted) scheduleRetry()
       },
     }
@@ -368,12 +432,15 @@ export const createCoopClient = (deps: CoopDeps) => {
       case 'welcome': {
         s.welcomed = true
         s.seat = m.seat
+        if (m.net) s.where = { relayColo: m.net.colo, relayRegion: m.net.region, edgeColo: m.net.edge, edgeRtt: m.net.edgeRtt }
         s.room = m.room
         s.attempt = 0
         s.fresh = false
         if (s.code) deps.store.set(secretKey(s.code), m.secret)
         onReconnect(s.outbox)
-        s.stickSent = { code: -1, at: -Infinity }
+        s.batch = m.batch === true
+        s.pace = createStickPace()
+        s.later = []
         joining?.({ ok: true, seat: m.seat, room: m.room })
         joining = null
         setStatus({ kind: m.room.phase === 'playing' ? 'playing' : 'room' })
@@ -395,6 +462,7 @@ export const createCoopClient = (deps: CoopDeps) => {
       }
       case 'start': {
         s.uploader = false
+        s.net = createNetStats(m.run.id, now)
         const r = runnerFor(m.run)
         s.runner = r
         setStatus({ kind: 'playing' })
@@ -406,8 +474,11 @@ export const createCoopClient = (deps: CoopDeps) => {
         // The relay may order the same heal again for hashes sent before the first reached us: one restore is enough.
         if (m.reason === 'heal' && before && before.healing && m.base && before.stats.syncs.at(-1)?.base === m.base.tick && before.start.id === m.run.id) return
         const next = onSync(before, m, s.code ?? '', s.seat ?? 0, runnerDeps)
+        if (s.net.run !== m.run.id) s.net = createNetStats(m.run.id, now)
+        else resetArrivalLine(s.net)
         if (next === 'rejoin') {
           s.fresh = true
+          noteReconnect('rejoin', false)
           return reconnect()
         }
         next.uploader = before === next ? next.uploader : s.uploader
@@ -423,10 +494,14 @@ export const createCoopClient = (deps: CoopDeps) => {
         const r = s.runner
         if (!r) return
         const seat = s.seat ?? -1
+        // Live, not a sync's tail: its arrival says how the link is doing.
+        const live = m.from >= r.tailTo && !r.pending
         if (!onFrame(r, m, now, (e) => ack(s.outbox, seat, e))) {
           // A gap (never expected on one ordered socket): resync from what we have.
+          noteReconnect('gap', false)
           return reconnect()
         }
+        if (live) noteArrival(s.net, m.to - 1, now, m.ticks.length > 0)
         return
       }
       case 'heal':
@@ -449,6 +524,7 @@ export const createCoopClient = (deps: CoopDeps) => {
         if (s.pingAt !== null && m.at <= now) {
           const rtt = now - m.at
           s.rtt = s.rtt === 0 ? rtt : s.rtt * 0.8 + rtt * 0.2
+          addSample(s.net.rtt, rtt)
         }
         s.pingAt = null
         return
@@ -475,20 +551,54 @@ export const createCoopClient = (deps: CoopDeps) => {
     })
   }
 
-  /** Reserves a room near this player (or in `region`) and joins it. */
-  const create = async (region: Region = 'auto'): Promise<CreateResult> => {
+  /** How long measured round trips hold (ms): a lobby visit, not a whole session (the player may move networks). */
+  const RTT_FRESH_MS = 5 * 60_000
+  let measured: { at: number; rtts: Promise<Map<VpsHome, number | null>> } | null = null
+
+  /**
+   * The VPS relays' round trips, measured once in a while (`warm` starts it
+   * as the co-op screen opens, so creating a room never waits on it). Null
+   * for one that doesn't answer within 3 s; empty in a build without them.
+   */
+  const measureVps = () => {
+    if (!measured || deps.now() - measured.at > RTT_FRESH_MS) {
+      const get = (u: string) => deps.fetch(u, { method: 'GET', signal: AbortSignal.timeout(3000) })
+      const relays = Object.entries(vps).flatMap(([home, url]) => (isRelayHome(home) && home !== 'cf' && url ? [{ home, url: base(url) }] : []))
+      measured = {
+        at: deps.now(),
+        rtts: Promise.all(relays.map(async (r) => [r.home, await measureRtt(r.url, get, deps.now)] as const)).then((pairs) => new Map(pairs)),
+      }
+    }
+    return measured.rtts
+  }
+
+  const reserve = async (home: RelayHome, region: Region): Promise<CreateResult> => {
     try {
-      const res = await deps.fetch(`${httpUrl}/rooms`, { method: 'POST', body: JSON.stringify({ v: PROTOCOL, build: deps.build, region }), headers: { 'Content-Type': 'application/json' } })
+      const res = await deps.fetch(`${relayUrl(home)}/rooms`, { method: 'POST', body: JSON.stringify({ v: PROTOCOL, build: deps.build, region }), headers: { 'Content-Type': 'application/json' } })
       const body: unknown = await res.json()
       if (typeof body === 'object' && body !== null && 'code' in body && typeof body.code === 'string') {
         const region = REGIONS.find((r) => 'region' in body && r === body.region) ?? 'auto'
-        return { ok: true, code: body.code, region }
+        return { ok: true, code: body.code, region, home }
       }
       const error = typeof body === 'object' && body !== null && 'error' in body ? body.error : null
       return { ok: false, why: error === 'version' || error === 'rate' || error === 'busy' || error === 'invalid' ? error : 'offline' }
     } catch {
       return { ok: false, why: 'offline' }
     }
+  }
+
+  /**
+   * Reserves a room near this player: on the nearest VPS relay that answers
+   * near (`pickHome`), else on Cloudflare (in `region`, if given), and on
+   * Cloudflare too when that relay can't take it now.
+   */
+  const create = async (region: Region = 'auto'): Promise<CreateResult> => {
+    const home = region === 'auto' ? pickHome(await measureVps()) : 'cf'
+    if (home !== 'cf') {
+      const made = await reserve(home, region)
+      if (made.ok || (made.why !== 'offline' && made.why !== 'busy')) return made
+    }
+    return reserve('cf', region)
   }
 
   const leaveQuietly = () => {
@@ -508,22 +618,62 @@ export const createCoopClient = (deps: CoopDeps) => {
   /** Queues an input of the player's for the run. */
   const input = (i: Input) => {
     if (s.status.kind !== 'playing' || s.hidden) return 0
+    if (i.k === 'special') {
+      s.specials.push(i.sample)
+      if (s.specials.length > SPECIALS_KEPT) s.specials.shift()
+    }
     return push(s.outbox, i, deps.now())
   }
 
   /**
    * Takes one 60 Hz sample of the stick (the shell calls it once per tick of
-   * real time while the run plays): kept for prediction, sent when it changes
-   * (and again every `CONNECT.stickEvery` ms while held, to anchor prediction).
+   * real time while the run plays): sent when it changed enough
+   * (`paceStick`), and the code in play kept for prediction.
    */
   const stick = (move: Vec) => {
     const code = moveCode(move)
     s.sample++
-    s.history[s.sample % HISTORY] = code
-    const now = deps.now()
-    if (code === s.stickSent.code && (code === 0 || now - s.stickSent.at < CONNECT.stickEvery)) return
-    s.stickSent = { code, at: now }
-    input({ k: 'move', code, sample: s.sample })
+    const live = s.status.kind === 'playing' && !s.hidden
+    if (live && paceStick(s.pace, code, s.sample, slowed(s.outbox, deps.now()))) input({ k: 'move', code, sample: s.sample })
+    // What the simulation will read for this sample: the code in play (this one when it just went out).
+    s.history[s.sample % HISTORY] = s.pace.code >= 0 ? s.pace.code : code
+  }
+
+  /**
+   * What goes out this frame: the inputs due, then whatever rides along with
+   * them (the hashes, the link report, a ping, the stick in play as an anchor). Nothing when
+   * nothing is due: the hashes wait up to `CONNECT.lazy`, the anchor
+   * `CONNECT.anchor`, and silence ends at `CONNECT.heartbeat`.
+   */
+  const outgoing = (now: number): BatchedMessage[] => {
+    // Only what the socket can take: a stalled one keeps the stick coalesced instead of piling up.
+    if (!s.socket || s.socket.buffered() >= 64 * 1024) return []
+    const out = due(s.outbox, now, s.rtt)
+    const r = s.runner
+    if (r?.over && !r.ended && now - s.overAt >= CONNECT.over) {
+      s.overAt = now
+      out.push({ t: 'over', ...r.over })
+    }
+    // The link report (every `NET_REPORT_MS`) rides along like the hashes.
+    if (r && !r.ended && now - s.net.reportedAt >= NET_REPORT_MS) {
+      s.net.reportedAt = now
+      s.later.push({ msg: netReport(r), at: now })
+    }
+    const playing = r !== null && s.status.kind === 'playing' && s.pace.code >= 0
+    const silent = now - s.lastSentAt >= CONNECT.heartbeat
+    const stale = s.later.length > 0 && now - s.later[0]!.at >= CONNECT.lazy
+    const unanchored = playing && s.pace.code !== 0 && now - s.anchoredAt >= CONNECT.anchor
+    if (out.length === 0 && !silent && !stale && !unanchored) return out
+    out.push(...s.later.splice(0).map((l) => l.msg))
+    if (playing && !out.some((m) => m.t === 'in' && m.k === 'move')) out.push({ t: 'in', k: 'move', d: [s.pace.code, s.sample] })
+    if (out.length === 0) out.push({ t: 'hb' })
+    if (now - s.lastPingAt >= CONNECT.ping) {
+      s.lastPingAt = now
+      s.pingAt ??= now
+      out.push({ t: 'ping', at: now })
+    }
+    if (out.some((m) => m.t === 'in' && m.k === 'move')) s.anchoredAt = now
+    return out
   }
 
   /** The tab went to the background (true) or came back. Hidden, the run isn't simulated and nothing is sent (the relay calls the seat away). */
@@ -537,6 +687,7 @@ export const createCoopClient = (deps: CoopDeps) => {
     // Gone long: the agreed snapshot is quicker than simulating it all.
     if (r && !r.ended && backlog(r) > CONNECT.jump) {
       s.fresh = true
+      noteReconnect('jump', false)
       return reconnect()
     }
     if (s.wanted && !s.socket) {
@@ -556,29 +707,27 @@ export const createCoopClient = (deps: CoopDeps) => {
     const ws = s.socket
     if (ws && !s.hidden) {
       const silent = now - s.lastMessageAt
-      if (!s.welcomed && silent > CONNECT.hello) return (s.reconnects++, reconnect(), 0)
-      if (s.welcomed && silent > CONNECT.dead) return (s.reconnects++, reconnect(), 0)
+      if (!s.welcomed && silent > CONNECT.hello) return (noteReconnect('hello'), reconnect(), 0)
+      if (s.welcomed && silent > CONNECT.dead) return (noteReconnect('dead'), reconnect(), 0)
       // Not while syncing: a client busy catching up answers its own pongs late.
-      if (s.welcomed && s.pingAt !== null && now - s.pingAt > CONNECT.uplink && !s.runner?.syncing) return (s.reconnects++, reconnect(), 0)
-      if (s.welcomed) {
-        if (now - s.lastPingAt >= CONNECT.ping) {
-          s.lastPingAt = now
-          s.pingAt ??= now
-          send({ t: 'ping', at: now })
-        }
-        // Only what the socket can take: a stalled one keeps the stick coalesced instead of piling up.
-        if (ws.buffered() < 64 * 1024) for (const msg of due(s.outbox, now, s.rtt)) send(msg)
-        if (now - s.lastSentAt >= CONNECT.heartbeat) send({ t: 'hb' })
-        const r = s.runner
-        if (r?.over && !r.ended && now - s.overAt >= CONNECT.over) {
-          s.overAt = now
-          send({ t: 'over', ...r.over })
-        }
-      }
+      if (s.welcomed && s.pingAt !== null && now - s.pingAt > CONNECT.uplink && !s.runner?.syncing) return (noteReconnect('uplink'), reconnect(), 0)
+      if (s.welcomed) sendAll(outgoing(now))
     }
     const r = s.runner
     if (!r || s.hidden) return 0
-    return advance(r, dt, runnerDeps)
+    const t0 = deps.now()
+    const ran = advance(r, dt, runnerDeps)
+    const after = deps.now()
+    if (ran > 0) addSample(s.net.simTick, (after - t0) / ran)
+    noteFrame(s.net, after, { hold: r.hold.hold, paused: teamPaused(r.game), catchingUp: r.syncing !== null || r.pending !== null || backlog(r) > r.hold.hold + 2 })
+    return ran
+  }
+
+  /** How the link looks from here, for the relay's run summary (`net`). */
+  const netReport = (r: Runner): NetReport => {
+    const n = s.net
+    const total = Object.values(n.reconnects).reduce((a, b) => a + b, 0)
+    return { t: 'net', rtt: Math.round(quantile(n.rtt, 0.5) ?? s.rtt), rtt95: Math.round(quantile(n.rtt, 0.95) ?? s.rtt), hold: r.hold.hold, underruns: r.stats.underruns, stalls: n.stalls, reconnects: total }
   }
 
   /** How the connection is doing, for the pip and the overlays. */
@@ -598,6 +747,8 @@ export const createCoopClient = (deps: CoopDeps) => {
       return () => void listeners.delete(fn)
     },
     create,
+    /** Measures the VPS relays now (the co-op screen opened), so a `create` soon after has its answer. */
+    warm: () => void measureVps(),
     join,
     leave,
     setLoadout: (pick: CoopPick) => send({ t: 'loadout', loadout: loadoutOf(pick) }),
@@ -614,11 +765,11 @@ export const createCoopClient = (deps: CoopDeps) => {
     /** Inputs waiting to go out (bounded). */
     queued: () => queued(s.outbox),
     /** Test and soak hooks: drop the socket as a network failure would, or rejoin afresh (a new tab: the snapshot). */
-    drop: () => (s.reconnects++, reconnect()),
+    drop: () => (noteReconnect('manual'), reconnect()),
     rejoinFresh: () => {
       s.runner = null
       s.fresh = true
-      s.reconnects++
+      noteReconnect('manual')
       reconnect()
     },
   }

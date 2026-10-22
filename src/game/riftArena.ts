@@ -5,7 +5,7 @@ import { partnerOf } from '../data/domains'
 import { floorAt, holesAt, onFloor, stepsAt } from './arenaFloor'
 import { healPlayer, hurtPlayer } from './combat'
 import { dropItem } from './consumables'
-import { burst, floatText } from './effects'
+import { burst, floatText, setScreenShake, shakeScreen } from './effects'
 import { spawnEnemy } from './enemies'
 import { dropMegaStones, heldMega } from './mega'
 import { dropCoins, dropPickup } from './pickups'
@@ -49,7 +49,7 @@ export const enterArena = (g: Game, legend: RiftLegend, x: number, y: number) =>
   const start = at(layout.player)
   placeTeam(g, start.x, start.y)
   g.flash = 0.9
-  g.shake = 9
+  setScreenShake(g, 9, 'team')
   const terrain = {
     lake: null,
     solids: layout.solids.map((s, i) => {
@@ -91,7 +91,7 @@ export const fallInArena = (g: Game) => {
   if (!arena || arena.fall !== null) return
   arena.fall = RIFT.fallTime
   g.player.hp = 0
-  g.shake = Math.max(g.shake, 8)
+  shakeScreen(g, 8)
   g.events.push({ kind: 'riftFall', enemy: arena.legend })
 }
 
@@ -173,7 +173,7 @@ export const updateArena = (g: Game, dt: number) => {
   const before = stepsAt(layout.tide, arena.age) + stepsAt(layout.crumble, arena.age)
   arena.age += dt
   if (stepsAt(layout.tide, arena.age) + stepsAt(layout.crumble, arena.age) > before) {
-    g.shake = Math.max(g.shake, 5)
+    shakeScreen(g, 5, 'team')
     g.events.push({ kind: 'quake' })
   }
   const floor = floorAt(layout, stepsAt(layout.crumble, arena.age))

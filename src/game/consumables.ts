@@ -6,7 +6,7 @@ import { BUFFS, DROP_TABLES, ENEMY_DROP_CHANCE, FLUTE_SLEEP, REPEL_RADIUS, rollD
 import { BAG_ITEMS } from './bag'
 import { addBuff, hasBuff, tickBuffs } from './buffs'
 import { healPlayer, killEnemy } from './combat'
-import { burst, damageText, floatText } from './effects'
+import { burst, damageText, floatText, setScreenShake } from './effects'
 import { gainXp, recomputeStats } from './leveling'
 import { dropPickup } from './pickups'
 import { inSight, isAlive } from './queries'
@@ -67,7 +67,7 @@ const explode = (g: Game) => {
   const p = g.player
   burst(g, p.x, p.y - 10, { colors: ['#ffffff', '#f8e858', '#f87830', '#e83030'], count: 60, speed: 200, ttl: 0.7 })
   g.flash = 1
-  g.shake = 8
+  setScreenShake(g, 8, 'own')
 }
 
 export const CONSUMABLES = {

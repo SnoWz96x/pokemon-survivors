@@ -1,9 +1,26 @@
 import { DurableObject } from 'cloudflare:workers'
-import { CLOSE_CODES, LIMITS, parseClientMessage, type Auth, type Phase, type ServerMessage } from '../../src/net/protocol'
+import { CLOSE_CODES, LIMITS, parseClientMessage, type Auth, type ServerMessage } from '../../src/net/protocol'
 import { jwksKeys, verifyClerkToken } from './auth'
 import type { Env } from './env'
+import { gen, randomToken } from './codes'
 import { gzip } from './gzip'
 import { allowedOrigin } from './origins'
+import {
+  EDGE_HEADER,
+  connClosed,
+  connOpened,
+  createTelemetry,
+  noteEffects,
+  noteInbound,
+  noteLateness,
+  noteSent,
+  parseEdge,
+  parseTrace,
+  welcomeNet,
+  type LabRun,
+  type LogLine,
+  type Where,
+} from './telemetry'
 import {
   connect,
   createRoom,
@@ -18,11 +35,11 @@ import {
   tick,
   type ConnId,
   type Effect,
-  type Gen,
   type Identity,
   type Room,
   type State,
 } from './room'
+import { createSchema, dumpJson, persist, readBound, readRoom, syncTexts, type DumpRequest, type Store, type Stored } from './store'
 
 /** A socket's attachment: survives WebSocket hibernation, so the room finds its sockets again. */
 type Attachment = { id: ConnId; ua: string; seat: number | null }
@@ -30,36 +47,54 @@ type Attachment = { id: ConnId; ua: string; seat: number | null }
 /** A socket not seated within this long is closed: no valid `hello`, or one whose auth is still being checked. */
 const HELLO_TIMEOUT_MS = 10_000
 
-/** Ticks of the log per catch-up frame. */
-const TAIL_FRAME_TICKS = 600
+/** Lazy writes (`store.ts`): never held by the output gate. */
+const LAZY = { allowUnconfirmed: true } as const
 
-const SCHEMA = [
-  'CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)',
-  'CREATE TABLE IF NOT EXISTS log (run INTEGER NOT NULL, tick INTEGER NOT NULL, e TEXT NOT NULL, PRIMARY KEY (run, tick)) WITHOUT ROWID',
-  'CREATE TABLE IF NOT EXISTS hashes (run INTEGER NOT NULL, tick INTEGER NOT NULL, v TEXT NOT NULL, PRIMARY KEY (run, tick)) WITHOUT ROWID',
-  'CREATE TABLE IF NOT EXISTS snaps (run INTEGER NOT NULL, tick INTEGER NOT NULL, part INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (run, tick, part)) WITHOUT ROWID',
-]
+/** Keys a delete takes at most. */
+const DELETE_MAX = 128
 
-const PHASES: readonly Phase[] = ['lobby', 'playing', 'ended']
+/**
+ * The Durable Object's storage as the shared storage code sees it
+ * (`store.ts`): the room a row of the SQL table `kv` (`sql.exec` always takes
+ * the output gate), the log batches and snapshot chunks KV keys written with
+ * `allowUnconfirmed`, so no frame or pong ever waits on a commit. Both live in
+ * the same SQLite database: writes land in order, and a room save commits
+ * every lazy write before it.
+ */
+const storeOf = (storage: DurableObjectStorage): Store => ({
+  sql: {
+    run: (query, ...args) => void storage.sql.exec(query, ...args),
+    all: (query, ...args) => storage.sql.exec(query, ...args).toArray(),
+  },
+  lazy: {
+    put: (key, value) => void storage.put(key, value, LAZY),
+    delete: (keys) => {
+      for (let i = 0; i < keys.length; i += DELETE_MAX) void storage.delete(keys.slice(i, i + DELETE_MAX), LAZY)
+    },
+    list: (prefix, opts = {}) => [...storage.kv.list<Stored>({ prefix, ...opts })],
+  },
+})
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
-
-/** The room this object saved (its own JSON), checked for the fields everything else relies on. */
-const isRoom = (v: unknown): v is Room =>
-  isRecord(v) && typeof v.code === 'string' && typeof v.build === 'string' && PHASES.some((p) => p === v.phase) && Array.isArray(v.seats) && Array.isArray(v.banned)
 
 const isAttachment = (v: unknown): v is Attachment =>
   isRecord(v) && typeof v.id === 'string' && typeof v.ua === 'string' && (v.seat === null || typeof v.seat === 'number')
 
-const randomToken = (bytes: number) => {
-  const b = crypto.getRandomValues(new Uint8Array(bytes))
-  return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-const gen: Gen = { secret: () => randomToken(24), seed: () => crypto.getRandomValues(new Uint32Array(1))[0] ?? 0 }
-
 /** One JWKS cache per isolate, shared by the rooms it runs. */
 let jwks: ReturnType<typeof jwksKeys> | null = null
+
+/** Where this isolate runs (Cloudflare's trace from inside it), asked once per isolate. */
+let where: Promise<Where> | null = null
+const whereOnce = () =>
+  (where ??= fetch('https://www.cloudflare.com/cdn-cgi/trace')
+    .then((res) => res.text())
+    .then(parseTrace)
+    .catch(() => ({ colo: null })))
+
+/** Waits for `where` at most this long before a welcome goes out without it. */
+const WHERE_WAIT_MS = 500
+
+const log = (line: LogLine) => console.log(JSON.stringify(line))
 
 /**
  * One co-op room. A class only because the Durable Object runtime asks for
@@ -73,12 +108,16 @@ export class RoomObject extends DurableObject<Env> {
   private authing = new Set<ConnId>()
   private timer: ReturnType<typeof setTimeout> | null = null
   private alarmAt: number | null = null
+  private tele = createTelemetry()
+  private readonly store: Store
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
+    this.store = storeOf(ctx.storage)
     void ctx.blockConcurrencyWhile(async () => {
       const now = Date.now()
-      this.state = loadState(this.readRoom(), gen, now)
+      const room = readRoom(this.store.sql)
+      this.state = loadState(room, gen, now, room?.run ? readBound(this.store, room.run.start.id) : 0)
       const back = ctx.getWebSockets().flatMap((ws) => {
         const a: unknown = ws.deserializeAttachment()
         if (!isAttachment(a)) return []
@@ -88,13 +127,18 @@ export class RoomObject extends DurableObject<Env> {
       })
       this.alarmAt = await ctx.storage.getAlarm()
       this.apply(reattach(this.state, back, now))
+      void whereOnce().then((w) => {
+        this.tele.where = w
+        const room = this.state.room
+        log({ ev: 'do.boot', code: room?.code ?? null, ...w, phase: room?.phase ?? null, run: room?.run?.start.id ?? null, tick: room?.run?.next ?? null, sockets: back.length })
+      })
     })
   }
 
   /** Reserves the room (the Worker's `POST /rooms`). False when the code is taken. */
   async create(init: { code: string; build: string; region: string }): Promise<boolean> {
     const r = createRoom(this.state, init, Date.now())
-    if (r.ok) for (const q of SCHEMA) this.ctx.storage.sql.exec(q)
+    if (r.ok) createSchema(this.store.sql)
     this.apply(r.effects)
     return r.ok
   }
@@ -109,6 +153,7 @@ export class RoomObject extends DurableObject<Env> {
     server.serializeAttachment(attachment)
     this.sockets.set(id, server)
     this.attached.set(id, attachment)
+    log(connOpened(this.tele, id, parseEdge(request.headers.get(EDGE_HEADER)), Date.now(), this.state.room?.code ?? null))
     connect(this.state, id, ua, Date.now())
     setTimeout(() => {
       const conn = this.state.live.conns.get(id)
@@ -116,7 +161,7 @@ export class RoomObject extends DurableObject<Env> {
       // A hello still authenticating is given up too: its late answer finds no socket (`hello` ignores it).
       this.closeSocket(id, 'refused')
       const ws = this.sockets.get(id)
-      if (ws) this.dropSocket(ws)
+      if (ws) this.dropSocket(ws, { closeCode: null, reason: 'helloTimeout' })
     }, HELLO_TIMEOUT_MS)
     return new Response(null, { status: 101, webSocket: client })
   }
@@ -131,20 +176,26 @@ export class RoomObject extends DurableObject<Env> {
     const conn = this.state.live.conns.get(a.id)
     if (msg?.t === 'hello' && conn && conn.seat === null && !this.authing.has(a.id)) {
       this.authing.add(a.id)
-      const identity = await this.identify(msg.auth).catch(() => null)
+      // The welcome says where this room runs: the trace asked at boot is nearly always back by now.
+      const wait = new Promise((resolve) => setTimeout(resolve, WHERE_WAIT_MS))
+      const [identity] = await Promise.all([this.identify(msg.auth).catch(() => null), Promise.race([whereOnce(), wait])])
       this.authing.delete(a.id)
       this.apply(hello(this.state, a.id, msg, identity, Date.now(), { guests: this.env.ALLOW_GUESTS === 'on' }))
       return
     }
-    this.apply(message(this.state, a.id, msg, Date.now()))
+    // The rate limit drops a message by starting its list of drops over (`admit` in `room.ts`).
+    const drops = conn?.drops
+    const effects = message(this.state, a.id, msg, Date.now())
+    noteInbound(this.tele, conn?.seat ?? null, msg, text?.length ?? 0, !!conn && conn.drops !== drops)
+    this.apply(effects)
   }
 
-  async webSocketClose(ws: WebSocket) {
-    this.dropSocket(ws)
+  async webSocketClose(ws: WebSocket, code: number, reason: string) {
+    this.dropSocket(ws, { closeCode: code, reason: reason.slice(0, 40) })
   }
 
   async webSocketError(ws: WebSocket) {
-    this.dropSocket(ws)
+    this.dropSocket(ws, { closeCode: null, reason: 'error' })
   }
 
   async alarm() {
@@ -152,9 +203,11 @@ export class RoomObject extends DurableObject<Env> {
     this.apply(tick(this.state, Date.now()))
   }
 
-  private dropSocket(ws: WebSocket) {
+  private dropSocket(ws: WebSocket, how: { closeCode: number | null; reason: string }) {
     const a: unknown = ws.deserializeAttachment()
     if (!isAttachment(a)) return
+    const line = connClosed(this.tele, a.id, Date.now(), this.state.room?.code ?? null, how)
+    if (line) log(line)
     this.sockets.delete(a.id)
     this.attached.delete(a.id)
     this.apply(disconnect(this.state, a.id, Date.now()))
@@ -172,17 +225,8 @@ export class RoomObject extends DurableObject<Env> {
     return sub ? { id: `u:${sub}`, account: true } : null
   }
 
-  private readRoom(): Room | null {
-    const sql = this.ctx.storage.sql
-    const hasSchema = sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'kv'").toArray().length > 0
-    if (!hasSchema) return null
-    const row = sql.exec<{ v: string }>("SELECT v FROM kv WHERE k = 'room'").toArray()[0]
-    if (!row) return null
-    const v: unknown = JSON.parse(row.v)
-    return isRoom(v) ? v : null
-  }
-
   private send(id: ConnId, text: string) {
+    noteSent(this.tele, this.state.live.conns.get(id)?.seat ?? null, text.length)
     try {
       this.sockets.get(id)?.send(text)
     } catch {
@@ -193,6 +237,8 @@ export class RoomObject extends DurableObject<Env> {
   private closeSocket(id: ConnId, reason: keyof typeof CLOSE_CODES) {
     const ws = this.sockets.get(id)
     if (!ws) return
+    const line = connClosed(this.tele, id, Date.now(), this.state.room?.code ?? null, { closeCode: CLOSE_CODES[reason], reason })
+    if (line) log(line)
     try {
       ws.close(CLOSE_CODES[reason], reason)
     } catch {
@@ -201,35 +247,30 @@ export class RoomObject extends DurableObject<Env> {
   }
 
   /**
-   * Applies the room's effects: every storage write first (the room saved
-   * once), then the messages and closes in order, so the output gate holds
-   * each message until what it reflects is durable. Then sets the timers.
+   * Applies the room's effects: every storage write first (`persist`: lazy
+   * ones as they come, then the room saved once), then the messages and
+   * closes in order. Only a room save holds the messages (the output gate)
+   * until it is durable, with every lazy write before it. Then sets the timers.
    */
   private apply(effects: readonly Effect[]) {
-    const sql = this.ctx.storage.sql
-    let save = false
-    for (const e of effects) {
-      if (e.k === 'save') save = true
-      else if (e.k === 'log') sql.exec('INSERT OR REPLACE INTO log (run, tick, e) VALUES (?, ?, ?)', e.run, e.tick, JSON.stringify(e.entries))
-      else if (e.k === 'hashes') sql.exec('INSERT OR REPLACE INTO hashes (run, tick, v) VALUES (?, ?, ?)', e.run, e.tick, JSON.stringify(e.bySeat))
-      else if (e.k === 'chunk') sql.exec('INSERT OR REPLACE INTO snaps (run, tick, part, data) VALUES (?, ?, ?, ?)', e.run, e.tick, e.part, e.data)
-      else if (e.k === 'keepSnapshot') sql.exec('DELETE FROM snaps WHERE run = ? AND tick <> ?', e.run, e.tick)
-      else if (e.k === 'dropSnapshot') sql.exec('DELETE FROM snaps WHERE run = ? AND tick = ?', e.run, e.tick)
-      else if (e.k === 'dropRun') for (const table of ['log', 'hashes', 'snaps']) sql.exec(`DELETE FROM ${table} WHERE run = ?`, e.run)
-    }
     const room = this.state.room
-    if (save && room) sql.exec("INSERT OR REPLACE INTO kv (k, v) VALUES ('room', ?)", JSON.stringify(room))
+    persist(this.store, effects, room)
+    // Telemetry reads the batch with its writes done and before a wipe empties the storage.
+    const noted = noteEffects(this.tele, room, effects, Date.now())
+    noted.logs.forEach(log)
+    if (noted.lab) this.keepRun(noted.lab)
     const texts = new Map<ServerMessage, string>()
     let wiped = false
     for (const e of effects) {
       if (e.k === 'send') {
-        const text = texts.get(e.msg) ?? JSON.stringify(e.msg)
+        // A welcome also says where things run (`WelcomeNet`): its own text.
+        const text = e.msg.t === 'welcome' ? JSON.stringify({ ...e.msg, net: welcomeNet(this.tele, e.to, room) }) : (texts.get(e.msg) ?? JSON.stringify(e.msg))
         texts.set(e.msg, text)
         this.send(e.to, text)
-      } else if (e.k === 'sync') this.sendSync(e)
+      } else if (e.k === 'sync') for (const text of syncTexts(this.store, e)) this.send(e.to, text)
       else if (e.k === 'close') this.closeSocket(e.to, e.reason)
       else if (e.k === 'event') console.log(JSON.stringify({ ev: e.ev, ...e.data }))
-      else if (e.k === 'dump') this.ctx.waitUntil(this.dump(e).catch((err: unknown) => console.log(JSON.stringify({ ev: 'dump.failed', error: String(err) }))))
+      else if (e.k === 'dump') this.ctx.waitUntil(this.dump(e, this.state.room).catch((err: unknown) => log({ ev: 'dump.failed', error: String(err) })))
       else if (e.k === 'wipe') wiped = true
     }
     if (wiped) return this.wipe()
@@ -248,10 +289,13 @@ export class RoomObject extends DurableObject<Env> {
     const run = this.state.room?.run
     if (running(this.state) && run) {
       if (this.timer === null) {
+        const due = nextTickAt(run)
         this.timer = setTimeout(() => {
           this.timer = null
-          this.apply(tick(this.state, Date.now()))
-        }, Math.max(0, Math.ceil(nextTickAt(run) - Date.now())))
+          const now = Date.now()
+          noteLateness(this.tele, now - Math.ceil(due))
+          this.apply(tick(this.state, now))
+        }, Math.max(0, Math.ceil(due - Date.now())))
       }
     } else if (this.timer !== null) {
       clearTimeout(this.timer)
@@ -263,55 +307,32 @@ export class RoomObject extends DurableObject<Env> {
     void (at === null ? this.ctx.storage.deleteAlarm() : this.ctx.storage.setAlarm(at))
   }
 
-  /** A sync: the message, the base snapshot's chunks, then the log from `from` to `to` in frames. */
-  private sendSync(e: Extract<Effect, { k: 'sync' }>) {
-    const sql = this.ctx.storage.sql
-    const run = e.msg.run.id
-    let msg = e.msg
-    const base = msg.base
-    const chunks = base
-      ? sql.exec<{ part: number; data: string }>('SELECT part, data FROM snaps WHERE run = ? AND tick = ? ORDER BY part', run, base.tick).toArray()
-      : []
-    // A snapshot that isn't all there (it never should be) falls back to the seed.
-    if (base && chunks.length !== base.parts) msg = { ...msg, base: null, from: 0 }
-    this.send(e.to, JSON.stringify(msg))
-    if (msg.base) for (const c of chunks) this.send(e.to, JSON.stringify({ t: 'snapPart', tick: msg.base.tick, part: c.part, data: c.data } satisfies ServerMessage))
-    for (let from = msg.from; from < msg.to; from += TAIL_FRAME_TICKS) {
-      const to = Math.min(msg.to, from + TAIL_FRAME_TICKS)
-      const rows = sql.exec<{ tick: number; e: string }>('SELECT tick, e FROM log WHERE run = ? AND tick >= ? AND tick < ? ORDER BY tick', run, from, to).toArray()
-      // Entries are stored as their JSON: spliced in as they are.
-      this.send(e.to, `{"t":"frame","from":${from},"to":${to},"ticks":[${rows.map((r) => `[${r.tick},${r.e}]`).join(',')}]}`)
-    }
+  /**
+   * Records a dump (a desync, a bad snapshot, or a finished run kept for the lab: room, run start, the
+   * whole input log, hashes per seat, builds and user agents) in the vault. The log is read at once,
+   * before anything awaits (a wipe right after empties the storage); a kept run (`lab`) also says how
+   * the link went for each seat, and is packed only if the vault takes it.
+   */
+  private async dump(e: DumpRequest, room: Room | null, lab: Pick<LabRun, 'score' | 'why' | 'seats'> | null = null) {
+    if (!room?.run) return
+    const at = Date.now()
+    const json = dumpJson(this.store, room, e, at, lab ? { why: lab.why, score: lab.score, colo: this.tele.where?.colo ?? null, net: lab.seats } : {})
+    if (!json) return
+    const vault = this.env.VAULT.getByName('dumps')
+    if (lab && !(await vault.wantsRun(lab.score))) return
+    const bytes = await gzip(json.body)
+    // A kept run has one id (offered again as it goes on, the newer replaces it); a dump one per divergence.
+    const id = e.reason === 'run' ? `${room.code}-${e.run}-run-${room.createdAt.toString(36)}` : `${room.code}-${e.run}-${e.tick}-${randomToken(3)}`
+    await vault.put({ id, code: room.code, run: e.run, tick: e.tick, at, size: bytes.byteLength, kind: e.reason, score: lab?.score ?? 0 }, bytes)
+    log({ ev: 'dump.saved', id, kind: e.reason, bytes: bytes.byteLength, logTicks: json.logTicks })
   }
 
-  /** Records a dump (a desync, a bad snapshot: room, run start, the whole input log, hashes per seat, builds and user agents) in the vault. */
-  private async dump(e: Extract<Effect, { k: 'dump' }>) {
-    const room = this.state.room
-    if (!room?.run) return
-    const sql = this.ctx.storage.sql
-    const log = sql.exec<{ tick: number; e: string }>('SELECT tick, e FROM log WHERE run = ? ORDER BY tick', e.run).toArray()
-    const hashes = sql.exec<{ tick: number; v: string }>('SELECT tick, v FROM hashes WHERE run = ? ORDER BY tick', e.run).toArray()
-    const at = Date.now()
-    const meta = {
-      code: room.code,
-      build: room.build,
-      region: room.region,
-      createdAt: room.createdAt,
-      at,
-      reason: e.reason,
-      tick: e.tick,
-      reports: e.reports,
-      majority: e.majority,
-      minority: e.minority,
-      run: room.run.start,
-      clock: { next: room.run.next, bound: room.run.bound, agreed: room.run.agreed },
-      seats: room.seats.map((s) => ({ seat: s.seat, account: s.account, name: s.name, build: s.build, ua: s.ua })),
-    }
-    const body = `{"meta":${JSON.stringify(meta)},"log":[${log.map((r) => `[${r.tick},${r.e}]`).join(',')}],"hashes":[${hashes.map((r) => `[${r.tick},${r.v}]`).join(',')}]}`
-    const bytes = await gzip(body)
-    const id = `${room.code}-${e.run}-${e.tick}-${randomToken(3)}`
-    await this.env.VAULT.getByName('dumps').put({ id, code: room.code, run: e.run, tick: e.tick, at, size: bytes.byteLength }, bytes)
-    console.log(JSON.stringify({ ev: 'dump.saved', id, bytes: bytes.byteLength, logTicks: log.length }))
+  /** A run that ended (or was dropped with its room) offered to the lab: its input log, if the vault takes it. */
+  private keepRun(lab: LabRun) {
+    const run = lab.room.run
+    if (!run) return
+    const req: DumpRequest = { reason: 'run', run: lab.run, tick: lab.tick, reports: {}, majority: run.ended?.h ?? '', minority: [] }
+    this.ctx.waitUntil(this.dump(req, lab.room, lab).catch((err: unknown) => log({ ev: 'dump.failed', kind: 'run', error: String(err) })))
   }
 
   /** The room is over: storage, alarm and sockets go. */

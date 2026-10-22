@@ -5,7 +5,7 @@ import { isSummoner, SUMMONS, TRAITS } from '../data/traits'
 import { spawnHazard } from './bosses'
 import { hurtPlayer, killEnemy } from './combat'
 import { spawnEnemy } from './enemies'
-import { burst, damageText } from './effects'
+import { burst, damageText, shakeScreen } from './effects'
 import { inView } from './queries'
 import { finaleAlive } from './spawner'
 import { fanOffset, flavorOf, isSpit, SPITTERS, volleySize, type SpitFlavor } from './spitters'
@@ -123,7 +123,7 @@ const explode = (g: Game, e: Enemy) => {
     if (o && o !== e && o.dying < 0 && inBlast(e.x, e.y, r, o.x, o.y, o.radius)) hurtEnemy(g, o, blastDamage(o, dmg), e)
   }
   burst(g, e.x, e.y - e.radius, { colors: ['#ffffff', '#f8e858', '#f87830', '#e83030'], count: 28, speed: r * 5, ttl: 0.45 })
-  g.shake = Math.max(g.shake, 4)
+  shakeScreen(g, 4, e)
   g.events.push({ kind: 'trait', trait: 'kamikaze', phase: 'fire' })
 }
 
@@ -188,7 +188,7 @@ const land = (g: Game, e: Enemy, act: Act<'leaper'>) => {
   }
   g.player = before
   burst(g, act.toX, act.toY, { colors: ['#c8b080', '#a08858', '#f0e0b8'], count: 16, speed: l.radius * 5, ttl: 0.4, drag: 6 })
-  g.shake = Math.max(g.shake, 2)
+  shakeScreen(g, 2, { x: act.toX, y: act.toY })
   act.phase = 'idle'
   act.cooldown = l.every
   g.events.push({ kind: 'trait', trait: 'leaper', phase: 'fire' })

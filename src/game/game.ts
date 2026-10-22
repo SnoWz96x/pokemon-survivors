@@ -24,7 +24,7 @@ import { DEFAULT_DIFFICULTY, type Difficulty } from './difficulty'
 import { updateBosses, updateHazards } from './bosses'
 import { createWorldHazards, updateWorldHazards } from './hazards'
 import { updateConsumables } from './consumables'
-import { burst, updateEffects } from './effects'
+import { burst, shakeScreen, updateEffects } from './effects'
 import { updateEndless } from './endlessSystem'
 import { blastHorde, rebuildGrid, updateEnemies } from './enemies'
 import {
@@ -578,7 +578,7 @@ const awaken = (g: Game, n: number): void => {
   blastHorde(g, AWAKENING.push)
   const color = PLAYABLE[p.starter].color
   burst(g, p.x, p.y - 12, { colors: [color, '#ffffff', '#f8e8a0'], count: 80, speed: 190, ttl: 0.9, size: 2, drag: 3 })
-  g.shake = Math.max(g.shake, 8)
+  shakeScreen(g, 8)
   g.flash = Math.max(g.flash, 0.4)
   p.evolution = null
   g.events.push({ kind: 'awakened', legend: s.id, n, form: formAfter(s.id, n)?.key ?? null })
@@ -780,6 +780,19 @@ const stepMoves = (g: Game, input: StepInput, dt: number) => {
   updateDuos(g, dt)
 }
 
+/**
+ * A hitstop running counts down and says whether it holds the tick there:
+ * in solo it freezes the whole world; in co-op never, since it would hold
+ * every teammate for one player's hit (and pull their predicted sprites
+ * back), so it only counts down while the team plays on. Co-op's prediction
+ * ghost (`coop/predict.ts`) asks the same, so it plays through one too.
+ */
+export const hitstopHolds = (g: Game, dt: number) => {
+  if (g.hitstop <= 0) return false
+  g.hitstop -= dt
+  return g.coop === null
+}
+
 /** One fixed-timestep simulation tick of a solo run. */
 export const step = (g: Game, input: StepInput, dt: number) => stepTeam(g, [input], dt)
 
@@ -808,10 +821,7 @@ export const stepTeam = (g: Game, inputs: readonly StepInput[], dt: number) => {
   if (updateDomainScene(g, dt)) return
   if (updateLegendScene(g, dt)) return
   if (updatePlaceFall(g, dt)) return
-  if (g.hitstop > 0) {
-    g.hitstop -= dt
-    return
-  }
+  if (hitstopHolds(g, dt)) return
 
   // The run clock stops inside a rift (`clockRuns`); `now` never does.
   g.now += dt

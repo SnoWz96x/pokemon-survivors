@@ -5,7 +5,7 @@ import { holdsShots } from './bossFight'
 import { damageEnemy } from './combat'
 import { evolvedImpact, evolvedTick } from './evolvedMoves'
 import { inheritMods, modHit, modTick } from './mods'
-import { mineArmed, mineBlast, TURRET_RANGE } from './moveRules'
+import { lungeStep, mineArmed, mineBlast, rollStep, TURRET_RANGE } from './moveRules'
 import { nearestEnemy } from './queries'
 import { spawnAttack } from './spawn'
 import { typeEvolvedTrail } from './typeEvolutions'
@@ -55,10 +55,10 @@ const move = (g: Game, a: Attack, m: Motion, dt: number) => {
     case 'static':
       break
     case 'lunge': {
-      const step = Math.min(dt, m.left)
-      m.left -= step
-      p.x += m.vx * step
-      p.y += m.vy * step
+      const step = lungeStep(m, dt)
+      m.left = step.left
+      p.x += step.dx
+      p.y += step.dy
       if (m.left > 0) p.dir = dir8(m.vx, m.vy)
       a.x = p.x
       a.y = p.y - 8
@@ -106,12 +106,14 @@ const move = (g: Game, a: Attack, m: Motion, dt: number) => {
       a.y += dm.sin(m.heading) * m.speed * dt
       break
     }
-    case 'roll':
-      p.x += p.facing.x * m.speed * dt
-      p.y += p.facing.y * m.speed * dt
+    case 'roll': {
+      const step = rollStep(p.facing, m.speed, dt)
+      p.x += step.dx
+      p.y += step.dy
       a.x = p.x
       a.y = p.y - 8
       break
+    }
     case 'tether': {
       const e = m.target
       if (e.dying >= 0) {
