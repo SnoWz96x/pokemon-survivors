@@ -946,7 +946,16 @@ export const pt = {
     },
     /** The Vitrine's fixed Kecleon Egg card (`game/shop.ts`). */
     kecleonEgg: {
-      text: (steps: string) => `Choca em ${steps} passos: famílias que nenhum outro ovo traz. Um por dia.`,
+      text: (steps: string) => `Choca em ${steps} passos: famílias que nenhum outro ovo traz.`,
+      ladder: (max: number, prices: string) => `Até ${max} por dia, cada um pelo dobro do anterior: ${prices}.`,
+      /** Under the name on the card: how many bought today. */
+      today: (n: number, max: number) => `${n}/${max} hoje`,
+      /** Under the price on the card: what the one after it costs, or that it's the day's last. */
+      next: (price: string) => `depois ${price}`,
+      last: 'último do dia',
+      full: 'A incubadora está cheia: choque um ovo para comprar outro.',
+      /** Asked before the pricier eggs of the day (`VITRINE.kecleonEgg.confirmFrom`). */
+      confirm: (price: string) => `Comprar mais um Ovo do Kecleon por ${price}?`,
     },
     /** A seasonal stall's shelf (`game/stalls.ts`): Duskull's Haunted Egg on the Noite das Bruxas. */
     stall: {
@@ -1735,7 +1744,7 @@ export const pt = {
     lockedBlurb: (egg: string) => `Ainda está no ovo. Sai de um *${egg}*.`,
     friendBlurb: 'Só sai do *Ovo da Amizade*: convide amigos pelo seu link para ganhar um.',
     hauntedBlurb: 'Só sai do *Ovo Assombrado*, que o Duskull vende na praça durante a Noite das Bruxas. Depois, só no ano que vem.',
-    kecleonBlurb: 'Só sai do *Ovo do Kecleon*, que a Vitrine da loja vende, um por dia.',
+    kecleonBlurb: 'Só sai do *Ovo do Kecleon*, que a Vitrine da loja vende, até 6 por dia.',
     lockedButton: 'Ainda no ovo',
     incubator: (n: number, slots: number) => `Incubadora ${n}/${slots}`,
     readyBadge: (n: number) => (n === 1 ? '1 ovo pronto!' : `${n} ovos prontos!`),

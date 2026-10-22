@@ -793,7 +793,13 @@ export const en: Messages = {
       },
     },
     kecleonEgg: {
-      text: (steps) => `Hatches in ${steps} steps: families no other egg brings. One a day.`,
+      text: (steps) => `Hatches in ${steps} steps: families no other egg brings.`,
+      ladder: (max, prices) => `Up to ${max} a day, each for double the last: ${prices}.`,
+      today: (n, max) => `${n}/${max} today`,
+      next: (price) => `then ${price}`,
+      last: "today's last",
+      full: 'Your incubator is full: hatch an egg to buy another.',
+      confirm: (price) => `Buy another Kecleon Egg for ${price}?`,
     },
     stall: {
       intro: (until) => `Duskull's stall · Halloween Night · until ${until}`,
@@ -1544,7 +1550,7 @@ export const en: Messages = {
     lockedBlurb: (egg) => `Still in its egg. It hatches from a *${egg}*.`,
     friendBlurb: 'Only hatches from the *Friendship Egg*: invite friends with your link to get one.',
     hauntedBlurb: 'Only hatches from the *Haunted Egg*, which Duskull sells at the plaza during Halloween Night. After that, not until next year.',
-    kecleonBlurb: "Only hatches from the *Kecleon Egg*, which the shop's Showcase sells, one a day.",
+    kecleonBlurb: "Only hatches from the *Kecleon Egg*, which the shop's Showcase sells, up to 6 a day.",
     lockedButton: 'Still an egg',
     incubator: (n, slots) => `Incubator ${n}/${slots}`,
     readyBadge: (n) => (n === 1 ? '1 egg ready!' : `${n} eggs ready!`),

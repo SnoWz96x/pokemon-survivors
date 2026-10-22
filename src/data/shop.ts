@@ -143,11 +143,17 @@ export const VITRINE = {
   styleStock: 1,
   /**
    * The Kecleon Egg's fixed card, beside the day's cards and never one of
-   * them (the rotation and its 7-day guarantee don't see it): its price and
-   * how many one save may buy each Brasília day, at any shop level. Its four
+   * them (the rotation and its 7-day guarantee don't see it, nor the deal):
+   * the price of each egg one save buys on a Brasília day, at any shop level,
+   * each double the last, so the more ₽ a player sits on the more eggs they
+   * take home. Its length is the daily stock (`kecleonEggPrice`). Its four
    * families hatch from no other egg (`EGG_TIERS.kecleon`).
    */
-  kecleonEgg: { price: 10_000, stock: 1 },
+  kecleonEgg: {
+    prices: [10_000, 20_000, 40_000, 80_000, 160_000, 320_000],
+    /** From this price on, the shop asks before selling one (a click buys on desktop). */
+    confirmFrom: 80_000,
+  },
 } as const satisfies { eggs: Record<Exclude<EggTier, 'friend' | 'haunted' | 'kecleon' | 'kecleonShiny'>, { price: number; weight: number }> } & Record<string, unknown>
 
 export type VitrineEgg = keyof typeof VITRINE.eggs
