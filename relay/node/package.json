@@ -5,9 +5,10 @@
   "description": "The co-op relay's São Paulo shell: the same pure room (../src/room.ts) on Node 24, one SQLite per room, on one EC2 instance in sa-east-1 deployed with SST.",
   "scripts": {
     "build": "node build.mjs",
-    "dev": "node build.mjs && PORT=8795 DATA_DIR=.data ALLOW_GUESTS=on node --disable-warning=ExperimentalWarning dist/relay.mjs",
+    "dev": "node build.mjs && PORT=8795 DATA_DIR=.data ALLOW_GUESTS=on node --enable-source-maps --disable-warning=ExperimentalWarning dist/relay.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "typecheck:sst": "sst install && tsc -p tsconfig.sst.json",
     "deploy": "sst deploy --stage production"
   },
   "license": "MIT",
