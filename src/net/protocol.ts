@@ -32,6 +32,18 @@ export const SNAPSHOT_EVERY = 600
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 export const ROOM_CODE_LENGTH = 5
 
+/**
+ * Which relay a room lives on, told by its code's first character, so a link
+ * or a typed code finds its room without asking anyone: a letter is Cloudflare's
+ * (`cf`, 23 × 31^4 ≈ 21 million codes), a digit the São Paulo relay's (`sa`,
+ * 8 × 31^4 ≈ 7.4 million). Each relay only makes codes of its own home.
+ */
+export const RELAY_HOMES = { cf: 'ABCDEFGHJKMNPQRSTUVWXYZ', sa: '23456789' } as const satisfies Record<string, string>
+export type RelayHome = keyof typeof RELAY_HOMES
+
+/** The relay a (valid) room code belongs to. */
+export const homeOf = (code: string): RelayHome => (RELAY_HOMES.sa.includes(code.charAt(0)) ? 'sa' : 'cf')
+
 /** The room code in a shared link (`/?sala=K7QF2`). */
 export const ROOM_PARAM = 'sala'
 
