@@ -161,7 +161,7 @@ describe('clock', () => {
     const { state, t0 } = playing()
     expect(roomOf(state).run?.bound).toBe(BOUND_AHEAD)
     const bounds: [number, number][] = []
-    for (let t = t0; t <= t0 + 12_000; t += 17) {
+    for (let t = t0; t <= t0 + 13_000; t += 17) {
       alive(state, 2, t)
       for (const e of tick(state, t)) if (e.k === 'log') bounds.push([e.at, e.bound])
     }
@@ -251,7 +251,7 @@ describe('clock', () => {
     // The room was last saved at the start; the log batches carried the bound on since.
     const saved = JSON.parse(JSON.stringify(roomOf(state))) as Room
     const bounds: number[] = []
-    for (let t = t0; t <= t0 + 12_000; t += 17) {
+    for (let t = t0; t <= t0 + 13_000; t += 17) {
       alive(state, 2, t)
       for (const e of tick(state, t)) if (e.k === 'log') bounds.push(e.bound)
     }
@@ -259,8 +259,8 @@ describe('clock', () => {
     // A crash lost the newest batch: the one before still lies past every tick sent.
     const kept = bounds.at(-2) ?? 0
     expect(kept).toBeGreaterThan(sentTo)
-    const restarted = loadState(saved, state.gen, t0 + 13_000, kept)
-    const back = join(restarted, 'n0', 'guest-0-xxxxxxxxxxxx', t0 + 13_000, { secret: saved.seats[0]?.secret ?? null, resume: { run: 1, from: sentTo } })
+    const restarted = loadState(saved, state.gen, t0 + 14_000, kept)
+    const back = join(restarted, 'n0', 'guest-0-xxxxxxxxxxxx', t0 + 14_000, { secret: saved.seats[0]?.secret ?? null, resume: { run: 1, from: sentTo } })
     expect(of(sent(back, 'n0'), 'sync')[0]).toMatchObject({ reason: 'resume', from: sentTo, to: kept })
   })
 

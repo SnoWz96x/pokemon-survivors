@@ -876,7 +876,7 @@ const onBadSnap = (state: State, room: Room, run: Run, seat: number, tick: numbe
 /**
  * Sends the ticks the clock allows since the last frame, the pending entries
  * stamped into the first one. The log batch (lazy) goes once a second of
- * ticks, or with a bound running short.
+ * ticks, with the bound when it runs short.
  */
 const emit = (state: State, run: Run, now: number): Effect[] => {
   const due = ticksDue(run.clockBase, now)
@@ -886,10 +886,11 @@ const emit = (state: State, run: Run, now: number): Effect[] => {
   state.live.pending = []
   run.next = due
   if (entries.length > 0) state.live.unlogged.ticks.push([from, entries])
-  const short = run.bound - due < BOUND_REFRESH
-  if (short) run.bound = due + BOUND_AHEAD
+  // Checked once a second, so the bound rides on that second's batch (at least `BOUND_REFRESH - LOG_BATCH` ticks stay ahead).
   const second = Math.floor(due / LOG_BATCH) !== Math.floor(from / LOG_BATCH)
-  const out = short || second ? flush(state, run, short) : []
+  const short = second && run.bound - due < BOUND_REFRESH
+  if (short) run.bound = due + BOUND_AHEAD
+  const out = second ? flush(state, run, short) : []
   out.push(...toSeated(state, { t: 'frame', from, to: due, ticks: entries.length > 0 ? [[from, entries]] : [] }))
   return out
 }
