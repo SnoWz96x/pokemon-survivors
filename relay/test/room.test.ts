@@ -371,7 +371,7 @@ describe('hashes, snapshots and the end', () => {
 describe('rate limit', () => {
   it('charges a batch a token per message it carries', () => {
     const { state, t0 } = playing()
-    const batch = { t: 'batch', m: Array.from({ length: 16 }, () => ({ t: 'in', k: 'move', d: [1] })) } as const
+    const batch: ClientMessage = { t: 'batch', m: Array.from({ length: 16 }, () => ({ t: 'in', k: 'move', d: [1] }) as const) }
     const out = Array.from({ length: 8 }, () => say(state, 'c0', batch, t0)).flat()
     expect(of(sent(out, 'c0'), 'slow')).toHaveLength(1)
   })
