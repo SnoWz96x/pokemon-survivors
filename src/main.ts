@@ -2034,15 +2034,20 @@ const joinCoop = async (code: string, via: 'code' | 'link' | 'invite' | null) =>
   return res
 }
 
-/** A co-op run's display frame: the stick, the presses, the lockstep, the prediction, then the copy that's drawn. */
-const coopFrame = (r: Run, c: CoopRun, dt: number, t: number) => {
+/**
+ * A co-op run's display frame: the stick, the presses, the lockstep, the
+ * prediction, then the copy that's drawn. `realDt` is the frame's whole real
+ * time: the stick's samples and the run's clock must keep up with the relay's
+ * even across a long frame (the 0.1 s cap `dt` has is for drawing).
+ */
+const coopFrame = (r: Run, c: CoopRun, dt: number, t: number, realDt: number) => {
   const client = c.client
   const g = c.runner.game
   r.game = g
   const me = localPlayer(g)
   // The stick reads still while a menu or a screen is up.
   const still = c.menu || phaseOf(g, me) !== 'playing'
-  c.driver.advance(g, dt, { move: still ? { x: 0, y: 0 } : input.readMove(), special: specialQueued, mega: megaQueued, lunge: lungeQueued })
+  c.driver.advance(g, realDt, { move: still ? { x: 0, y: 0 } : input.readMove(), special: specialQueued, mega: megaQueued, lunge: lungeQueued })
   specialQueued = megaQueued = lungeQueued = false
   const runner = c.runner
   const st = client.state()
@@ -2366,6 +2371,9 @@ const frame = (now: number) => {
   const started = performance.now()
   recordFrame(frames, now - last, run?.game.phase === 'playing')
   const dt = Math.min(0.1, (now - last) / 1000)
+  // Co-op's stick and lockstep keep pace with the relay's clock through a long frame (a level-up screen, a GC);
+  // the 0.1 s cap is for drawing and solo's steps.
+  const realDt = Math.min(1, (now - last) / 1000)
   last = now
   const t = now / 1000
   // Gamepads type the keyboard's codes: menus get confirm/back, a run its special, Mega and lunge.
@@ -2377,9 +2385,9 @@ const frame = (now: number) => {
   if (!coop) {
     const client = coopClient()
     const status = client?.state().status.kind
-    if (client && status !== 'idle' && status !== 'closed') client.frame(dt)
+    if (client && status !== 'idle' && status !== 'closed') client.frame(realDt)
   }
-  if (run && coop) coopFrame(run, coop, dt, t)
+  if (run && coop) coopFrame(run, coop, dt, t, realDt)
   else if (run) {
     const r = run
     const g = r.game

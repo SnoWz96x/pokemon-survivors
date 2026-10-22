@@ -21,6 +21,14 @@ import type { Runner } from './runner'
  * too, so the sprite never sinks into a wall. While the step doesn't walk the
  * player (a hitstop, the rift's fall, a held world) the sprite eases to the
  * confirmed spot the same way.
+ *
+ * Each frame: the steady offset (`steadyOffset`) says which sample the
+ * confirmed state has reached (`simSample`); `walking` says how the next
+ * ticks treat the stick; `walkAhead` walks the ghost from there to the
+ * latest sample; the change against last frame's prediction for the same
+ * sample is the correction (`err`), faded over `BLEND`. Only walking is
+ * modelled: a dash, lunge or roll moves the confirmed player on its own and
+ * reaches the sprite as a correction.
  */
 
 /** Samples predicted ahead at most (~0.75 s): a worse link just shows its lag. */
@@ -49,6 +57,78 @@ export type Prediction = {
   terrain: Game['terrain']
   /** |predicted − confirmed| (px) each time the confirmed state reaches a predicted sample (the PR's numbers). */
   errors: number[]
+  /** Which stick sample each tick reads, kept steady across anchors (`steadyOffset`). */
+  offset: SteadyOffset
+}
+
+/**
+ * Which of this client's stick samples the run's ticks read: tick `t` reads
+ * sample `t + offset` (both count 60 a second). Each anchor (this player's
+ * last stick input the relay stamped) says it once, jittered by that
+ * message's trip; `steadyOffset` keeps one that holds still.
+ */
+export type SteadyOffset = {
+  /** The offset in use (sample − tick), null before the first anchor. */
+  offset: number | null
+  /** The last anchors' raw offsets (`OFFSETS` of them), oldest first. */
+  recent: number[]
+  /** The tick of the last anchor read (an anchor counts once). */
+  anchor: number
+  /** Anchors in a row whose median asked for another offset. */
+  votes: number
+  /** The last raw offset that sat `OFFSET_JUMP` off, waiting for a second to agree. */
+  far: number | null
+}
+
+/** Anchors whose raw offsets the steady one is the median of. */
+const OFFSETS = 9
+
+/** Anchors in a row the median must ask for another offset before it moves (one-sample wobbles stay put). */
+const OFFSET_VOTES = 3
+
+/** An anchor this far (samples) off is an outlier, or, when the next one agrees, a new clock (a reconnect, a long pause). */
+const OFFSET_JUMP = 8
+
+/** Two far anchors this close (samples) agree. */
+const OFFSET_AGREE = 2
+
+export const createSteadyOffset = (): SteadyOffset => ({ offset: null, recent: [], anchor: -1, votes: 0, far: null })
+
+/**
+ * The steady sample ↔ tick offset after an anchor. Taken raw, every new
+ * anchor (one each stick change, and every 250 ms) shifted the whole
+ * prediction by its trip's jitter: 3.7 corrections a second of 1 to 3 px
+ * blended into the sprite and the camera, and 8 to 14 px when a long frame
+ * held the send. The median of the last few, moved only after a few anchors
+ * in a row ask for it, holds still: a stick held still predicts the same path
+ * whatever each trip took. A single anchor far off is ignored; two that agree
+ * move it at once (the clocks really moved).
+ */
+export const steadyOffset = (s: SteadyOffset, anchor: { tick: number; sample: number }): number => {
+  const raw = anchor.sample - anchor.tick
+  const was = s.offset
+  if (was !== null && anchor.tick === s.anchor) return was
+  s.anchor = anchor.tick
+  const far = was !== null && Math.abs(raw - was) > OFFSET_JUMP
+  if (far && (s.far === null || Math.abs(raw - s.far) > OFFSET_AGREE)) {
+    s.far = raw
+    return was
+  }
+  s.far = null
+  if (was === null || far) {
+    s.offset = raw
+    s.recent = [raw]
+    s.votes = 0
+    return raw
+  }
+  s.recent.push(raw)
+  if (s.recent.length > OFFSETS) s.recent.shift()
+  const median = [...s.recent].sort((a, b) => a - b)[s.recent.length >> 1]!
+  s.votes = median === was ? 0 : s.votes + 1
+  if (s.votes < OFFSET_VOTES) return was
+  s.votes = 0
+  s.offset = median
+  return median
 }
 
 export const createPrediction = (): Prediction => ({
@@ -62,6 +142,7 @@ export const createPrediction = (): Prediction => ({
   world: null,
   terrain: { seed: 0, cells: new Map() },
   errors: [],
+  offset: createSteadyOffset(),
 })
 
 /**
@@ -113,8 +194,8 @@ export const predict = (pr: Prediction, r: Runner, history: Uint8Array, sample: 
   let walked = false
   const frozen = anchor ? walking(g, p) : null
   if (anchor && frozen !== null) {
-    // Sample `s` lands `s - anchor.sample` ticks after the anchor: both count 60 a second.
-    const simSample = anchor.sample + (r.next - 1 - anchor.tick)
+    // Ticks and samples both count 60 a second: tick `t` reads the sample `t + offset`.
+    const simSample = steadyOffset(pr.offset, anchor) + r.next - 1
     // How good the prediction was for the sample the confirmed state just reached.
     const k = ((simSample % HISTORY) + HISTORY) % HISTORY
     if (pr.predictedAt[k] === simSample && pr.errors.length < 100_000) pr.errors.push(Math.hypot(pr.predicted[k * 2]! - p.x, pr.predicted[k * 2 + 1]! - p.y))
