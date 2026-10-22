@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { PROTOCOL, type ClientMessage, type Hello, type ServerMessage } from '../../src/net/protocol'
 import {
   BOUND_AHEAD,
+  BOUND_REFRESH,
+  LOG_BATCH,
   TIMES,
   connect,
   createRoom,
@@ -136,18 +138,50 @@ describe('seats', () => {
 })
 
 describe('clock', () => {
-  it('stamps inputs into the next unsent tick, newest stick only, logged before the frame goes out', () => {
+  it('stamps inputs into the next unsent tick, newest stick only, and logs them in one batch a second, never saving the room', () => {
     const { state, t0 } = playing()
     tick(state, t0 + 17)
     say(state, 'c0', { t: 'in', k: 'move', d: [1] }, t0 + 20)
     say(state, 'c0', { t: 'in', k: 'move', d: [2] }, t0 + 25)
     say(state, 'c1', { t: 'in', k: 'pick', d: [0, 3] }, t0 + 26)
     const out = tick(state, t0 + 34)
-    const log = out.findIndex((e) => e.k === 'log')
-    const firstSend = out.findIndex((e) => e.k === 'send')
-    expect(log).toBeGreaterThanOrEqual(0)
-    expect(log).toBeLessThan(firstSend)
     expect(frames(out, 'c1')).toEqual([{ t: 'frame', from: 1, to: 2, ticks: [[1, [[0, 'move', 2], [1, 'pick', 0, 3]]]] }])
+    const second: Effect[] = []
+    for (let t = t0 + 50; t <= t0 + 1000 + 17; t += 17) {
+      if (t > t0 + 500) say(state, 'c0', { t: 'in', k: 'move', d: [t] }, t)
+      second.push(...tick(state, t))
+    }
+    const logs = [...out, ...second].filter((e) => e.k === 'log')
+    expect(logs).toEqual([expect.objectContaining({ at: LOG_BATCH, ticks: expect.arrayContaining([[1, [[0, 'move', 2], [1, 'pick', 0, 3]]]]) })])
+    expect(logs[0]?.k === 'log' && logs[0].ticks.length).toBeGreaterThan(20)
+    expect([...out, ...second].some((e) => e.k === 'save')).toBe(false)
+  })
+
+  it('writes the clock bound far ahead, again once it runs short, with the log batch', () => {
+    const { state, t0 } = playing()
+    expect(roomOf(state).run?.bound).toBe(BOUND_AHEAD)
+    const bounds: [number, number][] = []
+    for (let t = t0; t <= t0 + 12_000; t += 17) {
+      alive(state, 2, t)
+      for (const e of tick(state, t)) if (e.k === 'log') bounds.push([e.at, e.bound])
+    }
+    // No input: a batch only when the bound runs short, each one far past every tick sent.
+    expect(bounds.length).toBe(2)
+    for (const [at, bound] of bounds) {
+      expect(bound - at).toBe(BOUND_AHEAD)
+      expect(at).toBeGreaterThan(BOUND_AHEAD - BOUND_REFRESH)
+    }
+  })
+
+  it('writes the log before a sync reads it back', () => {
+    const { state, t0 } = playing()
+    tick(state, t0)
+    say(state, 'c0', { t: 'in', k: 'move', d: [5] }, t0 + 5)
+    tick(state, t0 + 20)
+    disconnect(state, 'c1', t0 + 30)
+    const back = join(state, 'c9', 'guest-1-xxxxxxxxxxxx', t0 + 40, { secret: roomOf(state).seats[1]?.secret ?? null, resume: { run: 1, from: 0 } })
+    const order = back.flatMap((e) => (e.k === 'log' ? [`log:${e.ticks.map(([t]) => t).join(',')}`] : e.k === 'sync' ? ['sync'] : []))
+    expect(order).toEqual(['log:0', 'sync'])
   })
 
   it('stamps a batch as its messages one by one at once: same tick, in order, newest stick only', () => {
@@ -212,17 +246,22 @@ describe('clock', () => {
     expect(t0).toBeGreaterThan(T0)
   })
 
-  it('after a restart, resumes at the persisted bound, past every tick it may have sent', () => {
+  it('after a restart, resumes at the newest bound it wrote, past every tick it may have sent', () => {
     const { state, t0 } = playing()
-    tick(state, t0 + 500)
+    // The room was last saved at the start; the log batches carried the bound on since.
     const saved = JSON.parse(JSON.stringify(roomOf(state))) as Room
+    const bounds: number[] = []
+    for (let t = t0; t <= t0 + 12_000; t += 17) {
+      alive(state, 2, t)
+      for (const e of tick(state, t)) if (e.k === 'log') bounds.push(e.bound)
+    }
     const sentTo = roomOf(state).run?.next ?? -1
-    expect(saved.run?.bound).toBeGreaterThanOrEqual(sentTo)
-    expect(saved.run?.bound).toBeLessThanOrEqual(sentTo + BOUND_AHEAD)
-    const restarted = loadState(saved, state.gen, t0 + 900)
-    const back = join(restarted, 'n0', 'guest-0-xxxxxxxxxxxx', t0 + 900, { secret: saved.seats[0]?.secret ?? null, resume: { run: 1, from: sentTo } })
-    const sync = of(sent(back, 'n0'), 'sync')[0]
-    expect(sync).toMatchObject({ reason: 'resume', from: sentTo, to: saved.run?.bound })
+    // A crash lost the newest batch: the one before still lies past every tick sent.
+    const kept = bounds.at(-2) ?? 0
+    expect(kept).toBeGreaterThan(sentTo)
+    const restarted = loadState(saved, state.gen, t0 + 13_000, kept)
+    const back = join(restarted, 'n0', 'guest-0-xxxxxxxxxxxx', t0 + 13_000, { secret: saved.seats[0]?.secret ?? null, resume: { run: 1, from: sentTo } })
+    expect(of(sent(back, 'n0'), 'sync')[0]).toMatchObject({ reason: 'resume', from: sentTo, to: kept })
   })
 
   it('stamps a silent seat away and back when it is heard again', () => {

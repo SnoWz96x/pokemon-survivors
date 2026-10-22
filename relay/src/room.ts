@@ -15,16 +15,28 @@ import {
   type ServerMessage,
   type Settings,
   type SnapshotRef,
+  type TickEntries,
 } from '../../src/net/protocol'
 
 /**
  * One co-op room as a pure state machine: no sockets, storage, timers, clock or
  * randomness (the caller passes `now`, in ms, and a `Gen`). Every function
- * mutates the plain state and returns the effects to apply, in order: storage
- * writes, then messages (the Durable Object writes first, so its output gate
- * never lets out a frame that isn't durable). The relay never simulates: in a
- * run it stamps inputs into ticks derived from its clock and relays them,
- * compares the players' state hashes and keeps the latest agreed snapshot.
+ * mutates the plain state and returns the effects to apply, in order. The
+ * relay never simulates: in a run it stamps inputs into ticks derived from its
+ * clock and relays them, compares the players' state hashes and keeps the
+ * latest agreed snapshot.
+ *
+ * What the shell must store, two ways (see `Effect`):
+ * - Durable (`save`, the room as JSON): rare (seats, run start and end, the
+ *   agreed snapshot, pauses). Nothing that follows it goes out before it is
+ *   on disk.
+ * - Lazy (`log`, `chunk`, `keepSnapshot`, `dropSnapshot`, `dropRun`): never
+ *   holds a message back. Lazy writes land in order, before any durable one
+ *   that follows; a crash may lose only the newest of them (about a second of
+ *   log). Clients keep what they saw, `bound` keeps the restarted clock past
+ *   every tick sent, and the hash check heals anyone who rebuilt without it.
+ * After a restart the shell passes `loadState` the room and the `bound` of the
+ * newest log batch it kept.
  */
 
 export type ConnId = string
@@ -47,8 +59,16 @@ export const TIMES = {
   hashWait: 10_000,
 } as const
 
-/** Ticks the persisted clock bound stays ahead of the last frame sent (one storage write a second). */
-export const BOUND_AHEAD = TICK_HZ
+/**
+ * Ticks the persisted clock bound is written ahead of the last frame sent,
+ * again once fewer than `BOUND_REFRESH` remain: a bound write lost in a crash
+ * still leaves the one before it seconds ahead of any tick that went out.
+ */
+export const BOUND_AHEAD = 10 * TICK_HZ
+export const BOUND_REFRESH = 5 * TICK_HZ
+
+/** The log goes to storage in batches, one per this many ticks of the clock (a second). */
+export const LOG_BATCH = TICK_HZ
 
 /** A reconnecting client resumes from its own state when at most this many ticks behind; past that, from a newer snapshot. */
 export const RESUME_TAIL_MAX = 60 * TICK_HZ
@@ -159,6 +179,10 @@ export type Live = {
   uploader: number | null
   /** `badSnap`s each seat sent this run (`MAX_BAD_SNAPS`). */
   badSnaps: Map<number, number>
+  /** Ticks sent and hashes decided since the last log batch: written at the next one (`flush`). */
+  unlogged: { ticks: TickEntries[]; hashes: [number, Record<number, string>][] }
+  /** Log batches written since this object started (half of a batch's key). */
+  batches: number
 }
 
 export type State = { room: Room | null; live: Live; gen: Gen }
@@ -166,9 +190,16 @@ export type State = { room: Room | null; live: Live; gen: Gen }
 export type SyncReason = 'join' | 'resume' | 'heal'
 
 export type Effect =
+  /** Durable: store the room (`state.room`) as JSON before any message that follows goes out. */
   | { k: 'save' }
-  | { k: 'log'; run: number; tick: number; entries: Entry[] }
-  | { k: 'hashes'; run: number; tick: number; bySeat: Record<number, string> }
+  /**
+   * Lazy: a batch of the run's log. `ticks` (only those with entries) were all
+   * sent below `at`, the clock's `next` when written; `hashes` were decided
+   * since the last batch; `bound` is the clock bound now. Key it by
+   * (`run`, `at`, `n`): batches sort that way, and a reader of ticks from `t`
+   * on reads every batch with `at > t`.
+   */
+  | { k: 'log'; run: number; at: number; n: number; ticks: TickEntries[]; hashes: [number, Record<number, string>][]; bound: number }
   | { k: 'chunk'; run: number; tick: number; part: number; data: string }
   /** Delete every snapshot of `run` but the one at `tick`. */
   | { k: 'keepSnapshot'; run: number; tick: number }
@@ -196,14 +227,17 @@ export const emptyLive = (): Live => ({
   upload: null,
   uploader: null,
   badSnaps: new Map(),
+  unlogged: { ticks: [], hashes: [] },
+  batches: 0,
 })
 
 /**
- * A state with `room` as persisted. After a restart a run's clock waits at its
- * bound until someone reconnects, and every seat gets the usual grace before
- * going `away` (they all lost their socket at once, through no fault of theirs).
+ * A state with `room` as persisted, and `bound` the newest log batch's (it may
+ * be newer than the room's). After a restart a run's clock waits at its bound
+ * until someone reconnects, and every seat gets the usual grace before going
+ * `away` (they all lost their socket at once, through no fault of theirs).
  */
-export const loadState = (room: Room | null, gen: Gen, now: number): State => {
+export const loadState = (room: Room | null, gen: Gen, now: number, bound = 0): State => {
   const live = emptyLive()
   if (room?.run) {
     // Rooms saved before these fields existed.
@@ -211,6 +245,7 @@ export const loadState = (room: Room | null, gen: Gen, now: number): State => {
     room.run.demoted ??= []
   }
   if (room?.run && !room.run.ended) {
+    room.run.bound = Math.max(room.run.bound, bound)
     room.run.next = Math.max(room.run.next, room.run.bound)
     room.run.paused = true
   }
@@ -376,11 +411,25 @@ const syncFor = (run: Run, resume: Hello['resume']): { reason: SyncReason; from:
   return { reason: 'join', from: 0, base: null }
 }
 
-const syncEffect = (conn: ConnId, run: Run, s: { reason: SyncReason; from: number; base: SnapshotRef | null }): Effect => ({
-  k: 'sync',
-  to: conn,
-  msg: { t: 'sync', reason: s.reason, run: run.start, from: s.from, to: run.next, base: s.base },
-})
+/**
+ * Writes the log held in memory and the clock bound as one batch: once a
+ * second of ticks, when the bound moves, and before anything reads the log
+ * back (a sync, a dump) or the room may sleep (a pause, the end). `force`
+ * writes the bound even with nothing else to write.
+ */
+const flush = (state: State, run: Run, force = false): Effect[] => {
+  const live = state.live
+  const { ticks, hashes } = live.unlogged
+  if (!force && ticks.length === 0 && hashes.length === 0) return []
+  live.unlogged = { ticks: [], hashes: [] }
+  return [{ k: 'log', run: run.start.id, at: run.next, n: live.batches++, ticks, hashes, bound: run.bound }]
+}
+
+/** Brings `conn` to the present: the log written first, so the sync reads all of it. */
+const syncEffect = (state: State, conn: ConnId, run: Run, s: { reason: SyncReason; from: number; base: SnapshotRef | null }): Effect[] => [
+  ...flush(state, run),
+  { k: 'sync', to: conn, msg: { t: 'sync', reason: s.reason, run: run.start, from: s.from, to: run.next, base: s.base } },
+]
 
 /** Starts the clock again where it stopped: tick `next` falls due one tick from now. */
 const resumeClock = (room: Room, run: Run, now: number): Effect[] => {
@@ -407,8 +456,9 @@ const settle = (state: State, room: Room, now: number): Effect[] => {
   const here = liveSeats(state, room).length > 0
   if (!here && !run.paused) {
     run.paused = true
+    // Nothing went out past `next`: a restart while paused resumes right there. The room may sleep now, so the log goes too.
     run.bound = run.next
-    out.push({ k: 'save' }, event(room, 'run.paused', { run: run.start.id, tick: run.next, why: room.emptySince === null ? 'away' : 'empty' }))
+    out.push(...flush(state, run, true), { k: 'save' }, event(room, 'run.paused', { run: run.start.id, tick: run.next, why: room.emptySince === null ? 'away' : 'empty' }))
   } else if (here && run.paused) out.push({ k: 'save' }, ...resumeClock(room, run, now))
   return out
 }
@@ -484,7 +534,7 @@ export const hello = (state: State, connId: ConnId, h: Hello, identity: Identity
   out.push(...broadcastRoom(state, room).filter((e) => e.k !== 'send' || e.to !== connId))
   if (room.phase === 'playing' && run && !run.ended && inRun(run, seat.seat)) {
     const s = syncFor(run, h.resume)
-    out.push(syncEffect(connId, run, s), event(room, 'seat.sync', { seat: seat.seat, reason: s.reason, from: s.from, to: run.next }))
+    out.push(...syncEffect(state, connId, run, s), event(room, 'seat.sync', { seat: seat.seat, reason: s.reason, from: s.from, to: run.next }))
     out.push(send(connId, { t: 'role', snapshots: false }))
     // The role is re-sent if this seat is (still) the uploader.
     if (state.live.uploader === seat.seat) state.live.uploader = null
@@ -628,10 +678,11 @@ const startRun = (state: State, room: Room, now: number): Effect[] => {
   room.runs += 1
   const players = room.seats.flatMap((s) => (s.loadout ? [{ seat: s.seat, name: s.name, account: s.account, loadout: s.loadout }] : []))
   const start: RunStart = { id: room.runs, seed: state.gen.seed() >>> 0, build: room.build, settings: room.settings, players }
-  room.run = { start, clockBase: now + TIMES.startDelay, next: 0, bound: 0, paused: false, left: [], agreed: null, agreedBy: null, demoted: [], overs: {}, ended: null, dumps: 0 }
+  room.run = { start, clockBase: now + TIMES.startDelay, next: 0, bound: BOUND_AHEAD, paused: false, left: [], agreed: null, agreedBy: null, demoted: [], overs: {}, ended: null, dumps: 0 }
   room.phase = 'playing'
   const live = state.live
   live.pending = []
+  live.unlogged = { ticks: [], hashes: [] }
   live.reports.clear()
   live.firstReport.clear()
   live.decided.clear()
@@ -680,6 +731,7 @@ const evaluateOver = (state: State, room: Room): Effect[] => {
   state.live.pending = []
   state.live.uploader = null
   return [
+    ...flush(state, run),
     { k: 'save' },
     event(room, 'run.over', { run: run.start.id, tick: run.ended.tick, votes: best[1], connected: connected.length }),
     ...toSeated(state, { t: 'ended', run: run.start.id, tick: run.ended.tick, h }),
@@ -699,13 +751,14 @@ export const majority = (reports: ReadonlyMap<number, string>): string | null =>
 
 /** Tells a diverged seat to restore the agreed state, and records the divergence (a few dumps per run). */
 const heal = (state: State, room: Room, run: Run, seats: number[], tick: number, reports: Record<number, string>, agreedHash: string): Effect[] => {
-  const out: Effect[] = []
+  // The dump and the syncs read the log back: all of it is written first.
+  const out: Effect[] = flush(state, run)
   for (const seat of seats) {
     const conn = connOf(state, seat)
     state.live.healing.set(seat, run.next)
     if (!conn) continue
     const s = run.agreed ? { reason: 'heal' as const, from: run.agreed.tick, base: run.agreed } : { reason: 'heal' as const, from: 0, base: null }
-    out.push(send(conn.id, { t: 'heal', tick }), syncEffect(conn.id, run, s))
+    out.push(send(conn.id, { t: 'heal', tick }), ...syncEffect(state, conn.id, run, s))
   }
   out.push(event(room, 'run.desync', { run: run.start.id, tick, seats: seats.join(','), dump: run.dumps < MAX_DUMPS }))
   if (run.dumps < MAX_DUMPS) {
@@ -735,7 +788,8 @@ const decide = (state: State, room: Room, run: Run, tick: number): Effect[] => {
   live.decided.set(tick, h)
   for (const t of live.decided.keys()) if (t < tick - HASH_WINDOW) live.decided.delete(t)
   const bySeat = Object.fromEntries(reports)
-  const out: Effect[] = [{ k: 'hashes', run: run.start.id, tick, bySeat }]
+  live.unlogged.hashes.push([tick, bySeat])
+  const out: Effect[] = []
   for (const [seat, v] of reports) if (v === h) live.healing.delete(seat)
   // The snapshot first: accepting it drops the older one's chunks, which a heal sent in this same batch would read.
   const up = live.upload
@@ -809,7 +863,7 @@ const onBadSnap = (state: State, room: Room, run: Run, seat: number, tick: numbe
   run.agreed = null
   run.agreedBy = null
   if (by !== null && !run.demoted.includes(by)) run.demoted.push(by)
-  const out: Effect[] = [{ k: 'save' }, dropSnapshot(run, agreed), event(room, 'snapshot.bad', { run: run.start.id, tick, seat, uploader: by })]
+  const out: Effect[] = [...flush(state, run), { k: 'save' }, dropSnapshot(run, agreed), event(room, 'snapshot.bad', { run: run.start.id, tick, seat, uploader: by })]
   if (run.dumps < MAX_DUMPS) {
     run.dumps += 1
     out.push({ k: 'dump', reason: 'badSnap', run: run.start.id, tick, reports: {}, majority: agreed.h, minority: [seat] })
@@ -819,7 +873,11 @@ const onBadSnap = (state: State, room: Room, run: Run, seat: number, tick: numbe
 
 /* ---------------- Time ---------------- */
 
-/** Sends the ticks the clock allows since the last frame, the pending entries stamped into the first one. */
+/**
+ * Sends the ticks the clock allows since the last frame, the pending entries
+ * stamped into the first one. The log batch (lazy) goes once a second of
+ * ticks, or with a bound running short.
+ */
 const emit = (state: State, run: Run, now: number): Effect[] => {
   const due = ticksDue(run.clockBase, now)
   if (due <= run.next) return []
@@ -827,12 +885,11 @@ const emit = (state: State, run: Run, now: number): Effect[] => {
   const entries = state.live.pending
   state.live.pending = []
   run.next = due
-  const out: Effect[] = []
-  if (entries.length > 0) out.push({ k: 'log', run: run.start.id, tick: from, entries })
-  if (due > run.bound) {
-    run.bound = due + BOUND_AHEAD
-    out.push({ k: 'save' })
-  }
+  if (entries.length > 0) state.live.unlogged.ticks.push([from, entries])
+  const short = run.bound - due < BOUND_REFRESH
+  if (short) run.bound = due + BOUND_AHEAD
+  const second = Math.floor(due / LOG_BATCH) !== Math.floor(from / LOG_BATCH)
+  const out = short || second ? flush(state, run, short) : []
   out.push(...toSeated(state, { t: 'frame', from, to: due, ticks: entries.length > 0 ? [[from, entries]] : [] }))
   return out
 }

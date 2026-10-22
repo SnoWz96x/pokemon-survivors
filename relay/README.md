@@ -2,10 +2,21 @@
 
 The room relay for co-op: a Cloudflare Worker with one Durable Object per room
 (`idFromName(code)`, SQLite storage). It owns the run's clock (60 Hz, ticks
-derived from elapsed time), stamps inputs into the next unsent tick, persists
-the input log before broadcasting (the output gate holds every frame until it
-is durable), compares the players' state hashes, keeps the latest snapshot a
-majority agreed on, heals a diverged client and records a desync dump. It runs
+derived from elapsed time), stamps inputs into the next unsent tick, broadcasts
+frames without waiting on storage, writes the input log once a second,
+compares the players' state hashes, keeps the latest snapshot a majority agreed
+on, heals a diverged client and records a desync dump.
+
+Storage comes two ways (the doc block atop `src/room.ts`). Rare state (seats,
+run start and end, the agreed snapshot, pauses) is a durable room save: the
+output gate holds every message until it commits. The input log, decided
+hashes, clock bound and snapshot chunks are written with `allowUnconfirmed`
+(KV keys; `sql.exec` always takes the gate), so frames and pongs never wait on
+a commit. A crash can lose the newest second of log: the clock bound, written
+10 s ahead, keeps the restarted room from sending a tick twice, the clients
+resume from their own state, and the hash check heals anyone who rebuilt
+without it. The cost: after a restart the clock resumes at the bound, so the
+players get 5 to 10 s of ticks without their input. It runs
 no game code: it imports only `../src/net/protocol.ts`, which imports nothing
 (a test checks it).
 
@@ -55,7 +66,8 @@ Re-simulating `meta.run` with `log` reproduces the run.
 
 ## Limits and costs
 
-Storage writes per run: one row per frame that carries inputs (at most 60 a second),
-one a second for the clock bound, one per compared hash tick, and the snapshot chunks
-every 10 s. A 4-player, 20-minute run writes about 75k rows. The Workers Free plan allows
-100k rows written a day, so production needs Workers Paid (50M rows a month included).
+Storage writes per run: one log batch a second (the ticks with inputs, the hashes
+decided and the clock bound), the snapshot chunks every 10 s (and the old ones'
+deletes), and a room save for each rare change. A 20-minute run writes a couple of
+thousand rows (it was about 75k with a row per input tick). The Workers Free plan
+allows 100k rows written a day.
