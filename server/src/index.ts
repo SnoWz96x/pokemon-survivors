@@ -40,8 +40,11 @@ void checks.resume()
 void gifts.settle().catch((err) => console.error('invites settle failed', err))
 // The Desafio do dia's ribbons, once a day closes (safe on every instance: each gift has a key per day).
 createRibbons(ranking, gifts).start()
-// The community Discord's bot: introduction gate, patch notes, daily posts (only with its env).
-if (env.discord) startDiscord(env.discord, { store: discordStore(sql), ranking })
+// The community Discord's bot: introduction gate, patch notes, daily posts and the idea review (only with its env).
+// New ideas wait for staff to approve them in #idea-review; without the bot they wait for the admin.
+let bot: ReturnType<typeof startDiscord> | null = null
+const suggestions = suggestionStore(sql, { onPosted: (idea) => bot?.reviewIdea(idea) })
+if (env.discord) bot = startDiscord(env.discord, { store: discordStore(sql), ranking, ideas: suggestions })
 
 const app = createApp({
   store: saveStore(sql),
@@ -53,7 +56,7 @@ const app = createApp({
   donate: env.abacatePayKey ? abacatePay(env.abacatePayKey) : null,
   supporters: supporterStore(sql, { onTierUp: (userId) => void discord.syncRoles(userId) }),
   discord,
-  suggestions: suggestionStore(sql),
+  suggestions,
   // Stored always; posted to #bug-reports when the bot is set up.
   bugReports: createBugReports({
     store: bugReportStore(sql),

@@ -1,23 +1,38 @@
 import { isRecord } from './parse'
 
 /**
- * The idea board (Ideias): players suggest things for the game, everyone
- * with an account votes them up or down, and the admin marks the ones that
- * shipped (`server/src/suggestions.ts`). Pure; shared with the API.
+ * The idea board (Ideias), a kanban: players suggest things for the game,
+ * staff approve each one in the Discord (a reaction in #idea-review) before
+ * it lands in the Backlog, everyone with an account votes them up or down,
+ * and the admin moves them along the columns until they ship
+ * (`server/src/suggestions.ts`). Pure; shared with the API.
  */
 
-/** Lengths in characters (code points), how many ideas a player may post in 24 hours, and how many a list shows. */
+/** Lengths in characters (code points), how many ideas a player may post in 24 hours, and how many a list (or a column) shows. */
 export const SUGGESTION = { title: { min: 6, max: 80 }, body: { max: 500 }, perDay: 3, list: 100 } as const
 
-/** The board's tabs: open ideas by votes or newest first, and the ones that shipped. */
-export const SUGGESTION_SORTS = ['top', 'new', 'done'] as const
+/** `board`: every column at once, the kanban. `top`, `new` and `done` are the tabs earlier builds still ask for (Backlog by votes or newest first, and the shipped ones). */
+export const SUGGESTION_SORTS = ['board', 'top', 'new', 'done'] as const
 
 export type SuggestionSort = (typeof SUGGESTION_SORTS)[number]
 
-/** `hidden`: taken off the board by the admin (spam, offensive). Only the admin sets a status. */
-export const SUGGESTION_STATUSES = ['open', 'done', 'hidden'] as const
+/**
+ * `pending`: posted, waiting for staff to approve it (only its author sees it).
+ * `open` is the Backlog; `todo` and `cooking` are "A fazer" and "Cozinhando";
+ * `done` shipped. `hidden`: taken off the board (spam, offensive, a staff ❌).
+ * Only the admin moves an idea after the review.
+ */
+export const SUGGESTION_STATUSES = ['pending', 'open', 'todo', 'cooking', 'done', 'hidden'] as const
 
 export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number]
+
+/** The board's columns, left to right. */
+export const BOARD_COLUMNS = ['open', 'todo', 'cooking', 'done'] as const
+
+export type BoardColumn = (typeof BOARD_COLUMNS)[number]
+
+/** Whether an idea in `status` takes votes: on the board and not shipped yet. */
+export const isVotable = (status: SuggestionStatus) => status === 'open' || status === 'todo' || status === 'cooking'
 
 /** A player's vote on an idea: up, down or none. */
 export type Vote = -1 | 0 | 1
@@ -45,6 +60,8 @@ export type SuggestionDraft = { title: string; body: string }
 export const isSuggestionSort = (v: unknown): v is SuggestionSort => SUGGESTION_SORTS.some((s) => s === v)
 
 export const isSuggestionStatus = (v: unknown): v is SuggestionStatus => SUGGESTION_STATUSES.some((s) => s === v)
+
+const isListed = (v: unknown): v is Suggestion['status'] => v !== 'hidden' && isSuggestionStatus(v)
 
 export const isVote = (v: unknown): v is Vote => v === -1 || v === 0 || v === 1
 
@@ -83,7 +100,7 @@ export const withVote = (s: Suggestion, vote: Vote): Suggestion => ({ ...s, vote
 /** One idea from the API (`POST /suggestions` answers the one just posted). */
 export const parseSuggestion = (v: unknown): Suggestion | null => {
   if (!isRecord(v) || typeof v.id !== 'string' || typeof v.title !== 'string' || typeof v.handle !== 'string' || typeof v.at !== 'string') return null
-  if ((v.status !== 'open' && v.status !== 'done') || typeof v.score !== 'number') return null
+  if (!isListed(v.status) || typeof v.score !== 'number') return null
   return {
     id: v.id,
     title: v.title,
@@ -101,3 +118,11 @@ export const parseSuggestion = (v: unknown): Suggestion | null => {
 
 /** `GET /suggestions`'s `suggestions`. */
 export const parseSuggestions = (v: unknown): Suggestion[] => (Array.isArray(v) ? v.map(parseSuggestion).filter((s): s is Suggestion => s !== null) : [])
+
+/** The board's ideas by column, in the API's order; the asker's own ideas waiting for review go first in the Backlog. */
+export const boardColumns = (list: readonly Suggestion[]): Record<BoardColumn, Suggestion[]> => {
+  const columns: Record<BoardColumn, Suggestion[]> = { open: [], todo: [], cooking: [], done: [] }
+  for (const s of list) if (s.status === 'pending') columns.open.push(s)
+  for (const s of list) if (s.status !== 'pending') columns[s.status].push(s)
+  return columns
+}
