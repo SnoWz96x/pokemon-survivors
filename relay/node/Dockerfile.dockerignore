@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/.env
+**/.data
+**/.wrangler
+.git
+public
+docs

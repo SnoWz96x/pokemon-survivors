@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { createHold, HOLD, holdFor, onArrival, onUnderrun, updateHold } from './hold'
+import { commitArrivals, createHold, HOLD, holdFor, onArrival, onUnderrun, updateHold } from './hold'
 
 const TICK_MS = 1000 / 60
 
-/** Feeds `n` live frames, one tick each, arriving `delay(i)` ms after their tick's place on the clock. */
-const feed = (delay: (i: number) => number, n = HOLD.window, from = 0) => {
+/**
+ * Feeds `n` live frames, one tick each, arriving `delay(i)` ms after their tick's place on the clock. A display frame
+ * of `frame(i)` s begins after each (null: none, the page is busy and the frames wait for the next).
+ */
+const feed = (delay: (i: number) => number, n = HOLD.window, from = 0, frame: (i: number) => number | null = () => 1 / 60) => {
   const h = createHold()
-  for (let i = from; i < from + n; i++) onArrival(h, i, 5000 + i * TICK_MS + delay(i))
+  for (let i = from; i < from + n; i++) {
+    onArrival(h, i, 5000 + i * TICK_MS + delay(i))
+    const dt = frame(i)
+    if (dt !== null) commitArrivals(h, dt)
+  }
   return h
 }
 
@@ -27,6 +34,24 @@ describe('the adaptive hold', () => {
 
   it('leaves stalls out: a 3 s TCP stall is the catch-up’s job, not the hold’s', () => {
     const h = feed((i) => (i >= 300 && i < 480 ? (480 - i) * TICK_MS + 3000 - 180 * TICK_MS : 2))
+    expect(holdFor(h.offsets).ticks).toBe(HOLD.min)
+  })
+
+  it('leaves out the frames read during a long display frame: they waited on the page, not the network', () => {
+    // Every 2 s the page is busy for ~200 ms (a level-up screen, a GC): the frames it held come in 200 ms late.
+    const busy = (i: number) => i % 120 >= 108
+    const late = feed((i) => (busy(i) ? (120 - (i % 120)) * TICK_MS : 2), HOLD.window, 0, (i) => (busy(i) ? (i % 120 === 119 ? 0.2 : null) : 1 / 60))
+    expect(holdFor(late.offsets).ticks).toBe(HOLD.min)
+  })
+
+  it('counts a bunch of frames read back to back once: its first carries the delay', () => {
+    // Every 2 s a frame comes 150 ms late with the 9 behind it: read together, they'd be 10 late arrivals of 60.
+    const h = createHold()
+    for (let i = 0; i < HOLD.window; i++) {
+      const k = i % 120
+      onArrival(h, i, 5000 + (k < 10 ? (i - k + 9) * TICK_MS + 150 - 9 * TICK_MS : i * TICK_MS + 2))
+      commitArrivals(h, 1 / 60)
+    }
     expect(holdFor(h.offsets).ticks).toBe(HOLD.min)
   })
 

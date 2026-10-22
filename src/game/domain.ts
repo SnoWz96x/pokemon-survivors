@@ -12,7 +12,7 @@ import { pairFighter, revealPartner, updatePair, type PairState } from './domain
 import {
   advanceFront, CAPTURE, composePlan, ENCOUNTER_LENGTH, encounterBeat, REVEAL_AT, threatGround, transformStage,
 } from './domainRules'
-import { burst, updateEffects } from './effects'
+import { burst, setScreenShake, shakeScreen, updateEffects } from './effects'
 import { spawnEnemy } from './enemies'
 import { riftLoot, riftScale, type RiftArena } from './rift'
 import { exitArena, LAVA_BURN, riftWin } from './riftArena'
@@ -137,7 +137,7 @@ export const enterDomain = (g: Game, legend: RiftLegend, x: number, y: number) =
     domain: d,
   }
   g.flash = 0.9
-  g.shake = 9
+  setScreenShake(g, 9, 'team')
   g.events.push({ kind: 'riftEnter', enemy: legend, shiny })
 }
 
@@ -232,7 +232,7 @@ const startEncounter = (g: Game, arena: RiftArena, d: DomainState, def: LegendDo
     p.vx = 0
     p.vy = 0
   }
-  g.shake = Math.max(g.shake, 7)
+  shakeScreen(g, 7, 'team')
   g.events.push({ kind: 'quake' })
 }
 
@@ -252,7 +252,7 @@ const reveal = (g: Game, arena: RiftArena, d: DomainState, def: LegendDomain) =>
   d.bossId = arena.bossId = boss.id
   g.bossId = boss.id
   g.flash = 1
-  g.shake = 12
+  setScreenShake(g, 12, 'team')
   const theme = ARENAS[d.legend]
   burst(g, at.x, at.y - 10, { colors: ['#ffffff', theme.wall[0], theme.motes], count: 90, speed: 220, ttl: 0.7, size: 2, gravity: 160 })
   if (def.partner) {
@@ -284,7 +284,7 @@ export const updateDomainScene = (g: Game, dt: number) => {
     const [bx, by] = def.arena.boss
     const at = arenaPoint(arena, d, def.partner ? [(bx + def.partner.at[0]) / 2, (by + def.partner.at[1]) / 2] : def.arena.boss)
     // The ground rumbles harder as the legendary comes in.
-    if (beat.entrance > 0 && beat.entrance < 1) g.shake = Math.max(g.shake, 2 + beat.entrance * 5)
+    if (beat.entrance > 0 && beat.entrance < 1) shakeScreen(g, 2 + beat.entrance * 5, 'team')
     for (const p of g.players) centerScreen(g, p, p.x + (at.x - p.x) * beat.camera, p.y + (at.y - p.y) * beat.camera)
     if (d.scene >= ENCOUNTER_LENGTH) {
       d.act = 'battle'
@@ -357,7 +357,7 @@ const battleTick = (g: Game, arena: RiftArena, d: DomainState, def: LegendDomain
     t.landed = true
     d.landed.push(t.def)
     arena.layout = composePlan(def, true, d.landed)
-    g.shake = Math.max(g.shake, 7)
+    shakeScreen(g, 7, 'team')
     g.events.push({ kind: 'quake' })
   }
   DOMAIN_HOOKS[d.legend]?.battle?.(g, d, boss, dt)

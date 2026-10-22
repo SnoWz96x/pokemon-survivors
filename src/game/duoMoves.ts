@@ -13,6 +13,7 @@ import { spawnAttack } from './spawn'
 import { ownAttack } from './players'
 import type { Attack, Enemy, Game } from './types'
 import { weatherHere } from './weather'
+import { shakeScreen } from './effects'
 
 /**
  * Duo moves: two maxed moves of a recipe's types fused into one (`duoRules.ts`
@@ -326,7 +327,7 @@ export type DuoMoveId = keyof typeof DUO_MOVES
 export const updateDuos = (g: Game, dt: number) => {
   for (const a of g.attacks) {
     if (a.visual !== 'comet' || a.age >= a.activeFrom || a.age + dt < a.activeFrom || !ownAttack(g, a)) continue
-    g.shake = Math.max(g.shake, 5)
+    shakeScreen(g, 5)
     g.events.push({ kind: a.type === 'electric' ? 'thunder' : 'quake' })
   }
 }

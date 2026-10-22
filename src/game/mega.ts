@@ -2,7 +2,7 @@ import { MEGA, MEGAS, megasOf, type MegaDef, type MegaId } from '../data/megas'
 import { MEGA_BRANCH } from '../data/branches'
 import { PLAYABLE, type PlayableId } from '../data/hatchlings'
 import { formAt } from './branch'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { recomputeStats } from './leveling'
 import { isAlive } from './queries'
 import { SPECIALS } from './special'
@@ -145,7 +145,7 @@ const transform = (g: Game, def: MegaDef) => {
     damage: power * p.stats.might * (1 + 0.04 * (p.level - 1)), knockback, ttl: 0.55, activeUntil: 0.3, grow: (radius - 8) / 0.3,
   })
   burst(g, p.x, p.y - 12, { colors: [...rainbow, '#ffffff'], count: 70, speed: 180, ttl: 0.8, size: 2, drag: 3 })
-  g.shake = Math.max(g.shake, 8)
+  shakeScreen(g, 8)
   g.flash = Math.max(g.flash, 0.3)
   // Sand Stream, Drought, Swift Swim: the weather lives outside, so a rift arena keeps its clear skies.
   if (def.effect.kind === 'weather' && !roomOf(g)) setWeather(g, def.effect.weather)

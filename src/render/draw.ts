@@ -861,9 +861,17 @@ const TEXT_PASSES = [false, true] as const
 
 /**
  * Player preferences from the settings screen, the supporter's companion walking along (`render/companion.ts`)
- * and, in co-op, the teammates: each a draw-only copy of the game as that player (`coop/view.ts`).
+ * and, in co-op, the teammates: each a draw-only copy of the game as that player (`coop/view.ts`), and this
+ * screen's own shake offset (`coop/shake.ts`; without one the draw rolls an offset from `g.shake` itself).
  */
-export type RenderOptions = { damageNumbers: DamageNumbers; screenShake: boolean; flashes: Flashes; companion?: CompanionView | null; mates?: readonly Game[] }
+export type RenderOptions = {
+  damageNumbers: DamageNumbers
+  screenShake: boolean
+  flashes: Flashes
+  companion?: CompanionView | null
+  mates?: readonly Game[]
+  shakeOffset?: { x: number; y: number }
+}
 
 const isMate = (d: Drawable): d is Mate => typeof d === 'object' && 'mate' in d
 /** The teammates' drawables, kept from frame to frame. */
@@ -877,8 +885,9 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   const lean = detail.lean
   const calm = opts.flashes === 'reduced'
   const shake = opts.screenShake ? g.shake : 0
-  const shakeX = shake > 0 ? Math.round((Math.random() - 0.5) * shake * 2) : 0
-  const shakeY = shake > 0 ? Math.round((Math.random() - 0.5) * shake * 2) : 0
+  const given = opts.screenShake ? opts.shakeOffset : undefined
+  const shakeX = given ? given.x : shake > 0 ? Math.round((Math.random() - 0.5) * shake * 2) : 0
+  const shakeY = given ? given.y : shake > 0 ? Math.round((Math.random() - 0.5) * shake * 2) : 0
   const camX = Math.round(g.camera.x) + shakeX
   const camY = Math.round(g.camera.y) + shakeY
 

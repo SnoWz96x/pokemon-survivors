@@ -14,6 +14,7 @@
     "credits": "node scripts/credits.mjs",
     "bodies": "node scripts/bodies.mjs",
     "determinism": "node scripts/determinism.mjs",
+    "rules:freeze": "npm run rules:freeze --prefix server",
     "soak": "node scripts/coop/soak.mjs"
   },
   "devDependencies": {

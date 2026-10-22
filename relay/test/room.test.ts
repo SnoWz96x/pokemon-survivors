@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { PROTOCOL, type ClientMessage, type Hello, type ServerMessage } from '../../src/net/protocol'
 import {
   BOUND_AHEAD,
+  BOUND_REFRESH,
+  LOG_BATCH,
   TIMES,
   connect,
   createRoom,
@@ -136,18 +138,61 @@ describe('seats', () => {
 })
 
 describe('clock', () => {
-  it('stamps inputs into the next unsent tick, newest stick only, logged before the frame goes out', () => {
+  it('stamps inputs into the next unsent tick, newest stick only, and logs them in one batch a second, never saving the room', () => {
     const { state, t0 } = playing()
     tick(state, t0 + 17)
     say(state, 'c0', { t: 'in', k: 'move', d: [1] }, t0 + 20)
     say(state, 'c0', { t: 'in', k: 'move', d: [2] }, t0 + 25)
     say(state, 'c1', { t: 'in', k: 'pick', d: [0, 3] }, t0 + 26)
     const out = tick(state, t0 + 34)
-    const log = out.findIndex((e) => e.k === 'log')
-    const firstSend = out.findIndex((e) => e.k === 'send')
-    expect(log).toBeGreaterThanOrEqual(0)
-    expect(log).toBeLessThan(firstSend)
     expect(frames(out, 'c1')).toEqual([{ t: 'frame', from: 1, to: 2, ticks: [[1, [[0, 'move', 2], [1, 'pick', 0, 3]]]] }])
+    const second: Effect[] = []
+    for (let t = t0 + 50; t <= t0 + 1000 + 17; t += 17) {
+      if (t > t0 + 500) say(state, 'c0', { t: 'in', k: 'move', d: [t] }, t)
+      second.push(...tick(state, t))
+    }
+    const logs = [...out, ...second].filter((e) => e.k === 'log')
+    expect(logs).toEqual([expect.objectContaining({ at: LOG_BATCH, ticks: expect.arrayContaining([[1, [[0, 'move', 2], [1, 'pick', 0, 3]]]]) })])
+    expect(logs[0]?.k === 'log' && logs[0].ticks.length).toBeGreaterThan(20)
+    expect([...out, ...second].some((e) => e.k === 'save')).toBe(false)
+  })
+
+  it('writes the clock bound ahead with every batch, never letting a frame out within BOUND_REFRESH of it', () => {
+    const { state, t0 } = playing()
+    expect(roomOf(state).run?.bound).toBe(BOUND_AHEAD)
+    const bounds: [number, number][] = []
+    let closest = Infinity
+    for (let t = t0; t <= t0 + 13_000; t += 17) {
+      alive(state, 2, t)
+      for (const e of tick(state, t)) if (e.k === 'log') bounds.push([e.at, e.bound])
+      const run = roomOf(state).run
+      if (run) closest = Math.min(closest, run.bound - run.next)
+    }
+    // No input: a batch only to move the bound, each one `BOUND_AHEAD` past the ticks sent.
+    expect(bounds.length).toBeGreaterThanOrEqual(10)
+    for (const [at, bound] of bounds) expect(bound - at).toBe(BOUND_AHEAD)
+    expect(closest).toBeGreaterThanOrEqual(BOUND_REFRESH)
+  })
+
+  it('writes the log before a sync reads it back', () => {
+    const { state, t0 } = playing()
+    tick(state, t0)
+    say(state, 'c0', { t: 'in', k: 'move', d: [5] }, t0 + 5)
+    tick(state, t0 + 20)
+    disconnect(state, 'c1', t0 + 30)
+    const back = join(state, 'c9', 'guest-1-xxxxxxxxxxxx', t0 + 40, { secret: roomOf(state).seats[1]?.secret ?? null, resume: { run: 1, from: 0 } })
+    const order = back.flatMap((e) => (e.k === 'log' ? [`log:${e.ticks.map(([t]) => t).join(',')}`] : e.k === 'sync' ? ['sync'] : []))
+    expect(order).toEqual(['log:0', 'sync'])
+  })
+
+  it('stamps a batch as its messages one by one at once: same tick, in order, newest stick only', () => {
+    const { state, t0 } = playing()
+    tick(state, t0 + 17)
+    say(state, 'c1', { t: 'in', k: 'move', d: [5, 1] }, t0 + 19)
+    const pong = say(state, 'c0', { t: 'batch', m: [{ t: 'in', k: 'move', d: [1, 7] }, { t: 'in', k: 'special', d: [] }, { t: 'in', k: 'move', d: [2, 8] }, { t: 'ping', at: 4 }] }, t0 + 20)
+    expect(of(sent(pong, 'c0'), 'pong')).toHaveLength(1)
+    say(state, 'c1', { t: 'in', k: 'pick', d: [0, 3] }, t0 + 26)
+    expect(frames(tick(state, t0 + 34), 'c1')).toEqual([{ t: 'frame', from: 1, to: 2, ticks: [[1, [[1, 'move', 5, 1], [0, 'special'], [0, 'move', 2, 8], [1, 'pick', 0, 3]]]] }])
   })
 
   it('derives ticks from elapsed time: a late timer sends the whole range at once', () => {
@@ -202,17 +247,22 @@ describe('clock', () => {
     expect(t0).toBeGreaterThan(T0)
   })
 
-  it('after a restart, resumes at the persisted bound, past every tick it may have sent', () => {
+  it('after a restart, resumes at the newest bound it wrote, past every tick it may have sent', () => {
     const { state, t0 } = playing()
-    tick(state, t0 + 500)
+    // The room was last saved at the start; the log batches carried the bound on since.
     const saved = JSON.parse(JSON.stringify(roomOf(state))) as Room
+    const bounds: number[] = []
+    for (let t = t0; t <= t0 + 13_000; t += 17) {
+      alive(state, 2, t)
+      for (const e of tick(state, t)) if (e.k === 'log') bounds.push(e.bound)
+    }
     const sentTo = roomOf(state).run?.next ?? -1
-    expect(saved.run?.bound).toBeGreaterThanOrEqual(sentTo)
-    expect(saved.run?.bound).toBeLessThanOrEqual(sentTo + BOUND_AHEAD)
-    const restarted = loadState(saved, state.gen, t0 + 900)
-    const back = join(restarted, 'n0', 'guest-0-xxxxxxxxxxxx', t0 + 900, { secret: saved.seats[0]?.secret ?? null, resume: { run: 1, from: sentTo } })
-    const sync = of(sent(back, 'n0'), 'sync')[0]
-    expect(sync).toMatchObject({ reason: 'resume', from: sentTo, to: saved.run?.bound })
+    // A crash lost the newest batch: the one before still lies past every tick sent.
+    const kept = bounds.at(-2) ?? 0
+    expect(kept).toBeGreaterThan(sentTo)
+    const restarted = loadState(saved, state.gen, t0 + 14_000, kept)
+    const back = join(restarted, 'n0', 'guest-0-xxxxxxxxxxxx', t0 + 14_000, { secret: saved.seats[0]?.secret ?? null, resume: { run: 1, from: sentTo } })
+    expect(of(sent(back, 'n0'), 'sync')[0]).toMatchObject({ reason: 'resume', from: sentTo, to: kept })
   })
 
   it('stamps a silent seat away and back when it is heard again', () => {
@@ -359,6 +409,13 @@ describe('hashes, snapshots and the end', () => {
 })
 
 describe('rate limit', () => {
+  it('charges a batch a token per message it carries', () => {
+    const { state, t0 } = playing()
+    const batch: ClientMessage = { t: 'batch', m: Array.from({ length: 16 }, () => ({ t: 'in', k: 'move', d: [1] }) as const) }
+    const out = Array.from({ length: 8 }, () => say(state, 'c0', batch, t0)).flat()
+    expect(of(sent(out, 'c0'), 'slow')).toHaveLength(1)
+  })
+
   it('drops a burst past the bucket, says so once, and closes only a flood', () => {
     const { state, t0 } = playing()
     const out = Array.from({ length: 200 }, () => say(state, 'c0', { t: 'in', k: 'move', d: [1] }, t0)).flat()

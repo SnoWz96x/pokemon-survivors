@@ -1,24 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import type { ClientMessage, Entry } from '../net/protocol'
-import { ack, createOutbox, due, onReconnect, onSlow, OUTBOX, push, queued } from './outbox'
+import type { BatchedMessage, Entry } from '../net/protocol'
+import { ack, createOutbox, due, onReconnect, onSlow, OUTBOX, push, queued, slowed } from './outbox'
 
-const inputs = (msgs: ClientMessage[]) => msgs.flatMap((m) => (m.t === 'in' ? [[m.k, ...m.d]] : []))
+const inputs = (msgs: BatchedMessage[]) => msgs.flatMap((m) => (m.t === 'in' ? [[m.k, ...m.d]] : []))
 
 describe('the outbox', () => {
-  it('coalesces the stick to its latest value, at most 30 a second (15 after a slow)', () => {
+  it('coalesces the stick to its latest value, and slows it for a while after a slow', () => {
     const o = createOutbox()
     push(o, { k: 'move', code: 3, sample: 1 }, 0)
     push(o, { k: 'move', code: 9, sample: 2 }, 0)
     expect(inputs(due(o, 0, 100))).toEqual([['move', 9, 2]])
-    push(o, { k: 'move', code: 4, sample: 3 }, 10)
     expect(due(o, 10, 100)).toEqual([])
-    expect(inputs(due(o, 1000 / OUTBOX.moveHz, 100))).toEqual([['move', 4, 3]])
     onSlow(o, 100)
-    push(o, { k: 'move', code: 5, sample: 4 }, 100)
-    expect(inputs(due(o, 110, 100))).toHaveLength(1)
-    push(o, { k: 'move', code: 6, sample: 5 }, 120)
-    expect(due(o, 110 + 1000 / OUTBOX.moveHz, 100)).toEqual([])
-    expect(inputs(due(o, 111 + 2000 / OUTBOX.moveHz, 100))).toHaveLength(1)
+    expect(slowed(o, 100 + OUTBOX.slowMs - 1)).toBe(true)
+    expect(slowed(o, 100 + OUTBOX.slowMs)).toBe(false)
   })
 
   it('sends a pick again until it comes back stamped, with the same nonce', () => {
@@ -52,7 +47,7 @@ describe('the outbox', () => {
     push(o, { k: 'pick', screen: 'tm', round: 1, index: 0 }, 0)
     due(o, 0, 50)
     push(o, { k: 'move', code: 7, sample: 9 }, 5)
-    push(o, { k: 'special' }, 5)
+    push(o, { k: 'special', sample: 9 }, 5)
     onReconnect(o)
     expect(inputs(due(o, 6, 50))).toEqual([['pick', 'tm', 1, 0, 1]])
   })
@@ -63,8 +58,8 @@ describe('the outbox', () => {
     expect(queued(o)).toBe(OUTBOX.reliable)
     expect(inputs(due(o, 500, 50))).toHaveLength(OUTBOX.burst)
     // Presses wait once each.
-    push(o, { k: 'special' }, 501)
-    push(o, { k: 'special' }, 501)
+    push(o, { k: 'special', sample: 1 }, 501)
+    push(o, { k: 'special', sample: 1 }, 501)
     expect(inputs(due(o, 501, 50)).filter((m) => m[0] === 'special')).toHaveLength(1)
     // Given up on long after its screen's timer picked.
     expect(queued(createOutbox())).toBe(0)

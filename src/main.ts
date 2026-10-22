@@ -162,11 +162,12 @@ import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, tickToasts, toast } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
 import { localPlayer, phaseOf } from './game/players'
-import { addBots, bankCoopRun, botCount, buildRefusal, coopClient, coopEntry, coopEventFor, coopUrl, linkedRoom, linkRoom, markBuildReload, onCoopEntry, refreshCoopEntry, removeBots, reportHeal, setCoopBeta, setCoopUrl, surrenderBots } from './coopShell'
+import { addBots, bankCoopRun, botCount, buildRefusal, coopClient, coopEntry, coopEventFor, coopNetPayload, coopUrl, lastCoopNet, linkedRoom, linkRoom, markBuildReload, onCoopEntry, refreshCoopEntry, removeBots, reportCoopNet, reportHeal, setCoopBeta, setCoopUrl, setCoopVpsUrl, surrenderBots, type CoopNetOutcome } from './coopShell'
+import { noteDraw, type NetStats } from './coop/netStats'
 import type { CloseWhy, CoopClient } from './coop/client'
 import { coopAccess, coopStarter, freshInvites } from './coop/lobby'
 import { REF_PARAM } from './game/referral'
-import { PROTOCOL, parseRoomCode } from './net/protocol'
+import { PROTOCOL, VPS_HOMES, parseRoomCode } from './net/protocol'
 import { isRecord } from './game/parse'
 import type { CoopInvite } from './game/friends'
 import { dismissInvite, onPresence, setActivity } from './net/friends'
@@ -174,6 +175,7 @@ import { coopHub, coopRoom } from './ui/coopRoom'
 import { friendsScreen, inviteBanner } from './ui/friends'
 import { coopDriver, type CoopDriver } from './coop/driver'
 import { createDrawView, updateDrawView, type DrawView } from './coop/view'
+import { createScreenShake, feelShake, settleShake, type ScreenShake, type ShakeEvent } from './coop/shake'
 import { createPrediction, predict, type Prediction } from './coop/predict'
 import type { Runner } from './coop/runner'
 import { coopOver } from './game/coop'
@@ -319,6 +321,10 @@ type CoopRun = {
   banked: { victory: boolean; over: boolean }
   /** "Jogar de novo" was pressed: the host starts the next run as soon as everyone online is ready. */
   again: boolean
+  /** This screen's own shake (`coop/shake.ts`): a teammate's hit or move never shakes it. */
+  shake: ScreenShake
+  /** The run's link and pacing numbers (the client's, kept from the run's start: the next run's `start` makes new ones). */
+  net: NetStats
 }
 
 let screen: Screen | null = null
@@ -1781,6 +1787,8 @@ document.addEventListener(
 document.addEventListener('visibilitychange', () => {
   // Co-op: hidden, the run isn't simulated and nothing is sent (the relay calls the seat away); back, it catches up.
   coopClient()?.setHidden(document.hidden)
+  // A phone may never come back to it: the run's link numbers so far go out now (once; the end sends the final ones).
+  if (document.hidden && run?.coop) reportNet(run.coop, 'hidden')
   if (document.hidden && !run?.coop && run?.game.phase === 'playing') run.game.phase = 'paused'
 })
 
@@ -1790,6 +1798,9 @@ document.addEventListener('visibilitychange', () => {
  * game makes (signing in, the guide, the title's links) starts from a menu,
  * with no run, so none of them is asked. iOS Safari ignores this prompt.
  */
+// The page goes away mid co-op run (closed, reloaded): its link numbers go out by beacon.
+window.addEventListener('pagehide', () => run?.coop && reportNet(run.coop, 'unload'))
+
 window.addEventListener('beforeunload', (e) => {
   if (!run || run.game.phase === 'gameover' || run.game.phase === 'victory') return
   e.preventDefault()
@@ -1814,6 +1825,7 @@ const endCoopRun = (r: Run, c: CoopRun) => {
   bankCoop(r, c, wonRun(g) || coopOver(g))
   const outcome = wonRun(g) ? (g.endless ? 'endless' : 'victory') : coopOver(g) ? 'wipe' : 'left'
   track('coop', { step: 'end', players: g.players.length, minute: Math.floor(g.time / 60), outcome, difficulty: g.difficulty })
+  reportNet(c, outcome)
   r.overlay?.dispose()
   r.closeText?.()
   r.hud.dispose()
@@ -1822,6 +1834,9 @@ const endCoopRun = (r: Run, c: CoopRun) => {
   run = null
   syncRunWatch()
 }
+
+/** This player's `coop_net` for the co-op run (`coopShell.ts`): at its end, or when the page hides or unloads mid-run. */
+const reportNet = (c: CoopRun, outcome: CoopNetOutcome) => reportCoopNet(c.client, c.runner, c.net, outcome, runPerf())
 
 /** Leaves the room for good (the Pokémon leaves the field), back to the title. */
 const leaveCoopRun = () => {
@@ -1915,7 +1930,9 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
     }),
     menu: false,
     banked: { victory: false, over: false },
+    shake: createScreenShake(),
     again: false,
+    net: client.state().net,
   }
   const me = localPlayer(live.game)
   run = {
@@ -2046,25 +2063,36 @@ const joinCoop = async (code: string, via: 'code' | 'link' | 'invite' | null) =>
   return res
 }
 
-/** A co-op run's display frame: the stick, the presses, the lockstep, the prediction, then the copy that's drawn. */
-const coopFrame = (r: Run, c: CoopRun, dt: number, t: number) => {
+/**
+ * A co-op run's display frame: the stick, the presses, the lockstep, the
+ * prediction, then the copy that's drawn. `realDt` is the frame's whole real
+ * time: the stick's samples and the run's clock must keep up with the relay's
+ * even across a long frame (the 0.1 s cap `dt` has is for drawing).
+ */
+const coopFrame = (r: Run, c: CoopRun, dt: number, t: number, realDt: number) => {
   const client = c.client
   const g = c.runner.game
   r.game = g
   const me = localPlayer(g)
   // The stick reads still while a menu or a screen is up.
   const still = c.menu || phaseOf(g, me) !== 'playing'
-  c.driver.advance(g, dt, { move: still ? { x: 0, y: 0 } : input.readMove(), special: specialQueued, mega: megaQueued, lunge: lungeQueued })
+  c.driver.advance(g, realDt, { move: still ? { x: 0, y: 0 } : input.readMove(), special: specialQueued, mega: megaQueued, lunge: lungeQueued })
   specialQueued = megaQueued = lungeQueued = false
   const runner = c.runner
   const st = client.state()
-  const drawn = predict(c.prediction, runner, st.history, st.sample, c.driver.frac(), dt)
-  const shown = updateDrawView(c.view, runner, drawn, view, runner.acc / STEP)
+  const drawn = predict(c.prediction, runner, st, c.driver.frac(), dt)
+  const shown = updateDrawView(c.view, runner, drawn, view, runner.acc / STEP, c.prediction.look)
   const conn = client.connection()
   // Sounds and toasts wait out a sync (the run is replaying, not happening now).
   const quiet = conn.syncing !== null
   const actors = runner.actors.splice(0)
-  runner.events.splice(0).forEach((e, i) => !quiet && coopEvent(r, c, e, actors[i] ?? 0))
+  // The shakes wait for the camera to settle (a fainted player watches a teammate's screen).
+  const shakes: ShakeEvent[] = []
+  runner.events.splice(0).forEach((e, i) => {
+    if (quiet) return
+    if (e.kind === 'shake') shakes.push({ ...e, actor: actors[i] ?? 0 })
+    else coopEvent(r, c, e, actors[i] ?? 0)
+  })
   if (run !== r) return
   // Banks at the victory and at the end (deltas: a reload or a second time pays nothing).
   if (!c.banked.victory && runner.game.phase === 'victory') {
@@ -2079,7 +2107,13 @@ const coopFrame = (r: Run, c: CoopRun, dt: number, t: number) => {
   tickToasts(ui, dt, false)
   // The team's cards, the connection, the waits, and the camera: this player's, or a teammate's while fainted (`render/teamCamera.ts`).
   c.team.frame(shown, localPlayer(shown), dt, view, conn, runner.pending !== null)
-  render(ctx, shown, t, { ...settings(), companion: null, mates: c.view.mates })
+  // This screen's own shake, its offset rolled once a tick (the draw would roll one every refresh).
+  for (const e of shakes) feelShake(c.shake, e, runner.slot, shown.camera, shown.view)
+  settleShake(c.shake, dt, runner.next, Math.random)
+  shown.shake = c.shake.amount
+  const drawAt = performance.now()
+  render(ctx, shown, t, { ...settings(), companion: null, mates: c.view.mates, shakeOffset: c.shake })
+  noteDraw(c.net, { renderMs: performance.now() - drawAt, dt, shake: shown.shake > 0, prediction: c.prediction })
   const stick = input.readStick()
   if (stick && shown.phase === 'playing') drawJoystick(ctx, stick, cssScale)
   r.hud.update(shown)
@@ -2221,6 +2255,8 @@ const showCoopHub = (code: string | null = null) => {
   if (!client) return toast(ui, t().coop.off, 4000, 'coopOff')
   endRun()
   watchCoop(client)
+  // Where a room made from here would go (São Paulo or Cloudflare) is measured now, so "Criar sala" doesn't wait on it.
+  client.warm()
   // "Voltar" while a room is being made or joined: the hub is gone, so the room it got is left, never shown.
   const up = () => screen === hub
   const abandon = (code: string) => {
@@ -2245,7 +2281,7 @@ const showCoopHub = (code: string | null = null) => {
           return null
         }
         if (!res.ok) return closedText(res.why)
-        track('coop', { step: 'create' })
+        track('coop', { step: 'create', relay: made.home })
         client.setSettings({ difficulty: loadSave().difficulty })
         showRoom()
         return null
@@ -2378,6 +2414,9 @@ const frame = (now: number) => {
   const started = performance.now()
   recordFrame(frames, now - last, run?.game.phase === 'playing')
   const dt = Math.min(0.1, (now - last) / 1000)
+  // Co-op's stick and lockstep keep pace with the relay's clock through a long frame (a level-up screen, a GC);
+  // the 0.1 s cap is for drawing and solo's steps.
+  const realDt = Math.min(1, (now - last) / 1000)
   last = now
   const t = now / 1000
   // Gamepads type the keyboard's codes: menus get confirm/back, a run its special, Mega and lunge.
@@ -2389,9 +2428,9 @@ const frame = (now: number) => {
   if (!coop) {
     const client = coopClient()
     const status = client?.state().status.kind
-    if (client && status !== 'idle' && status !== 'closed') client.frame(dt)
+    if (client && status !== 'idle' && status !== 'closed') client.frame(realDt)
   }
-  if (run && coop) coopFrame(run, coop, dt, t)
+  if (run && coop) coopFrame(run, coop, dt, t, realDt)
   else if (run) {
     const r = run
     const g = r.game
@@ -2908,7 +2947,7 @@ const devLandmark = (g: Game, id?: LandmarkId, dy = 60) => {
  * failure would, `('fresh')` rejoins as a new tab (the snapshot), `('desync')`
  * nudges this client's state off the team's (the relay heals it), `('pick', id)` another
  * Pokémon for the room, `('url', u)`
- * points at another relay (null: the default), `('net')` the connection numbers; `('room')` and
+ * points at another relay (null: the default), `('relay', home, u)` sets a VPS relay (`sa`: São Paulo, for South American hosts' rooms), `('net')` the connection numbers and the run's `coop_net` so far; `('room')` and
  * `('hub')` open those screens, `('beta', true|false|null)` forces the lobby's tile on this device,
  * `('build')` joins a room made for another build (the "update" refusal) and `('invite', code, name)`
  * stages a friend's invite banner without the API.
@@ -2977,6 +3016,13 @@ const devCoop = async (cmd?: string, arg?: string | number | boolean | null, ext
     case 'url':
       setCoopUrl(typeof arg === 'string' ? arg : null)
       return 'ps.coop: reload to use it'
+    case 'relay': {
+      // A VPS relay's URL (`relay/node`), by the home its room codes name: ps.coop('relay', 'sa', 'http://localhost:8795').
+      const home = VPS_HOMES.find((h) => h === arg)
+      if (!home) return `ps.coop('relay', home, url): ${VPS_HOMES.join(', ')}`
+      setCoopVpsUrl(home, typeof extra === 'string' ? extra : null)
+      return 'ps.coop: reload to use it'
+    }
     case 'wall': {
       // Read-only: the nearest solid's foot to this player, and whether the drawn or the confirmed sprite sits in one.
       const c = run?.coop
@@ -2992,11 +3038,14 @@ const devCoop = async (cmd?: string, arg?: string | number | boolean | null, ext
       return { me: { x: me.x, y: me.y }, drawn: { ...d }, nearest: best, drawnIn: inSolid(g, d.x, d.y, me.radius - 1), confirmedIn: inSolid(g, me.x, me.y, me.radius - 1) }
     }
     case 'net': {
+      // The connection now, the runner's stats, the run's `coop_net` so far (as it would go out) and the last one built.
       const r = st.runner
-      return { ...client.connection(), queued: client.queued(), stats: r?.stats, tickMs: r?.tickMs, slot: r?.slot, errors: run?.coop?.prediction.errors }
+      const c = run?.coop
+      const summary = c ? coopNetPayload(client, c.runner, c.net, 'left', runPerf()) : null
+      return { ...client.connection(), queued: client.queued(), stats: r?.stats, tickMs: r?.tickMs, slot: r?.slot, where: st.where, summary, last: lastCoopNet() }
     }
     default:
-      return 'ps.coop(): create, join, bots, surrender, pick, ready, start, leave, drop, fresh, desync, url, net, wall, room, hub, beta, build, invite'
+      return 'ps.coop(): create, join, bots, surrender, pick, ready, start, leave, drop, fresh, desync, url, relay, net, wall, room, hub, beta, build, invite'
   }
 }
 

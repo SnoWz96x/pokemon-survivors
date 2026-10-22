@@ -5,7 +5,7 @@ import { DROP_TABLES, rollDrop } from '../data/consumables'
 import { CAVE, PLACE_FEET, PLACE_LOOT } from '../data/places'
 import { dropItem } from './consumables'
 import { floorShapes, generateFloor, type DungeonFloor } from './dungeon'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { spawnEnemy } from './enemies'
 import { chestCoins } from './mapEventRules'
 import { COIN_VALUES } from './meta'
@@ -175,7 +175,7 @@ const springHouse = (g: Game, inside: CaveInside) => {
     const d = range(g.rng, 46, 84)
     spawnEnemy(g, weightedPick(g.rng, pool), inside.x + chest.x + dm.cos(a) * d, inside.y + chest.y + dm.sin(a) * d * 0.8)
   }
-  g.shake = Math.max(g.shake, 5)
+  shakeScreen(g, 5, { x: inside.x + chest.x, y: inside.y + chest.y })
   notifyPlace(g, 'cave', { kind: 'monsterHouse' })
 }
 
@@ -192,7 +192,7 @@ const openChest = (g: Game, inside: CaveInside, chest: NonNullable<CaveState['ch
   PLACE_LOOT.cave.forEach((item, i) => dropItem(g, x - 8 + i * 6, y, item))
   awardEgg(g, 'place', x, y)
   burst(g, x, y - 8, { colors: ['#f8d030', '#fff8c0', '#ffffff', '#c08800'], count: 60, speed: 150, ttl: 0.8, gravity: 60 })
-  g.shake = Math.max(g.shake, 4)
+  shakeScreen(g, 4, { x, y })
   notifyPlace(g, 'cave', { kind: 'treasure', coins: coins.reduce((a, b) => a + b, 0) })
   startLoot(g, inside)
 }

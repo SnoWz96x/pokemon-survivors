@@ -12,7 +12,7 @@ import {
 import { ENEMIES } from '../data/enemies'
 import { hurtPlayer } from './combat'
 import { abilityImmune } from './abilities'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { blastHorde, spawnEnemy } from './enemies'
 import { makeElite, makeRunner } from './horde'
 import { makeSpitter } from './spitters'
@@ -288,7 +288,7 @@ const keepGuard = (g: Game, e: Enemy, fight: BossFight) => {
   e.trait.ward = 0
   e.trait.wardTime = 0
   burst(g, e.x, e.y - e.radius, { colors: ['#ffffff', '#f8b070', '#c8e0f8'], count: 60, speed: 220, ttl: 0.6, size: 2 })
-  g.shake = Math.max(g.shake, 7)
+  shakeScreen(g, 7, e)
   g.events.push({ kind: 'bossGuard', enemy: e.kind, up: false })
 }
 
@@ -570,7 +570,7 @@ const updateBlast = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
   const colors = IMPACT[b.visual]?.colors ?? ['#ffffff']
   for (const p of g.players) burst(g, p.x, p.y - 10, { colors, count: 40, speed: 200, ttl: 0.5, size: 2 })
   burst(g, boss.x, boss.y - boss.radius, { colors, count: 50, speed: 260, ttl: 0.6, size: 2 })
-  g.shake = Math.max(g.shake, 9)
+  shakeScreen(g, 9, 'team')
   g.flash = Math.max(g.flash, 0.35)
   g.events.push({ kind: 'quake' })
   for (const p of g.players) {
@@ -616,7 +616,7 @@ const enterPhase = (g: Game, e: Enemy, fight: BossFight, next: number) => {
   // The last phase's attacks go with it.
   retain(g.hazards, (h) => h.world)
   burst(g, e.x, e.y - e.radius, { colors: ['#ffffff', '#f8e070', '#f85030'], count: 70, speed: 200, ttl: 0.7, size: 2, drag: 3 })
-  g.shake = Math.max(g.shake, 10)
+  shakeScreen(g, 10, e)
   g.flash = Math.max(g.flash, 0.5)
   g.events.push({ kind: 'bossPhase', enemy: e.kind, phase: next })
 }
@@ -674,7 +674,7 @@ export const chaseOffBosses = (g: Game, at: number) => {
 export const finaleEntrance = (g: Game) => {
   blastHorde(g, FINALE.push)
   for (const p of g.players) burst(g, p.x, p.y - 8, { colors: ['#f85888', '#f8b0d0', '#ffffff'], count: 90, speed: 320, ttl: 0.55, size: 2, drag: 2 })
-  g.shake = Math.max(g.shake, 10)
+  shakeScreen(g, 10, 'team')
 }
 
 /**
@@ -688,7 +688,7 @@ export const bossReach = (g: Game) => (g.rift.arena ? Infinity : dm.hypot(g.view
 const enrage = (g: Game, e: Enemy) => {
   e.fight!.enraged = true
   burst(g, e.x, e.y - e.radius, { colors: ['#f83020', '#f8a020', '#ffffff'], count: 48, speed: 160, ttl: 0.6, size: 2, drag: 4 })
-  g.shake = Math.max(g.shake, 6)
+  shakeScreen(g, 6, e)
   g.events.push({ kind: 'enrage', enemy: e.kind })
 }
 
@@ -790,7 +790,7 @@ const land = (g: Game, h: Hazard) => {
   boss.y = h.y
   boss.kx = 0
   boss.ky = 0
-  g.shake = Math.max(g.shake, 5)
+  shakeScreen(g, 5, h)
 }
 
 const IMPACT: Partial<Record<HazardVisual, { colors: readonly string[]; event: 'thunder' | 'quake' }>> = {
@@ -869,7 +869,7 @@ export const updateHazards = (g: Game, tick: number) => {
     const impact = IMPACT[h.visual]
     if (impact && h.kind === 'strike' && before < h.armAt && h.age >= h.armAt) {
       burst(g, h.x, h.y, { colors: impact.colors, count: Math.round(h.r * 0.8), speed: h.r * 5, ttl: 0.4 })
-      g.shake = Math.max(g.shake, 2)
+      shakeScreen(g, 2, h)
       g.events.push({ kind: impact.event })
     }
     if (h.leaper >= 0 && before < h.armAt && h.age >= h.armAt) land(g, h)

@@ -7,7 +7,7 @@ import type { MegaId } from '../data/megas'
  * knows nothing of their meaning; this module turns a stamped entry into the
  * simulation's `TickEntry` (seat → slot, values → fields) and builds the
  * values a client sends. A client may append values the simulation ignores
- * (a move's input sample, a pick's nonce), which is how it recognizes its own
+ * (the input sample of a move or a special press, a pick's nonce), which is how it recognizes its own
  * inputs coming back. Part of the simulation's build id (`simBuild.ts`): every
  * client must read entries the same way.
  */
@@ -15,7 +15,8 @@ import type { MegaId } from '../data/megas'
 /** What a client sends, by kind (the relay's `in {k, d}`). */
 export type Input =
   | { k: 'move'; code: number; sample: number }
-  | { k: 'special' | 'mega' | 'lunge' }
+  | { k: 'special'; sample: number }
+  | { k: 'mega' | 'lunge' }
   | { k: 'pick'; screen: PickScreen; round: number; index: number }
   | { k: 'reroll' | 'skip'; round: number }
   | { k: 'banish'; round: number; index: number }
@@ -34,6 +35,7 @@ export const inputValues = (i: Input, nonce = 0): Scalar[] => {
     case 'move':
       return [i.code, i.sample]
     case 'special':
+      return [i.sample]
     case 'mega':
     case 'lunge':
       return []

@@ -32,6 +32,36 @@ export const SNAPSHOT_EVERY = 600
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 export const ROOM_CODE_LENGTH = 5
 
+/**
+ * Which relay a room lives on, told by its code's first character, so a link
+ * or a typed code finds its room without asking anyone. Each relay only makes
+ * codes of its own home:
+ *
+ * - `cf`: Cloudflare (a letter, 23 × 31^4 ≈ 21 million codes), the default.
+ * - `sa`: the São Paulo VPS relay (`relay/node`), 2 to 5 (4 × 31^4 ≈ 3.7 million).
+ * - `us`: the US east VPS relay (Boston), 6 to 9 (another 3.7 million).
+ *
+ * Another VPS relay takes characters from one of these (a letter from
+ * Cloudflare's, say) after its old codes' rooms are gone (6 h): one entry
+ * here, one in the game's `RELAY_URLS` (`coopShell.ts`) and its
+ * `VITE_COOP_URL_*`. A code of a home this build has no URL for is Cloudflare's.
+ */
+export const RELAY_HOMES = { cf: 'ABCDEFGHJKMNPQRSTUVWXYZ', sa: '2345', us: '6789' } as const satisfies Record<string, string>
+export type RelayHome = keyof typeof RELAY_HOMES
+
+/** The relays that aren't Cloudflare (each a `relay/node` server). */
+export type VpsHome = Exclude<RelayHome, 'cf'>
+
+export const isRelayHome = (v: unknown): v is RelayHome => typeof v === 'string' && Object.hasOwn(RELAY_HOMES, v)
+
+const HOMES: readonly RelayHome[] = Object.keys(RELAY_HOMES).filter(isRelayHome)
+
+/** The VPS relays' homes. */
+export const VPS_HOMES: readonly VpsHome[] = HOMES.filter((h): h is VpsHome => h !== 'cf')
+
+/** The relay a (valid) room code belongs to. */
+export const homeOf = (code: string): RelayHome => HOMES.find((h) => RELAY_HOMES[h].includes(code.charAt(0))) ?? 'cf'
+
 /** The room code in a shared link (`/?sala=K7QF2`). */
 export const ROOM_PARAM = 'sala'
 
@@ -57,6 +87,8 @@ export const LIMITS = {
   settings: 512,
   /** Values after an input's kind. */
   inputValues: 8,
+  /** Messages in one `batch`. */
+  batch: 16,
   /** Characters of a string input value or input kind. */
   inputString: 24,
   build: 40,
@@ -141,7 +173,8 @@ export type RunStart = {
 /**
  * Where a new room's relay runs (Durable Object location hints). `auto` picks
  * the region nearest the host. There are no Durable Objects in South America:
- * `sam` lands in Miami most of the time (or New Jersey), the closest to Brazil.
+ * `sam` lands anywhere from Miami to Chicago, so `auto` sends South America to
+ * `enam` (New Jersey answers São Paulo first).
  */
 export const REGIONS = ['auto', 'sam', 'enam', 'wnam', 'weur', 'eeur', 'apac', 'oc'] as const
 export type Region = (typeof REGIONS)[number]
@@ -151,6 +184,11 @@ export type CreateRequest = { v: number; build: string; region?: Region }
 export type CreateResponse = { code: string; region: Region } | { error: 'version' | 'invalid' | 'rate' | 'busy' }
 
 /* ---------------- Client → relay ---------------- */
+
+/** How often a client in a run reports its link (`net`), in ms. */
+export const NET_REPORT_MS = 15_000
+
+export type NetReport = { t: 'net'; rtt: number; rtt95: number; hold: number; underruns: number; stalls: number; reconnects: number }
 
 export type Hello = {
   t: 'hello'
@@ -166,8 +204,23 @@ export type Hello = {
   resume: { run: number; from: number } | null
 }
 
+/** A chunk of the compressed snapshot at `tick` (a multiple of `SNAPSHOT_EVERY`), only from the client told to upload them (`role`). */
+export type SnapChunk = { t: 'snap'; tick: number; h: string; part: number; parts: number; data: string }
+
 export type ClientMessage =
   | Hello
+  /** Serialize it with `t` first: the relay picks the bigger size limit from that prefix. Never batched. */
+  | SnapChunk
+  | BatchedMessage
+  /**
+   * Several messages in one (Cloudflare bills a Durable Object per message it receives), handled in order as if
+   * they had come one by one at once: their inputs land in the same tick, in order (a later stick replaces an
+   * earlier one), and each pays its own token. Only to a relay whose `welcome` said `batch`.
+   */
+  | { t: 'batch'; m: readonly BatchedMessage[] }
+
+/** The messages a `batch` may carry: all but the hello, snapshot chunks and batches. */
+export type BatchedMessage =
   /** Lobby (or after a run): what you bring, whether you're ready. */
   | { t: 'loadout'; loadout: Loadout }
   | { t: 'ready'; ready: boolean }
@@ -181,11 +234,6 @@ export type ClientMessage =
   | { t: 'hb' }
   /** The full-state hash at `tick` (a multiple of `HASH_EVERY`). */
   | { t: 'hash'; tick: number; h: string }
-  /**
-   * A chunk of the compressed snapshot at `tick` (a multiple of `SNAPSHOT_EVERY`), only from the client told to
-   * upload them (`role`). Serialize it with `t` first: the relay picks the bigger size limit from that prefix.
-   */
-  | { t: 'snap'; tick: number; h: string; part: number; parts: number; data: string }
   /** The run ended in this client's simulation at `tick`, with this state hash. */
   | { t: 'over'; tick: number; h: string }
   /**
@@ -195,6 +243,13 @@ export type ClientMessage =
   | { t: 'badSnap'; tick: number }
   | { t: 'leave' }
   | { t: 'ping'; at: number }
+  /**
+   * How the link looks from this client in a run (every `NET_REPORT_MS`): round trip (ms, median and
+   * p95), the hold (ticks), and since the run began, underruns, stalled frames and reconnects. The relay
+   * only logs it (`run.summary`) and keeps the laggiest runs' input logs for the lab. Relays before it
+   * drop it as unparsed.
+   */
+  | NetReport
 
 /* ---------------- Relay → client ---------------- */
 
@@ -223,9 +278,20 @@ export const CLOSE_CODES = {
   abuse: 4008,
 } as const satisfies Record<CloseReason, number>
 
+/**
+ * Where the relay's room runs (`colo`: the Cloudflare data center, `region`: the location hint it was
+ * created with) and where this client meets Cloudflare (`edge` and its TCP round trip, ms), for the
+ * client's telemetry. Unknown fields are null.
+ */
+export type WelcomeNet = { colo: string | null; region: string | null; edge: string | null; edgeRtt: number | null }
+
 export type ServerMessage =
-  /** You hold `seat`; keep `secret` (by room code) to take it back from any tab. */
-  | { t: 'welcome'; seat: number; secret: string; room: RoomView }
+  /**
+   * You hold `seat`; keep `secret` (by room code) to take it back from any tab. `batch`: this relay takes `batch`
+   * messages (an older one doesn't say it, and gets every message on its own). `net`: where things run (relays
+   * before it leave it out).
+   */
+  | { t: 'welcome'; seat: number; secret: string; room: RoomView; batch?: boolean; net?: WelcomeNet }
   /** `build`: with a `build` refusal, the build the room runs (the client tells whether it is older or newer). */
   | { t: 'refused'; code: Refusal; build?: string }
   | { t: 'room'; room: RoomView }
@@ -323,19 +389,17 @@ const isChunkMessage = (raw: string) => raw.startsWith('{"t":"snap"')
 /** The size limit of a raw message (snapshot chunks are bigger). */
 export const messageLimit = (raw: string) => (isChunkMessage(raw) ? LIMITS.chunkMessage : LIMITS.message)
 
-/** A client message from an untrusted string, or null when it is too big or its shape is wrong. */
-export const parseClientMessage = (raw: string): ClientMessage | null => {
-  if (raw.length > messageLimit(raw)) return null
-  let m: unknown
-  try {
-    m = JSON.parse(raw)
-  } catch {
-    return null
-  }
-  if (!isRecord(m)) return null
+const parseSnap = (m: Record<string, unknown>): SnapChunk | null => {
+  const h = parseHash(m.h)
+  const { tick, part, parts, data } = m
+  if (!h || !isWhole(tick, MAX_TICK) || tick % SNAPSHOT_EVERY !== 0 || !isWhole(parts, LIMITS.parts) || parts < 1) return null
+  if (!isWhole(part, parts - 1) || typeof data !== 'string' || data.length > LIMITS.chunk || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) return null
+  return { t: 'snap', tick, h, part, parts, data }
+}
+
+/** A message a `batch` may carry, or null. */
+const parseBatched = (m: Record<string, unknown>): BatchedMessage | null => {
   switch (m.t) {
-    case 'hello':
-      return parseHello(m)
     case 'loadout': {
       const loadout = parseObject(m.loadout, LIMITS.loadout)
       return loadout ? { t: 'loadout', loadout } : null
@@ -359,13 +423,6 @@ export const parseClientMessage = (raw: string): ClientMessage | null => {
       const h = parseHash(m.h)
       return h && isWhole(m.tick, MAX_TICK) && m.tick % HASH_EVERY === 0 ? { t: 'hash', tick: m.tick, h } : null
     }
-    case 'snap': {
-      const h = parseHash(m.h)
-      const { tick, part, parts, data } = m
-      if (!h || !isWhole(tick, MAX_TICK) || tick % SNAPSHOT_EVERY !== 0 || !isWhole(parts, LIMITS.parts) || parts < 1) return null
-      if (!isWhole(part, parts - 1) || typeof data !== 'string' || data.length > LIMITS.chunk || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) return null
-      return { t: 'snap', tick, h, part, parts, data }
-    }
     case 'over': {
       const h = parseHash(m.h)
       return h && isWhole(m.tick, MAX_TICK) ? { t: 'over', tick: m.tick, h } : null
@@ -374,6 +431,12 @@ export const parseClientMessage = (raw: string): ClientMessage | null => {
       return isWhole(m.tick, MAX_TICK) && m.tick % SNAPSHOT_EVERY === 0 ? { t: 'badSnap', tick: m.tick } : null
     case 'ping':
       return typeof m.at === 'number' && Number.isFinite(m.at) ? { t: 'ping', at: m.at } : null
+    case 'net': {
+      const { rtt, rtt95, hold, underruns, stalls, reconnects } = m
+      const max = 1e6
+      if (!isWhole(rtt, max) || !isWhole(rtt95, max) || !isWhole(hold, max) || !isWhole(underruns, max) || !isWhole(stalls, max) || !isWhole(reconnects, max)) return null
+      return { t: 'net', rtt, rtt95, hold, underruns, stalls, reconnects }
+    }
     case 'start':
     case 'hb':
     case 'leave':
@@ -381,4 +444,32 @@ export const parseClientMessage = (raw: string): ClientMessage | null => {
     default:
       return null
   }
+}
+
+/** A batch of 1 to `LIMITS.batch` messages, or null when any of them is malformed (or isn't one a batch may carry). */
+const parseBatch = (m: Record<string, unknown>): ClientMessage | null => {
+  if (!Array.isArray(m.m) || m.m.length < 1 || m.m.length > LIMITS.batch) return null
+  const out: BatchedMessage[] = []
+  for (const x of m.m) {
+    const one = isRecord(x) ? parseBatched(x) : null
+    if (!one) return null
+    out.push(one)
+  }
+  return { t: 'batch', m: out }
+}
+
+/** A client message from an untrusted string, or null when it is too big or its shape is wrong. */
+export const parseClientMessage = (raw: string): ClientMessage | null => {
+  if (raw.length > messageLimit(raw)) return null
+  let m: unknown
+  try {
+    m = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!isRecord(m)) return null
+  if (m.t === 'hello') return parseHello(m)
+  if (m.t === 'snap') return parseSnap(m)
+  if (m.t === 'batch') return parseBatch(m)
+  return parseBatched(m)
 }
