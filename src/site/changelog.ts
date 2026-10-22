@@ -27,6 +27,32 @@ export type ChangelogUpdate = {
  */
 export const CHANGELOG: readonly ChangelogUpdate[] = [
   {
+    date: '2026-10-22',
+    title: { pt: 'Co-op mais suave', en: 'Smoother co-op', es: 'Co-op más fluido' },
+    highlights: [
+      { pt: 'Co-op com bem menos tremedeira: a sua tela só treme com o que acontece com você e com o que está nela, não mais a cada golpe que um colega leva do outro lado do mapa.', en: 'Co-op shakes a lot less: your screen only shakes for what happens to you and what\'s on it, no longer for every hit a teammate takes across the map.', es: 'El co-op tiembla mucho menos: tu pantalla solo tiembla por lo que te pasa a ti y por lo que está en ella, ya no por cada golpe que recibe un compañero al otro lado del mapa.' },
+      { pt: 'Movimento mais firme no co-op: o seu Pokémon anda sem as pequenas correções de antes, e a horda e os colegas andam num ritmo constante, sem pulos nem paradinhas.', en: 'Steadier movement in co-op: your Pokémon walks without the small corrections it had, and the horde and your teammates move at a steady pace, without jumps or little freezes.', es: 'Movimiento más firme en el co-op: tu Pokémon camina sin las pequeñas correcciones de antes, y la horda y los compañeros se mueven a un ritmo constante, sin saltos ni frenadas.' },
+      { pt: 'No celular, um engasgo da tela (um level-up abrindo, por exemplo) não deixa mais o co-op com atraso extra por meio minuto.', en: 'On phones, a stutter (a level-up opening, say) no longer leaves co-op with extra delay for half a minute.', es: 'En el celular, un tirón de la pantalla (una subida de nivel abriéndose, por ejemplo) ya no deja al co-op con retraso extra por medio minuto.' },
+    ],
+    changes: [
+      {
+        title: { pt: 'Co-op mais suave', en: 'Smoother co-op', es: 'Co-op más fluido' },
+        notes: [
+          {
+            pt: 'Cada um tem a própria tremida de tela: treme quando você leva um golpe ou solta um golpe forte, quando um chefe ou uma armadilha explode na sua tela e nas cenas que a equipe vê junta (fendas, lendários). O golpe de um colega longe não treme mais a sua. A opção de tremer a tela nas configurações continua valendo.',
+            en: 'Everyone has their own screen shake: it shakes when you take a hit or land a big move, when a boss or a trap goes off on your screen, and in the scenes the team watches together (rifts, legendaries). A faraway teammate\'s hit no longer shakes yours. The screen shake setting still applies.',
+            es: 'Cada uno tiene su propio temblor de pantalla: tiembla cuando recibes un golpe o sueltas un movimiento fuerte, cuando un jefe o una trampa explota en tu pantalla y en las escenas que el equipo ve junto (grietas, legendarios). El golpe de un compañero lejano ya no hace temblar la tuya. La opción de temblor de pantalla en los ajustes sigue valiendo.',
+          },
+          {
+            pt: 'O seu Pokémon não dá mais pequenos trancos enquanto anda, e a partida acelera ou desacelera de leve para acompanhar a conexão, em vez de pular ou congelar por um instante.',
+            en: 'Your Pokémon no longer jolts slightly as it walks, and the run speeds up or slows down a touch to keep up with the connection, instead of jumping or freezing for an instant.',
+            es: 'Tu Pokémon ya no da pequeños tirones mientras camina, y la partida acelera o frena un poco para seguir la conexión, en vez de saltar o congelarse por un instante.',
+          },
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-10-21',
     title: { pt: 'Noite das Bruxas, lendários jogáveis e co-op em beta', en: 'Halloween Night, playable legendaries and co-op in beta', es: 'Noche de Brujas, legendarios jugables y co-op en beta' },
     highlights: [
