@@ -136,8 +136,11 @@ const OFFSET_AGREE = 2
 export const createSteadyOffset = (): SteadyOffset => ({ offset: null, recent: [], anchor: -1, votes: 0, far: null })
 
 /**
- * The steady sample ↔ tick offset after an anchor. Taken raw, every new
- * anchor (one each stick change, and every 250 ms) shifted the whole
+ * The steady sample ↔ tick offset after an anchor. Anchors come with every
+ * message the client sends during a run (it says the stick in play again),
+ * and at least once a second while walking (`CONNECT.anchor`); idle, the
+ * state hashes still carry one every second or two. Taken raw, every new
+ * anchor (then one each stick change, and every 250 ms) shifted the whole
  * prediction by its trip's jitter: 3.7 corrections a second of 1 to 3 px
  * blended into the sprite and the camera, and 8 to 14 px when a long frame
  * held the send. The median of the last few, moved only after a few anchors

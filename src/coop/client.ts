@@ -1,10 +1,11 @@
 import { moveCode } from '../game/replay'
 import type { Vec } from '../engine/math'
-import { PROTOCOL, REGIONS, type ClientMessage, type CloseReason, type CreateResponse, type Refusal, type Region, type RoomView, type RunStart, type ServerMessage } from '../net/protocol'
+import { LIMITS, PROTOCOL, REGIONS, type BatchedMessage, type ClientMessage, type CloseReason, type CreateResponse, type Refusal, type Region, type RoomView, type RunStart, type ServerMessage } from '../net/protocol'
 import type { Store } from './bank'
 import type { Input } from './entries'
-import { ack, createOutbox, due, onReconnect, onSlow, push, queued, type Outbox } from './outbox'
+import { ack, createOutbox, due, onReconnect, onSlow, push, queued, slowed, type Outbox } from './outbox'
 import { advance, backlog, onEnded, onFrame, onSnapPart, onSync, syncProgress, createRunner, type Runner, type RunnerDeps } from './runner'
+import { createStickPace, paceStick, type StickPace } from './stickPace'
 import { closeReason, parseServerMessage } from './wire'
 import { loadoutOf, settingsOf, type CoopPick, type CoopSettings } from './start'
 
@@ -25,6 +26,11 @@ import { loadoutOf, settingsOf, type CoopPick, type CoopSettings } from './start
  *   a fresh socket after `CONNECT.dead` without one or `CONNECT.uplink` without a pong.
  * - Final closes (`replaced`, `kicked`, `left`, `expired`, a refused build…)
  *   end the client with a typed reason and never reconnect.
+ * - Few messages up (the relay's Durable Object is billed per message it
+ *   receives): at most one a display frame, a `batch` of everything due
+ *   (`frame`). Inputs go at once; the hash, the ping and the heartbeat wait to
+ *   ride along with them (`CONNECT.lazy`, `CONNECT.heartbeat`), and the stick
+ *   goes out only when it changed enough (`stickPace.ts`).
  */
 
 export const CONNECT = {
@@ -43,11 +49,14 @@ export const CONNECT = {
   uplink: 4500,
   /** The run's end (`over`) is said again this often (ms) until the relay confirms it: one sent on a dying socket is lost. */
   over: 2000,
-  /** Pings and heartbeats (ms). The relay calls a seat silent for 5 s `away`. */
-  ping: 500,
+  /** A ping rides along with what goes out once this long (ms) after the last one. */
+  ping: 1000,
+  /** Nothing sent for this long (ms): a message goes anyway, ping and all (the relay calls a seat silent for 5 s `away`). */
   heartbeat: 1500,
-  /** A stick held unchanged is sent again this often (ms), so prediction stays anchored. */
-  stickEvery: 250,
+  /** A state hash waits at most this long (ms) for something to ride along with. */
+  lazy: 1000,
+  /** Walking, the stick in play is said again (an anchor for prediction) at least this often (ms). */
+  anchor: 1000,
   /** The hello must be answered within this long, or the socket is dropped and retried. */
   hello: 8000,
   /** Far behind (ticks): a resume would replay too much, a fresh join takes the agreed snapshot instead. */
@@ -169,12 +178,20 @@ export type ClientState = {
   lastSentAt: number
   rtt: number
   hidden: boolean
-  /** The stick: input samples taken (60 a second while the run plays), their codes, and the last one sent. */
+  /**
+   * The stick: input samples taken (60 a second while the run plays) and the code in play at each (the last
+   * one sent, which is what the simulation reads), how it is paced, and when a stick last went out (ms).
+   */
   sample: number
   history: Uint8Array
   /** The samples the last special presses went out at (`SPECIALS_KEPT` of them, oldest first), for prediction to press them before the run does. */
   specials: number[]
-  stickSent: { code: number; at: number }
+  pace: StickPace
+  anchoredAt: number
+  /** Messages waiting to ride along with the next ones (the state hashes), and when each was queued (ms). */
+  later: { msg: BatchedMessage; at: number }[]
+  /** The relay takes `batch` messages (its `welcome` said so). */
+  batch: boolean
   /** Next rejoin should skip the resume (fresh: the agreed snapshot). */
   fresh: boolean
   /** A `role` that came before the run's runner. */
@@ -208,7 +225,10 @@ export const createCoopClient = (deps: CoopDeps) => {
     sample: 0,
     history: new Uint8Array(HISTORY),
     specials: [],
-    stickSent: { code: -1, at: -Infinity },
+    pace: createStickPace(),
+    anchoredAt: -Infinity,
+    later: [],
+    batch: false,
     fresh: false,
     uploader: false,
     overAt: -Infinity,
@@ -249,8 +269,22 @@ export const createCoopClient = (deps: CoopDeps) => {
     }
   }
 
+  /** Sends what's due as one message (a `batch` when the relay takes them), or one by one. */
+  const sendAll = (msgs: readonly BatchedMessage[]) => {
+    if (!s.batch || msgs.length === 1) return msgs.forEach((m) => send(m))
+    for (let i = 0; i < msgs.length; i += LIMITS.batch) {
+      const m = msgs.slice(i, i + LIMITS.batch)
+      send(m.length === 1 ? m[0]! : { t: 'batch', m })
+    }
+  }
+
   const runnerDeps: RunnerDeps = {
-    send: (msg) => void send(msg),
+    // Hashes ride along with the next inputs (at most `CONNECT.lazy` late); snapshots and the end go at once.
+    send: (msg) => {
+      if (msg.t !== 'hash') return void send(msg)
+      s.later.push({ msg, at: deps.now() })
+      if (s.later.length > 8) s.later.shift()
+    },
     now: deps.now,
     onGame: (runner, why) => emit({ kind: 'game', runner, why }),
     onHealed: (_, tick, ms) => emit({ kind: 'healed', tick, ms }),
@@ -379,7 +413,9 @@ export const createCoopClient = (deps: CoopDeps) => {
         s.fresh = false
         if (s.code) deps.store.set(secretKey(s.code), m.secret)
         onReconnect(s.outbox)
-        s.stickSent = { code: -1, at: -Infinity }
+        s.batch = m.batch === true
+        s.pace = createStickPace()
+        s.later = []
         joining?.({ ok: true, seat: m.seat, room: m.room })
         joining = null
         setStatus({ kind: m.room.phase === 'playing' ? 'playing' : 'room' })
@@ -523,17 +559,48 @@ export const createCoopClient = (deps: CoopDeps) => {
 
   /**
    * Takes one 60 Hz sample of the stick (the shell calls it once per tick of
-   * real time while the run plays): kept for prediction, sent when it changes
-   * (and again every `CONNECT.stickEvery` ms while held, to anchor prediction).
+   * real time while the run plays): sent when it changed enough
+   * (`paceStick`), and the code in play kept for prediction.
    */
   const stick = (move: Vec) => {
     const code = moveCode(move)
     s.sample++
-    s.history[s.sample % HISTORY] = code
-    const now = deps.now()
-    if (code === s.stickSent.code && (code === 0 || now - s.stickSent.at < CONNECT.stickEvery)) return
-    s.stickSent = { code, at: now }
-    input({ k: 'move', code, sample: s.sample })
+    const live = s.status.kind === 'playing' && !s.hidden
+    if (live && paceStick(s.pace, code, s.sample, slowed(s.outbox, deps.now()))) input({ k: 'move', code, sample: s.sample })
+    // What the simulation will read for this sample: the code in play (this one when it just went out).
+    s.history[s.sample % HISTORY] = s.pace.code >= 0 ? s.pace.code : code
+  }
+
+  /**
+   * What goes out this frame: the inputs due, then whatever rides along with
+   * them (the hashes, a ping, the stick in play as an anchor). Nothing when
+   * nothing is due: the hashes wait up to `CONNECT.lazy`, the anchor
+   * `CONNECT.anchor`, and silence ends at `CONNECT.heartbeat`.
+   */
+  const outgoing = (now: number): BatchedMessage[] => {
+    // Only what the socket can take: a stalled one keeps the stick coalesced instead of piling up.
+    if (!s.socket || s.socket.buffered() >= 64 * 1024) return []
+    const out = due(s.outbox, now, s.rtt)
+    const r = s.runner
+    if (r?.over && !r.ended && now - s.overAt >= CONNECT.over) {
+      s.overAt = now
+      out.push({ t: 'over', ...r.over })
+    }
+    const playing = r !== null && s.status.kind === 'playing' && s.pace.code >= 0
+    const silent = now - s.lastSentAt >= CONNECT.heartbeat
+    const stale = s.later.length > 0 && now - s.later[0]!.at >= CONNECT.lazy
+    const unanchored = playing && s.pace.code !== 0 && now - s.anchoredAt >= CONNECT.anchor
+    if (out.length === 0 && !silent && !stale && !unanchored) return out
+    out.push(...s.later.splice(0).map((l) => l.msg))
+    if (playing && !out.some((m) => m.t === 'in' && m.k === 'move')) out.push({ t: 'in', k: 'move', d: [s.pace.code, s.sample] })
+    if (out.length === 0) out.push({ t: 'hb' })
+    if (now - s.lastPingAt >= CONNECT.ping) {
+      s.lastPingAt = now
+      s.pingAt ??= now
+      out.push({ t: 'ping', at: now })
+    }
+    if (out.some((m) => m.t === 'in' && m.k === 'move')) s.anchoredAt = now
+    return out
   }
 
   /** The tab went to the background (true) or came back. Hidden, the run isn't simulated and nothing is sent (the relay calls the seat away). */
@@ -570,21 +637,7 @@ export const createCoopClient = (deps: CoopDeps) => {
       if (s.welcomed && silent > CONNECT.dead) return (s.reconnects++, reconnect(), 0)
       // Not while syncing: a client busy catching up answers its own pongs late.
       if (s.welcomed && s.pingAt !== null && now - s.pingAt > CONNECT.uplink && !s.runner?.syncing) return (s.reconnects++, reconnect(), 0)
-      if (s.welcomed) {
-        if (now - s.lastPingAt >= CONNECT.ping) {
-          s.lastPingAt = now
-          s.pingAt ??= now
-          send({ t: 'ping', at: now })
-        }
-        // Only what the socket can take: a stalled one keeps the stick coalesced instead of piling up.
-        if (ws.buffered() < 64 * 1024) for (const msg of due(s.outbox, now, s.rtt)) send(msg)
-        if (now - s.lastSentAt >= CONNECT.heartbeat) send({ t: 'hb' })
-        const r = s.runner
-        if (r?.over && !r.ended && now - s.overAt >= CONNECT.over) {
-          s.overAt = now
-          send({ t: 'over', ...r.over })
-        }
-      }
+      if (s.welcomed) sendAll(outgoing(now))
     }
     const r = s.runner
     if (!r || s.hidden) return 0
