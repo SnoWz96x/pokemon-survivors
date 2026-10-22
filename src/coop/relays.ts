@@ -3,16 +3,16 @@ import { homeOf, type RelayHome, type VpsHome } from '../net/protocol'
 /**
  * Which relay a room lives on. Cloudflare's everywhere (the default and the
  * fallback), plus the VPS relays this build has a URL for (`RELAY_URLS` in
- * `coopShell.ts`): the São Paulo one first, for rooms whose host is in South
- * America, since Cloudflare has no Durable Objects there and a Brazilian room
- * runs in the US, 116–140 ms away. A room's code says its relay (`homeOf`),
- * so links and typed codes find it without asking anyone.
+ * `coopShell.ts`): São Paulo's for rooms whose host is in South America
+ * (Cloudflare has no Durable Objects there, so a Brazilian room runs in the
+ * US, 116–140 ms away) and US east's (Boston) for hosts near it. A room's code
+ * says its relay (`homeOf`), so links and typed codes find it without asking anyone.
  */
 
 /** Each VPS relay's base URL in this build (absent: that relay is off). */
 export type VpsUrls = Partial<Record<VpsHome, string>>
 
-/** A VPS relay round trip up to this (ms) makes the host's room that relay's (for São Paulo: Brazil, Argentina, Uruguay, Paraguay, Chile). Past it, Cloudflare is about as near. */
+/** A VPS relay round trip up to this (ms) can make the host's room that relay's (São Paulo: Brazil, Argentina, Uruguay, Paraguay, Chile; Boston: most of the US and Canada). Past it, Cloudflare is about as near. */
 export const NEAR_RTT_MS = 70
 
 const isVps = (home: RelayHome): home is VpsHome => home !== 'cf'
@@ -23,10 +23,10 @@ export const relayFor = (code: string, cf: string, vps: VpsUrls) => {
   return (isVps(home) ? vps[home] : undefined) ?? cf
 }
 
-/** Where a host's new room goes: the nearest VPS relay that answered within `NEAR_RTT_MS`, else Cloudflare. */
+/** Where a host's new room goes: the VPS relay with the lowest round trip, if within `NEAR_RTT_MS` (null: it didn't answer), else Cloudflare. */
 export const pickHome = (rtts: ReadonlyMap<VpsHome, number | null>): RelayHome => {
-  let best: { home: RelayHome; rtt: number } = { home: 'cf', rtt: NEAR_RTT_MS }
-  for (const [home, rtt] of rtts) if (rtt !== null && rtt <= best.rtt) best = { home, rtt }
+  let best: { home: RelayHome; rtt: number } = { home: 'cf', rtt: Infinity }
+  for (const [home, rtt] of rtts) if (rtt !== null && rtt <= NEAR_RTT_MS && rtt < best.rtt) best = { home, rtt }
   return best.home
 }
 

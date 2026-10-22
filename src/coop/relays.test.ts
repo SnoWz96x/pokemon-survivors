@@ -4,20 +4,32 @@ import { NEAR_RTT_MS, measureRtt, pickHome, relayFor } from './relays'
 
 const CF = 'https://cf.test'
 const SA = 'https://sa.test'
+const US = 'https://us.test'
 
 describe('relays', () => {
   it('finds a room on the relay its code names, and on Cloudflare when this build lacks that relay', () => {
-    expect(relayFor('3K7QF', CF, { sa: SA })).toBe(SA)
-    expect(relayFor('K7QF2', CF, { sa: SA })).toBe(CF)
-    expect(relayFor('3K7QF', CF, {})).toBe(CF)
-    // 6 to 9 belong to no relay yet: Cloudflare's.
+    const both = { sa: SA, us: US }
+    expect(relayFor('3K7QF', CF, both)).toBe(SA)
+    expect(relayFor('7K7QF', CF, both)).toBe(US)
+    expect(relayFor('K7QF2', CF, both)).toBe(CF)
+    // A build without the US relay sends its codes to Cloudflare.
     expect(relayFor('7K7QF', CF, { sa: SA })).toBe(CF)
   })
 
-  it("puts a host's room on a VPS relay only when it answers near", () => {
-    expect(pickHome(new Map([['sa', 8]]))).toBe('sa')
-    expect(pickHome(new Map([['sa', NEAR_RTT_MS + 1]]))).toBe('cf')
-    expect(pickHome(new Map([['sa', null]]))).toBe('cf')
+  it("puts a host's room on the nearest VPS relay within the cap, else on Cloudflare", () => {
+    const rtts = (sa: number | null, us: number | null) => new Map([['sa', sa], ['us', us]] as const)
+    // São Paulo (São Paulo 8 ms, Boston ~120), Buenos Aires (35 / 150).
+    expect(pickHome(rtts(8, 120))).toBe('sa')
+    expect(pickHome(rtts(35, 150))).toBe('sa')
+    // New York (120 / 8), Chicago (140 / 25), Los Angeles (180 / 65).
+    expect(pickHome(rtts(120, 8))).toBe('us')
+    expect(pickHome(rtts(140, 25))).toBe('us')
+    expect(pickHome(rtts(180, 65))).toBe('us')
+    // Lisbon (200 / 85), Tokyo (260 / 170), a relay down, none in the build.
+    expect(pickHome(rtts(200, 85))).toBe('cf')
+    expect(pickHome(rtts(260, 170))).toBe('cf')
+    expect(pickHome(rtts(NEAR_RTT_MS + 1, null))).toBe('cf')
+    expect(pickHome(rtts(null, 12))).toBe('us')
     expect(pickHome(new Map())).toBe('cf')
   })
 

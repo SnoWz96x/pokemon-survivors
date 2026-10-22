@@ -78,19 +78,24 @@ JSON lines in Workers Logs (observability is on), one per event:
 
 **Kept runs.** A run that lasted a minute or more is offered to the vault when it is summed up (above): its input log, as a dump (`kind: 'run'`, `meta.why`, `meta.net` per seat, `score`; one id per run, so an offer made when everyone left is replaced if the run goes on), so a laggy run can be replayed in the lab. At most 20 a UTC day, the laggiest win (`score`: the worst seat's round trip p95, plus 20 per underrun and 50 per reconnect), kept 14 days. `/admin/dumps` lists them with the rest (`kind`, `score`).
 
-## São Paulo relay (`node/`)
+## VPS relays: São Paulo and US east (`node/`)
 
 Cloudflare has no Durable Objects in South America, so a Brazilian room runs in the US
 (116–140 ms away). `node/` runs the same room (`src/room.ts`, `src/store.ts`, `src/auth.ts`,
-`src/codes.ts`) on Node 24 as a Docker image, on the VPS in São Paulo (Dokploy, next to the
-accounts API, ~9 ms from a Brazilian player), for rooms whose host is in South America.
+`src/codes.ts`) on Node 24 as a Docker image, on Pedro's VPSes through Dokploy:
+
+| Relay | Home (`RELAY_HOME`) | Codes start with | Where | Address | Game env |
+|---|---|---|---|---|---|
+| São Paulo | `sa` | 2–5 | the main VPS (72.60.58.225, next to the API, ~9 ms from a Brazilian player) | `coop-sa.pokemonsurvivors.com` | `VITE_COOP_URL_SA` |
+| US east | `us` | 6–9 | Hostinger Boston (2.25.92.11), a Dokploy remote server | `coop-us.pokemonsurvivors.com` | `VITE_COOP_URL_US` |
 
 - **Routing:** a room's code says its relay (`RELAY_HOMES` in the protocol). Cloudflare makes
-  codes starting with a letter, São Paulo (`sa`) with 2 to 5; 6 to 9 are free for the next VPS
-  relay (one entry there, one in `RELAY_URLS` in `src/coopShell.ts`, one `VITE_COOP_URL_*`, and
-  this image with `RELAY_HOME`). The game (`src/coop/relays.ts`) creates on the nearest VPS
-  relay that answers within 70 ms and falls back to Cloudflare; a build without
-  `VITE_COOP_URL_SA` sends every room to Cloudflare.
+  codes starting with a letter, each VPS relay with its own digits. The game (`src/coop/relays.ts`)
+  measures every VPS relay it has a URL for and creates on the one with the lowest round trip
+  within 70 ms, else on Cloudflare (also the fallback when that relay can't take it). A build
+  without a relay's `VITE_COOP_URL_*` sends its codes to Cloudflare. Another relay is one entry in
+  `RELAY_HOMES`, one in `RELAY_URLS` (`src/coopShell.ts`), its env var and this image with its
+  `RELAY_HOME` (taking characters from a home only after that home's rooms are gone, 6 h).
 - **One process, every room:** one SQLite file per room (`node:sqlite`, WAL) on the `/data`
   volume, a 60 Hz timer per running room, the Worker's routes, origin checks, Clerk tokens,
   rate limits (by `X-Real-Ip` from Traefik) and the dump vault. An exclusive lock on
@@ -110,36 +115,42 @@ docker build -f relay/node/Dockerfile -t ps-relay .   # from the repository root
 
 ### One-time setup (Pedro)
 
-1. **DNS** (GoDaddy, `ns23`/`ns24.domaincontrol.com`): an `A` record, name `coop-sa`, value
-   `72.60.58.225` (the VPS, like `api`), TTL 600. Check: `dig +short coop-sa.pokemonsurvivors.com`.
-2. **Dokploy**, project **Pokémon Survivors**, a new application `coop-sa`:
+The same steps for each relay, with its row of the table above (`<home>`: `sa` or `us`).
+
+1. **DNS** (GoDaddy, `ns23`/`ns24.domaincontrol.com`): an `A` record per relay, TTL 600:
+   `coop-sa` → `72.60.58.225` (the main VPS, like `api`) and `coop-us` → `2.25.92.11` (Boston).
+   Check: `dig +short coop-<home>.pokemonsurvivors.com`.
+2. **Dokploy** (US east: first add the Boston VPS as a **remote server** in Dokploy, Settings →
+   Remote Servers, and set it up so it runs Traefik; its app then deploys there), project
+   **Pokémon Survivors**, a new application `coop-<home>` (`coop-us` on the Boston server):
    - Source: this GitHub repository, branch `main`. Build type **Dockerfile**, Dockerfile
      `relay/node/Dockerfile`, build context `.` (the repository root).
    - Auto deploy on, with watch paths `relay/src/**`, `relay/node/**` and `src/net/protocol.ts`
      (all the image bundles: game deploys never restart it).
-   - **Volume** (Advanced → Mounts): a volume mount, name `ps-relay-sa-data`, mount path `/data`.
+   - **Volume** (Advanced → Mounts): a volume mount, name `ps-relay-<home>-data`, mount path `/data`.
      Without it every deploy loses the rooms in play.
    - **Rollout: stop-first** (Advanced → Swarm → Update config, `Order: stop-first`, Swarm's
      default; not the API's start-first). Two relays can't share the rooms: a new container
      started first would wait on the lock, never get healthy, and roll back.
    - **Environment:**
      ```
-     RELAY_HOME=sa
+     RELAY_HOME=<home>
      ALLOWED_ORIGINS=https://www.pokemonsurvivors.com,https://pokemonsurvivors.com
      ALLOW_GUESTS=off
-     ADMIN_TOKEN=<openssl rand -base64 32, kept in ~/.config/ps-coop/sa-admin-token, mode 600>
+     ADMIN_TOKEN=<openssl rand -base64 32, kept in ~/.config/ps-coop/<home>-admin-token, mode 600>
      ```
      (`CLERK_ISSUER` defaults to `https://clerk.pokemonsurvivors.com`; `PORT`, `DATA_DIR` and
      `IP_HEADER=x-real-ip` come from the image.)
-   - **Domain:** host `coop-sa.pokemonsurvivors.com`, path `/`, container port `8080`, HTTPS on,
+   - **Domain:** host `coop-<home>.pokemonsurvivors.com`, path `/`, container port `8080`, HTTPS on,
      certificate Let's Encrypt.
-3. Deploy, then check: `curl https://coop-sa.pokemonsurvivors.com/health` answers
-   `{"ok":true,"home":"sa","version":…}`. To soak it, deploy a second app with
-   `ALLOW_GUESTS=on` (or set it for a while) and run the probe with `--url https://coop-sa.pokemonsurvivors.com`:
-   it must keep its sockets well past a minute (Traefik's timeouts) and end with every check green.
+3. Deploy, then check: `curl https://coop-<home>.pokemonsurvivors.com/health` answers
+   `{"ok":true,"home":"<home>","version":…}`. To soak one, set `ALLOW_GUESTS=on` for a while and run
+   the probe with `--url https://coop-<home>.pokemonsurvivors.com`: it must keep its sockets well past
+   a minute (Traefik's timeouts) and end with every check green.
 4. Ship the Cloudflare relay's code change (`npm run deploy:prod` here: its codes now always start
    with a letter) and wait 6 h, a room's longest life, so no live Cloudflare room has a digit code.
-5. Vercel: `VITE_COOP_URL_SA=https://coop-sa.pokemonsurvivors.com` in Production, then redeploy the site.
+5. Vercel, Production: `VITE_COOP_URL_SA=https://coop-sa.pokemonsurvivors.com` and
+   `VITE_COOP_URL_US=https://coop-us.pokemonsurvivors.com` (either alone works), then redeploy the site.
 
 No Clerk change is needed: the issuer is the same, and a token's `azp` is checked against `ALLOWED_ORIGINS`.
 
@@ -150,9 +161,9 @@ No Clerk change is needed: the issuer is the same, and a token's `azp` is checke
   about a second and resume.
 - **Rollback:** Dokploy's Deployments tab, redeploy the previous one (the volume stays).
 - **Logs:** the app's Logs tab in Dokploy (JSON lines: `run.*`, `seat.*`, `room.*`, `relay.stats`).
-- **Dumps:** `curl -s -H "Authorization: Bearer $(cat ~/.config/ps-coop/sa-admin-token)" https://coop-sa.pokemonsurvivors.com/admin/dumps`
+- **Dumps:** `curl -s -H "Authorization: Bearer $(cat ~/.config/ps-coop/<home>-admin-token)" https://coop-<home>.pokemonsurvivors.com/admin/dumps`
   (then `/admin/dumps/<id> | gunzip > dump.json`).
-- **Costs:** nothing extra; it shares the VPS. A 4-player room takes ~1–1.5% of a core and
+- **Costs:** São Paulo shares the main VPS (nothing extra); US east is the Boston VPS's own plan. A 4-player room takes ~1–1.5% of a core and
   ~1 MB of memory past the process's ~80 MB.
 
 ## Limits and costs
