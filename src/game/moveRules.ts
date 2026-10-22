@@ -50,6 +50,20 @@ export const lungeTarget = <T extends Foe>(foes: readonly T[], from: Point, faci
   return best
 }
 
+/**
+ * One tick of a lunge carrying its caster (`Motion` 'lunge': Quick Attack,
+ * Brave Bird, Zen Headbutt…): the move in px and the seconds left after it.
+ * Pure, so the simulation (`attacks.ts`) and co-op's prediction ghost
+ * (`coop/predict.ts`) move the player by the same bits.
+ */
+export const lungeStep = (m: { vx: number; vy: number; left: number }, dt: number) => {
+  const step = Math.min(dt, m.left)
+  return { dx: m.vx * step, dy: m.vy * step, left: m.left - step }
+}
+
+/** One tick of a roll (Rollout): `speed` px/s the way the player faces, on top of the walk. Pure, like `lungeStep`. */
+export const rollStep = (facing: Point, speed: number, dt: number) => ({ dx: facing.x * speed * dt, dy: facing.y * speed * dt })
+
 /* ---------------- Chain (Shock Wave, Thunderbolt, Hex) ---------------- */
 
 /** The first foe must be this close to the player. */

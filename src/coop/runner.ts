@@ -114,6 +114,8 @@ export type Runner = {
   pushedBy: number[]
   /** This seat's last stick stamped and simulated: the tick and the input sample it carried (prediction anchors on it). */
   anchor: { tick: number; sample: number } | null
+  /** The input sample of this seat's last special press stamped and simulated (-1 before one): prediction presses the later ones itself. */
+  pressed: number
   /** A heal under way: when it was asked (ms) and its tick. */
   healing: { at: number; tick: number } | null
   /** Positions before the last tick simulated, for drawing between ticks: players by slot, enemies by id (no objects made per tick). */
@@ -187,6 +189,7 @@ export const createRunner = (start: RunStart, room: string, seat: number): Runne
     actors: [],
     pushedBy: [],
     anchor: null,
+    pressed: -1,
     healing: null,
     before: { players: [], ex: new Map(), ey: new Map() },
     stats: newStats(),
@@ -350,7 +353,11 @@ export const stepOne = (r: Runner, deps: RunnerDeps) => {
   const entries = r.ticks.get(tick)
   if (entries) {
     r.ticks.delete(tick)
-    for (const e of entries) if (e[0] === r.seat && e[1] === 'move' && typeof e[3] === 'number') r.anchor = { tick, sample: e[3] }
+    for (const e of entries) {
+      if (e[0] !== r.seat) continue
+      if (e[1] === 'move' && typeof e[3] === 'number') r.anchor = { tick, sample: e[3] }
+      else if (e[1] === 'special' && typeof e[2] === 'number') r.pressed = Math.max(r.pressed, e[2])
+    }
     stepTick(g, toTickEntries(entries, r.slots))
   } else stepTick(g, [])
   r.next++

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  CHAIN_FALLOFF, chainDamage, chainTargets, LUNGE_IFRAMES, LUNGE_MAX, LUNGE_MIN_COOLDOWN, lungeLength, lungeTarget,
+  CHAIN_FALLOFF, chainDamage, chainTargets, LUNGE_IFRAMES, LUNGE_MAX, LUNGE_MIN_COOLDOWN, lungeLength, lungeStep, lungeTarget,
   MINE_ARM, mineArmed, mineBlast, mineCap,
 } from './moveRules'
 import { createGame, step } from './game'
@@ -53,6 +53,18 @@ describe('lunge', () => {
 
   it('skips fainting foes and breaks ties by id', () => {
     expect(lungeTarget([foe(9, 20, 0), foe(5, 0, 20), foe(1, 5, 0, 0.1)], ORIGIN, { x: 1, y: 0 }, false, 80)?.id).toBe(5)
+  })
+
+  it('carries its caster v × its time, then stops', () => {
+    const m = { vx: 300, vy: -100, left: 0.05 }
+    let x = 0
+    for (let i = 0; i < 6; i++) {
+      const step = lungeStep(m, 1 / 60)
+      m.left = step.left
+      x += step.dx
+    }
+    expect(m.left).toBe(0)
+    expect(x).toBeCloseTo(300 * 0.05, 9)
   })
 })
 

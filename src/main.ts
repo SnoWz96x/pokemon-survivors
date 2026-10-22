@@ -2055,8 +2055,8 @@ const coopFrame = (r: Run, c: CoopRun, dt: number, t: number, realDt: number) =>
   specialQueued = megaQueued = lungeQueued = false
   const runner = c.runner
   const st = client.state()
-  const drawn = predict(c.prediction, runner, st.history, st.sample, c.driver.frac(), dt)
-  const shown = updateDrawView(c.view, runner, drawn, view, runner.acc / STEP)
+  const drawn = predict(c.prediction, runner, st, c.driver.frac(), dt)
+  const shown = updateDrawView(c.view, runner, drawn, view, runner.acc / STEP, c.prediction.look)
   const conn = client.connection()
   // Sounds and toasts wait out a sync (the run is replaying, not happening now).
   const quiet = conn.syncing !== null
