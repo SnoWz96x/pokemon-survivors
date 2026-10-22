@@ -35,7 +35,7 @@ import { challengeStart, type Challenge } from './game/challenge'
 import { HATCHLING_IDS, HATCHLINGS, PLAYABLE, PLAYABLE_IDS, type HatchlingId, type PlayableId } from './data/hatchlings'
 import { isLegend } from './data/legends'
 import { accountHandle, accountState, accountsEnabled, accountUserId, backFromSignIn, giftInbox, onAccountChange, stageGifts, stageSyncedSave, startAccount, syncSave } from './account'
-import { identify, startAnalytics, track, type ErrorContext } from './analytics'
+import { identify, startAnalytics, takeOpened, track, type ErrorContext } from './analytics'
 import { BAG_ITEMS, useArmed, type BagItem } from './game/bag'
 import { armedTms, tmLimit } from './game/tmShelf'
 import { branchNeeds, capLevel } from './game/evoItems'
@@ -743,17 +743,26 @@ const rankRun = (r: Run) => {
   }
 }
 
-/** Reports how the run ended, once, with the build it ended on and, for a faint, what landed the last hit. */
-const reportRun = (r: Run, faint: Extract<GameEvent, { kind: 'gameover' }> | null = null) => {
+/** Runs quit in their first minute since the last report: the next `run_end` carries the count. */
+let rerolls = 0
+
+/**
+ * Reports how the run ended, once, with the build it ended on and, for a faint, what landed the last hit.
+ * `left`: the page is going away mid-run, so it goes out by beacon. A run quit or left in its first
+ * minute isn't reported (some players restart hundreds of times a day); a quit counts toward `rerolls`.
+ */
+const reportRun = (r: Run, faint: Extract<GameEvent, { kind: 'gameover' }> | null = null, left = false) => {
   if (r.reported) return
   r.reported = true
   const g = r.game
   const p = localPlayer(g)
+  const outcome = g.endless ? 'endless' : g.phase === 'victory' || g.phase === 'gameover' ? g.phase : left ? 'left' : 'quit'
+  if ((outcome === 'quit' || outcome === 'left') && g.time < 60) return void (outcome === 'quit' && rerolls++)
   track('run_end', {
     starter: p.starter,
     difficulty: g.difficulty,
     mode: runMode(p.starter),
-    outcome: g.endless ? 'endless' : g.phase === 'victory' || g.phase === 'gameover' ? g.phase : 'quit',
+    outcome,
     minute: Math.floor(g.time / 60),
     level: p.level,
     kills: g.kills,
@@ -772,7 +781,10 @@ const reportRun = (r: Run, faint: Extract<GameEvent, { kind: 'gameover' }> | nul
     ...challengeKind(r.challenge),
     ...runPerf(),
     ...(g.halloween ? { candies: g.candies } : {}),
-  })
+    rerolls,
+    opened: takeOpened(),
+  }, { beacon: left })
+  rerolls = 0
 }
 
 /** How the device coped with the run: canvas memory at its peak and the frames while playing. */
@@ -788,7 +800,7 @@ const runPerf = () => {
   }
 }
 
-/** The `challenge` field of a run's events: a Desafio do dia run says whether it started as the official attempt. */
+/** The `challenge` field of a run's report: a Desafio do dia run says whether it started as the official attempt. */
 const challengeKind = (c: { official: boolean } | null) => (c ? { challenge: c.official ? ('official' as const) : ('practice' as const) } : {})
 
 /** What an error report says about where the player was: in a run, its replay so far, which plays the run again up to the error (`resimulate`). */
@@ -1020,7 +1032,6 @@ const startRun = async (starter: PlayableId, daily: ChallengeRun | null = null) 
   resetCanvasPeaks()
   resetRunFrames(frames)
   syncRunWatch()
-  track('run_start', { starter, difficulty: game.difficulty, mode: runMode(starter), ...challengeKind(run.challenge) })
   announceRun(start, run.challenge)
 }
 
@@ -1798,8 +1809,8 @@ document.addEventListener('visibilitychange', () => {
  * game makes (signing in, the guide, the title's links) starts from a menu,
  * with no run, so none of them is asked. iOS Safari ignores this prompt.
  */
-// The page goes away mid co-op run (closed, reloaded): its link numbers go out by beacon.
-window.addEventListener('pagehide', () => run?.coop && reportNet(run.coop, 'unload'))
+// The page goes away mid-run (closed, reloaded): a co-op run's link numbers, or a solo run's end, go out by beacon.
+window.addEventListener('pagehide', () => run && (run.coop ? reportNet(run.coop, 'unload') : reportRun(run, null, true)))
 
 window.addEventListener('beforeunload', (e) => {
   if (!run || run.game.phase === 'gameover' || run.game.phase === 'victory') return
@@ -1970,7 +1981,6 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
   syncRunWatch()
   leftRun = null
   syncPresence()
-  track('run_start', { starter: me.starter, difficulty: live.game.difficulty, mode: 'standard' })
 }
 
 /**

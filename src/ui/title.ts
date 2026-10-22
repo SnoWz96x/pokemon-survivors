@@ -1,5 +1,5 @@
 import { accountState, accountsEnabled, giftInbox, onAccountChange, onInbox, onSaveSynced, type AccountState } from '../account'
-import { track } from '../analytics'
+import { lobbyPress } from '../analytics'
 import { playSfx } from '../engine/audio'
 import { ACTIONS } from '../engine/bindings'
 import { joystick, type Input, type Stick } from '../engine/input'
@@ -742,15 +742,15 @@ export const titleScreen = (
     instagram: () => openSocial('instagram'),
   }
   /** A press on `key`: the select sound, then its action after this dispatch (or the next screen would get the same press). */
-  // JOGAR isn't counted: `run_start` already says it, and it's a third of the lobby's presses.
-  const press = (key: keyof typeof runs) => () => (select(key, false), playSfx('select'), key !== 'play' && track('lobby_press', { entry: key }), later(runs[key]))
+  // JOGAR isn't counted: the run's `run_end` already says it, and it's a third of the lobby's presses.
+  const press = (key: keyof typeof runs) => () => (select(key, false), playSfx('select'), key !== 'play' && lobbyPress(key), later(runs[key]))
   const pressable = <T extends HTMLElement>(node: T, key: keyof typeof runs) => (node.addEventListener('click', press(key)), navigable(node, key))
 
   const buildLobby = () => {
     const save = loadSave()
     const landscape = layout() === 'landscape'
     navs = []
-    const chip = trainerChip(input, { onOpen: () => (track('lobby_press', { entry: 'trainer' }), openOver(actions.trainer)) })
+    const chip = trainerChip(input, { onOpen: () => (lobbyPress('trainer'), openOver(actions.trainer)) })
     closeChip = chip.dispose
     navigable(chip.el, 'trainer')
     const nextBar = topBar({
@@ -774,7 +774,7 @@ export const titleScreen = (
     // Rebuilt with the same partner (`refresh`), a walk it's taking goes on and this lobby keeps its `leave`.
     if (!leave || was?.dex !== stage.partner.dex || was.shiny !== stage.partner.shiny) leave = actions.meadow.meet(stage.partner)
     tickers = [outbreak.tick, stage.tick]
-    const hall = navigable(hallCard(() => (select('hall', false), playSfx('select'), track('lobby_press', { entry: 'hall' }), later(() => openOver((focus) => actions.supporters(focus, 'pick'))))), 'hall')
+    const hall = navigable(hallCard(() => (select('hall', false), playSfx('select'), lobbyPress('hall'), later(() => openOver((focus) => actions.supporters(focus, 'pick'))))), 'hall')
     const side = h(
       'div',
       { class: 'lobby-side' },
