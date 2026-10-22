@@ -2,7 +2,7 @@ import { fromAngle, retain, TAU } from '../engine/math'
 import { chance, range } from '../engine/rng'
 import { query } from '../engine/spatial'
 import { drainHeal } from './combat'
-import { burst, floatText } from './effects'
+import { burst, floatText, shakeScreen } from './effects'
 import { recomputeStats } from './leveling'
 import { addMoveBuff, TIRED_SLOW, TIRED_TIME } from './signatureMoves'
 import { recoilFor, snipeScale } from './signatureRules'
@@ -172,7 +172,7 @@ export const updateSignatures = (g: Game, dt: number) => {
       }
       case 'hammer':
         if (a.age < a.activeFrom && a.age + dt >= a.activeFrom) {
-          g.shake = Math.max(g.shake, 4)
+          shakeScreen(g, 4)
           g.events.push({ kind: 'cast', move: 'woodHammer' })
           burst(g, a.x, a.y + 6, { colors: ['#a07840', '#d8c080', '#685028'], count: 14, speed: 90, ttl: 0.4, gravity: 200, size: 2 })
         }
@@ -212,7 +212,7 @@ export const updateSignatures = (g: Game, dt: number) => {
       }
       case 'eruptionFall':
         // The bombs land with a thud.
-        if (a.age < a.ttl && a.age + dt >= a.ttl) g.shake = Math.max(g.shake, 1.5)
+        if (a.age < a.ttl && a.age + dt >= a.ttl) shakeScreen(g, 1.5)
         break
     }
   }

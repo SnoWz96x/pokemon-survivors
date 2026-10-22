@@ -4,7 +4,7 @@ import { PLAYABLE, type PlayableId } from '../data/hatchlings'
 import { BRANCHES, type BranchDef, type BranchId } from '../data/branches'
 import { MEGAS, type MegaId } from '../data/megas'
 import { TYPE_COLORS, type PokeType } from '../data/types'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { recomputeStats } from './leveling'
 import { MOVES, moveStats, type MoveDef } from './moves'
 import { enemiesInView, inSight, isAlive } from './queries'
@@ -695,7 +695,7 @@ const explode = (g: Game, r: ResolvedSpecial, x: number, y: number, radius: numb
     damage: dmg, knockback: 240, ttl: 0.4, activeUntil: 0.25, grow: (radius - 8) / 0.25,
   })
   burst(g, x, y, { colors: ['#fff8c0', '#f8d030', '#f08030', '#c03020'], count: 40, speed: radius * 3, ttl: 0.5, gravity: -40 })
-  g.shake = Math.max(g.shake, 7)
+  shakeScreen(g, 7)
   g.hitstop = Math.max(g.hitstop, 0.05)
 }
 
@@ -706,7 +706,7 @@ const release = (g: Game, r: ResolvedSpecial) => {
   const dmg = power(g, r)
   s.angle = dm.atan2(p.facing.y, p.facing.x)
   g.hitstop = 0.07
-  g.shake = Math.max(g.shake, 5)
+  shakeScreen(g, 5)
   g.events.push({ kind: 'special', phase: 'release', name: r.tier.name })
   burst(g, p.x, p.y - 10, { colors: typeColors(r.def.type), count: 24, speed: 120, ttl: 0.35 })
   // The fire dash fires Metronome where it lands; every other charged special right away.
@@ -1005,7 +1005,7 @@ const landChain = (g: Game, r: ResolvedSpecial, cooldown: number) => {
     damage: power(g, r) * CHAIN_SLASH, knockback: 220, status: r.def.status ?? null, activeUntil: 0.07, ttl: 0.3, flip: chance(g.rng, 0.5),
   })
   burst(g, p.x, p.y - 8, { colors: typeColors(r.def.type), count: hit ? 18 : 8, speed: hit ? 130 : 80, ttl: 0.3 })
-  g.shake = Math.max(g.shake, hit ? 4 : 2)
+  shakeScreen(g, hit ? 4 : 2)
   if (hit) {
     g.hitstop = Math.max(g.hitstop, 0.03)
     g.events.push({ kind: 'special', phase: 'release', name: r.tier.name })
@@ -1070,7 +1070,7 @@ const swapStance = (g: Game) => {
   recomputeStats(g)
   g.events.push({ kind: 'stance', stance })
   burst(g, p.x, p.y - 12, { colors: [STANCES[stance].color, '#ffffff', '#f8d030'], count: 24, speed: 110, ttl: 0.35 })
-  g.shake = Math.max(g.shake, 2)
+  shakeScreen(g, 2)
   arrivalCombo(g)
 }
 

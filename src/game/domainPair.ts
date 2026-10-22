@@ -3,7 +3,7 @@ import type { LegendDomain } from '../data/domains'
 import { park } from './bosses'
 import { createFight, phasesOf } from './bossFight'
 import { killEnemy } from './combat'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { spawnEnemy } from './enemies'
 import type { Enemy, Game } from './types'
 
@@ -67,7 +67,7 @@ const knockOut = (g: Game, pair: PairState, e: Enemy, other: Enemy) => {
   park(e, f)
   other.fight!.enraged = true
   burst(g, pair.x, pair.y - 10, { colors: ['#ffffff', '#f86078', '#58a0f8'], count: 60, speed: 180, ttl: 0.6, size: 2 })
-  g.shake = Math.max(g.shake, 8)
+  shakeScreen(g, 8, 'team')
   g.flash = Math.max(g.flash, 0.4)
   g.events.push({ kind: 'pairDown', enemy: e.kind, partner: other.kind })
 }

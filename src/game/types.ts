@@ -629,6 +629,11 @@ export type GameEvent =
   | { kind: 'caught'; enemy: EnemyId }
   | { kind: 'thunder' }
   | { kind: 'quake' }
+  /**
+   * Co-op only (`shakeScreen`): the screen shook `amount` px, the acting player's own doing (`own`), a whole
+   * team's moment (`team`) or at a spot in the world (`spot`, at `x`, `y`; 0 otherwise). Each screen shakes its own.
+   */
+  | { kind: 'shake'; amount: number; from: 'own' | 'team' | 'spot'; x: number; y: number }
   /** The special attack started charging or was unleashed. */
   | { kind: 'special'; phase: 'charge' | 'release'; name: string }
   /** Aegislash swapped formes (Stance Change). */
@@ -785,6 +790,7 @@ export type Game = {
   view: { w: number; h: number }
   /** Where the screen drawn sits: the first player's (`followPlayers`); a co-op shell aims it at its own player. */
   camera: { x: number; y: number }
+  /** The screen shake (px), fading (`updateEffects`); raised with `shakeScreen`. */
   shake: number
   /** Seconds the simulation stays frozen for impact (hit-stop). */
   hitstop: number

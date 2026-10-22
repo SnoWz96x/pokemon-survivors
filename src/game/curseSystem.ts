@@ -1,6 +1,6 @@
 import type { CurseId } from '../data/curses'
 import { chestCurse, CURSE, curseDrain } from './curses'
-import { burst, floatText } from './effects'
+import { burst, floatText, shakeScreen } from './effects'
 import { recomputeStats } from './leveling'
 import { setPhase } from './players'
 import type { Game } from './types'
@@ -29,7 +29,7 @@ export const decideCurse = (g: Game, id: CurseId, take: boolean) => {
     g.player.curses.held.push(id)
     recomputeStats(g)
     burst(g, p.x, p.y - 12, { colors: [...CURSE_COLORS, '#ffffff'], count: 46, speed: 120, ttl: 0.8, gravity: -30 })
-    g.shake = Math.max(g.shake, 3)
+    shakeScreen(g, 3)
   }
   g.events.push({ kind: 'curse', id, moment: take ? 'taken' : 'left' })
 }

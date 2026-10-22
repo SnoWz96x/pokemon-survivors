@@ -3,7 +3,7 @@ import { chance, pick, range } from '../engine/rng'
 import { query } from '../engine/spatial'
 import type { PokeType } from '../data/types'
 import { damageEnemy } from './combat'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { chainDamage, mineCap } from './moveRules'
 import { enemiesInView, isAlive, nearestEnemy } from './queries'
 import { spawnAttack } from './spawn'
@@ -594,30 +594,30 @@ export const evolvedTick = (g: Game, a: Attack, dt: number) => {
 export const evolvedImpact = (g: Game, a: Attack) => {
   switch (a.visual) {
     case 'wildbolt':
-      g.shake = Math.max(g.shake, 2.5)
+      shakeScreen(g, 2.5)
       return burst(g, a.x, a.y - 4, { colors: ['#ffffff', '#fff8a0', '#58c8f8'], count: 10, speed: 110, ttl: 0.3 })
     case 'fireBlast':
-      g.shake = Math.max(g.shake, 3.5)
+      shakeScreen(g, 3.5)
       return burst(g, a.x, a.y - 4, { colors: ['#fff8c0', '#f8d030', '#f08030', '#c03020'], count: 26, speed: 150, ttl: 0.5, gravity: -40 })
     case 'gunkBomb':
-      g.shake = Math.max(g.shake, 3)
+      shakeScreen(g, 3)
       return burst(g, a.x, a.y - 4, { colors: ['#281830', '#6a3a78', '#b878c8', '#88a038'], count: 22, speed: 120, ttl: 0.5, gravity: 120 })
     case 'icicleFall':
-      g.shake = Math.max(g.shake, 1.5)
+      shakeScreen(g, 1.5)
       return burst(g, a.x, a.y - 3, { colors: ['#ffffff', '#d8f0ff', '#98d8f8'], count: 9, speed: 90, ttl: 0.35, gravity: 160 })
     case 'pumpSplash':
       return burst(g, a.x, a.y, { colors: ['#ffffff', '#a8d8f8', '#4878e8'], count: 16, speed: 110, ttl: 0.4, gravity: 180 })
     case 'outrageRoar':
-      g.shake = Math.max(g.shake, 4)
+      shakeScreen(g, 4)
       return burst(g, a.x, a.y, { colors: ['#a070f8', '#f85030', '#f8d030'], count: 24, speed: 160, ttl: 0.4 })
     case 'stoneEdge':
       return burst(g, a.x, a.y, { colors: ['#d8c080', '#a08048', '#685028'], count: 4, speed: 70, ttl: 0.35, gravity: 220 })
     case 'extremeSpeed':
       if (a.motion.kind !== 'static') return
-      g.shake = Math.max(g.shake, 2.5)
+      shakeScreen(g, 2.5)
       return burst(g, a.x, a.y, { colors: ['#ffffff', '#f8d030', '#c89000'], count: 18, speed: 150, ttl: 0.35 })
     case 'boltStrike':
-      g.shake = Math.max(g.shake, 2)
+      shakeScreen(g, 2)
       return burst(g, a.x, a.y, { colors: ['#ffffff', '#fff8a0', '#f8b830'], count: 10, speed: 100, ttl: 0.3 })
     case 'barbsBlast':
       if (a.move !== 'barbBarrage' || a.shape.kind !== 'circle') return

@@ -36,6 +36,7 @@ import {
 import * as evo from './typeEvolutions'
 import * as evolved from './evolvedMoves'
 import { TRI_ELEMENTS } from './evolvedRules'
+import { shakeScreen } from './effects'
 
 /**
  * Moves are the weapons. Each level-up upgrade adds a delta to the move's
@@ -1234,7 +1235,7 @@ export const MOVES = {
           age: -i * 0.35,
         })
       }
-      g.shake = Math.max(g.shake, 3)
+      shakeScreen(g, 3)
     },
   },
 
@@ -1268,7 +1269,7 @@ export const MOVES = {
           grow: (62 * s.area * k) / s.duration, status: s.status, age: -i * 0.25, memo: beat.strong ? 1 : 0,
         })
       }
-      if (beat.strong) g.shake = Math.max(g.shake, 2)
+      if (beat.strong) shakeScreen(g, 2)
     },
   },
 
@@ -2104,7 +2105,7 @@ export const MOVES = {
           })
         }
       }
-      g.shake = Math.max(g.shake, 2)
+      shakeScreen(g, 2)
     },
   },
 
