@@ -2,7 +2,24 @@ import { decodeSnapshot, deflate, restore, snapshot, stateHash } from '../game/s
 import { diffStates } from '../game/stateDiff'
 import { PLAYABLE_IDS } from '../data/hatchlings'
 import { LEGEND_IDS } from '../data/legends'
-import { startScenario, tickScenario, type Driver, type Scenario } from './scenario'
+import { startScenario, tickScenario, type Scenario } from './scenario'
+import { startCoopScenario, tickCoopScenario, type CoopScenario } from './coopScenario'
+import type { Game } from '../game/types'
+
+/** A solo run (`scenario.ts`) or a co-op one (`coopScenario.ts`, a `team`). */
+export type AnyScenario = Scenario | CoopScenario
+
+/** Either driver, as the harness steps it: the game, the tick, one more tick. */
+type Run = { g: Game; tick: number; step: () => boolean }
+
+const start = (s: AnyScenario): Run => {
+  if ('team' in s) {
+    const d = startCoopScenario(s)
+    return { get g() { return d.g }, get tick() { return d.tick }, step: () => tickCoopScenario(d) }
+  }
+  const d = startScenario(s)
+  return { get g() { return d.g }, get tick() { return d.tick }, step: () => tickScenario(d) }
+}
 
 /**
  * The cross-engine determinism harness's entry (`scripts/determinism.mjs`
@@ -20,7 +37,11 @@ export { decodeSnapshot, diffStates, restore, snapshot, stateHash }
  * every playable (legends too) for a few minutes, so each family's own moves
  * get played too.
  */
-export const HARNESS_SCENARIOS: ReadonlyArray<{ name: string; scenario: Scenario; minutes: number }> = [
+export const HARNESS_SCENARIOS: ReadonlyArray<{ name: string; scenario: AnyScenario; minutes: number }> = [
+  // Co-op (the lockstep's tick entries, as the relay stamps them): a long team of four and a pair on each difficulty.
+  { name: 'coop-4-normal-20min', scenario: { seed: 9001, team: ['charmander', 'squirtle', 'pichu', 'gible'], difficulty: 'normal', maxRanks: true }, minutes: 20 },
+  { name: 'coop-2-hard-12min', scenario: { seed: 9002, team: ['eevee', 'bulbasaur'], difficulty: 'hard', maxRanks: true }, minutes: 12 },
+  { name: 'coop-3-nightmare-10min', scenario: { seed: 9003, team: ['riolu', 'scyther', 'porygon'], difficulty: 'nightmare', maxRanks: false }, minutes: 10 },
   { name: 'squirtle-normal-25min', scenario: { seed: 2, starter: 'squirtle', difficulty: 'normal', maxRanks: true }, minutes: 25 },
   { name: 'charmander-hard-mega-15min', scenario: { seed: 31, starter: 'charmander', difficulty: 'hard', maxRanks: true }, minutes: 15 },
   { name: 'eevee-nightmare-12min', scenario: { seed: 977, starter: 'eevee', difficulty: 'nightmare', maxRanks: true }, minutes: 12 },
@@ -53,7 +74,7 @@ export type RunEnd = {
   endless: boolean
 }
 
-const end = (d: Driver): RunEnd => ({
+const end = (d: Run): RunEnd => ({
   tick: d.tick,
   time: d.g.time,
   phase: d.g.phase,
@@ -68,11 +89,11 @@ const end = (d: Driver): RunEnd => ({
 })
 
 /** Plays `s` up to `ticks` (or its end), hashing the state every `every` ticks (and at the last one). */
-export const runHashes = (s: Scenario, ticks: number, every = 60) => {
-  const d = startScenario(s)
+export const runHashes = (s: AnyScenario, ticks: number, every = 60) => {
+  const d = start(s)
   const hashes: Array<[tick: number, hash: string]> = []
   let busiest = 0
-  while (d.tick < ticks && tickScenario(d)) {
+  while (d.tick < ticks && d.step()) {
     if (d.tick % every === 0) hashes.push([d.tick, stateHash(d.g)])
     busiest = Math.max(busiest, d.g.enemies.length)
   }
@@ -81,10 +102,10 @@ export const runHashes = (s: Scenario, ticks: number, every = 60) => {
 }
 
 /** The hash after each tick in (`from`, `to`]: where in a window two engines part. */
-export const hashesBetween = (s: Scenario, from: number, to: number) => {
-  const d = startScenario(s)
+export const hashesBetween = (s: AnyScenario, from: number, to: number) => {
+  const d = start(s)
   const hashes: Array<[tick: number, hash: string]> = []
-  while (d.tick < to && tickScenario(d)) if (d.tick > from) hashes.push([d.tick, stateHash(d.g)])
+  while (d.tick < to && d.step()) if (d.tick > from) hashes.push([d.tick, stateHash(d.g)])
   return hashes
 }
 
@@ -97,9 +118,9 @@ const toBase64 = (bytes: Uint8Array) => {
 export const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0))
 
 /** The run's snapshot after `tick` ticks, as base64 (so it crosses into Node). */
-export const snapshotAt = (s: Scenario, tick: number) => {
-  const d = startScenario(s)
-  while (d.tick < tick && tickScenario(d));
+export const snapshotAt = (s: AnyScenario, tick: number) => {
+  const d = start(s)
+  while (d.tick < tick && d.step());
   return toBase64(snapshot(d.g))
 }
 

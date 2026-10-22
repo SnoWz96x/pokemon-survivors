@@ -64,6 +64,7 @@ import { CALM_PERIOD, HURT_TINT, type Flashes } from './flashes'
 import { detail } from './quality'
 import { localPlayer } from '../game/players'
 import { riftDomain } from '../game/rift'
+import { COOP } from '../data/coop'
 
 type Ctx = CanvasRenderingContext2D
 
@@ -781,7 +782,10 @@ const drawEvolution = (ctx: Ctx, g: Game, t: number, calm: boolean) => {
 
 /* ---------------- Frame ---------------- */
 
-type Drawable = Enemy | 'player' | 'companion' | Solid
+/** A co-op teammate, drawn from a copy of the game as that player (`coop/view.ts`). */
+type Mate = { mate: Game }
+
+type Drawable = Enemy | 'player' | 'companion' | Solid | Mate
 const drawables: Drawable[] = []
 /** `drawables` in depth order, with each one's depth worked out once: the sort compares them thousands of times a frame. */
 const inDepth: Drawable[] = []
@@ -854,8 +858,46 @@ const biomeFade = (g: Game) => {
 
 const TEXT_PASSES = [false, true] as const
 
-/** Player preferences from the settings screen, and the supporter's companion walking along (`render/companion.ts`). */
-export type RenderOptions = { damageNumbers: DamageNumbers; screenShake: boolean; flashes: Flashes; companion?: CompanionView | null }
+/**
+ * Player preferences from the settings screen, the supporter's companion walking along (`render/companion.ts`)
+ * and, in co-op, the teammates: each a draw-only copy of the game as that player (`coop/view.ts`).
+ */
+export type RenderOptions = { damageNumbers: DamageNumbers; screenShake: boolean; flashes: Flashes; companion?: CompanionView | null; mates?: readonly Game[] }
+
+const isMate = (d: Drawable): d is Mate => typeof d === 'object' && 'mate' in d
+
+/** A name as the in-world font can write it: capitals and digits, accents off, short. */
+const nameTag = (name: string) =>
+  name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, '')
+    .trim()
+    .slice(0, 12)
+
+/** A teammate where they stand: their Pokémon and name, or the Poké Ball they fainted into (a teammate standing by gets them up). */
+const drawMate = (ctx: Ctx, mate: Game, calm: boolean, t: number) => {
+  const p = localPlayer(mate)
+  if (p.gone) return
+  const name = nameTag(mate.coop?.names[p.slot] ?? '')
+  if (p.hp <= 0) {
+    blitCentered(ctx, PICKUPS.pokeball(), p.x, p.y - 3 + Math.round(Math.sin(t * 3) * 1))
+    if (p.revive > 0) {
+      const w = 18
+      ctx.fillStyle = '#181818'
+      ctx.fillRect(Math.round(p.x - w / 2) - 1, Math.round(p.y + 5), w + 2, 3)
+      ctx.fillStyle = '#f8d830'
+      ctx.fillRect(Math.round(p.x - w / 2), Math.round(p.y + 6), Math.ceil((w * p.revive) / COOP.revive.time), 1)
+    }
+  } else drawPlayer(ctx, mate, calm)
+  if (name) {
+    const s = playerSprites(mate)
+    ctx.globalAlpha = p.away ? 0.5 : 0.9
+    blitCentered(ctx, textSprite(name, p.away ? '#a0a0a0' : '#f8f8f8'), p.x, p.y - (p.hp > 0 ? s.bodyH : 10) - 6)
+    ctx.globalAlpha = 1
+  }
+}
 
 /** Particles a lean frame draws at most (`render/quality.ts`). */
 const LEAN_PARTICLES = 120
@@ -923,12 +965,13 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   const hiddenBoss = sceneHides(g)
   for (const e of g.enemies) if (visible(e.x, e.y) && e.id !== hiddenBoss) drawables.push(e)
   drawables.push('player')
+  for (const mate of opts.mates ?? []) drawables.push({ mate })
   const companion = opts.companion
   if (companion) drawables.push('companion')
   solidsInView(g, camX, camY, w, h, drawables)
   // Mid-jump leapers sort last so they fly over the horde, and so does a flyer over a rock or a mountain.
   const depth = (d: Drawable) =>
-    d === 'player' ? localPlayer(g).y : d === 'companion' ? (companion?.y ?? 0) : isSolid(d) ? d.y : isAirborne(d) || (overTerrain(d) && inSolid(g, d.x, d.y, 4)) ? d.y + 4096 : d.y
+    d === 'player' ? localPlayer(g).y : isMate(d) ? localPlayer(d.mate).y : d === 'companion' ? (companion?.y ?? 0) : isSolid(d) ? d.y : isAirborne(d) || (overTerrain(d) && inSolid(g, d.x, d.y, 4)) ? d.y + 4096 : d.y
   // Filled by index and cut to size (emptying them would drop their storage every frame).
   const n = drawables.length
   for (let i = 0; i < n; i++) {
@@ -954,18 +997,22 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
     }
     else if (d === 'companion') companion && shadow(ctx, companion.x, companion.y, sprites(companion.dex).bodyW)
     // Drawing lean, the regular horde goes without: a shadow each is a draw call each.
-    else if (!isSolid(d) && d.dying < 0 && (!lean || d.boss || d.alpha)) shadow(ctx, d.x, d.y, d.radius * 3)
+    else if (isMate(d)) {
+      const m = localPlayer(d.mate)
+      if (m.hp > 0 && !m.gone && !playerUnderground(d.mate)) shadow(ctx, m.x, m.y, playerSprites(d.mate).bodyW)
+    } else if (!isSolid(d) && d.dying < 0 && (!lean || d.boss || d.alpha)) shadow(ctx, d.x, d.y, d.radius * 3)
   }
   drawAfterimages(ctx, g, calm)
   for (const d of inDepth) {
     if (d === 'player') !hidden && drawPlayer(ctx, g, calm)
     else if (d === 'companion') companion && drawCompanion(ctx, companion, t)
+    else if (isMate(d)) drawMate(ctx, d.mate, calm, t)
     else if (isSolid(d)) drawSolid(ctx, g, d, look)
     else drawEnemy(ctx, d, g.now, t, calm, aloft, isClone(g, d))
   }
   // Badges only on bosses: on a 300-enemy horde they'd bury the sprites (tint + particles carry it there).
   for (const d of inDepth) {
-    if (d !== 'player' && d !== 'companion' && !isSolid(d) && d.boss && d.dying < 0) {
+    if (d !== 'player' && d !== 'companion' && !isMate(d) && !isSolid(d) && d.boss && d.dying < 0) {
       const def: EnemyDef = ENEMIES[d.kind]
       drawStatusBadge(ctx, d.status, d.x, d.y - sprites(def.dex).bodyH * drawScale(d) - (d.alpha ? 14 : 5))
     }
@@ -1056,5 +1103,6 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, w, h)
   }
-  if (g.phase === 'evolving') drawEvolution(ctx, g, t, calm)
+  // Co-op: a player's own evolution plays while the team plays on (the world's phase stays `playing`).
+  if (g.phase === 'evolving' || localPlayer(g).phase === 'evolving') drawEvolution(ctx, g, t, calm)
 }

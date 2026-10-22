@@ -13,7 +13,8 @@
     "assets": "node scripts/fetch-assets.mjs",
     "credits": "node scripts/credits.mjs",
     "bodies": "node scripts/bodies.mjs",
-    "determinism": "node scripts/determinism.mjs"
+    "determinism": "node scripts/determinism.mjs",
+    "soak": "node scripts/coop/soak.mjs"
   },
   "devDependencies": {
     "@posthog/cli": "^0.16.2",

@@ -233,5 +233,16 @@ export const setPhase = (g: Game, phase: PlayerPhase, p: Player = g.player) => {
   g.phase = team
 }
 
-/** The shell's own player: solo, the only one. */
-export const localPlayer = (g: Game): Player => g.players[0]!
+/**
+ * Which slot each run's shell plays, by its `players` array: co-op clients
+ * each show their own player (`setLocalSlot`). Keyed by the array, not the
+ * game, so a draw-only copy of the game (`coop/view.ts`) still finds it. Not
+ * simulation state: nothing in the step reads it.
+ */
+const LOCAL = new WeakMap<readonly Player[], number>()
+
+/** Tells the shell which slot of this run is its own (co-op); solo it's always 0. Again after a `restore`. */
+export const setLocalSlot = (players: readonly Player[], slot: number) => void LOCAL.set(players, slot)
+
+/** The shell's own player: solo, the only one; in co-op, this client's seat. */
+export const localPlayer = (g: Pick<Game, 'players'>): Player => g.players[LOCAL.get(g.players) ?? 0] ?? g.players[0]!

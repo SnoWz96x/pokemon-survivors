@@ -371,8 +371,13 @@ export type StepInput = { move: Vec; special: boolean; mega?: boolean; lunge?: b
 /** A player with no input this tick: stands still, presses nothing. */
 const STILL: StepInput = { move: { x: 0, y: 0 }, special: false }
 
-/** Walks the acting player with the stick `input`. */
-const updatePlayer = (g: Game, input: Vec, dt: number) => {
+/**
+ * The walking part of a player's tick: the acting player's velocity from the
+ * stick (water, ice, the special's pace, a root) and the step it takes. Returns
+ * whether the stick moved them. Exported for co-op's own-movement prediction,
+ * which runs it on a draw-only copy of the player (`coop/predict.ts`).
+ */
+export const walkPlayer = (g: Game, input: Vec, dt: number) => {
   const p = g.player
   const slow = specialSpeedFactor(g)
   // Rooted (Giga Impact's recharge): the stick does nothing until it wears off.
@@ -402,6 +407,13 @@ const updatePlayer = (g: Game, input: Vec, dt: number) => {
     p.y += dy
     p.walked += dm.hypot(dx, dy)
   }
+  return moving
+}
+
+/** Walks the acting player with the stick `input`. */
+const updatePlayer = (g: Game, input: Vec, dt: number) => {
+  const p = g.player
+  const moving = walkPlayer(g, input, dt)
   if (moving) {
     const len = dm.hypot(input.x, input.y)
     p.facing = { x: input.x / len, y: input.y / len }
