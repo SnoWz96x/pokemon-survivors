@@ -38,7 +38,9 @@ import { TICK } from './tick'
  * random draw): the server only judges replays of its own rules (`rulesStanding`).
  * Replays from before the field existed are rules 1. `rulesGuard.test.ts`
  * pins where a few scripted replays end under this version and fails when the
- * simulation moves them without a bump; bump it, then pin the digests it prints.
+ * simulation moves them without a bump; bump it, then pin the digests it prints,
+ * and run `npm run rules:freeze` so the API keeps the previous rules' simulator
+ * for the runs that straddle the deploy (`server/sims/README.md`).
  */
 export const RULES_VERSION = 33
 

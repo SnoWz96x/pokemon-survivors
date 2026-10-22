@@ -1,18 +1,18 @@
 import { Worker } from 'node:worker_threads'
-import { outbreakFits } from '../../src/game/outbreak'
-import { halloweenFits } from '../../src/game/halloween'
 import { BOARD_SIZE } from '../../src/game/ranking'
-import { parseReplay, rulesStanding, type Replay, type Resimulated } from '../../src/game/replay'
+import { parseReplay, RULES_VERSION, rulesStanding } from '../../src/game/replay'
 import type { RankingStore } from './ranking'
+import { FROZEN_RULES, judge, type Job, type Judged } from './sims'
 
-type Answer = { result: Resimulated; ms: number }
+type Answer = { judged: Judged; ms: number }
 
-/** Re-simulates one replay; null when the machinery failed (not the run). */
-type Runner = (id: string, replay: unknown) => Promise<Answer | null>
+/** Judges one replay; null when the machinery failed (not the run). */
+type Runner = (job: Job) => Promise<Answer | null>
 
 /**
  * The bundled worker (`dist/verify.js`, next to `index.js`): a long run's
- * seconds of simulation never hold up the API's requests. A crash (a replay
+ * seconds of simulation never hold up the API's requests, and the frozen
+ * simulator of the previous rules only ever loads there. A crash (a replay
  * that blows the heap) fails only that check; the next one gets a fresh worker.
  */
 const workerRunner = (): Runner => {
@@ -24,7 +24,7 @@ const workerRunner = (): Runner => {
   }
   const start = () => {
     const w = new Worker(new URL('./verify.js', import.meta.url))
-    w.on('message', settle)
+    w.on('message', ({ judged, ms }: { judged: Judged | null; ms: number }) => settle(judged ? { judged, ms } : null))
     w.on('error', (err) => {
       console.error('check worker', err)
       worker = null
@@ -33,21 +33,20 @@ const workerRunner = (): Runner => {
     w.unref()
     return w
   }
-  return (id, replay) =>
+  return (job) =>
     new Promise((resolve) => {
       worker ??= start()
       waiting = resolve
-      worker.postMessage({ id, replay })
+      worker.postMessage(job)
     })
 }
 
-/** `npm run dev` runs the source under tsx, where a worker can't load it: re-simulate in place (it blocks, fine in dev). */
-const inlineRunner = (): Runner => async (_id, replay) => {
-  const { resimulate } = await import('../../src/game/replay')
-  const t0 = performance.now()
-  const result = resimulate(replay as Replay)
-  return { result, ms: Math.round(performance.now() - t0) }
-}
+/** `npm run dev` runs the source under tsx, where a worker can't load it: judge in place (it blocks, fine in dev). */
+const inlineRunner = (): Runner => (job) =>
+  judge(job).catch((err: unknown) => {
+    console.error('check', job.id, err)
+    return null
+  })
 
 /**
  * Which runs get re-simulated. Runs are trusted: one counts on the boards as
@@ -70,10 +69,13 @@ export const CHECKED = { top: { global: BOARD_SIZE, starter: 3 }, sample: 0.05 }
  * (`outbreakFits`), or a haunted run outside the Noite das Bruxas
  * (`halloweenFits`), fails without re-simulating. When the machinery fails
  * instead, the run stays pending for the next start.
- * Only replays of this build's rules are judged (`RULES_VERSION`): an older
- * one (a run that straddled a balance deploy) loses its replay and stays
- * unverified, like a run from a game that sent none; a newer one waits for
- * this server to be updated (a deploy restarts it, and `resume` picks it up).
+ * Replays of this build's rules (`RULES_VERSION`) are judged with this
+ * build's simulation, and those of the previous rules (a run that straddled
+ * a rules deploy, `rulesGrace.ts`, or one still pending from before it) with
+ * the frozen one (`sims.ts`). An older one loses its replay and stays
+ * unverified, like a run from a game that sent none (so does a replay its
+ * simulator can't read); a newer one waits for this server to be updated
+ * (a deploy restarts it, and `resume` picks it up).
  * `schedule` queues a run (again, if it grew in endless mode); `resume`
  * queues whatever was pending when the server last stopped.
  */
@@ -95,34 +97,34 @@ export const createChecks = (ranking: RankingStore) => {
           await ranking.dropReplay(id)
           continue
         }
-        const parsed = parseReplay(reported.replay)
-        const rules = parsed?.rules
-        const standing = rules === undefined ? 'same' : rulesStanding(rules)
-        if (standing !== 'same') {
+        const rules = parseReplay(reported.replay)?.rules ?? RULES_VERSION
+        const standing = rulesStanding(rules)
+        if (standing === 'newer' || (standing === 'older' && rules !== FROZEN_RULES)) {
           if (standing === 'older') await ranking.dropReplay(id)
           console.log(`check ${id}: replay under ${standing} rules (${rules}), left unverified`)
           continue
         }
-        // The outbreak is a run input: it must be the one of the day the run started (or the day before).
-        if (parsed && !outbreakFits(parsed.start.outbreak, reported.startedAt)) {
-          await ranking.setVerified(id, reported.time, { ok: false }, null)
-          console.log(`check ${id}: failed, outbreak ${parsed.start.outbreak} isn't the one of ${reported.startedAt.toISOString()}`)
-          continue
-        }
-        // So is the Noite das Bruxas: a haunted run must have started on one of its days.
-        if (parsed && !halloweenFits(parsed.start.halloween, reported.startedAt)) {
-          await ranking.setVerified(id, reported.time, { ok: false }, null)
-          console.log(`check ${id}: failed, haunted run outside the event (${reported.startedAt.toISOString()})`)
-          continue
-        }
-        const answer = await run(id, reported.replay)
+        const answer = await run({ id, replay: reported.replay, rules, startedAt: reported.startedAt.getTime() })
         if (!answer) continue
-        const r = answer.result
+        const { judged, ms } = answer
+        const under = rules === RULES_VERSION ? '' : ` under the frozen rules ${rules}`
+        if (judged.kind === 'unjudged') {
+          await ranking.dropReplay(id)
+          console.log(`check ${id}: a replay its rules' simulator can't read${under}, left unverified`)
+          continue
+        }
+        // The outbreak and the Noite das Bruxas are run inputs: they must fit the day the run started (or the day before).
+        if (judged.kind === 'unfit') {
+          await ranking.setVerified(id, reported.time, { ok: false }, null)
+          console.log(`check ${id}: failed, ${judged.why === 'outbreak' ? 'another day\'s outbreak' : 'haunted outside the event'} (${reported.startedAt.toISOString()})${under}`)
+          continue
+        }
+        const r = judged.result
         // A replay that ends on an open level-up (`stuck`) still played the run it reported, when the numbers match.
         const ok = r.time === reported.time && r.kills === reported.kills && r.level === reported.level
         // The branch isn't judged: the replay's own replaces the reported one.
-        await ranking.setVerified(id, reported.time, ok ? { ok, branch: r.branch } : { ok }, answer.ms)
-        console.log(`check ${id}: ${ok ? 'verified' : 'failed'} in ${answer.ms} ms${r.stuck ? ', ending on an open level-up' : ''}`)
+        await ranking.setVerified(id, reported.time, ok ? { ok, branch: r.branch } : { ok }, ms)
+        console.log(`check ${id}: ${ok ? 'verified' : 'failed'} in ${ms} ms${under}${r.stuck ? ', ending on an open level-up' : ''}`)
       } catch (err) {
         console.error('check failed', id, err)
       }
