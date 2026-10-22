@@ -5,6 +5,7 @@ import { keepGiven } from './gifts'
 import { bagCount } from './bag'
 import { buyFromVitrine, buyStyle, claimGift, investInShop, vitrineCards, vitrineOf } from './shop'
 import { applyPush, mergeSaves } from './sync'
+import { buyQuick, buySlot, useQuick } from './incubator'
 
 const save = (patch: Partial<Save>): Save => ({ ...EMPTY_SAVE, ...patch })
 
@@ -103,6 +104,20 @@ describe('mergeSaves', () => {
     const m = mergeSaves(save({ wallet: 1000 }), spent)
     expect(m.ranks.protein).toBe(1)
     expect(m.wallet).toBe(1000 - upgradePrice('protein', 0))
+  })
+
+  it("counts the incubator's slots in the fortune and keeps them, with the eggs they hold and a Quick Incubator used on either side", () => {
+    const before = save({ wallet: 200_000, shop: { ...EMPTY_SAVE.shop, level: 2 }, eggs: [{ tier: 'rare', steps: 100 }] })
+    const slotted = buySlot(before)!
+    const filled = { ...slotted, eggs: [...slotted.eggs, ...Array.from({ length: 3 }, () => ({ tier: 'common' as const, steps: 0 }))] }
+    const quick = useQuick(buyQuick(before)!, 0)!
+    const m = mergeSaves(filled, quick)
+    expect(m.incubator).toEqual({ slots: 1, quick: { got: 1, used: 1 } })
+    expect(m.wallet).toBe(200_000 - 150_000 - 8000)
+    expect(m.eggs).toHaveLength(4)
+    expect(m.eggs[0]).toEqual({ tier: 'rare', steps: 100, quick: true })
+    expect(mergeSaves(m, filled)).toEqual(m)
+    expect(parseSaveData(JSON.parse(JSON.stringify(m)))).toEqual(m)
   })
 
   it('changes nothing when merged again, in either order', () => {

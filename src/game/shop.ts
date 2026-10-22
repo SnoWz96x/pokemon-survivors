@@ -3,7 +3,7 @@ import { BAG_ITEM_IDS, BAG_ITEMS, bagItemLevel, MAX_SHOP_LEVEL, SHOP_BOUGHT_KEYS
 import { styleIds, stylePrice, type StyleId, type StyleSlot } from '../data/style'
 import { addToBag } from './bag'
 import { addDays, dayNumber, isDayKey, type DayKey } from './day'
-import { EGGS, grantEgg } from './eggs'
+import { grantEgg, incubatorFull } from './eggs'
 import type { Save } from './meta'
 import { isRecord, wholeNumber } from './parse'
 import { grantStyle, ownsStyle, type StyleSave } from './style'
@@ -213,7 +213,7 @@ export const vitrineBlock = (save: Save, v: Vitrine, key: VitrineKey): VitrineBl
   if (stockLeft(save.shop, v, key) === 0) return 'soldOut'
   const price = vitrinePrice(v, key, save.style)
   if (price === null) return 'owned'
-  if (key === 'egg' && save.eggs.length >= EGGS.slots) return 'full'
+  if (key === 'egg' && incubatorFull(save)) return 'full'
   return save.wallet < price ? 'poor' : null
 }
 
@@ -235,7 +235,7 @@ export type KecleonEggBlock = 'soldOut' | 'full' | 'poor'
 /** Why the Kecleon Egg can't be bought on the Vitrine's day: today's is sold, the incubator is full or not enough ₽. */
 export const kecleonEggBlock = (save: Save, v: Vitrine): KecleonEggBlock | null => {
   if (stockLeft(save.shop, v, 'kecleonEgg') === 0) return 'soldOut'
-  if (save.eggs.length >= EGGS.slots) return 'full'
+  if (incubatorFull(save)) return 'full'
   return save.wallet < VITRINE.kecleonEgg.price ? 'poor' : null
 }
 

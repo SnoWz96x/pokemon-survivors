@@ -3,6 +3,7 @@ import { STYLE_SLOTS, styleIds } from '../data/style'
 import { EVO_ITEM_IDS, MAX_CAPS, SHOP_LEVEL_IDS, type EvoItemId, type ShopLevel } from '../data/shop'
 import { PLAYABLE, type PlayableId } from '../data/hatchlings'
 import { grantCaps } from '../game/evoItems'
+import { EGGS, MAX_SLOTS } from '../game/eggs'
 import { armTm, isShelfTm, shelfTms, tmLimit, tmRotation, type ShelfTm } from '../game/tmShelf'
 import { addToBag, BAG_ITEM_IDS, type BagItem } from '../game/bag'
 import { brasiliaDay, isDayKey } from '../game/day'
@@ -91,6 +92,21 @@ export const martDevTools = (refresh: () => void) => ({
     writeSave({ ...save, evo: EVO_ITEM_IDS.filter((x) => x === id || id === undefined || save.evo.includes(x)) })
     refresh()
     return loadSave().evo
+  },
+  /** Sets the incubator's slots, 3 to 5 (`ps.slots(4)`; all of them without an argument), without paying for them; eggs past them are dropped. Returns the incubator. */
+  slots: (n: number = MAX_SLOTS) => {
+    const save = loadSave()
+    writeSave({ ...save, incubator: { ...save.incubator, slots: Math.max(0, Math.min(MAX_SLOTS, Math.floor(n)) - EGGS.slots) } })
+    refresh()
+    return loadSave().incubator
+  },
+  /** Adds `n` Quick Incubators (`ps.quick(3)`), as if bought (pays nothing). Returns the incubator. */
+  quick: (n = 3) => {
+    const save = loadSave()
+    const { quick } = save.incubator
+    writeSave({ ...save, incubator: { ...save.incubator, quick: { ...quick, got: quick.got + Math.max(0, Math.floor(n)) } } })
+    refresh()
+    return loadSave().incubator
   },
   /** Adds ₽ to the wallet (`ps.money(20000)`). */
   money: (amount = 10_000) => {

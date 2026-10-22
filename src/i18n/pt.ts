@@ -818,7 +818,7 @@ export const pt = {
     levels: { 1: 'Carrinho', 2: 'Tenda', 3: 'Loja', 4: 'Kecleon Mart', 5: 'Loja de Departamento' } satisfies Record<ShopLevel, string>,
     level: (name: string, n: number) => `${name} (Nv ${n})`,
     /** The shelves, as tabs (`SHELVES` in ui/shop.ts). */
-    tabs: { vitrine: 'Vitrine', bag: 'Mochila', tms: 'TMs', evolution: 'Evolução', training: 'Treino', style: 'Estilo', caravan: 'Caravana', stall: 'Barraca', loyalty: 'Fidelidade', expansion: 'Expansão' },
+    tabs: { vitrine: 'Vitrine', bag: 'Mochila', tms: 'TMs', evolution: 'Evolução', training: 'Treino', style: 'Estilo', caravan: 'Caravana', stall: 'Barraca', loyalty: 'Fidelidade', incubator: 'Incubadora', expansion: 'Expansão' },
     /** Corner tags on the cards. */
     badges: { gift: 'BRINDE', wish: 'LISTA', new: 'NOVO', armed: 'LEVANDO', level: (n: number) => `NV ${n}`, exclusive: 'EXCLUSIVA', found: 'ACHOU', today: 'HOJE', owned: 'SUA', sure: 'GARANTE' },
     vitrineOf: (weekday: string, level: string) => `Vitrine de ${weekday} · ${level}`,
@@ -909,6 +909,19 @@ export const pt = {
       tycoon: 'Título Magnata e a moldura Kecleon Dourado.',
       owned: 'Já é sua.',
       invest: (price: string) => `Investir ${price}`,
+    },
+    /** The Incubadora shelf (`game/incubator.ts`): extra slots for good and the Quick Incubator. */
+    incubator: {
+      intro: (slots: number, max: number) => `Sua incubadora: ${slots} de ${max} vagas · vagas extras são para sempre`,
+      slot: (n: number) => `${n}ª vaga`,
+      slotText: 'Mais um ovo chocando ao mesmo tempo, para sempre. Com a incubadora cheia, ovo novo vira ₽.',
+      before: 'Compre a vaga anterior primeiro.',
+      needs: (level: string) => `À venda com a loja em ${level}.`,
+      buy: (price: string) => `Comprar ${price}`,
+      confirm: (n: number, price: string) => `Comprar a ${n}ª vaga da incubadora por ${price}? É para sempre e não tem reembolso.`,
+      owned: 'Já é sua.',
+      quick: 'Incubadora Rápida',
+      quickText: (speed: number) => `Um ovo da incubadora anda ${speed}× mais rápido até chocar. Para usar, abra a incubadora e toque no ovo.`,
     },
     /** Meowth's weekend caravan (`game/caravan.ts`). */
     caravan: {
@@ -1692,7 +1705,21 @@ export const pt = {
     hatch: 'Chocar!',
     back: 'Voltar',
     collection: (n: number, total: number) => `Coleção ${n}/${total}`,
-    hint: '← → escolher · ENTER chocar · ESC voltar',
+    hint: '← → escolher · ENTER chocar ou acelerar · ESC voltar',
+    touchHint: 'Toque num ovo pronto para chocar, ou num ovo andando para acelerar.',
+    /** A slot the shop sells (`INCUBATOR.slots`), not bought yet. */
+    slotLocked: 'Vaga extra',
+    slotPrice: (price: string, n: number) => `${price} · Nv ${n}`,
+    slotWhere: (price: string, level: string) => `Mais uma vaga: aba *Incubadora* da loja do Kecleon, por ${price}, com a loja em ${level}.`,
+    /** The Quick Incubator (`game/incubator.ts`). */
+    quick: {
+      badge: '×2',
+      owned: (n: number) => `Incubadora Rápida: ${n}`,
+      confirm: (egg: string, n: number) => `Usar uma Incubadora Rápida no ${egg}? Ele anda o dobro até chocar. (Você tem ${n})`,
+      use: 'Usar',
+      already: 'Este ovo já está numa Incubadora Rápida: anda o dobro até chocar.',
+      none: (price: string) => `Sem Incubadora Rápida. A loja do Kecleon vende por ${price} (aba *Incubadora*).`,
+    },
     hatching: 'Hã? O ovo está se mexendo!',
     hatched: (name: string) => `Saiu um *${name}*!`,
     hatchedShiny: (name: string) => `Saiu um *${name}* _shiny_!`,

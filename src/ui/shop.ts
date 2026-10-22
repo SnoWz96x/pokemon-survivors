@@ -5,14 +5,15 @@ import { HATCHLINGS, PLAYABLE, type PlayableId } from '../data/hatchlings'
 import { BRANCHES, branchesAt } from '../data/branches'
 import type { EvolutionStage } from '../data/starters'
 import { STYLE_SLOTS, styleIds, stylePrice, type StyleId, type StyleSlot } from '../data/style'
-import { BOTTLE_CAPS, EVO_ITEM_IDS, EVO_ITEM_PRICE, EVO_ITEMS, MAX_CAPS, SHOP_LEVEL_IDS, SHOP_LEVELS, VITRINE, type BagItem, type EvoItemId, type ShopLevel, type VitrineEgg, type VitrineKey } from '../data/shop'
+import { BOTTLE_CAPS, EVO_ITEM_IDS, EVO_ITEM_PRICE, EVO_ITEMS, INCUBATOR, MAX_CAPS, SHOP_LEVEL_IDS, SHOP_LEVELS, VITRINE, type BagItem, type EvoItemId, type ShopLevel, type VitrineEgg, type VitrineKey } from '../data/shop'
 import { armBlock, armedItems, armItem, BAG_ITEM_IDS, BAG_ITEMS, bagCount } from '../game/bag'
 import { addDays, brasiliaDay, dayNumber, msToNextDay, type DayKey } from '../game/day'
 import { canPlay } from '../game/capture'
 import { branchNeeds, buyCap, buyEvoItem, capBlock, capLevel, capPrice, evoBlock, evoItemSteps } from '../game/evoItems'
 import { MOVES } from '../game/moves'
 import { armedTms, armTm, buyTm, isRegularTm, nextTmDay, shelfOf, tmBlock, tmLimit, tmListing, tmPrice, type ShelfTm, type TmBlock } from '../game/tmShelf'
-import { EGG_TIERS, EGGS, hatchOdds, type EggTier } from '../game/eggs'
+import { EGG_TIERS, EGGS, hatchOdds, incubatorSlots, MAX_SLOTS, type EggTier } from '../game/eggs'
+import { buyQuick, buySlot, quickCount, slotBlock } from '../game/incubator'
 import { buyUpgrade, refundAll, totalSpent, UPGRADE_IDS, UPGRADES, upgradePrice, type Save } from '../game/meta'
 import {
   buyFromVitrine,
@@ -41,7 +42,7 @@ import {
 } from '../game/shop'
 import { playsShiny } from '../game/shinyPicks'
 import { equipStyle, ownsStyle } from '../game/style'
-import { coinIcon, eggIcon } from '../render/art'
+import { coinIcon, eggIcon, incubatorIcon } from '../render/art'
 import { portraitUrl } from '../render/sprites'
 import { styleThumb } from '../render/card'
 import { frameIcon, wallpaperUrl } from '../render/cosmetics'
@@ -696,6 +697,65 @@ const levelCard = (level: ShopLevel): Card => {
   }
 }
 
+/* ---------------- Incubadora ---------------- */
+
+/** An extra incubator slot (`INCUBATOR.slots[i]`): owned, the next one (for good, so it asks first), or waiting on the slot before it or the shop's level. */
+const slotCard = (i: number): Card => {
+  const m = t().shop.incubator
+  const def = INCUBATOR.slots[i]!
+  const n = EGGS.slots + i + 1
+  const level = t().shop.level(t().shop.levels[def.minLevel], def.minLevel)
+  const { el, badges, sub, price } = shell(img(incubatorIcon(), 'shop-egg'), m.slot(n))
+  const owned = (save: Save) => save.incubator.slots > i
+  const isNext = (save: Save) => save.incubator.slots === i
+  /** Why it waits, when it isn't the next one or the shop is too small for it. */
+  const waits = (save: Save) => (owned(save) ? null : !isNext(save) ? m.before : slotBlock(save) === 'level' ? m.needs(level) : null)
+  return {
+    el,
+    refresh: (save) => {
+      setBadges(badges, [owned(save) && badge('owned', t().shop.badges.owned), !owned(save) && badge('level', t().shop.badges.level(def.minLevel))])
+      setText(sub, waits(save) ?? m.slotText)
+      setText(price, owned(save) ? '✓' : formatPokeDollars(def.price))
+      el.classList.toggle('done', owned(save))
+      el.classList.toggle('locked', waits(save) !== null)
+      el.classList.toggle('poor', isNext(save) && slotBlock(save) === 'poor')
+    },
+    describe: (save) => ({
+      icon: img(incubatorIcon(), 'shop-egg'),
+      title: m.slot(n),
+      text: [m.slotText, owned(save) ? m.owned : (waits(save) ?? m.needs(level))].join(' '),
+      action: owned(save) ? m.owned : m.buy(formatPokeDollars(def.price)),
+      disabled: owned(save) || !isNext(save) || slotBlock(save) !== null,
+    }),
+    act: (save) => (isNext(save) ? buySlot(save) : null),
+    confirm: (save) => (isNext(save) && !slotBlock(save) ? m.confirm(n, formatPokeDollars(def.price)) : null),
+  }
+}
+
+/** The Quick Incubator: bought here (no daily stock), put on an egg from the incubator screen. */
+const quickCard = (): Card => {
+  const m = t().shop.incubator
+  const { price: cost, speed } = INCUBATOR.quick
+  const { el, badges, sub, price } = shell(img(incubatorIcon(true), 'shop-egg'), m.quick)
+  return {
+    el,
+    refresh: (save) => {
+      setBadges(badges, [])
+      setText(sub, `×${quickCount(save.incubator)}`)
+      setText(price, formatPokeDollars(cost))
+      el.classList.toggle('poor', save.wallet < cost)
+    },
+    describe: (save) => ({
+      icon: img(incubatorIcon(true), 'shop-egg'),
+      title: `${m.quick} ×${quickCount(save.incubator)}`,
+      text: [m.quickText(speed), t().shop.have(quickCount(save.incubator))].join(' '),
+      action: save.wallet < cost ? t().shop.blocks.poor : t().mart.buy(formatPokeDollars(cost)),
+      disabled: save.wallet < cost,
+    }),
+    act: buyQuick,
+  }
+}
+
 /* ---------------- Caravana (Meowth, weekends) ---------------- */
 
 /** What a caravan card shows: its name, picture and what it is. */
@@ -1063,6 +1123,14 @@ const SHELVES: readonly Shelf[] = [
     layout: 'list',
     stock: () => [loyaltyCard(), ...LOYALTY.milestones.map(milestoneCard)],
     intro: (save) => t().shop.loyalty.intro(save.shop.stamps),
+  },
+  {
+    id: 'incubator',
+    keeper: 'green',
+    open: () => true,
+    layout: 'list',
+    stock: () => [quickCard(), ...INCUBATOR.slots.map((_, i) => slotCard(i))],
+    intro: (save) => t().shop.incubator.intro(incubatorSlots(save), MAX_SLOTS),
   },
   { id: 'expansion', keeper: 'green', open: () => true, layout: 'list', stock: () => SHOP_LEVEL_IDS.map(levelCard), intro: () => t().shop.expansion.intro },
 ]
