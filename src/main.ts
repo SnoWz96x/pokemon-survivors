@@ -173,6 +173,7 @@ import { coopHub, coopRoom } from './ui/coopRoom'
 import { friendsScreen, inviteBanner } from './ui/friends'
 import { coopDriver, type CoopDriver } from './coop/driver'
 import { createDrawView, updateDrawView, type DrawView } from './coop/view'
+import { createScreenShake, feelShake, settleShake, type ScreenShake, type ShakeEvent } from './coop/shake'
 import { createPrediction, predict, type Prediction } from './coop/predict'
 import type { Runner } from './coop/runner'
 import { coopOver } from './game/coop'
@@ -318,6 +319,8 @@ type CoopRun = {
   banked: { victory: boolean; over: boolean }
   /** "Jogar de novo" was pressed: the host starts the next run as soon as everyone online is ready. */
   again: boolean
+  /** This screen's own shake (`coop/shake.ts`): a teammate's hit or move never shakes it. */
+  shake: ScreenShake
 }
 
 let screen: Screen | null = null
@@ -1903,6 +1906,7 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
     }),
     menu: false,
     banked: { victory: false, over: false },
+    shake: createScreenShake(),
     again: false,
   }
   const me = localPlayer(live.game)
@@ -2057,7 +2061,13 @@ const coopFrame = (r: Run, c: CoopRun, dt: number, t: number, realDt: number) =>
   // Sounds and toasts wait out a sync (the run is replaying, not happening now).
   const quiet = conn.syncing !== null
   const actors = runner.actors.splice(0)
-  runner.events.splice(0).forEach((e, i) => !quiet && coopEvent(r, c, e, actors[i] ?? 0))
+  // The shakes wait for the camera to settle (a fainted player watches a teammate's screen).
+  const shakes: ShakeEvent[] = []
+  runner.events.splice(0).forEach((e, i) => {
+    if (quiet) return
+    if (e.kind === 'shake') shakes.push({ ...e, actor: actors[i] ?? 0 })
+    else coopEvent(r, c, e, actors[i] ?? 0)
+  })
   if (run !== r) return
   // Banks at the victory and at the end (deltas: a reload or a second time pays nothing).
   if (!c.banked.victory && runner.game.phase === 'victory') {
@@ -2072,7 +2082,11 @@ const coopFrame = (r: Run, c: CoopRun, dt: number, t: number, realDt: number) =>
   tickToasts(ui, dt, false)
   // The team's cards, the connection, the waits, and the camera: this player's, or a teammate's while fainted (`render/teamCamera.ts`).
   c.team.frame(shown, localPlayer(shown), dt, view, conn, runner.pending !== null)
-  render(ctx, shown, t, { ...settings(), companion: null, mates: c.view.mates })
+  // This screen's own shake, its offset rolled once a tick (the draw would roll one every refresh).
+  for (const e of shakes) feelShake(c.shake, e, runner.slot, shown.camera, shown.view)
+  settleShake(c.shake, dt, runner.next, Math.random)
+  shown.shake = c.shake.amount
+  render(ctx, shown, t, { ...settings(), companion: null, mates: c.view.mates, shakeOffset: c.shake })
   const stick = input.readStick()
   if (stick && shown.phase === 'playing') drawJoystick(ctx, stick, cssScale)
   r.hud.update(shown)
