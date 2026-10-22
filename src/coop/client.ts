@@ -1,6 +1,9 @@
+import { worldHeld } from '../game/coop'
 import { moveCode } from '../game/replay'
+import type { Game } from '../game/types'
 import type { Vec } from '../engine/math'
-import { LIMITS, PROTOCOL, REGIONS, type BatchedMessage, type ClientMessage, type CloseReason, type CreateResponse, type Refusal, type Region, type RoomView, type RunStart, type ServerMessage } from '../net/protocol'
+import { LIMITS, NET_REPORT_MS, PROTOCOL, REGIONS, type BatchedMessage, type ClientMessage, type CloseReason, type CreateResponse, type NetReport, type Refusal, type Region, type RoomView, type RunStart, type ServerMessage } from '../net/protocol'
+import { addSample, createNetStats, noteArrival, noteFrame, quantile, resetArrivalLine, type NetStats, type NetWhere, type ReconnectReason } from './netStats'
 import type { Store } from './bank'
 import type { Input } from './entries'
 import { ack, createOutbox, due, onReconnect, onSlow, push, queued, slowed, type Outbox } from './outbox'
@@ -200,7 +203,14 @@ export type ClientState = {
   overAt: number
   /** The build the room runs, from a `build` refusal (else null): older or newer than this client's. */
   roomBuild: string | null
+  /** The run's link and pacing numbers (`netStats.ts`), for its `coop_net` event; started over with each run. */
+  net: NetStats
+  /** Where the relay runs and where this client meets Cloudflare (`welcome`). */
+  where: NetWhere
 }
+
+/** The team is held: a pick screen up, or the world waiting on away players. */
+const teamPaused = (g: Game) => (g.phase !== 'playing' && g.phase !== 'paused' && g.phase !== 'gameover' && g.phase !== 'victory') || worldHeld(g)
 
 export const createCoopClient = (deps: CoopDeps) => {
   const s: ClientState = {
@@ -233,10 +243,18 @@ export const createCoopClient = (deps: CoopDeps) => {
     uploader: false,
     overAt: -Infinity,
     roomBuild: null,
+    net: createNetStats(),
+    where: { relayColo: null, relayRegion: null, edgeColo: null, edgeRtt: null },
   }
   const listeners = new Set<(e: CoopEvent) => void>()
   const emit = (e: CoopEvent) => listeners.forEach((fn) => fn(e))
   let joining: ((r: JoinResult) => void) | null = null
+
+  /** A new socket for `why`: the count the indicator shows (unless the caller counts it), and the run's tally by reason. */
+  const noteReconnect = (why: ReconnectReason, counts = true) => {
+    if (counts) s.reconnects++
+    s.net.reconnects[why]++
+  }
 
   const setStatus = (status: Status) => {
     s.status = status
@@ -290,6 +308,7 @@ export const createCoopClient = (deps: CoopDeps) => {
     onHealed: (_, tick, ms) => emit({ kind: 'healed', tick, ms }),
     onFailed: () => {
       s.fresh = true
+      noteReconnect('snapshot', false)
       reconnect()
     },
   }
@@ -372,7 +391,7 @@ export const createCoopClient = (deps: CoopDeps) => {
         // Refused before a welcome: the `refused` message already said why.
         if (why === 'refused') return finish(lastRefusal ?? 'unavailable')
         if (why) return finish(why)
-        s.reconnects++
+        noteReconnect('drop')
         if (s.wanted) scheduleRetry()
       },
     }
@@ -408,6 +427,7 @@ export const createCoopClient = (deps: CoopDeps) => {
       case 'welcome': {
         s.welcomed = true
         s.seat = m.seat
+        if (m.net) s.where = { relayColo: m.net.colo, relayRegion: m.net.region, edgeColo: m.net.edge, edgeRtt: m.net.edgeRtt }
         s.room = m.room
         s.attempt = 0
         s.fresh = false
@@ -437,6 +457,7 @@ export const createCoopClient = (deps: CoopDeps) => {
       }
       case 'start': {
         s.uploader = false
+        s.net = createNetStats(m.run.id, now)
         const r = runnerFor(m.run)
         s.runner = r
         setStatus({ kind: 'playing' })
@@ -448,8 +469,11 @@ export const createCoopClient = (deps: CoopDeps) => {
         // The relay may order the same heal again for hashes sent before the first reached us: one restore is enough.
         if (m.reason === 'heal' && before && before.healing && m.base && before.stats.syncs.at(-1)?.base === m.base.tick && before.start.id === m.run.id) return
         const next = onSync(before, m, s.code ?? '', s.seat ?? 0, runnerDeps)
+        if (s.net.run !== m.run.id) s.net = createNetStats(m.run.id, now)
+        else resetArrivalLine(s.net)
         if (next === 'rejoin') {
           s.fresh = true
+          noteReconnect('rejoin', false)
           return reconnect()
         }
         next.uploader = before === next ? next.uploader : s.uploader
@@ -465,10 +489,14 @@ export const createCoopClient = (deps: CoopDeps) => {
         const r = s.runner
         if (!r) return
         const seat = s.seat ?? -1
+        // Live, not a sync's tail: its arrival says how the link is doing.
+        const live = m.from >= r.tailTo && !r.pending
         if (!onFrame(r, m, now, (e) => ack(s.outbox, seat, e))) {
           // A gap (never expected on one ordered socket): resync from what we have.
+          noteReconnect('gap', false)
           return reconnect()
         }
+        if (live) noteArrival(s.net, m.to - 1, now, m.ticks.length > 0)
         return
       }
       case 'heal':
@@ -491,6 +519,7 @@ export const createCoopClient = (deps: CoopDeps) => {
         if (s.pingAt !== null && m.at <= now) {
           const rtt = now - m.at
           s.rtt = s.rtt === 0 ? rtt : s.rtt * 0.8 + rtt * 0.2
+          addSample(s.net.rtt, rtt)
         }
         s.pingAt = null
         return
@@ -573,7 +602,7 @@ export const createCoopClient = (deps: CoopDeps) => {
 
   /**
    * What goes out this frame: the inputs due, then whatever rides along with
-   * them (the hashes, a ping, the stick in play as an anchor). Nothing when
+   * them (the hashes, the link report, a ping, the stick in play as an anchor). Nothing when
    * nothing is due: the hashes wait up to `CONNECT.lazy`, the anchor
    * `CONNECT.anchor`, and silence ends at `CONNECT.heartbeat`.
    */
@@ -585,6 +614,11 @@ export const createCoopClient = (deps: CoopDeps) => {
     if (r?.over && !r.ended && now - s.overAt >= CONNECT.over) {
       s.overAt = now
       out.push({ t: 'over', ...r.over })
+    }
+    // The link report (every `NET_REPORT_MS`) rides along like the hashes.
+    if (r && !r.ended && now - s.net.reportedAt >= NET_REPORT_MS) {
+      s.net.reportedAt = now
+      s.later.push({ msg: netReport(r), at: now })
     }
     const playing = r !== null && s.status.kind === 'playing' && s.pace.code >= 0
     const silent = now - s.lastSentAt >= CONNECT.heartbeat
@@ -614,6 +648,7 @@ export const createCoopClient = (deps: CoopDeps) => {
     // Gone long: the agreed snapshot is quicker than simulating it all.
     if (r && !r.ended && backlog(r) > CONNECT.jump) {
       s.fresh = true
+      noteReconnect('jump', false)
       return reconnect()
     }
     if (s.wanted && !s.socket) {
@@ -633,15 +668,27 @@ export const createCoopClient = (deps: CoopDeps) => {
     const ws = s.socket
     if (ws && !s.hidden) {
       const silent = now - s.lastMessageAt
-      if (!s.welcomed && silent > CONNECT.hello) return (s.reconnects++, reconnect(), 0)
-      if (s.welcomed && silent > CONNECT.dead) return (s.reconnects++, reconnect(), 0)
+      if (!s.welcomed && silent > CONNECT.hello) return (noteReconnect('hello'), reconnect(), 0)
+      if (s.welcomed && silent > CONNECT.dead) return (noteReconnect('dead'), reconnect(), 0)
       // Not while syncing: a client busy catching up answers its own pongs late.
-      if (s.welcomed && s.pingAt !== null && now - s.pingAt > CONNECT.uplink && !s.runner?.syncing) return (s.reconnects++, reconnect(), 0)
+      if (s.welcomed && s.pingAt !== null && now - s.pingAt > CONNECT.uplink && !s.runner?.syncing) return (noteReconnect('uplink'), reconnect(), 0)
       if (s.welcomed) sendAll(outgoing(now))
     }
     const r = s.runner
     if (!r || s.hidden) return 0
-    return advance(r, dt, runnerDeps)
+    const t0 = deps.now()
+    const ran = advance(r, dt, runnerDeps)
+    const after = deps.now()
+    if (ran > 0) addSample(s.net.simTick, (after - t0) / ran)
+    noteFrame(s.net, after, { hold: r.hold.hold, paused: teamPaused(r.game), catchingUp: r.syncing !== null || r.pending !== null || backlog(r) > r.hold.hold + 2 })
+    return ran
+  }
+
+  /** How the link looks from here, for the relay's run summary (`net`). */
+  const netReport = (r: Runner): NetReport => {
+    const n = s.net
+    const total = Object.values(n.reconnects).reduce((a, b) => a + b, 0)
+    return { t: 'net', rtt: Math.round(quantile(n.rtt, 0.5) ?? s.rtt), rtt95: Math.round(quantile(n.rtt, 0.95) ?? s.rtt), hold: r.hold.hold, underruns: r.stats.underruns, stalls: n.stalls, reconnects: total }
   }
 
   /** How the connection is doing, for the pip and the overlays. */
@@ -677,11 +724,11 @@ export const createCoopClient = (deps: CoopDeps) => {
     /** Inputs waiting to go out (bounded). */
     queued: () => queued(s.outbox),
     /** Test and soak hooks: drop the socket as a network failure would, or rejoin afresh (a new tab: the snapshot). */
-    drop: () => (s.reconnects++, reconnect()),
+    drop: () => (noteReconnect('manual'), reconnect()),
     rejoinFresh: () => {
       s.runner = null
       s.fresh = true
-      s.reconnects++
+      noteReconnect('manual')
       reconnect()
     },
   }

@@ -91,10 +91,11 @@ export type Prediction = {
   carried: Carried[]
   /** The ghost at the latest sample, or null while the step doesn't walk this player. */
   look: GhostLook | null
-  /** |predicted − confirmed| (px) each time the confirmed state reaches a predicted sample (the PR's numbers). */
+  /** |predicted − confirmed| (px) each time the confirmed state reaches a predicted sample; the shell takes them every frame (`noteDraw`). */
   errors: number[]
-  /** The correction this frame added (px), and the corrections that snapped (teleports), for the numbers. */
+  /** The correction this frame added (px). */
   correction: number
+  /** Corrections that snapped (teleports, drawn at once instead of blended) since the shell last took them (`noteDraw`). */
   snaps: number
   /** The confirmed game, spot and tick of last frame, to tell a teleport from a correction (`teleported`). */
   seen: { game: Game | null; x: number; y: number; next: number }
