@@ -33,14 +33,17 @@ export type RunPerf = {
 
 /** Custom events, with their payloads. Keep this list short: every event counts against the free tier. */
 type AnalyticsEvents = {
-  /** `mode`: a regular run or the Legend mode's (a legend played, `runMode`). */
-  run_start: { starter: PlayableId; difficulty: Difficulty; mode: RunMode; challenge?: 'official' | 'practice' }
-  /** How a run ended, with what it was built from: the build and the cause of a faint are what tuning needs. */
+  /**
+   * How a run ended, with what it was built from: the build and the cause of a faint are what tuning needs.
+   * The run's only event (no `run_start`): `mode` is a regular run or the Legend mode's (`runMode`), and
+   * `left` is a page closed or reloaded mid-run. Runs left or quit in their first minute send nothing; the
+   * next run that reports counts the quits (`rerolls`). Co-op runs report through `coop` and `coop_net`.
+   */
   run_end: {
     starter: PlayableId
     difficulty: Difficulty
     mode: RunMode
-    outcome: 'victory' | 'gameover' | 'endless' | 'quit'
+    outcome: 'victory' | 'gameover' | 'endless' | 'quit' | 'left'
     minute: number
     level: number
     kills: number
@@ -64,6 +67,10 @@ type AnalyticsEvents = {
     challenge?: 'official' | 'practice'
     /** A haunted run's (Noite das Bruxas) candies, to tune the candy jar. */
     candies?: number
+    /** Runs quit in their first minute since the last report (restarts hunting for a good start). */
+    rerolls: number
+    /** The lobby entries opened since the last report (`lobbyPress`), each once. */
+    opened: LobbyFocus[]
   } & RunPerf
   /**
    * The page died mid-run last time (the crash watch, `takeCrash` in `bugReport.ts`), sent once
@@ -91,8 +98,6 @@ type AnalyticsEvents = {
     /** The session's last error, if one came first. */
     error: string | null
   }
-  /** An entry pressed in the lobby: what players open. */
-  lobby_press: { entry: LobbyFocus }
   /** A share card left the game (the run's or the Trainer Card), or the invite link, through the share sheet, the clipboard or a download. */
   share: { kind: 'run' | 'trainer' | 'invite'; method: 'share' | 'copy' | 'download' }
   /** The game opened from a link carrying a handle this device didn't hold (`?ref=` or a profile's `?u=`); `first`: the device had no inviter yet. */
@@ -189,6 +194,25 @@ const flat = (data: object) => Object.fromEntries(Object.entries(data).filter((e
 export const track = <E extends keyof AnalyticsEvents>(event: E, data: AnalyticsEvents[E], opts: { beacon?: boolean } = {}) => {
   window.umami?.track(event, flat(data))
   withPosthog((ph) => ph.capture(event, data, opts.beacon ? { transport: 'sendBeacon', send_instantly: true } : undefined))
+}
+
+/** The lobby entries opened since the last run report (`takeOpened`). */
+const opened = new Set<LobbyFocus>()
+
+/**
+ * An entry pressed in the lobby: what players open. A press per event would be a third of
+ * PostHog's budget, so Umami (self-hosted) counts each press and PostHog gets the set on the next `run_end`.
+ */
+export const lobbyPress = (entry: LobbyFocus) => {
+  window.umami?.track('lobby_press', { entry })
+  opened.add(entry)
+}
+
+/** The lobby entries opened since the last call, for a run's report. */
+export const takeOpened = () => {
+  const list = [...opened]
+  opened.clear()
+  return list
 }
 
 let identity: { userId: string | null; handle: string | null } | null = null
