@@ -103,7 +103,7 @@ const whereOnce = () =>
   (where ??= fetch('https://www.cloudflare.com/cdn-cgi/trace')
     .then((res) => res.text())
     .then(parseTrace)
-    .catch(() => ({ colo: null, loc: null })))
+    .catch(() => ({ colo: null })))
 
 /** Waits for `where` at most this long before a welcome goes out without it. */
 const WHERE_WAIT_MS = 500

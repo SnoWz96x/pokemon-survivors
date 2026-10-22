@@ -40,13 +40,13 @@ export const parseEdge = (raw: string | null): Edge => {
   return isRecord(v) ? { colo: str(v.colo), country: str(v.country), asn: num(v.asn), rtt: num(v.rtt) } : { colo: null, country: null, asn: null, rtt: null }
 }
 
-/** Where this Durable Object runs: Cloudflare's trace (`colo=MIA`, `loc=US`) as seen from inside it. */
-export type Where = { colo: string | null; loc: string | null }
+/**
+ * Where this Durable Object runs: the `colo=MIA` line of Cloudflare's trace as seen from inside it (its
+ * `loc` line geolocates the original client, not the object, so it's left out).
+ */
+export type Where = { colo: string | null }
 
-export const parseTrace = (text: string): Where => {
-  const field = (k: string) => str(new RegExp(`^${k}=(.+)$`, 'm').exec(text)?.[1]?.trim())
-  return { colo: field('colo'), loc: field('loc') }
-}
+export const parseTrace = (text: string): Where => ({ colo: str(/^colo=(.+)$/m.exec(text)?.[1]?.trim()) })
 
 type ConnMeta = { edge: Edge; openedAt: number; seat: number | null }
 

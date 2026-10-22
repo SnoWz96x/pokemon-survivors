@@ -12,7 +12,7 @@ const EDGES = [
 /** A room driven like the Durable Object drives it: every batch of effects goes through the telemetry. */
 const drive = () => {
   const t = createTelemetry()
-  t.where = { colo: 'MIA', loc: 'US' }
+  t.where = { colo: 'MIA' }
   let n = 0
   const state = loadState(null, { secret: () => `secret-${String(++n).padStart(10, '0')}`, seed: () => 42 }, T0)
   const logs: LogLine[] = []
@@ -100,7 +100,7 @@ describe('telemetry', () => {
   it('tells a welcome where the room runs and where its socket meets Cloudflare', () => {
     const d = drive()
     expect(welcomeNet(d.t, 'c1', d.state.room)).toEqual({ colo: 'MIA', region: 'enam', edge: 'EZE', edgeRtt: 31 })
-    expect(parseTrace('fl=1\nh=x\nip=1.2.3.4\ncolo=GRU\nloc=BR\n')).toEqual({ colo: 'GRU', loc: 'BR' })
+    expect(parseTrace('fl=1\nh=x\nip=1.2.3.4\ncolo=GRU\nloc=BR\n')).toEqual({ colo: 'GRU' })
   })
 
   it('scores a run by its worst seat, from the edge when a seat never reported', () => {

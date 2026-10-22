@@ -2933,7 +2933,7 @@ const devLandmark = (g: Game, id?: LandmarkId, dy = 60) => {
  * failure would, `('fresh')` rejoins as a new tab (the snapshot), `('desync')`
  * nudges this client's state off the team's (the relay heals it), `('pick', id)` another
  * Pokémon for the room, `('url', u)`
- * points at another relay (null: the default), `('net')` the connection numbers; `('room')` and
+ * points at another relay (null: the default), `('net')` the connection numbers and the run's `coop_net` so far; `('room')` and
  * `('hub')` open those screens, `('beta', true|false|null)` forces the lobby's tile on this device,
  * `('build')` joins a room made for another build (the "update" refusal) and `('invite', code, name)`
  * stages a friend's invite banner without the API.
