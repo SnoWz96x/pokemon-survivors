@@ -2,13 +2,14 @@ import { worldHeld } from '../game/coop'
 import { moveCode } from '../game/replay'
 import type { Game } from '../game/types'
 import type { Vec } from '../engine/math'
-import { LIMITS, NET_REPORT_MS, PROTOCOL, REGIONS, type BatchedMessage, type ClientMessage, type CloseReason, type CreateResponse, type NetReport, type Refusal, type Region, type RoomView, type RunStart, type ServerMessage } from '../net/protocol'
+import { LIMITS, NET_REPORT_MS, PROTOCOL, REGIONS, type BatchedMessage, type ClientMessage, type CloseReason, type CreateResponse, type NetReport, type Refusal, type Region, type RelayHome, type RoomView, type RunStart, type ServerMessage } from '../net/protocol'
 import { addSample, createNetStats, noteArrival, noteFrame, quantile, resetArrivalLine, type NetStats, type NetWhere, type ReconnectReason } from './netStats'
 import type { Store } from './bank'
 import type { Input } from './entries'
 import { ack, createOutbox, due, onReconnect, onSlow, push, queued, slowed, type Outbox } from './outbox'
 import { advance, backlog, onEnded, onFrame, onSnapPart, onSync, syncProgress, createRunner, type Runner, type RunnerDeps } from './runner'
 import { createStickPace, paceStick, type StickPace } from './stickPace'
+import { measureRtt, pickHome, relayFor } from './relays'
 import { closeReason, parseServerMessage } from './wire'
 import { loadoutOf, settingsOf, type CoopPick, type CoopSettings } from './start'
 
@@ -77,7 +78,7 @@ export type Status =
   | { kind: 'playing' }
   | { kind: 'closed'; why: CloseWhy }
 
-export type CreateResult = { ok: true; code: string; region: Region } | { ok: false; why: Extract<CreateResponse, { error: string }>['error'] | 'offline' }
+export type CreateResult = { ok: true; code: string; region: Region; home: RelayHome } | { ok: false; why: Extract<CreateResponse, { error: string }>['error'] | 'offline' }
 
 export type JoinResult = { ok: true; seat: number; room: RoomView } | { ok: false; why: CloseWhy }
 
@@ -140,12 +141,14 @@ export const webSocket = (url: string, on: SocketHandlers): SocketLike => {
 }
 
 export type CoopDeps = {
-  /** The relay's base URL (`https://…`). */
+  /** The relay's base URL (`https://…`): Cloudflare's, every room but São Paulo's. */
   url: string
+  /** The São Paulo relay's base URL, when this build has one (`relays.ts`): South American hosts' rooms, whose codes start with a digit. */
+  saUrl?: string | null
   /** The simulation's build id (`__SIM_BUILD__`). */
   build: string
   socket: (url: string, on: SocketHandlers) => SocketLike
-  fetch: (url: string, init: { method: string; body: string; headers: Record<string, string> }) => Promise<{ json: () => Promise<unknown> }>
+  fetch: (url: string, init: { method: string; body?: string; headers?: Record<string, string>; signal?: AbortSignal }) => Promise<{ json: () => Promise<unknown> }>
   store: Store
   /** A fresh Clerk session token when signed in (asked on every connect), else null (a guest: dev and local relays only). */
   token: () => Promise<string | null>
@@ -261,8 +264,10 @@ export const createCoopClient = (deps: CoopDeps) => {
     emit({ kind: 'status', status })
   }
 
-  const httpUrl = deps.url.replace(/\/$/, '')
-  const wsUrl = (code: string) => `${httpUrl.replace(/^http/, 'ws')}/rooms/${code}/ws`
+  const base = (url: string) => url.replace(/\/$/, '')
+  const saUrl = deps.saUrl ? base(deps.saUrl) : null
+  const relayUrl = (home: RelayHome) => (home === 'sa' && saUrl ? saUrl : base(deps.url))
+  const wsUrl = (code: string) => `${base(relayFor(code, deps.url, saUrl)).replace(/^http/, 'ws')}/rooms/${code}/ws`
   const secretKey = (code: string) => `ps:coopSeat:${code}`
   const GUEST_KEY = 'ps:coopGuest'
 
@@ -546,20 +551,51 @@ export const createCoopClient = (deps: CoopDeps) => {
     })
   }
 
-  /** Reserves a room near this player (or in `region`) and joins it. */
-  const create = async (region: Region = 'auto'): Promise<CreateResult> => {
+  /** How long a measured São Paulo round trip holds (ms): a lobby visit, not a whole session (the player may move networks). */
+  const RTT_FRESH_MS = 5 * 60_000
+  let saRtt: { at: number; rtt: Promise<number | null> } | null = null
+
+  /**
+   * The São Paulo relay's round trip, measured once in a while (`warm` starts
+   * it as the co-op screen opens, so creating a room never waits on it).
+   * Null without that relay, or when it doesn't answer within 3 s.
+   */
+  const measureSa = () => {
+    if (!saUrl) return Promise.resolve(null)
+    if (!saRtt || deps.now() - saRtt.at > RTT_FRESH_MS) {
+      const get = (u: string) => deps.fetch(u, { method: 'GET', signal: AbortSignal.timeout(3000) })
+      saRtt = { at: deps.now(), rtt: measureRtt(saUrl, get, deps.now) }
+    }
+    return saRtt.rtt
+  }
+
+  const reserve = async (home: RelayHome, region: Region): Promise<CreateResult> => {
     try {
-      const res = await deps.fetch(`${httpUrl}/rooms`, { method: 'POST', body: JSON.stringify({ v: PROTOCOL, build: deps.build, region }), headers: { 'Content-Type': 'application/json' } })
+      const res = await deps.fetch(`${relayUrl(home)}/rooms`, { method: 'POST', body: JSON.stringify({ v: PROTOCOL, build: deps.build, region }), headers: { 'Content-Type': 'application/json' } })
       const body: unknown = await res.json()
       if (typeof body === 'object' && body !== null && 'code' in body && typeof body.code === 'string') {
         const region = REGIONS.find((r) => 'region' in body && r === body.region) ?? 'auto'
-        return { ok: true, code: body.code, region }
+        return { ok: true, code: body.code, region, home }
       }
       const error = typeof body === 'object' && body !== null && 'error' in body ? body.error : null
       return { ok: false, why: error === 'version' || error === 'rate' || error === 'busy' || error === 'invalid' ? error : 'offline' }
     } catch {
       return { ok: false, why: 'offline' }
     }
+  }
+
+  /**
+   * Reserves a room near this player (or in `region`): São Paulo's when this
+   * build has that relay and it answers near (`pickHome`), Cloudflare's
+   * otherwise, and Cloudflare's too when São Paulo can't take it now.
+   */
+  const create = async (region: Region = 'auto'): Promise<CreateResult> => {
+    const home = region === 'auto' ? pickHome(await measureSa()) : region === 'sam' && saUrl ? 'sa' : 'cf'
+    if (home === 'sa') {
+      const made = await reserve('sa', region)
+      if (made.ok || (made.why !== 'offline' && made.why !== 'busy')) return made
+    }
+    return reserve('cf', region)
   }
 
   const leaveQuietly = () => {
@@ -708,6 +744,8 @@ export const createCoopClient = (deps: CoopDeps) => {
       return () => void listeners.delete(fn)
     },
     create,
+    /** Measures the São Paulo relay now (the co-op screen opened), so a `create` soon after has its answer. */
+    warm: () => void measureSa(),
     join,
     leave,
     setLoadout: (pick: CoopPick) => send({ t: 'loadout', loadout: loadoutOf(pick) }),

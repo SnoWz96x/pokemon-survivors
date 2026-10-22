@@ -28,6 +28,7 @@ import { bankEggs, depositPokeDollars, recordRunProgress, updateSave } from './u
 export const DEV_RELAY = 'https://ps-coop-dev.pedrobarretto.workers.dev'
 
 const URL_KEY = 'ps:coopUrl'
+const SA_URL_KEY = 'ps:coopUrlSa'
 const NAME_KEY = 'ps:coopName'
 
 const local: Store = {
@@ -74,6 +75,14 @@ export const coopUrl = (): string | null => {
 export const setCoopUrl = (url: string | null) => (url ? local.set(URL_KEY, url) : local.remove(URL_KEY))
 
 /**
+ * The São Paulo relay, for South American hosts' rooms (`coop/relays.ts`): the
+ * build's (`VITE_COOP_URL_SA`) or a dev override. Null: every room is Cloudflare's.
+ */
+export const coopSaUrl = (): string | null => (import.meta.env.DEV ? local.get(SA_URL_KEY) : null) ?? import.meta.env.VITE_COOP_URL_SA ?? null
+
+export const setCoopSaUrl = (url: string | null) => (url ? local.set(SA_URL_KEY, url) : local.remove(SA_URL_KEY))
+
+/**
  * The name teammates see: the account's @handle (unique, the one the boards
  * show; co-op is for signed-in players). Only dev builds, whose relay seats
  * guests, fall back to a name kept on the device; bots bring their own.
@@ -99,6 +108,7 @@ const coopToken = async () => (import.meta.env.DEV && local.get('ps:devToken') ?
 
 const browserDeps = (url: string, store: Store, token: () => Promise<string | null>, name: () => string): CoopDeps => ({
   url,
+  saUrl: coopSaUrl(),
   build: __SIM_BUILD__,
   socket: webSocket,
   fetch: (u, init) => fetch(u, init),

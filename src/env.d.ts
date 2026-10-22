@@ -10,6 +10,11 @@ interface ImportMetaEnv {
   readonly VITE_POSTHOG_KEY?: string
   /** The co-op relay (`relay/`), e.g. `https://ps-coop.pedrobarretto.workers.dev`. Dev builds default to the dev relay. */
   readonly VITE_COOP_URL?: string
+  /**
+   * The São Paulo co-op relay (`relay/node`, the CloudFront URL `sst deploy` prints), for South American hosts'
+   * rooms (`coop/relays.ts`). Unset: every room is Cloudflare's, as before.
+   */
+  readonly VITE_COOP_URL_SA?: string
 }
 
 /** The build that's playing (the commit, or `dev`): ranked runs report it. Set in `vite.config.ts`. */
