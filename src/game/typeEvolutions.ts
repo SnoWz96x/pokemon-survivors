@@ -7,6 +7,7 @@ import { enemiesInView, nearestEnemy } from './queries'
 import { spawnAttack } from './spawn'
 import type { Attack, Enemy, Game } from './types'
 import * as dm from '../engine/dmath'
+import { shakeScreen } from './effects'
 
 /**
  * Casts of the evolved moves the seven newer type items (and a few generic
@@ -110,7 +111,7 @@ export const superpower = (g: Game, s: CastStats, look: Look) => {
       damage: s.damage * 0.35, knockback: s.knockback * 0.3, ttl: 0.13, age: -0.2 - i * 0.055,
     })
   }
-  g.shake = Math.max(g.shake, 2)
+  shakeScreen(g, 2)
 }
 
 /* ---------------- Fissure (Earthquake + Soft Sand) ---------------- */
@@ -141,7 +142,7 @@ export const fissure = (g: Game, s: CastStats, look: Look) => {
       })
     }
   }
-  g.shake = Math.max(g.shake, 4)
+  shakeScreen(g, 4)
   g.events.push({ kind: 'quake' })
 }
 
@@ -197,7 +198,7 @@ export const steelBeam = (g: Game, s: CastStats, look: Look) => {
     const tip = g.attacks[g.attacks.length - 1]
     if (tip && g.attacks.length > before) tip.flip = true
   }
-  g.shake = Math.max(g.shake, 2)
+  shakeScreen(g, 2)
 }
 
 /* ---------------- Infernal Parade (Hex + Spell Tag) ---------------- */

@@ -1,7 +1,7 @@
 import { dirTo, fromAngle, TAU } from '../engine/math'
 import { chance, range } from '../engine/rng'
 import * as dm from '../engine/dmath'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import {
   AVALANCHE_CHUNKS, AVALANCHE_DROP, AVALANCHE_GAP, AVALANCHE_SPEED, avalancheMult, BITTER_ARC, BITTER_DRAIN, BITTER_TIME,
   BULLDOZE_GAP, BULLDOZE_SEGMENTS, BULLDOZE_TTL, CHARGE_MIGHT, DANCE_MIGHT, DANCE_REACH, FANG_BITE, FANG_FLINCH, FANG_REACH,
@@ -61,7 +61,7 @@ const cast = (g: Game, move: MoveId) => g.events.push({ kind: 'cast', move })
 /** The first hit of a big landing shakes the screen (and holds the world for a blink). */
 const landing = (g: Game, a: Attack, shake: number, hitstop = 0) => {
   if (a.hits.size !== 1) return
-  g.shake = Math.max(g.shake, shake)
+  shakeScreen(g, shake)
   g.hitstop = Math.max(g.hitstop, hitstop)
   g.events.push({ kind: 'quake' })
 }
@@ -397,7 +397,7 @@ export const EGG_MOVES_3 = {
           })
         }
       }
-      g.shake = Math.max(g.shake, 2)
+      shakeScreen(g, 2)
       cast(g, 'bulldoze')
     },
   },

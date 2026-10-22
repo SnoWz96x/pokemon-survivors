@@ -1,6 +1,6 @@
 import { dirTo, fromAngle, TAU } from '../engine/math'
 import { range } from '../engine/rng'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { strike } from './moveKit'
 import type { Look, MoveDef, MoveId, MoveStats } from './moves'
 import { enemiesInView, nearestEnemy } from './queries'
@@ -206,7 +206,7 @@ export const LEGENDARY_MOVES = {
           damage: 0, ttl: 0.32, activeFrom: Infinity, age: -ORIGIN.beamAt, memo: angle,
         })
       }
-      g.shake = Math.max(g.shake, 2.5)
+      shakeScreen(g, 2.5)
       cast(g, 'originPulse')
     },
   },
@@ -259,7 +259,7 @@ export const LEGENDARY_MOVES = {
           }
         }
       }
-      g.shake = Math.max(g.shake, 1.5)
+      shakeScreen(g, 1.5)
       cast(g, 'scorchingSands')
     },
   },
@@ -335,7 +335,7 @@ export const LEGENDARY_MOVES = {
         shape: { kind: 'circle', r: reach }, motion: { kind: 'follow', ox: 0, oy: -8 },
         damage: s.damage * TIME.snap, knockback: 90, ttl: 0.4, activeUntil: 0.05, age: -(TIME.time * 0.5 + s.duration),
       })
-      g.shake = Math.max(g.shake, 3)
+      shakeScreen(g, 3)
       cast(g, 'roarOfTime')
     },
   },

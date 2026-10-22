@@ -9,7 +9,7 @@ import { TIER_STATS, type Tier } from '../data/roster'
 import { EVENTS, MYTHICALS, STAGES, stageIndexAt, TRIO_IDS, TRIOS, type WaveEvent, type WaveStage } from '../data/waves'
 import { DIFFICULTIES, type Difficulty, type DifficultyMods } from './difficulty'
 import { withTrio, type Roster, type RosterOptions } from './roster'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import type { StatDelta } from './stats'
 import type { Enemy, Game } from './types'
 
@@ -243,7 +243,7 @@ export const updateLegend = (g: Game) => {
   if (p.walked - s.stride >= STEP.every) {
     s.stride = p.walked
     burst(g, p.x, p.y, { colors: ['#c8b898', '#a89878', '#e8e0c8'], count: 5, speed: 30, ttl: 0.35, gravity: 30 })
-    if (bodyOf(LEGENDS[s.id].line[0].dex).bodyW >= STEP.heavy) g.shake = Math.max(g.shake, 0.6)
+    if (bodyOf(LEGENDS[s.id].line[0].dex).bodyW >= STEP.heavy) shakeScreen(g, 0.6)
   }
   if (LEGENDS[s.id].innate.ability !== 'multitype') return false
   const type = multitypeOf(g)

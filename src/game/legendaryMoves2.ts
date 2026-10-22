@@ -11,6 +11,7 @@ import { spawnAttack } from './spawn'
 import type { StatusSpec } from './status'
 import type { Enemy, Game } from './types'
 import * as dm from '../engine/dmath'
+import { shakeScreen } from './effects'
 
 /**
  * Legendary moves, second batch: the capstones of the trio members, Mewtwo
@@ -83,7 +84,7 @@ export const erupt = (g: Game, s: CastStats, x: number, y: number) => {
       })
     }
   }
-  g.shake = Math.max(g.shake, 2.5)
+  shakeScreen(g, 2.5)
 }
 
 /** Foes nearest to (x, y) within `reach`, closest first (ties by id), at most `count`. */
@@ -193,7 +194,7 @@ export const LEGENDARY_MOVES_2 = {
           damage: s.damage * HEAT.mult, knockback: s.knockback * 3, status: s.status && { ...s.status, chance: 1 },
           ttl: HEAT.windup + HEAT.burst + 0.2, activeFrom: HEAT.windup, memo: HEAT.r * s.area,
         })
-        g.shake = Math.max(g.shake, 1)
+        shakeScreen(g, 1)
       }
       cast(g, 'overheat')
     },
@@ -424,7 +425,7 @@ export const LEGENDARY_MOVES_2 = {
           damage: s.damage * METAL.shard * power, knockback: s.knockback * 0.5, pierce: s.pierce, ttl: 0.9, memo: angle,
         })
       }
-      g.shake = Math.max(g.shake, 1 + taken * 0.4)
+      shakeScreen(g, 1 + taken * 0.4)
       cast(g, 'metalBurst')
     },
   },

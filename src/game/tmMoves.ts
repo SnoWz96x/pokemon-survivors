@@ -1,7 +1,7 @@
 import { dirTo, fromAngle, TAU } from '../engine/math'
 import { range } from '../engine/rng'
 import * as dm from '../engine/dmath'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import type { DamageBonus } from './kitRules'
 import { guard, sweep, walkedSince } from './moveKit'
 import type { CastStats, Look, MoveDef, MoveId, MoveStats } from './moves'
@@ -154,7 +154,7 @@ const discharge = (g: Game, s: CastStats, owned: OwnedMove) => {
     damage: s.damage * (0.7 + 0.8 * charge), knockback: s.knockback, status: s.status,
     grow: (r - 6) / DISCHARGE.open, activeUntil: DISCHARGE.open, ttl: DISCHARGE.open + 0.3, memo: charge,
   })
-  if (charge >= 1) g.shake = Math.max(g.shake, 2)
+  if (charge >= 1) shakeScreen(g, 2)
   cast(g, 'discharge')
 }
 
@@ -301,7 +301,7 @@ const ironShards = (g: Game, s: CastStats) => {
     })
   }
   burst(g, p.x, p.y - 10, { colors: ['#ffffff', '#d8e0f0', '#8890a8'], count: 26, speed: 160, ttl: 0.4, size: 2 })
-  g.shake = Math.max(g.shake, 4)
+  shakeScreen(g, 4)
   cast(g, 'ironHead')
 }
 

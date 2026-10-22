@@ -9,7 +9,10 @@ import { TICK_HZ } from '../net/protocol'
  * an underrun) and down one tick at a time, only after staying lower for a
  * while. A stall (a frame later than `stall` ms: a TCP retransmission, a
  * reconnect) is left out with the whole burst of frames it flushes at once:
- * no hold rides those out, the catch-up does. Pure.
+ * no hold rides those out, the catch-up does. So are the frames read during a
+ * long display frame of the page's own (a level-up screen, a GC, a decode on
+ * a phone): they waited on the main thread, not on the network
+ * (`commitArrivals`). Pure.
  */
 
 export const HOLD = {
@@ -27,6 +30,10 @@ export const HOLD = {
   down: 4000,
   /** The target is recomputed every this many arrivals (it sorts the window). */
   every: 15,
+  /** A display frame longer than this (s) had the page busy: the frames read meanwhile waited on it, not on the network. */
+  longFrame: 0.05,
+  /** A frame read within this many ms of the previous one came in its bunch. */
+  follow: 2,
 } as const
 
 const TICK_MS = 1000 / TICK_HZ
@@ -49,9 +56,13 @@ export type HoldState = {
   underruns: number
   /** The jitter's quantile (ms), for the connection indicator. */
   jitter: number
+  /** Offsets read since the last display frame, measured only once that frame proves short (`commitArrivals`). */
+  fresh: number[]
+  /** When the last frame was read (ms). */
+  lastAt: number
 }
 
-export const createHold = (): HoldState => ({ hold: 4, target: 4, offsets: [], next: 0, count: 0, lowerSince: null, base: Infinity, stalledAt: -Infinity, underruns: 0, jitter: 0 })
+export const createHold = (): HoldState => ({ hold: 4, target: 4, offsets: [], next: 0, count: 0, lowerSince: null, base: Infinity, stalledAt: -Infinity, underruns: 0, jitter: 0, fresh: [], lastAt: -Infinity })
 
 /** Forgets the arrivals (after a reconnect or a sync the run's clock may have paused, which shifts every offset). */
 export const resetArrivals = (h: HoldState) => {
@@ -59,6 +70,7 @@ export const resetArrivals = (h: HoldState) => {
   h.next = 0
   h.count = 0
   h.base = Infinity
+  h.fresh = []
 }
 
 /** The ticks the jitter in `offsets` asks for, and that jitter (ms). */
@@ -71,11 +83,35 @@ export const holdFor = (offsets: readonly number[]): { ticks: number; jitter: nu
   return { ticks: Math.max(HOLD.min, Math.min(HOLD.max, Math.ceil(q / TICK_MS) + 1)), jitter: q }
 }
 
-/** A live frame whose last tick is `tick` arrived at `at` (ms, the client's clock). */
+/**
+ * A live frame whose last tick is `tick` arrived at `at` (ms, the client's
+ * clock). It counts at the next display frame (`commitArrivals`), and only if
+ * it wasn't read right behind another (within `HOLD.follow` ms): frames held up
+ * behind a late one (on the network, or by the page's main thread) are read
+ * back to back, and the first of the bunch already carries the delay.
+ */
 export const onArrival = (h: HoldState, tick: number, at: number) => {
   const offset = at - tick * TICK_MS
+  const follower = at - h.lastAt < HOLD.follow
+  h.lastAt = at
   if (offset - h.base > HOLD.stall) h.stalledAt = at
-  if (at - h.stalledAt < HOLD.burst) return
+  if (at - h.stalledAt < HOLD.burst || follower) return
+  h.fresh.push(offset)
+}
+
+/**
+ * A display frame of `dt` seconds begins: the frames read since the last one
+ * join the window, unless it was a long one. Those waited on the page's own
+ * main thread (a level-up screen opening, a GC, a phone's decode); counted as
+ * network jitter, every such hitch raised the hold to its top (+170 ms of
+ * latency) for the next half minute.
+ */
+export const commitArrivals = (h: HoldState, dt: number) => {
+  if (dt <= HOLD.longFrame) for (const offset of h.fresh) record(h, offset)
+  h.fresh.length = 0
+}
+
+const record = (h: HoldState, offset: number) => {
   h.base = Math.min(h.base, offset)
   if (h.offsets.length < HOLD.window) h.offsets.push(offset)
   else h.offsets[h.next] = offset

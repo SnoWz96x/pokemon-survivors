@@ -75,6 +75,29 @@ describe('the lockstep runner', () => {
     expect(r.known - r.next).toBeGreaterThanOrEqual(0)
   })
 
+  it('draws the world at a steady pace under jitter: never a tick jumped or stepped back, even starved', () => {
+    const h = harness()
+    const r = createRunner(START, 'ROOMS', 0)
+    let known = 0
+    let shown = -1
+    const steps: number[] = []
+    for (let i = 0; i < 900; i++) {
+      // Frames come in bunches (jitter), then stop for 20 display frames (a stall) halfway.
+      const reach = i >= 450 && i < 470 ? known : Math.max(known, i - 4 + ((i * 13) % 7))
+      if (reach > known) onFrame(r, frame(known, reach), h.at(), () => {})
+      known = reach
+      h.tick(1000 / 60)
+      advance(r, 1 / 60, h.deps)
+      // What the draw shows: the state between the last two ticks, `acc` of the way.
+      const at = r.next - 1 + Math.min(1, r.acc * 60)
+      if (shown >= 0 && i > 60) steps.push(at - shown)
+      shown = at
+    }
+    expect(Math.min(...steps)).toBeGreaterThanOrEqual(0)
+    expect(Math.max(...steps)).toBeLessThan(2)
+    expect(r.hold.underruns).toBeGreaterThan(0)
+  })
+
   it('syncs when far behind: as fast as the budget allows, with progress', () => {
     const h = harness(0.4)
     const r = createRunner(START, 'ROOMS', 0)

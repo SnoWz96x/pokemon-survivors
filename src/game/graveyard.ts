@@ -5,7 +5,7 @@ import { ENEMIES } from '../data/enemies'
 import { GRAVEYARD, PLACE_FEET, PLACE_LOOT } from '../data/places'
 import { healPlayer } from './combat'
 import { dropItem } from './consumables'
-import { burst, floatText } from './effects'
+import { burst, floatText, shakeScreen } from './effects'
 import { despawnEnemy, spawnEnemy } from './enemies'
 import { COIN_VALUES } from './meta'
 import { dropCoins } from './pickups'
@@ -117,7 +117,7 @@ const wake = (g: Game, inside: GraveInside) => {
     despawnEnemy(e)
   }
   burst(g, x, y - 10, { colors: ['#302040', '#7860a8', '#d8c8f8', '#ffffff'], count: 70, speed: 170, ttl: 0.8 })
-  g.shake = Math.max(g.shake, 9)
+  shakeScreen(g, 9, { x, y })
   g.flash = 0.5
   notifyPlace(g, 'graveyard', { kind: 'keystone', shiny: boss.shiny })
 }

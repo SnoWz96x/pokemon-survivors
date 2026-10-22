@@ -7,6 +7,7 @@ import { placePool, type PlaceInterior, type PlaceNotice } from './place'
 import { makeShiny, rollShiny, SHINY_ODDS } from './shiny'
 import type { Solid } from './terrain'
 import type { Enemy, Game } from './types'
+import { shakeScreen } from './effects'
 
 /**
  * What every place's rules share (`cave.ts`, `graveyard.ts`, `sky.ts`): news
@@ -69,7 +70,7 @@ export const fallInPlace = (g: Game) => {
   if (!inside || inside.fall !== null) return
   inside.fall = PLACE.fallTime
   g.player.hp = 0
-  g.shake = Math.max(g.shake, 8)
+  shakeScreen(g, 8)
   notifyPlace(g, inside.id, { kind: 'fall' })
 }
 

@@ -1,7 +1,7 @@
 import { dirTo, fromAngle, TAU } from '../engine/math'
 import { ownAttack } from './players'
 import * as dm from '../engine/dmath'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { burrow, took } from './moveKit'
 import type { CastStats, Look, MoveDef, MoveId, MoveStats } from './moves'
 import { nearestEnemy } from './queries'
@@ -198,7 +198,7 @@ const flySlam = (g: Game, s: CastStats) => {
   })
   p.iframes = Math.max(p.iframes, FLY.iframes)
   burst(g, p.x, p.y - 2, { colors: ['#ffffff', '#c8d0e0', '#a08060'], count: 22, speed: 140, ttl: 0.45, gravity: 200, size: 2 })
-  g.shake = Math.max(g.shake, 4)
+  shakeScreen(g, 4)
   g.events.push({ kind: 'quake' })
 }
 

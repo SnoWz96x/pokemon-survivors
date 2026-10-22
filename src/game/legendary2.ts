@@ -1,6 +1,6 @@
 import * as dm from '../engine/dmath'
 import { ownAttack } from './players'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { AQUA, erupt, HEAT, LIFT, SNOW, TERRAIN } from './legendaryMoves2'
 import { throwFoe } from './moveKit'
 import { inheritMods } from './mods'
@@ -141,7 +141,7 @@ export const updateLegendary2 = (g: Game) => {
         }
         break
       case 'boulderImpact':
-        if (a.tier === 0) g.shake = Math.max(g.shake, 3)
+        if (a.tier === 0) shakeScreen(g, 3)
         a.tier = 1
         break
     }

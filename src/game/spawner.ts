@@ -19,6 +19,7 @@ import { coopScale } from './coop'
 import { COOP } from '../data/coop'
 import type { Game } from './types'
 import * as dm from '../engine/dmath'
+import { setScreenShake } from './effects'
 
 /** Just outside the visible area, in a random direction around a player. */
 const ringDistance = (g: Game) => dm.hypot(g.view.w, g.view.h) / 2 + 12
@@ -81,7 +82,7 @@ export const spawnWaveBoss = (g: Game, enemy: EnemyId, at: number, finale = fals
   const boss = spawnEnemy(g, enemy, pos.x, pos.y)
   const def: EnemyDef = ENEMIES[enemy]
   g.bossId = boss.id
-  g.shake = def.legendary ? 9 : 5
+  setScreenShake(g, def.legendary ? 9 : 5, 'team')
   if (finale) finaleEntrance(g)
   g.events.push({ kind: 'boss', enemy })
   legendEntrance(g, boss)

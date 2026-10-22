@@ -2,7 +2,7 @@ import { dirTo, fromAngle } from '../engine/math'
 import { chance, range } from '../engine/rng'
 import * as dm from '../engine/dmath'
 import type { PokeType } from '../data/types'
-import { burst, floatText } from './effects'
+import { burst, floatText, shakeScreen } from './effects'
 import {
   AURA_SHARE, AURA_SPEED, AURA_TTL, biggestFoe, boneHits, curseCost, curseTick, CURSE_EVERY, CURSE_FLOOR, densestFoe, DIG_BLAST, DIG_IFRAMES,
   DIG_REACH, DREAM_BONUS, DREAM_DRAIN, DREAM_WINDUP, ECHO_GROW, ECHO_R, ECHO_TIME, echoMult, flailExtra, flailMult, foulMult,
@@ -70,7 +70,7 @@ const castOf = (g: Game, id: MoveId) => {
 /** The first hit of a big landing shakes the screen (and holds the world for a blink). */
 const landing = (g: Game, a: Attack, shake: number, hitstop = 0) => {
   if (a.hits.size !== 1) return
-  g.shake = Math.max(g.shake, shake)
+  shakeScreen(g, shake)
   g.hitstop = Math.max(g.hitstop, hitstop)
   g.events.push({ kind: 'quake' })
 }
@@ -174,7 +174,7 @@ export const digEmerge = (g: Game, s: CastStats) => {
     damage: s.damage, knockback: s.knockback, ttl: 0.42, grow: (DIG_BLAST * s.area - 10) / 0.2, activeUntil: 0.2,
   })
   burst(g, p.x, p.y - 4, { colors: ['#a07840', '#d8b070', '#604020', '#e8d8b0'], count: 26, speed: 150, ttl: 0.6, gravity: 260, size: 2 })
-  g.shake = Math.max(g.shake, 5)
+  shakeScreen(g, 5)
   g.events.push({ kind: 'quake' })
 }
 

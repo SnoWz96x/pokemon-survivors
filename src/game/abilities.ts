@@ -7,7 +7,7 @@ import type { PlayableId } from '../data/hatchlings'
 import { POKE_TYPES, type PokeType } from '../data/types'
 import { playerForm } from './branch'
 import { healPlayer, killEnemy } from './combat'
-import { burst, damageText, floatText } from './effects'
+import { burst, damageText, floatText, shakeScreen } from './effects'
 import { dropCoins, dropPickup, dropXp } from './pickups'
 import { isAlive } from './queries'
 import type { StatDelta } from './stats'
@@ -267,7 +267,7 @@ export const abilityHolds = (g: Game) => {
   p.hp = 1
   p.iframes = Math.max(p.iframes, ABILITY.sturdyIframes)
   burst(g, p.x, p.y - 12, { colors: ['#f8d030', '#ffffff', '#b89848'], count: 40, speed: 140, ttl: 0.6, size: 2 })
-  g.shake = Math.max(g.shake, 6)
+  shakeScreen(g, 6)
   proc(g, sturdy)
   return true
 }

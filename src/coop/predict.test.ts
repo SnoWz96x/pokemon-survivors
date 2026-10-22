@@ -4,7 +4,7 @@ import { NO_RANKS } from '../game/meta'
 import { moveCode } from '../game/replay'
 import type { RunStart } from '../net/protocol'
 import { HISTORY } from './client'
-import { createPrediction, predict } from './predict'
+import { createPrediction, createSteadyOffset, predict, steadyOffset } from './predict'
 import { createRunner, onFrame, stepOne, type RunnerDeps } from './runner'
 
 const START: RunStart = {
@@ -51,5 +51,24 @@ describe('own-movement prediction', () => {
     let last = held
     for (let s = 82; s < 140; s++) last = predict(pr, r, history, s, 0, 1 / 60)
     expect(Math.abs(last.x - r.game.player.x)).toBeLessThan(0.5)
+  })
+})
+
+describe('the steady sample ↔ tick offset', () => {
+  it('holds still while each anchor’s trip jitters, so a stick held still predicts one smooth path', () => {
+    const s = createSteadyOffset()
+    const seen = new Set<number>()
+    // Anchors every 15 ticks, each stamped 0–2 ticks late (±17 ms of jitter on the way up).
+    for (let k = 0; k < 40; k++) seen.add(steadyOffset(s, { tick: 100 + k * 15, sample: 250 + k * 15 - ((k * 7) % 3) }))
+    expect(seen.size).toBeLessThanOrEqual(2)
+  })
+
+  it('ignores one anchor held up behind a long frame, and moves at once when the next agrees (a reconnect)', () => {
+    const s = createSteadyOffset()
+    for (let k = 0; k < 10; k++) steadyOffset(s, { tick: k * 10, sample: k * 10 + 150 })
+    expect(steadyOffset(s, { tick: 100, sample: 100 + 136 })).toBe(150)
+    expect(steadyOffset(s, { tick: 110, sample: 110 + 150 })).toBe(150)
+    steadyOffset(s, { tick: 120, sample: 120 + 120 })
+    expect(steadyOffset(s, { tick: 130, sample: 130 + 121 })).toBe(121)
   })
 })

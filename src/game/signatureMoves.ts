@@ -1,6 +1,6 @@
 import { dirTo, fromAngle, TAU } from '../engine/math'
 import { chance, pick, range } from '../engine/rng'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { damageEnemy } from './combat'
 import { guard, hpFraction, stacksOf, sweep } from './moveKit'
 import type { Look, MoveDef, MoveId, MoveStats } from './moves'
@@ -242,7 +242,7 @@ export const SIGNATURE_MOVES = {
         })
       }
       burst(g, p.x, p.y - 14, { colors: ['#fff0a0', '#f8b030', '#f05818', '#a02010'], count: 18, speed: 90, ttl: 0.5, gravity: -120, size: 2 })
-      g.shake = Math.max(g.shake, 2)
+      shakeScreen(g, 2)
       cast(g, 'eruption')
     },
   },

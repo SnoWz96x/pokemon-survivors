@@ -1,7 +1,7 @@
 import { retain } from '../engine/math'
 import { isWaveLegend, WAVE_LEGEND_HP } from '../data/legendBosses'
 import type { EnemyId } from '../data/enemies'
-import { burst, updateEffects } from './effects'
+import { burst, shakeScreen, updateEffects } from './effects'
 import { despawnEnemy } from './enemies'
 import { centerScreen } from './players'
 import { winRun } from './coop'
@@ -125,11 +125,11 @@ export const updateLegendScene = (g: Game, dt: number) => {
       return true
     }
     const beat = entranceBeat(s.t)
-    if (beat.arrive > 0 && beat.arrive < 1) g.shake = Math.max(g.shake, 1 + beat.arrive * 4)
+    if (beat.arrive > 0 && beat.arrive < 1) shakeScreen(g, 1 + beat.arrive * 4, 'team')
     if (before < ENTRANCE_REVEAL && s.t >= ENTRANCE_REVEAL) {
       // A light flash: the shell flashes the screen too, and the title card shows through it.
       g.flash = 0.4
-      g.shake = Math.max(g.shake, 10)
+      shakeScreen(g, 10, 'team')
       burst(g, boss.x, boss.y - boss.radius, { colors: ['#ffffff', '#f8f0a0', '#c8d8f8'], count: 70, speed: 200, ttl: 0.6, size: 2, drag: 3 })
       g.events.push({ kind: 'legendTitle', enemy: s.enemy, shiny: boss.shiny })
     }

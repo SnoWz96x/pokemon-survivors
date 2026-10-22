@@ -7,7 +7,7 @@ import { hurtPlayer } from './combat'
 import { coopScale, dropForEach } from './coop'
 import { COOP } from '../data/coop'
 import type { Difficulty } from './difficulty'
-import { burst } from './effects'
+import { burst, shakeScreen } from './effects'
 import { spawnEnemy } from './enemies'
 import { openPrizeLevelUp, xpFor } from './leveling'
 import { dropPickup, dropXp } from './pickups'
@@ -184,7 +184,7 @@ export const spawnAlpha = (g: Game, kind: EnemyId, x: number, y: number) => {
     phase: 'walk', t: 0, cooldown: range(g.rng, ...ALPHA.charge.every) * 0.5,
     ox: x, oy: y, dx: 1, dy: 0, length: 0, run: 0, hit: false, pace: e.speed, enraged: false,
   }
-  g.shake = Math.max(g.shake, 4)
+  shakeScreen(g, 4, e)
   g.events.push({ kind: 'alpha', enemy: kind, moment: 'spawn' })
   return e
 }
@@ -335,7 +335,7 @@ export const alphaDown = (g: Game, e: Enemy) => {
   // Co-op: a prize for each player.
   dropForEach(g, () => dropPickup(g, e.x, e.y, 'alphaPrize'))
   g.alphas.next = Math.max(g.alphas.next, g.time + ALPHA.gap)
-  g.shake = Math.max(g.shake, 6)
+  shakeScreen(g, 6, e)
   burst(g, e.x, e.y - e.radius, { colors: ['#f83020', '#f8d030', '#ffffff'], count: 50, speed: 170, ttl: 0.7, size: 2, drag: 3 })
   g.events.push({ kind: 'alpha', enemy: e.kind, moment: 'down' })
 }

@@ -24,7 +24,7 @@ import { DEFAULT_DIFFICULTY, type Difficulty } from './difficulty'
 import { updateBosses, updateHazards } from './bosses'
 import { createWorldHazards, updateWorldHazards } from './hazards'
 import { updateConsumables } from './consumables'
-import { burst, updateEffects } from './effects'
+import { burst, shakeScreen, updateEffects } from './effects'
 import { updateEndless } from './endlessSystem'
 import { blastHorde, rebuildGrid, updateEnemies } from './enemies'
 import {
@@ -578,7 +578,7 @@ const awaken = (g: Game, n: number): void => {
   blastHorde(g, AWAKENING.push)
   const color = PLAYABLE[p.starter].color
   burst(g, p.x, p.y - 12, { colors: [color, '#ffffff', '#f8e8a0'], count: 80, speed: 190, ttl: 0.9, size: 2, drag: 3 })
-  g.shake = Math.max(g.shake, 8)
+  shakeScreen(g, 8)
   g.flash = Math.max(g.flash, 0.4)
   p.evolution = null
   g.events.push({ kind: 'awakened', legend: s.id, n, form: formAfter(s.id, n)?.key ?? null })

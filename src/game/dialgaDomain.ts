@@ -4,6 +4,7 @@ import type { DomainState } from './domain'
 import { nearestPlayer } from './players'
 import type { Game } from './types'
 import * as dm from '../engine/dmath'
+import { shakeScreen } from './effects'
 
 /**
  * Dialga's hooks: Spear Pillar's time skips. Every `every` s of the crossing
@@ -53,7 +54,7 @@ const startSkip = (g: Game, d: DomainState, i: number) => {
   d.memo[NOW] = i
   d.memo[LEFT] = TIME_SKIP.length[skip]
   if (skip === 'stop') for (const e of g.enemies) if (e.dying < 0 && !e.boss) e.status.stun = Math.max(e.status.stun, TIME_SKIP.length.stop)
-  g.shake = Math.max(g.shake, 4)
+  shakeScreen(g, 4, 'team')
   g.events.push({ kind: 'domainCue', enemy: 'dialga', cue: skip }, { kind: 'quake' })
 }
 

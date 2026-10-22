@@ -6,7 +6,7 @@ import { deflate, inflate, restore, snapshot, stateHash } from '../game/snapshot
 import type { Game, GameEvent } from '../game/types'
 import { HASH_EVERY, SNAPSHOT_EVERY, type ClientMessage, type Entry, type Frame, type RunStart, type ServerMessage } from '../net/protocol'
 import { slotsOf, toTickEntries } from './entries'
-import { createHold, onArrival, onUnderrun, resetArrivals, updateHold, type HoldState } from './hold'
+import { commitArrivals, createHold, onArrival, onUnderrun, resetArrivals, updateHold, type HoldState } from './hold'
 import { startGame } from './start'
 import { chunks, fromBase64, toBase64 } from './wire'
 
@@ -28,11 +28,17 @@ import { chunks, fromBase64, toBase64 } from './wire'
 /** Ticks behind (past the hold) where catching up turns into syncing: the progress bar shows and sounds wait. */
 export const SYNC_FAR = 300
 
-/** Catch-up speed on top of real time: +25% from two ticks behind, up to +100% at `SYNC_FAR`. */
-export const CATCH_UP = { min: 0.25, max: 1 } as const
+/** Catch-up speed on top of real time: +25% once the smoothed buffer is `from` ticks past the hold, up to +100% at `SYNC_FAR`. */
+export const CATCH_UP = { from: 1.5, min: 0.25, max: 1 } as const
 
-/** The buffer thinner than the hold: the run plays this much slower until it fills (imperceptible, unlike a stall). */
-const SLOW_DOWN = 0.1
+/** The buffer `under` ticks thinner than the hold: the run plays `rate` slower until it fills (imperceptible, unlike a stall). */
+const SLOW_DOWN = { under: 0.5, rate: 0.1 } as const
+
+/** The playback rate on top of real time (−0.1 to +1) for a smoothed buffer `excess` ticks past the hold. */
+const playbackRate = (excess: number) => {
+  if (excess > CATCH_UP.from) return CATCH_UP.min + (CATCH_UP.max - CATCH_UP.min) * Math.min(1, excess / SYNC_FAR)
+  return excess < -SLOW_DOWN.under ? -SLOW_DOWN.rate : 0
+}
 
 /** CPU per display frame for simulation (ms): live, and while syncing. A tick that costs more still runs (one at least). */
 export const BUDGET = { live: 8, sync: 14 } as const
@@ -79,10 +85,10 @@ export type Runner = {
   /** Below this tick the frames are a sync's tail, not live. */
   tailTo: number
   hold: HoldState
-  /** Real time not yet turned into ticks (s), and the catch-up and slow-down fractions. */
+  /** The run's clock: time (s) past the last tick simulated, the draw's `alpha` (×60). Real time, bent by the playback rate. */
   acc: number
-  fast: number
-  slow: number
+  /** Ticks in hand, smoothed (`LEVEL_SMOOTH`): what the playback rate reacts to. NaN until the first live frame. */
+  level: number
   starving: boolean
   /** Ms a tick costs here (moving average). */
   tickMs: number
@@ -169,8 +175,7 @@ export const createRunner = (start: RunStart, room: string, seat: number): Runne
     tailTo: 0,
     hold: createHold(),
     acc: 0,
-    fast: 0,
-    slow: 0,
+    level: Number.NaN,
     starving: false,
     tickMs: 1,
     syncing: null,
@@ -251,6 +256,7 @@ export const onSync = (r: Runner | null, msg: Extract<ServerMessage, { t: 'sync'
   if (msg.reason === 'heal') runner.healing ??= { at, tick: msg.from }
   runner.tailTo = msg.to
   runner.acc = 0
+  runner.level = Number.NaN
   runner.starving = false
   resetArrivals(runner.hold)
   runner.stats.syncs.push({ reason: msg.reason, from: msg.from, to: msg.to, base: msg.base?.tick ?? null, at })
@@ -375,50 +381,50 @@ export const stepOne = (r: Runner, deps: RunnerDeps) => {
   }
 }
 
+/** Seconds over which the buffer's level is smoothed before the playback rate follows it (a burst of frames is no reason to rush). */
+const LEVEL_SMOOTH = 0.3
+
 /**
  * One display frame of the run (`dt` seconds of real time): simulates what's
  * due, within the budget. Returns how many ticks ran.
+ *
+ * Live, the run's clock (`acc`) moves with real time bent by a playback rate
+ * read off the smoothed buffer: faster when it's fat (`CATCH_UP`), slower when
+ * it's thinner than the hold (`SLOW_DOWN`), real time in between. Changing
+ * speed rather than adding or dropping whole ticks keeps what's drawn between
+ * ticks (`acc` → alpha) continuous: the horde and the teammates speed up or
+ * slow down a little, but never jump a tick, stand still for a frame or step
+ * back. Only the ticks actually run come off the clock: starved, it waits a
+ * hair under the next tick (the world holds still) and goes on from there.
  */
 export const advance = (r: Runner, dt: number, deps: RunnerDeps): number => {
   if (r.pending || (r.endedAt !== null && r.next >= r.endedAt)) return 0
   const now = deps.now()
+  commitArrivals(r.hold, dt)
   updateHold(r.hold, now)
-  r.acc += dt
-  let due = Math.floor(r.acc / TICK)
-  r.acc -= due * TICK
   const have = backlog(r)
-  const excess = have - due - r.hold.hold
   // Far behind: sync at the budget's pace, with a progress bar.
-  if (r.syncing || excess > SYNC_FAR) r.syncing ??= { from: r.next }
-  let want = due
-  if (r.syncing) want = have
-  else if (excess > 1) {
-    r.fast += due * (CATCH_UP.min + (CATCH_UP.max - CATCH_UP.min) * Math.min(1, excess / SYNC_FAR))
-    const extra = Math.min(excess, Math.floor(r.fast))
-    r.fast -= extra
-    want += extra
-  } else if (have < r.hold.hold && due > 0) {
-    r.slow += due * SLOW_DOWN
-    if (r.slow >= 1) {
-      r.slow -= 1
-      want -= 1
-    }
+  if (r.syncing || have - r.hold.hold > SYNC_FAR) r.syncing ??= { from: r.next }
+  let due = have
+  if (!r.syncing) {
+    r.level = Number.isNaN(r.level) ? have : r.level + (have - r.level) * (1 - Math.exp(-dt / LEVEL_SMOOTH))
+    // The rate bends a normal frame's worth of time: a long frame (the page busy) brings its real time, never more.
+    r.acc += dt + Math.min(dt, 2 * TICK) * playbackRate(r.level - r.hold.hold)
+    due = Math.floor(r.acc / TICK)
   }
   // The run ended at `endedAt`: nothing past it is simulated.
-  const run = Math.min(have, want, r.endedAt === null ? Infinity : r.endedAt - r.next)
-  // Starved: the buffer is empty when a tick is due (the frames stopped coming: a slow link, a stall). One
-  // underrun per episode, and the clock doesn't bank the wait. A long frame of our own isn't one: it runs what it has.
-  if (have === 0 && due > 0 && r.next >= r.tailTo) {
+  const run = Math.min(have, due, r.endedAt === null ? Infinity : r.endedAt - r.next)
+  // Starved: the buffer is empty when a tick is due (the frames stopped coming: a slow link, a stall). One underrun per episode.
+  if (!r.syncing && have === 0 && due > 0 && r.next >= r.tailTo) {
     if (!r.starving) onUnderrun(r.hold, now)
     r.starving = true
     r.stats.underruns = r.hold.underruns
-    r.acc = Math.min(r.acc, TICK)
   } else if (run > 0) r.starving = false
   const budget = r.syncing ? BUDGET.sync : BUDGET.live
   const t0 = deps.now()
   let ran = 0
   // Real time's own ticks always run (a few at most); the catch-up and the sync only within the budget.
-  const floor = Math.min(due, 4)
+  const floor = r.syncing ? 1 : Math.min(due, 4)
   for (; ran < run; ran++) {
     if (ran >= floor && deps.now() - t0 + r.tickMs > budget) break
     if (!r.syncing) rememberPositions(r)
@@ -428,12 +434,21 @@ export const advance = (r: Runner, dt: number, deps: RunnerDeps): number => {
       break
     }
   }
+  if (!r.syncing) {
+    r.acc -= ran * TICK
+    // Ticks due but not run (starved, or past the budget) aren't banked: the clock waits just under the next one.
+    if (r.acc >= TICK) r.acc = TICK * (1 - 1e-6)
+  }
   const spent = deps.now() - t0
   if (ran > 0) r.tickMs = r.tickMs * 0.9 + (spent / ran) * 0.1
   r.stats.maxRun = Math.max(r.stats.maxRun, ran)
   r.stats.maxFrameMs = Math.max(r.stats.maxFrameMs, spent)
-  // Caught up: live again.
-  if (r.syncing && backlog(r) <= r.hold.hold + 2) r.syncing = null
+  // Caught up: live again, from a fresh clock.
+  if (r.syncing && backlog(r) <= r.hold.hold + 2) {
+    r.syncing = null
+    r.acc = 0
+    r.level = backlog(r)
+  }
   return ran
 }
 
