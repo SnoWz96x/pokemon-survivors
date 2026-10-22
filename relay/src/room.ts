@@ -631,6 +631,8 @@ export const message = (state: State, connId: ConnId, msg: ClientMessage | null,
       if (live) stamp(state, [seat.seat, msg.k, ...msg.d])
       return out
     case 'hb':
+    // A client's link report: the Durable Object's telemetry reads it (`telemetry.ts`); here it only says the seat is here.
+    case 'net':
       return out
     case 'hash':
       return live ? [...out, ...onHash(state, room, live, seat.seat, msg.tick, msg.h, now)] : out
