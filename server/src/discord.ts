@@ -37,7 +37,7 @@ import type { SuggestionStore } from './suggestions'
  *   ❌ under it: a staff reaction puts it on the board's Backlog or hides it
  *   (`reviewDecision`). Ideas it missed are posted on the next round of
  *   daily posts, and reactions it missed are read when the gateway connects.
- * Channels and roles are found by name. Every post claims a key in
+ * Channels and roles are found by name, whatever emoji staff put in front. Every post claims a key in
  * `discord_posts` first, so two instances (a rolling deploy) never post twice.
  */
 
@@ -113,11 +113,15 @@ export const restClient =
 const str = (v: unknown) => (typeof v === 'string' ? v : null)
 const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : null)
 
-/** `name → id` of a list of channels or roles. */
+/** A name without the emojis and separators staff put in front (`🪪》introductions` → `introductions`). */
+export const bareName = (name: string) => name.replace(/^[^\p{L}\p{N}]+/u, '')
+
+/** `name → id` of a list of channels, roles or forum tags, by their bare names (`bareName`). */
 export const idsByName = (list: unknown) =>
   new Map(
     (Array.isArray(list) ? list : []).flatMap((x) => {
-      const name = isRecord(x) ? str(x.name) : null
+      const raw = isRecord(x) ? str(x.name) : null
+      const name = raw && bareName(raw)
       const id = isRecord(x) ? str(x.id) : null
       return name && id ? [[name, id] as const] : []
     }),
