@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isOwnError } from './analytics'
+import { flagIn, isOwnError } from './analytics'
 
 const origin = 'https://www.pokemonsurvivors.com'
 const errorWithStack = (stack: string) => Object.assign(new Error('x'), { stack })
@@ -28,5 +28,24 @@ describe('isOwnError', () => {
   it('keeps what it cannot place', () => {
     expect(isOwnError('boom', undefined, origin)).toBe(true)
     expect(isOwnError(errorWithStack('no urls here'), '', origin)).toBe(true)
+  })
+})
+
+
+describe('flagIn', () => {
+  it("reads a flag from /flags/?v=2's answer", () => {
+    expect(flagIn({ flags: { 'coop-beta': { key: 'coop-beta', enabled: true, variant: null } } }, 'coop-beta')).toBe(true)
+    expect(flagIn({ flags: { 'coop-beta': { key: 'coop-beta', enabled: false } } }, 'coop-beta')).toBe(false)
+  })
+
+  it('falls back to the older featureFlags map', () => {
+    expect(flagIn({ featureFlags: { 'coop-beta': true } }, 'coop-beta')).toBe(true)
+    expect(flagIn({ featureFlags: { 'coop-beta': 'test' } }, 'coop-beta')).toBe(true)
+  })
+
+  it("can't tell about a flag it wasn't given (unknown key, an error body)", () => {
+    expect(flagIn({ flags: {} }, 'coop-beta')).toBeNull()
+    expect(flagIn({ type: 'authentication_error' }, 'coop-beta')).toBeNull()
+    expect(flagIn(null, 'coop-beta')).toBeNull()
   })
 })

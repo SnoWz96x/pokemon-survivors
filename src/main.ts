@@ -126,7 +126,7 @@ import { setActivePad } from './ui/inputLabels'
 import { captureRef, flushRuns, onRulesBehind, prefetchRanked, PROFILE_PARAM, rankingEnabled, stageInvite, startRanked, type RankedRun, type RankOutcome } from './ranking'
 import { DISCORD_GIFT, parseGiftContent, type GiftKind, type GiftReason } from './game/gifts'
 import { giftScreen } from './ui/gifts'
-import { playGate } from './ui/account'
+import { coopGate, playGate } from './ui/account'
 import { trainerCardScreen } from './ui/trainer'
 import { discordScreen } from './ui/discord'
 import { createHud, type Hud } from './ui/hud'
@@ -146,7 +146,7 @@ import { halloweenScreen } from './ui/halloween'
 import { pokedexScreen } from './ui/pokedex'
 import { profileEditor, profileScreen } from './ui/profile'
 import { rankingScreen, rankPanel } from './ui/ranking'
-import { flashScreen, levelUp, pauseMenu, results, textBox, type Screen } from './ui/screens'
+import { confirmDialog, flashScreen, levelUp, pauseMenu, results, textBox, type Screen } from './ui/screens'
 import { abilityPick, branchPick } from './ui/abilityPick'
 import { tmPick } from './ui/tmPick'
 import { isSettingsOpen, openSettings, settings, toggleMute } from './ui/settings'
@@ -161,15 +161,23 @@ import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, tickToasts, toast } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
 import { localPlayer, phaseOf } from './game/players'
-import { addBots, bankCoopRun, botCount, coopClient, coopEventFor, coopUrl, linkedRoom, linkRoom, removeBots, reportHeal, setCoopUrl } from './coopShell'
-import type { CoopClient } from './coop/client'
+import { addBots, bankCoopRun, botCount, buildRefusal, coopClient, coopEntry, coopEventFor, coopUrl, linkedRoom, linkRoom, markBuildReload, onCoopEntry, refreshCoopEntry, removeBots, reportHeal, setCoopBeta, setCoopUrl, surrenderBots } from './coopShell'
+import type { CloseWhy, CoopClient } from './coop/client'
+import { coopAccess, coopStarter, freshInvites } from './coop/lobby'
+import { REF_PARAM } from './game/referral'
+import { PROTOCOL, parseRoomCode } from './net/protocol'
+import { isRecord } from './game/parse'
+import type { CoopInvite } from './game/friends'
+import { dismissInvite, onPresence, setActivity } from './net/friends'
+import { coopHub, coopRoom } from './ui/coopRoom'
+import { friendsScreen, inviteBanner } from './ui/friends'
 import { coopDriver, type CoopDriver } from './coop/driver'
 import { createDrawView, updateDrawView, type DrawView } from './coop/view'
 import { createPrediction, predict, type Prediction } from './coop/predict'
 import type { Runner } from './coop/runner'
 import { coopOver } from './game/coop'
-import { onScreen, type PickScreen } from './game/lockstep'
-import { coopEnd, createCoopHud, type CoopHud } from './ui/coopHud'
+import { createTeamLayer, type TeamLayer } from './ui/teamLayer'
+import { teamFeedback, teamMoment } from './ui/teamScreens'
 
 /** Fixed simulation step: the replays the ranking re-simulates count on it. */
 const STEP = TICK
@@ -300,21 +308,27 @@ type CoopRun = {
   runner: Runner
   view: DrawView
   prediction: Prediction
-  hud: CoopHud
-  /** What steps the run: the stick and buttons in, the lockstep out (`coop/driver.ts`, PR 7's UI drives it too). */
+  /** What steps the run: the stick and buttons in, the lockstep out (`coop/driver.ts`). */
   driver: CoopDriver
-  /** A pick sent on the screen of this round: the screen closes until the round moves on. */
-  sent: number | null
-  /** The pause menu is open (the run goes on; the stick reads still). */
+  /** Everything co-op shows over the run: the team's cards, the connection, the spectator camera, the end (`ui/teamLayer.ts`). */
+  team: TeamLayer
+  /** The co-op menu is open (the run goes on; the stick reads still). */
   menu: boolean
   /** Banked at the victory and at the end (deltas; `coop/bank.ts` keeps it to once). */
   banked: { victory: boolean; over: boolean }
-  /** The endless vote was cast. */
-  voted: boolean
+  /** "Jogar de novo" was pressed: the host starts the next run as soon as everyone online is ready. */
+  again: boolean
 }
 
 let screen: Screen | null = null
 let run: Run | null = null
+
+/**
+ * The game as this player sees it: solo the run's; co-op the draw copy, whose
+ * "player" is this client (the runner's game has slot 0 as `g.player`, which
+ * `playerForm`, `heldMega`, `gameSpecial` and the like read).
+ */
+const shownGame = (r: Run) => (r.coop ? r.coop.view.game : r.game)
 /** Special attack press (Space, touch button, gamepad A), consumed by the next simulation step. */
 let specialQueued = false
 /** Mega Evolution press (E, the Mega button, gamepad Y), consumed like the special. */
@@ -439,7 +453,7 @@ const perfNow = (): BugPerf => ({
 describeWith(() => {
   const view = [...ui.querySelectorAll(':scope > .screen:not(.bug-screen)')].map((el) => [...el.classList].filter((c) => !SCREEN_CLASSES.has(c)).join('.')).join(' > ')
   const perf = perfNow()
-  const g = run?.game
+  const g = run && shownGame(run)
   if (!g || g.phase === 'gameover' || g.phase === 'victory') return { view, run: null, perf }
   const boss = g.bossId === null ? undefined : g.enemies.find((e) => e.id === g.bossId)
   return {
@@ -478,6 +492,8 @@ const queueLunge = () => {
 const setScreen = (next: Screen | null) => {
   screen?.dispose()
   screen = next
+  coopShown = null
+  syncPresence()
 }
 
 /** Set by the title's "press start": the music waits for it, even where the browser would autoplay. */
@@ -490,8 +506,9 @@ let pressedStart = false
 const showTitle = (opts: { intro?: boolean; focus?: LobbyFocus; shop?: ShopTrip; shelf?: VisitorShelf; instant?: boolean; back?: () => void } = {}) => {
   endRun()
   shopLevel = loadSave().shop.level
-  // A newer build went live during the run (see `watchDeploys`): back in the lobby, with the run banked, ranked and its crash watch cleared, is the moment to load it.
-  if (reloadForDeploy) return location.reload()
+  // A newer build went live during the run (see `watchDeploys`): back in the lobby, with the run banked, ranked and its crash watch cleared, is the moment to load it
+  // (not while a co-op room still holds this player: leaving it comes back here).
+  if (reloadForDeploy && !inCoopRoom()) return location.reload()
   // Every Play in the lobby (the partner select, the challenge, a hatch, a shiny pick) finds its ticket in hand.
   prefetchRun()
   prefetchRun(challengeToday().day)
@@ -525,6 +542,7 @@ const showTitle = (opts: { intro?: boolean; focus?: LobbyFocus; shop?: ShopTrip;
       ideas: rankingEnabled ? (focus) => suggestionsScreen(ui, input, () => showTitle({ focus })) : undefined,
       supporters: (focus, open) => supportersScreen(ui, input, { play: (id) => void startRun(id), onClose: () => showTitle({ focus }) }, open),
       invites: (focus) => invitesScreen(ui, input, () => showTitle({ focus })),
+      coop: coopEntry() ? () => enterCoop({ room: null, invitedBy: null }) : undefined,
       meadow,
     }, opts),
   )
@@ -1009,8 +1027,9 @@ const announceRun = (start: ReplayStart, challenge: Run['challenge']) => {
   for (const [i, id] of (start.tms ?? []).entries()) toast(ui, h('span', { class: 'item-toast' }, tmPicture(id), rich(t().toast.armedTm(MOVES[id].name, i))), 3200, `tm-${id}`)
 }
 
-const runHud = (game: Game, onPause: () => void = () => game.phase === 'playing' && (game.phase = 'paused')) => {
-  const hud = createHud(ui, queueSpecial, queueMega, queueLunge, onPause, input.isHeld)
+/** The run's HUD; `menu`: its pause button opens a menu over a run that goes on (co-op). */
+const runHud = (game: Game, onPause: () => void = () => game.phase === 'playing' && (game.phase = 'paused'), menu = false) => {
+  const hud = createHud(ui, queueSpecial, queueMega, queueLunge, onPause, input.isHeld, menu)
   requestAnimationFrame(syncMarkerInsets)
   return hud
 }
@@ -1025,7 +1044,9 @@ const syncMarkerInsets = () => {
   }
   const bottomOf = (sel: string) => rect(sel)?.bottom ?? box.top
   const topOf = (sel: string) => rect(sel)?.top ?? box.bottom
-  const top = bottomOf('.hud-row') - box.top
+  // Co-op: the team's cards in a row under the top bar (a phone held upright) take the top edge too.
+  const team = rect('.team-hud')
+  const top = Math.max(bottomOf('.hud-row'), team && team.width > box.width / 2 ? team.bottom : 0) - box.top
   const bottom = box.bottom - Math.min(topOf('.hud .status'), topOf('.special-button'))
   setMarkerInsets({ top: Math.max(0, top) / cssScale + 10, bottom: Math.max(0, bottom) / cssScale + 10, side: 14 })
 }
@@ -1036,7 +1057,7 @@ const runSettings = (r: Run, back: () => void) => {
   return openSettings(ui, input, () => {
     if (locale() !== before) {
       r.hud.dispose()
-      r.hud = runHud(r.game)
+      r.hud = r.coop ? coopRunHud(r.coop) : runHud(r.game)
     }
     // The joystick mode moves the status box and shows or hides the fixed stick.
     dirty = true
@@ -1051,39 +1072,31 @@ const syncOverlay = (r: Run) => {
   // Co-op shows its copy of the game: this player as "the player" (`coop/view.ts`).
   const g = c ? c.view.game : r.game
   const me = localPlayer(g)
-  if (c && c.sent !== null && c.sent !== me.round) c.sent = null
   // This player's own pick screen while the world waits on picks; the world's phase otherwise.
-  // Co-op: a pick sent closes its screen while it travels; the pause menu is the client's own.
-  const phase: Phase = c?.menu && !coopOver(g) && g.phase !== 'victory' ? 'paused' : c && c.sent !== null && onScreen(me) ? 'playing' : phaseOf(g, me)
+  // Co-op: a pick sent closes its screen while it travels; the co-op menu is the client's own.
+  const phase: Phase = c?.menu && !coopOver(g) && g.phase !== 'victory' ? 'paused' : c?.team.holding(me) ? 'playing' : phaseOf(g, me)
   if (r.shown?.phase === phase && r.shown.offers === me.offers) return
   r.overlay?.dispose()
   r.overlay = null
   r.shown = { phase, offers: me.offers }
   r.hud.setMenuOpen(phase !== 'playing' && phase !== 'evolving')
-  // A pick: solo it plays on the spot (and goes into the replay); co-op sends it with the screen's round, read now.
-  const pick = (offer: Offer) => {
-    if (!c) return (recordEvent(r.recorder, ['offer', me.offers.indexOf(offer)]), chooseOffer(g, offer))
-    const index = me.offers.indexOf(offer)
-    if (index < 0 || !onScreen(me)) return
-    c.client.input({ k: 'pick', screen: me.phase as PickScreen, round: me.round, index })
-    c.sent = me.round
-  }
-  const screenInput = (k: 'reroll' | 'skip') => {
-    if (!c) return k === 'reroll' ? (recordEvent(r.recorder, ['reroll']), rerollOffers(g)) : (recordEvent(r.recorder, ['skip']), skipLevelUp(g))
-    c.client.input({ k, round: me.round })
-    c.sent = me.round
-  }
+  // A pick: solo it plays on the spot (and goes into the replay); co-op sends it with the screen's round (`ui/teamLayer.ts`).
+  const pick = (offer: Offer) => (c ? c.team.pick(me, offer) : (recordEvent(r.recorder, ['offer', me.offers.indexOf(offer)]), chooseOffer(g, offer)))
   switch (phase) {
     case 'levelup':
-      r.overlay = levelUp(ui, input, g, pick, {
-        reroll: () => screenInput('reroll'),
-        skip: () => screenInput('skip'),
-        banish: (i) => {
-          if (!c) return (recordEvent(r.recorder, ['banish', i]), banishOffer(g, i))
-          c.client.input({ k: 'banish', round: me.round, index: i })
-          c.sent = me.round
-        },
-      })
+      r.overlay = levelUp(
+        ui,
+        input,
+        g,
+        pick,
+        c
+          ? c.team.levelUp(me)
+          : {
+              reroll: () => (recordEvent(r.recorder, ['reroll']), rerollOffers(g)),
+              skip: () => (recordEvent(r.recorder, ['skip']), skipLevelUp(g)),
+              banish: (i) => (recordEvent(r.recorder, ['banish', i]), banishOffer(g, i)),
+            },
+      )
       break
     case 'branch':
       r.overlay = branchPick(ui, input, g, pick)
@@ -1103,11 +1116,13 @@ const syncOverlay = (r: Run) => {
       break
     case 'paused':
       if (c) {
+        // The co-op menu: the run goes on behind it; leaving asks first.
         r.overlay = pauseMenu(ui, input, g, {
           resume: () => (c.menu = false),
           quit: () => leaveCoopRun(),
           settings: (back) => runSettings(r, back),
           report: bugReportsEnabled ? (back) => bugReportForm(ui, input, back) : null,
+          coop: { sound: () => (toggleMute(), !settings().muted), soundOn: !settings().muted },
         })
         break
       }
@@ -1122,12 +1137,7 @@ const syncOverlay = (r: Run) => {
     case 'gameover':
     case 'victory':
       if (c) {
-        const share = Math.floor(r.game.coins / Math.max(1, r.game.coop?.joined ?? 1))
-        const voting = g.phase === 'victory' && g.coop?.vote?.outcome === 'open' && !c.voted
-        r.overlay = coopEnd(ui, input, g, me.slot, share, {
-          vote: voting ? (endless) => ((c.voted = true), c.client.input({ k: 'endless', vote: endless })) : null,
-          back: () => leaveCoopRun(),
-        })
+        r.overlay = c.team.end(g, me)
         break
       }
       // For Play again: the run is over (endless mode goes on with the token it reported on).
@@ -1157,6 +1167,8 @@ const syncOverlay = (r: Run) => {
       )
       break
   }
+  // Co-op pick screens wear the auto-pick clock (and the level-up who already picked).
+  if (c && r.overlay) c.team.decorate(r.overlay, g, me, phase)
 }
 
 /** Level-ups that took the Oran Berry on their own (`takeBerryLevelUps`): the level reached and how many at once. */
@@ -1267,8 +1279,9 @@ const TRAIT_SFX: Record<TraitId, Record<'warn' | 'fire', Sfx | null>> = {
   spitter: { warn: null, fire: 'spit' },
 }
 
+/** The sounds and toasts of a simulation event, read off the game as shown (`shownGame`: this player's cries, form, special and Mega in co-op). */
 const handleEvent = (r: Run, e: GameEvent) => {
-  const g = r.game
+  const g = shownGame(r)
   switch (e.kind) {
     case 'hit': return playSfx(e.effective > 1 ? 'superHit' : 'hit', 45)
     case 'kill': return playSfx('kill', 50)
@@ -1783,13 +1796,16 @@ const bankCoop = (r: Run, c: CoopRun, withBonus: boolean) => {
   void syncSave()
 }
 
-/** Leaves the co-op run's shell (not the room): banks what's due, drops the HUD. */
+/** Leaves the co-op run's shell (not the room): banks what's due, reports how it went for this player, drops the HUD. */
 const endCoopRun = (r: Run, c: CoopRun) => {
-  bankCoop(r, c, wonRun(c.runner.game) || coopOver(c.runner.game))
+  const g = c.runner.game
+  bankCoop(r, c, wonRun(g) || coopOver(g))
+  const outcome = wonRun(g) ? (g.endless ? 'endless' : 'victory') : coopOver(g) ? 'wipe' : 'left'
+  track('coop', { step: 'end', players: g.players.length, minute: Math.floor(g.time / 60), outcome, difficulty: g.difficulty })
   r.overlay?.dispose()
   r.closeText?.()
   r.hud.dispose()
-  c.hud.dispose()
+  c.team.dispose()
   clearToasts(ui)
   run = null
   syncRunWatch()
@@ -1802,7 +1818,50 @@ const leaveCoopRun = () => {
   coopClient()?.leave()
   removeBots()
   linkRoom(null)
+  leftRun = null
   showTitle()
+}
+
+/**
+ * The run that "Voltar ao lobby" left, by room code and run id (run ids
+ * count from 1 in every room): its late `run` events (a resume, a heal)
+ * don't pull this player back into it.
+ */
+let leftRun: { code: string; run: number } | null = null
+
+/** "Voltar ao lobby" on the end screen: the run screen goes (banked), the room stays, and its screen comes back. */
+const backToRoom = () => {
+  const c = run?.coop
+  leftRun = c ? { code: c.runner.room, run: c.runner.start.id } : null
+  endRun()
+  showRoom()
+}
+
+/** The run's HUD in co-op: drawn from the draw copy, and its pause button opens the co-op menu (the run goes on). */
+const coopRunHud = (c: CoopRun) => runHud(c.view.game, () => (c.menu = true), true)
+
+/** Where "Jogar de novo" stands, for the end screen: who asked, and how many of the room online are ready (the host counts). */
+const againState = (c: CoopRun) => {
+  const st = c.client.state()
+  const online = st.room?.members.filter((m) => m.online) ?? []
+  return { asked: c.again, host: online.some((m) => m.seat === st.seat && m.host), ready: online.filter((m) => m.host || m.ready).length, total: online.length }
+}
+
+/**
+ * "Jogar de novo" once asked (`c.again`), each time the room changes: a
+ * guest gets ready, the host starts the next run once everyone online is
+ * (the driver does either). Waits out the run the relay hasn't closed yet,
+ * whose end resets everyone's ready.
+ */
+const playAgain = (c: CoopRun) => {
+  const st = c.client.state()
+  const room = st.room
+  if (!c.again || !room || room.phase === 'playing') return
+  const me = room.members.find((m) => m.seat === st.seat)
+  if (!me) return
+  if (!me.host && me.ready) return
+  if (me.host && !room.members.every((m) => m.host || !m.online || m.ready)) return
+  c.driver.playAgain()
 }
 
 /**
@@ -1822,28 +1881,34 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
   await loadAll([...families, ...opening])
   await Promise.all(g.players.filter((p) => p.shiny).map((p) => preloadShinies(familyDex(p.starter)).catch(() => {})))
   loading.remove()
+  // Closed for good while loading (kicked, the room gone): the close already went back to the title.
+  if (client.state().status.kind === 'closed') return
   // The run may have moved on while loading (a heal, a newer run): show the client's current one.
   const live = client.state().runner
   if (!live || run?.coop?.runner === live) return
   if (run) endRun()
   const save = loadSave()
   const view = createDrawView(live.game)
+  const driver = coopDriver(client, () => backToRoom())
   const c: CoopRun = {
     client,
     runner: live,
     view,
     prediction: createPrediction(),
-    hud: createCoopHud(ui),
-    driver: coopDriver(client, () => showTitle()),
-    sent: null,
+    driver,
+    team: createTeamLayer(ui, input, driver, {
+      playAgain: () => ((c.again = true), playAgain(c)),
+      lobby: () => backToRoom(),
+      again: () => againState(c),
+    }),
     menu: false,
     banked: { victory: false, over: false },
-    voted: false,
+    again: false,
   }
   const me = localPlayer(live.game)
   run = {
     game: live.game,
-    hud: runHud(view.game, () => (c.menu = true)),
+    hud: coopRunHud(c),
     overlay: null,
     shown: null,
     closeText: null,
@@ -1874,37 +1939,35 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
   resetCanvasPeaks()
   resetRunFrames(frames)
   syncRunWatch()
+  leftRun = null
+  syncPresence()
   track('run_start', { starter: me.starter, difficulty: live.game.difficulty, mode: 'standard' })
 }
 
-/** A co-op toast with a teammate's name (the shell's own player reads "You"). */
-const mateName = (g: Game, slot: number) => (slot === localPlayer(g).slot ? t().coop.you : g.coop?.names[slot] || PLAYABLE[g.players[slot]?.starter ?? 'pichu'].name)
-
-/** The co-op events of the simulation the shell shows its own way: teammates fainting, reviving, going away, leaving. */
+/**
+ * The simulation's events in co-op: the team's moments (a faint, a revive,
+ * someone away or gone, the vote) the team's way; the world's and this
+ * player's own as solo plays them; a teammate's own big moments (an
+ * evolution, a Mega, a duo move) as a short toast (`actor`: who pushed it).
+ */
 const coopEvent = (r: Run, c: CoopRun, e: GameEvent, actor: number) => {
   const g = c.view.game
-  const m = t().coop
   switch (e.kind) {
     case 'fainted':
-      playSfx('hurt')
-      return toast(ui, m.fainted(mateName(g, e.slot)), 2600)
     case 'revived':
-      playSfx('heal')
-      return toast(ui, m.revived(mateName(g, e.slot), mateName(g, e.by)), 2600)
-    case 'away':
-      return e.slot === c.runner.slot ? undefined : toast(ui, e.away ? m.away(mateName(g, e.slot)) : m.back(mateName(g, e.slot)), 2200)
     case 'left':
-      return toast(ui, m.left(mateName(g, e.slot)), 2600)
+    case 'away':
+    case 'vote':
+    case 'voted':
+      return teamFeedback(ui, g, localPlayer(g), e)
     case 'gameover':
       playSfx('gameOver')
       return playCry(playerCry(g))
     case 'victory':
       return playSfx('evolve')
-    case 'vote':
-    case 'voted':
-      return
     default:
       if (coopEventFor(g, e, actor)) handleEvent(r, e)
+      else teamMoment(ui, g, actor, e)
   }
 }
 
@@ -1916,6 +1979,11 @@ const watchCoop = (client: CoopClient) => {
     const c = run?.coop
     switch (e.kind) {
       case 'run':
+        if (e.why === 'start' && client.state().room?.members.some((m) => m.seat === client.state().seat && m.host)) {
+          track('coop', { step: 'start', players: e.runner.game.players.length, difficulty: e.runner.game.difficulty })
+        }
+        // Back in the room after a run: that run's resume or heal stays behind the room screen.
+        if (!c && e.why !== 'start' && e.runner.room === leftRun?.code && e.runner.start.id === leftRun.run) return
         if (e.why === 'start' || !c || c.runner.start.id !== e.runner.start.id) void startCoopRun(client, e.runner)
         else c.runner = e.runner
         return
@@ -1934,35 +2002,32 @@ const watchCoop = (client: CoopClient) => {
       case 'slow':
         return toast(ui, t().coop.slow, 2200, 'coopSlow')
       case 'room':
-        if (!run && e.room.phase !== 'playing') {
-          const code = e.room.code
-          toast(ui, t().coop.lobby(code, e.room.members.length), 3200, 'coopLobby')
-        }
+        if (c) playAgain(c)
         return
       case 'status':
-        if (e.status.kind === 'closed' && e.status.why !== 'left') {
-          const why = e.status.why
-          if (run?.coop) endRun()
-          linkRoom(null)
-          showTitle()
-          return void later(() => toast(ui, t().coop.closed[why], 6000, 'coopClosed'))
-        }
+        syncPresence()
+        if (e.status.kind === 'closed' && e.status.why !== 'left') coopClosed(e.status.why)
         return
     }
   })
 }
 
-/** Joins a co-op room (a link, `ps.coop('join', code)`): sets this player's loadout, ready unless hosting. */
-const joinCoop = async (code: string) => {
+/**
+ * Joins a co-op room (the hub, a link, an invite, `ps.coop('join', code)`):
+ * sets this player's loadout, ready unless hosting. `via` says how, for the
+ * beta's numbers (null: the room this player just created).
+ */
+const joinCoop = async (code: string, via: 'code' | 'link' | 'invite' | null) => {
   const client = coopClient()
   if (!client) return { ok: false as const, why: 'offline' as const }
   watchCoop(client)
+  leftRun = null
   const res = await client.join(code)
   if (!res.ok) return res
+  if (via) track('coop', { step: 'join', via })
   linkRoom(code)
   const save = loadSave()
-  // The Legend mode stays solo (`COOP_LOCKS`): a legend partner brings the first starter instead.
-  const starter = PLAYABLE_IDS.find((id) => id === save.partner) ?? PLAYABLE_IDS[0]!
+  const starter = coopStarter(save.partner)
   client.setLoadout({ starter, ranks: save.ranks, shiny: playsShiny(save, starter) })
   const me = res.room.members.find((m) => m.seat === res.seat)
   if (me && !me.host) client.setReady(true)
@@ -2000,14 +2065,280 @@ const coopFrame = (r: Run, c: CoopRun, dt: number, t: number) => {
   }
   syncOverlay(r)
   tickToasts(ui, dt, false)
+  // The team's cards, the connection, the waits, and the camera: this player's, or a teammate's while fainted (`render/teamCamera.ts`).
+  c.team.frame(shown, localPlayer(shown), dt, view, conn, runner.pending !== null)
   render(ctx, shown, t, { ...settings(), companion: null, mates: c.view.mates })
   const stick = input.readStick()
   if (stick && shown.phase === 'playing') drawJoystick(ctx, stick, cssScale)
   r.hud.update(shown)
-  // The team waits on a teammate's level-up: whose timer, and how long it has.
-  const busy = shown.phase === 'levelup' && phaseOf(shown, localPlayer(shown)) === 'playing' ? shown.players.filter(onScreen) : []
-  const waiting = busy.length > 0 ? Math.max(...busy.map((p) => p.pickLeft)) : null
-  c.hud.update(conn, waiting, runner.pending !== null)
+}
+
+/* ---------------- Co-op outside a run: the hub, the room, friends, invites ---------------- */
+
+/** Which co-op screen is up outside a run (a close lands on each its own way). `setScreen` clears it. */
+let coopShown: 'hub' | 'room' | null = null
+
+/** What a refused join or a closed room says. */
+const closedText = (why: CloseWhy) => t().coop.closed[why]
+
+/**
+ * The co-op client closed for good (not by leaving): kicked, refused, the
+ * room gone. A run or the room screen goes back to the title with a notice;
+ * the hub says it in place (its join resolved with the same reason). A room
+ * on a newer version of the game offers a reload, which rejoins by the link;
+ * one on an older version says so (`buildRefusal`): a reload couldn't reach it.
+ */
+const coopClosed = (why: CloseWhy) => {
+  track('coop', { step: 'fail', at: run?.coop ? 'run' : coopShown === 'room' ? 'room' : 'join', why })
+  if (run?.coop) endRun()
+  removeBots()
+  // The link keeps the room, so the reload joins it again on the new version.
+  const code = coopClient()?.state().code ?? null
+  if (why === 'version') {
+    linkRoom(code)
+    return showCoopUpdate()
+  }
+  if (why === 'build') {
+    void buildRefusal().then((advice) => {
+      if (advice === 'oldRoom') return closedNotice(t().coop.oldRoom)
+      linkRoom(code)
+      showCoopUpdate(markBuildReload)
+    })
+    return
+  }
+  closedNotice(closedText(why))
+}
+
+/** A close's notice: on the title (the hub says it in place), the room dropped from the link. */
+const closedNotice = (text: string) => {
+  linkRoom(null)
+  if (coopShown === 'hub') return
+  if (!screen?.el.classList.contains('title-home')) showTitle()
+  later(() => toast(ui, text, 6000, 'coopClosed'))
+}
+
+/** "Atualize o jogo": a reload brings this build's newest version (and rejoins by the link); not now goes to the title. */
+const showCoopUpdate = (beforeReload: () => void = () => {}) => {
+  const m = t().coop.update
+  const answer = (yes: boolean) => {
+    if (!yes) {
+      linkRoom(null)
+      return showTitle()
+    }
+    beforeReload()
+    location.reload()
+  }
+  setScreen(confirmDialog(ui, input, m.title, answer, { yes: m.yes, no: m.no }))
+}
+
+const signedIn = () => accountState().kind === 'signedIn'
+
+/** The room the player is in (or joining), for presence and friends' invites; null outside one. */
+const coopRoomCode = () => {
+  const st = coopClient()?.state()
+  return st && (st.status.kind === 'room' || st.status.kind === 'playing' || st.status.kind === 'connecting') ? st.code : null
+}
+
+/* ---------------- Co-op's door: an account with a handle ---------------- */
+
+/** Where co-op is headed: the hub (`room` null), or a room's link, with the @handle that sent it. */
+type CoopDest = { room: string | null; invitedBy: string | null }
+
+/** Where co-op was headed when it left to sign in: the provider brings the player back to a bare page. Tab only (sessionStorage). */
+const COOP_RETURN = 'ps:coopReturn'
+
+const keepCoopReturn = (dest: CoopDest | null) => {
+  try {
+    if (dest) sessionStorage.setItem(COOP_RETURN, JSON.stringify(dest))
+    else sessionStorage.removeItem(COOP_RETURN)
+  } catch {
+    // Storage blocked: back from signing in, the player opens co-op again.
+  }
+}
+
+/** Where a sign in for co-op left from, read once (null: none). */
+const takeCoopReturn = (): CoopDest | null => {
+  try {
+    const raw = sessionStorage.getItem(COOP_RETURN)
+    sessionStorage.removeItem(COOP_RETURN)
+    const v: unknown = raw ? JSON.parse(raw) : null
+    return isRecord(v) ? { room: parseRoomCode(v.room), invitedBy: parseHandle(v.invitedBy) } : null
+  } catch {
+    return null
+  }
+}
+
+/** Co-op past its door: the hub, or that room (joined and shown; in a run, entered by snapshot). */
+const openCoop = (dest: CoopDest) => {
+  if (!dest.room) return showCoopHub()
+  void joinCoop(dest.room, 'link').then((res) => res.ok && res.room.phase !== 'playing' && !run && showRoom())
+}
+
+/**
+ * Opens co-op toward `dest` (the Co-op tile: the hub; a room link: that
+ * room). Co-op is for accounts with a handle, the name teammates see: a guest
+ * signs in first ("Entre para jogar junto", `coopGate`; the link keeps
+ * `?sala`, and the sign in's round trip comes back here, `COOP_RETURN`), and
+ * an account without a handle picks one (`profileEditor`). Then it goes on.
+ */
+const enterCoop = (dest: CoopDest) => {
+  const access = coopAccess(accountsEnabled, accountState())
+  if (access === 'open') return openCoop(dest)
+  if (access === 'handle') return setScreen(profileEditor(ui, input, (saved) => (saved ? enterCoop(dest) : leaveCoopDoor())))
+  if (access === 'signIn') track('coop', { step: 'gate', via: dest.room ? 'link' : 'tile' })
+  linkRoom(dest.room)
+  keepCoopReturn(dest)
+  setScreen(
+    coopGate(ui, input, dest, {
+      play: () => (keepCoopReturn(null), enterCoop(dest)),
+      back: leaveCoopDoor,
+    }),
+  )
+}
+
+/** Turned back at co-op's door: nothing kept, the room's link dropped, the lobby. */
+const leaveCoopDoor = () => {
+  keepCoopReturn(null)
+  linkRoom(null)
+  showTitle({ focus: 'coop' })
+}
+
+/** Jogar junto from the lobby's tile: create a room or join one by code (`code` prefills it). */
+const showCoopHub = (code: string | null = null) => {
+  const client = coopClient()
+  if (!client) return toast(ui, t().coop.off, 4000, 'coopOff')
+  endRun()
+  watchCoop(client)
+  // "Voltar" while a room is being made or joined: the hub is gone, so the room it got is left, never shown.
+  const up = () => screen === hub
+  const abandon = (code: string) => {
+    if (client.state().code !== code) return
+    client.leave()
+    linkRoom(null)
+  }
+  const hub = coopHub(
+    ui,
+    input,
+    {
+      create: async () => {
+        const made = await client.create()
+        if (!up()) return null
+        if (!made.ok) {
+          track('coop', { step: 'fail', at: 'create', why: made.why })
+          return t().coop.createFailed[made.why]
+        }
+        const res = await joinCoop(made.code, null)
+        if (!up()) {
+          if (res.ok) abandon(made.code)
+          return null
+        }
+        if (!res.ok) return closedText(res.why)
+        track('coop', { step: 'create' })
+        client.setSettings({ difficulty: loadSave().difficulty })
+        showRoom()
+        return null
+      },
+      join: async (code) => {
+        const res = await joinCoop(code, 'code')
+        if (!up()) {
+          if (res.ok) abandon(code)
+          return null
+        }
+        // A room on an older version: no reload reaches it (a newer one's reload dialog replaces the hub).
+        if (!res.ok && res.why === 'build' && (await buildRefusal()) === 'oldRoom') return t().coop.oldRoom
+        if (!res.ok) return closedText(res.why)
+        showRoom()
+        return null
+      },
+      friends: signedIn() ? () => showFriends(() => showCoopHub()) : null,
+      back: () => showTitle({ focus: 'coop' }),
+    },
+    code,
+  )
+  setScreen(hub)
+  coopShown = 'hub'
+}
+
+/** The room screen, while the client is in a room (else the title). */
+const showRoom = () => {
+  const client = coopClient()
+  const status = client?.state().status.kind
+  if (!client || status === 'closed' || status === 'idle') return showTitle()
+  endRun()
+  setScreen(
+    coopRoom(ui, input, client, {
+      partner: () => showCoopPartner(),
+      friends: signedIn() ? () => showFriends(showRoom) : null,
+      leave: () => leaveCoopRun(),
+      rejoin: () => {
+        const runner = client.state().runner
+        if (!runner) return
+        leftRun = null
+        void startCoopRun(client, runner)
+      },
+    }),
+  )
+  coopShown = 'room'
+}
+
+/** The partner select for the room: the pick becomes this player's loadout (and the saved partner), then back to the room. */
+const showCoopPartner = () => {
+  const select = starterSelect(
+    ui,
+    input,
+    {
+      // The co-op select has no Lendários tab; `coopStarter` keeps the type honest.
+      pick: (id) => {
+        const starter = coopStarter(id)
+        updateSave((s) => ({ ...s, partner: starter }))
+        const save = loadSave()
+        coopClient()?.setLoadout({ starter, ranks: save.ranks, shiny: playsShiny(save, starter) })
+        setTimeout(showRoom, 250)
+      },
+      back: () => showRoom(),
+      settings: () => setScreen(openSettings(ui, input, () => showCoopPartner())),
+      incubator: () => showIncubator(() => showCoopPartner()),
+    },
+    coopStarter(loadSave().partner),
+    { coop: true },
+  )
+  setScreen(select)
+}
+
+/** Amigos (from the hub or the room); `back` reopens where it came from. Invites go into the room the player is in. */
+const showFriends = (back: () => void) => setScreen(friendsScreen(ui, input, { room: coopRoomCode, onClose: back }))
+
+/**
+ * Tells friends what this player is doing, while co-op is on for them (the
+ * beta's entry, or a room they came into by link): signed-in players only,
+ * and the heartbeats stop with the page hidden (`net/friends.ts`). A run
+ * hides a waiting invite.
+ */
+const syncPresence = () => {
+  const code = coopRoomCode()
+  if (run) invite?.dispose()
+  if (!signedIn() || (!coopEntry() && code === null)) return setActivity(null)
+  setActivity(run ? 'run' : code ? 'room' : 'lobby', code)
+}
+
+/** The friend's invite on screen, and every invite already shown (each shows once). */
+let invite: ReturnType<typeof inviteBanner> | null = null
+const shownInvites = new Set<string>()
+
+/** Shows the newest invite worth it, outside runs and rooms: Entrar joins the friend's room. */
+const offerInvites = (invites: readonly CoopInvite[]) => {
+  if (run || invite?.el.isConnected || coopRoomCode() !== null || !coopUrl()) return
+  const next = freshInvites(invites, shownInvites, null, Date.now())[0]
+  if (!next) return
+  shownInvites.add(next.id)
+  invite = inviteBanner(ui, next, {
+    join: async () => {
+      void dismissInvite(next.id)
+      const res = await joinCoop(next.room, 'invite')
+      if (res.ok && res.room.phase !== 'playing') showRoom()
+    },
+    later: () => void dismissInvite(next.id),
+  })
 }
 
 /* ---------------- Loop ---------------- */
@@ -2041,11 +2372,12 @@ const frame = (now: number) => {
   input.poll(run?.game.phase === 'playing')
   setActivePad(input.activePad())
 
-  // Co-op keeps its socket and lockstep going behind menus and loading screens too.
+  // Co-op keeps its socket and lockstep going behind menus and loading screens too (not once it closed for good).
   const coop = run?.coop ?? null
   if (!coop) {
     const client = coopClient()
-    if (client && client.state().status.kind !== 'idle') client.frame(dt)
+    const status = client?.state().status.kind
+    if (client && status !== 'idle' && status !== 'closed') client.frame(dt)
   }
   if (run && coop) coopFrame(run, coop, dt, t)
   else if (run) {
@@ -2209,11 +2541,21 @@ const newerBuild = async () => {
   return html !== null && scripts.some((path) => !html.includes(path))
 }
 
-/** Reloads into a newer build when one is live: right away in the menus (the save is local), or once the run is over. */
+/**
+ * In a co-op room, in or out of its run (its lobby, the partner select, a
+ * reconnect): the room is pinned to this build, so a reload would only drop
+ * the seat and come back on a build the room refuses (`buildAdvice`).
+ */
+const inCoopRoom = () => {
+  const status = coopClient()?.state().status.kind
+  return status === 'room' || status === 'playing' || status === 'connecting'
+}
+
+/** Reloads into a newer build when one is live: right away in the menus (the save is local), or once the run is over (a co-op room: once the player leaves it). */
 const loadNewerBuild = () =>
   void newerBuild().then((newer) => {
     if (!newer) return
-    if (run) reloadForDeploy = true
+    if (run || inCoopRoom()) reloadForDeploy = true
     else location.reload()
   })
 
@@ -2285,9 +2627,23 @@ const boot = () => {
   promptProfile()
   // Coming back to the game syncs again, but not mid-run: a run syncs when it ends.
   startAccount(() => run === null)
-  // A co-op link (`?sala=K7QF2`): join that room; in a run, by snapshot, on the same seat after a reload.
+  // A co-op link (`?sala=K7QF2`, maybe `&ref=` who sent it), beta or not: join that room and show it (signed in first:
+  // `enterCoop`); in a run, by snapshot, on the same seat after a reload. Or back from signing in to play co-op.
+  const back = takeCoopReturn()
   const room = linkedRoom()
-  if (room && coopUrl()) void joinCoop(room)
+  const dest = room ? { room, invitedBy: parseHandle(new URLSearchParams(location.search).get(REF_PARAM)) } : back
+  if (dest && !coopUrl()) {
+    linkRoom(null)
+    later(() => toast(ui, t().coop.off, 5000, 'coopOff'))
+  } else if (dest) enterCoop(dest)
+  // The beta's flag: the lobby's tile shows (or goes) once it answers, and again for the account signed in.
+  refreshCoopEntry()
+  onCoopEntry(() => {
+    syncPresence()
+    if (screen?.el.querySelector('.lobby')) showTitle()
+  })
+  onAccountChange(() => (refreshCoopEntry(), syncPresence()))
+  onPresence((v) => offerInvites(v.invites))
   // Results that didn't reach the ranking last time (offline) go now, once the account is back.
   if (accountState().kind === 'signedIn') setTimeout(() => void flushRuns(), 5000)
 }
@@ -2533,16 +2889,19 @@ const devLandmark = (g: Game, id?: LandmarkId, dy = 60) => {
 }
 
 /**
- * Dev: co-op without the lobby (PR 7). `ps.coop()` shows the client's state;
- * `ps.coop('create', 2)` makes a room, joins it and adds two bots (same tab,
- * each a full client); `ps.coop('join', 'K7QF2')`, `('bots', n)`, `('ready')`,
- * `('start')` (the host), `('leave')`; `('drop')` cuts the socket as a network
+ * Dev: co-op from the console. `ps.coop()` shows the client's state;
+ * `ps.coop('create', 2)` makes a room, joins it, adds two bots (same tab,
+ * each a full client) and shows the room; `ps.coop('join', 'K7QF2')`, `('bots', n)`, `('ready')`,
+ * `('start')` (the host), `('leave')`, `('surrender')` (the tab's bots walk into the horde); `('drop')` cuts the socket as a network
  * failure would, `('fresh')` rejoins as a new tab (the snapshot), `('desync')`
  * nudges this client's state off the team's (the relay heals it), `('pick', id)` another
  * Pokémon for the room, `('url', u)`
- * points at another relay (null: the default), `('net')` the connection numbers.
+ * points at another relay (null: the default), `('net')` the connection numbers; `('room')` and
+ * `('hub')` open those screens, `('beta', true|false|null)` forces the lobby's tile on this device,
+ * `('build')` joins a room made for another build (the "update" refusal) and `('invite', code, name)`
+ * stages a friend's invite banner without the API.
  */
-const devCoop = async (cmd?: string, arg?: string | number | null) => {
+const devCoop = async (cmd?: string, arg?: string | number | boolean | null, extra?: string) => {
   const client = coopClient()
   if (!client) return 'ps.coop: no relay (VITE_COOP_URL)'
   watchCoop(client)
@@ -2553,12 +2912,32 @@ const devCoop = async (cmd?: string, arg?: string | number | null) => {
     case 'create': {
       const made = await client.create()
       if (!made.ok) return made
-      const joined = await joinCoop(made.code)
+      const joined = await joinCoop(made.code, null)
+      if (joined.ok) client.setSettings({ difficulty: loadSave().difficulty })
       if (joined.ok && Number(arg ?? 0) > 0) await addBots(made.code, Number(arg))
+      if (joined.ok && !run) showRoom()
       return { ...made, joined }
     }
+    case 'room':
+      return showRoom()
+    case 'hub':
+      return showCoopHub(typeof arg === 'string' ? arg : null)
+    case 'beta':
+      return setCoopBeta(arg === null || arg === undefined ? null : arg !== 0 && arg !== 'off' && arg !== 'false')
+    case 'build': {
+      // A room reserved for another simulation build: joining it is refused with 'build'.
+      const res = await fetch(`${coopUrl()}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ v: PROTOCOL, build: 'sim-0000000000000000' }) })
+      const body: unknown = await res.json()
+      const code = isRecord(body) && typeof body.code === 'string' ? body.code : null
+      return code ? joinCoop(code, 'code') : body
+    }
+    case 'invite': {
+      const room = typeof arg === 'string' ? arg : (st.code ?? 'K7QF2')
+      const now = Date.now()
+      return offerInvites([{ id: `dev-${now}`, from: { handle: 'ash', name: typeof extra === 'string' ? extra : 'Ash' }, room, at: new Date(now).toISOString(), expiresAt: new Date(now + 10 * 60_000).toISOString() }])
+    }
     case 'join':
-      return joinCoop(String(arg ?? ''))
+      return joinCoop(String(arg ?? ''), 'code')
     case 'bots':
       return st.code ? addBots(st.code, Number(arg ?? 1)) : 'ps.coop: join a room first'
     case 'pick': {
@@ -2568,6 +2947,8 @@ const devCoop = async (cmd?: string, arg?: string | number | null) => {
       const save = loadSave()
       return client.setLoadout({ starter: id, ranks: save.ranks, shiny: playsShiny(save, id) })
     }
+    case 'surrender':
+      return surrenderBots()
     case 'ready':
       return client.setReady(arg !== 0 && arg !== 'no')
     case 'start':
@@ -2603,7 +2984,7 @@ const devCoop = async (cmd?: string, arg?: string | number | null) => {
       return { ...client.connection(), queued: client.queued(), stats: r?.stats, tickMs: r?.tickMs, slot: r?.slot, errors: run?.coop?.prediction.errors }
     }
     default:
-      return 'ps.coop(): create, join, bots, pick, ready, start, leave, drop, fresh, desync, url, net, wall'
+      return 'ps.coop(): create, join, bots, surrender, pick, ready, start, leave, drop, fresh, desync, url, net, wall, room, hub, beta, build, invite'
   }
 }
 

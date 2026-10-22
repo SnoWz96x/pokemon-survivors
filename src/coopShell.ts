@@ -1,21 +1,25 @@
-import { accountHandle, sessionToken } from './account'
-import { track } from './analytics'
+import { accountHandle, accountsEnabled, sessionToken } from './account'
+import { featureFlag, track } from './analytics'
 import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/bank'
 import { createBot, botPick, type Bot } from './coop/bot'
 import { createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
+import { betaOn, buildAdvice } from './coop/lobby'
 import { EGGS } from './game/eggs'
 import { coopPayout, playerDexLog } from './game/coop'
 import { mergeDex, recordRun, type Pokedex } from './game/dex'
 import { localPlayer } from './game/players'
 import type { Game, GameEvent } from './game/types'
 import { ROOM_PARAM, parseRoomCode } from './net/protocol'
+import { REF_PARAM } from './game/referral'
+import { ROUTES } from './site/routes'
+import { locale } from './i18n'
 import { bankEggs, depositPokeDollars, recordRunProgress, updateSave } from './ui/save'
 
 /**
  * The browser's side of co-op that isn't drawing: the one client of this tab
  * (relay URL, Clerk token or guest id, localStorage), joining by link, the
  * banking of a run (exactly once, `coop/bank.ts`), which events of the
- * simulation are this player's, and the dev console's bots.
+ * simulation are this player's, the beta's gate, and the dev console's bots.
  */
 
 /** The dev relay on workers.dev: dev builds use it unless `VITE_COOP_URL` (or `ps.coop('url', …)`) says otherwise. */
@@ -55,8 +59,15 @@ const local: Store = {
   },
 }
 
-/** Where the relay is: the build's, a dev override, or the dev relay in dev builds. Null: co-op is off in this build. */
-export const coopUrl = (): string | null => (import.meta.env.DEV ? local.get(URL_KEY) : null) ?? import.meta.env.VITE_COOP_URL ?? (import.meta.env.DEV ? DEV_RELAY : null)
+/**
+ * Where the relay is: the build's, a dev override, or the dev relay in dev
+ * builds. Null: co-op is off in this build, as in any build without accounts
+ * (co-op is for signed-in players); dev builds keep it, as guests on the dev relay.
+ */
+export const coopUrl = (): string | null => {
+  if (!accountsEnabled && !import.meta.env.DEV) return null
+  return (import.meta.env.DEV ? local.get(URL_KEY) : null) ?? import.meta.env.VITE_COOP_URL ?? (import.meta.env.DEV ? DEV_RELAY : null)
+}
 
 export const setCoopUrl = (url: string | null) => (url ? local.set(URL_KEY, url) : local.remove(URL_KEY))
 
@@ -77,6 +88,13 @@ export const coopName = () => {
   return name
 }
 
+/**
+ * The token co-op joins with: Clerk's when signed in. A dev build's stand-in
+ * (`ps:devToken`, for a local API) isn't a Clerk token and the relay would
+ * refuse it, so co-op plays as a guest there.
+ */
+const coopToken = async () => (import.meta.env.DEV && local.get('ps:devToken') ? null : sessionToken())
+
 const browserDeps = (url: string, store: Store, token: () => Promise<string | null>, name: () => string): CoopDeps => ({
   url,
   build: __SIM_BUILD__,
@@ -95,12 +113,118 @@ let client: CoopClient | null = null
 export const coopClient = (): CoopClient | null => {
   const url = coopUrl()
   if (!url) return null
-  client ??= createCoopClient(browserDeps(url, local, sessionToken, coopName))
+  client ??= createCoopClient(browserDeps(url, local, coopToken, coopName))
   return client
 }
 
 /** The room code in the page's link (`?sala=K7QF2`), if any. */
 export const linkedRoom = () => parseRoomCode(new URLSearchParams(location.search).get(ROOM_PARAM))
+
+/**
+ * The room's link to share: the game's page with `?sala=CODE` (this site, so
+ * a dev or preview build shares itself) and who sends it (`&ref=`, this
+ * player's handle), so the invited player sees who asked and the referral counts.
+ */
+export const roomLink = (code: string) => {
+  const handle = accountHandle()
+  return `${location.origin}${ROUTES.play[locale()]}?${ROOM_PARAM}=${code}${handle ? `&${REF_PARAM}=${encodeURIComponent(handle)}` : ''}`
+}
+
+/* ---------------- The beta's gate ---------------- */
+
+/** The PostHog flag that shows the lobby's co-op entry (the Discord beta). Joining by link never asks it. */
+export const COOP_FLAG = 'coop-beta'
+/** A device's override, `on` or `off`, in any build (`ps.coop('beta', true)` in dev); and the flag's last answer, so the entry shows at once next time. */
+const BETA_KEY = 'ps:coopBeta'
+const BETA_SEEN = 'ps:coopBetaSeen'
+
+const seenFlag = () => {
+  const v = local.get(BETA_SEEN)
+  return v === '1' ? true : v === '0' ? false : null
+}
+
+let flag: boolean | null = seenFlag()
+const betaListeners = new Set<(on: boolean) => void>()
+
+/** Whether the lobby shows the co-op entry now: a relay in this build, and the beta's gate open (`betaOn`). */
+export const coopEntry = () => coopUrl() !== null && betaOn({ dev: import.meta.env.DEV, override: local.get(BETA_KEY), flag })
+
+/** Calls `fn` when `coopEntry` changes (the flag answered, an override). Returns the unsubscribe. */
+export const onCoopEntry = (fn: (on: boolean) => void) => {
+  betaListeners.add(fn)
+  return () => void betaListeners.delete(fn)
+}
+
+const setFlag = (next: boolean | null) => {
+  const before = coopEntry()
+  flag = next
+  local.set(BETA_SEEN, next ? '1' : '0')
+  const now = coopEntry()
+  if (now !== before) betaListeners.forEach((fn) => fn(now))
+}
+
+/** Asks the flag again (at boot, after signing in or out). Keeps the last answer when PostHog can't say. */
+export const refreshCoopEntry = () => {
+  if (!coopUrl()) return
+  void featureFlag(COOP_FLAG).then((on) => on !== null && setFlag(on))
+}
+
+/** Dev: forces the entry on or off on this device (`null` goes back to the flag). */
+export const setCoopBeta = (on: boolean | null) => {
+  const before = coopEntry()
+  if (on === null) local.remove(BETA_KEY)
+  else local.set(BETA_KEY, on ? 'on' : 'off')
+  const now = coopEntry()
+  if (now !== before) betaListeners.forEach((fn) => fn(now))
+  return now
+}
+
+/** The tab's own storage, for what must outlive a reload but not the tab. */
+const session = {
+  get: (k: string) => {
+    try {
+      return sessionStorage.getItem(k)
+    } catch {
+      return null
+    }
+  },
+  set: (k: string, v: string) => {
+    try {
+      sessionStorage.setItem(k, v)
+    } catch {
+      // Storage blocked: the guard lasts this page.
+    }
+  },
+}
+
+/** The room build this tab last reloaded for (a `build` refusal's "update"). */
+const RELOADED_KEY = 'ps:coopReloadedFor'
+
+/** The simulation build the site serves now (`/sim-build.json`, written by the build), or null when it can't tell. */
+const latestSimBuild = (): Promise<string | null> =>
+  fetch('/sim-build.json', { cache: 'no-store', signal: AbortSignal.timeout(4000) })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((v: unknown) => (typeof v === 'object' && v !== null && 'build' in v && typeof v.build === 'string' ? v.build : null))
+    .catch(() => null)
+
+let advice: { room: string | null; answer: Promise<'reload' | 'oldRoom'> } | null = null
+
+/**
+ * What the client's `build` refusal means (`buildAdvice`): a reload reaches
+ * the room, or the room is older than the site (ask the host for a new one).
+ * Asked once per room build.
+ */
+export const buildRefusal = () => {
+  const room = coopClient()?.state().roomBuild ?? null
+  if (advice?.room !== room) {
+    const answer = latestSimBuild().then((latest) => buildAdvice({ own: __SIM_BUILD__, room, latest, reloaded: session.get(RELOADED_KEY) === (room ?? '?') }))
+    advice = { room, answer }
+  }
+  return advice.answer
+}
+
+/** This tab reloads for the refusing room's build: the same refusal won't offer it again. */
+export const markBuildReload = () => session.set(RELOADED_KEY, coopClient()?.state().roomBuild ?? '?')
 
 /** Puts the room in the page's link, so a reload or the shared link comes back to it. */
 export const linkRoom = (code: string | null) => {
@@ -135,8 +259,12 @@ const PERSONAL: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>([
   'evoItem', 'evoHeld', 'maxRevive', 'stolen', 'awaken', 'awakened',
 ])
 
-/** Events solo banks into the save that co-op never shows: a legendary's defeat counting toward its capture (solo's progression, `COOP_LOCKS`). */
-const SOLO_ONLY: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>(['legendBeaten'])
+/**
+ * Events tied to solo's progression that co-op never shows (`COOP_LOCKS`): a
+ * legendary's defeat counting toward its capture, a night boss ticking the
+ * Caça aos Fantasmas off (the Noite das Bruxas is off in co-op anyway).
+ */
+const SOLO_ONLY: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>(['legendBeaten', 'nightBoss'])
 
 /**
  * Whether an event of the simulation is this client's to see and hear: the
@@ -168,6 +296,11 @@ export const addBots = async (code: string, n: number) => {
     if (!res.ok) continue
     bot.client.setLoadout(botPick(k + 1))
     setTimeout(() => bot.client.setReady(true), 300)
+    // After a run the relay clears everyone's ready: a bot is ready for "Jogar de novo" a moment later.
+    bot.client.on((e) => {
+      const seat = bot.client.state().seat
+      if (e.kind === 'room' && e.room.phase === 'ended' && e.room.members.some((m) => m.seat === seat && !m.ready)) setTimeout(() => bot.client.setReady(true), 800)
+    })
     joined.push(res.seat)
   }
   if (botLoop === null) {
@@ -189,4 +322,10 @@ export const removeBots = () => {
 }
 
 export const botCount = () => bots.length
+
+/** Dev: the tab's bots stop kiting and walk into the horde (staging a faint, a revive, the team's wipe). */
+export const surrenderBots = () => {
+  for (const b of bots) b.surrender()
+  return bots.length
+}
 

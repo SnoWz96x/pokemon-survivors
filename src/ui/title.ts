@@ -14,7 +14,7 @@ import { dayKey, missionStatus } from '../game/missions'
 import { pendingPicks, playsShiny } from '../game/shinyPicks'
 import { supporterCount, type WallEntry } from '../game/supporters'
 import { formatNumber, locale, t } from '../i18n'
-import { bulbIcon, coinIcon, discordIcon, eggIcon, giftIcon, heartIcon, medalIcon, newsIcon, pokeballIcon, ribbonIcon, socialIcon, sparkleIcon, supporterIcon, surveyIcon } from '../render/art'
+import { bulbIcon, coinIcon, coopIcon, discordIcon, eggIcon, giftIcon, heartIcon, medalIcon, newsIcon, pokeballIcon, ribbonIcon, socialIcon, sparkleIcon, supporterIcon, surveyIcon } from '../render/art'
 import { logoScale, titleLogo } from '../render/logo'
 import { drawPokemon, loadedSprites, loadSpecies, type Dex } from '../render/sprites'
 import type { Place } from '../render/titleScene'
@@ -63,6 +63,7 @@ export type LobbyFocus =
   | 'mart'
   | 'ranking'
   | 'ideas'
+  | 'coop'
   | 'play'
   | SocialId
 
@@ -136,6 +137,8 @@ export type TitleActions = {
   supporters: (focus: LobbyFocus, open: 'pick' | null) => Screen
   /** Opens Convide amigos over the title (its card under the Hall), like `settings`. */
   invites: (focus: LobbyFocus) => Screen
+  /** Jogar junto (co-op): the hub. No action (no relay, or the beta's gate closed), no tile. */
+  coop?: () => void
   meadow: Meadow
 }
 
@@ -563,6 +566,13 @@ const dockTile = (key: LobbyFocus, icon: string, label: string, hotkey: string, 
     h('span', { class: 'key-hint' }, hotkey),
   )
 
+/** Jogar junto's tile, tagged as a beta. */
+const coopTile = () => {
+  const el = dockTile('coop', coopIcon(), t().coop.entry, 'J')
+  el.append(h('em', { class: 'lobby-beta' }, t().coop.beta))
+  return el
+}
+
 /* ---------------- Keyboard and gamepad ---------------- */
 
 /** The arrows (and the pad) move between the lobby's buttons; the movement keys (WASD) walk the partner instead. */
@@ -584,7 +594,7 @@ const heldMove = (input: Input): Vec => {
 }
 
 /** Shortcuts, shown as key hints on what they press (`C` belongs to the Trainer chip; P, E and Space are taken by the run's controls, and E talks to a shopkeeper the partner stands by). */
-const HOTKEYS: Readonly<Record<string, LobbyFocus>> = { KeyG: 'gifts', KeyN: 'news', KeyX: 'pokedex', KeyO: 'eggs', KeyL: 'mart', KeyR: 'ranking', KeyI: 'ideas', KeyM: 'missions', KeyH: 'hall' }
+const HOTKEYS: Readonly<Record<string, LobbyFocus>> = { KeyJ: 'coop', KeyG: 'gifts', KeyN: 'news', KeyX: 'pokedex', KeyO: 'eggs', KeyL: 'mart', KeyR: 'ranking', KeyI: 'ideas', KeyM: 'missions', KeyH: 'hall' }
 
 /** The "Falar · E" bubble over a shopkeeper while the strolling partner stands close (a tap on it talks too). */
 const talkPrompt = (onTalk: () => void) =>
@@ -609,7 +619,7 @@ export type ShopTrip = 'shop' | 'look'
  * Missões), the Hall da Fama card sits beside them (Convide amigos, Discord and the official profiles
  * under it; on landscape phones Discord and the profiles move to the top bar), the saved partner stands
  * in the middle, and JOGAR goes with the collection dock (Pokédex, Ovos,
- * Loja, Ranking, Ideias). Arrows move between all of them by where they are on
+ * Loja, Ranking, Ideias, and Co-op where the beta lets it in). Arrows move between all of them by where they are on
  * screen; Enter presses the highlighted one, JOGAR at first. The movement
  * keys, a tap on the grass or a drag (a joystick) send the partner off its
  * stage for a walk in the meadow (`Meadow`), where it greets the wild Pokémon.
@@ -706,7 +716,7 @@ export const titleScreen = (
     overScreen = open(current)
   }
 
-  const { ranking, ideas } = actions
+  const { ranking, ideas, coop } = actions
   const runs: Record<Exclude<LobbyFocus, 'trainer' | 'hall'>, () => void> = {
     help: () => location.assign(ROUTES.guide[lang]),
     settings: () => openOver(actions.settings),
@@ -725,6 +735,7 @@ export const titleScreen = (
     mart: () => visitShop('shop'),
     ranking: () => ranking && openOver(ranking),
     ideas: () => ideas && openOver(ideas),
+    coop: () => coop?.(),
     play: actions.play,
     tiktok: () => openSocial('tiktok'),
     youtube: () => openSocial('youtube'),
@@ -781,6 +792,8 @@ export const titleScreen = (
       ...(ranking ? [pressable(dockTile('ranking', medalIcon('gold'), m.ranking, 'R'), 'ranking')] : []),
       ...(ideas ? [pressable(dockTile('ideas', bulbIcon(), m.ideas, 'I'), 'ideas')] : []),
     ]
+    // Co-op sits right of JOGAR on wide screens (the right half's first tile), last on phones (`style.css`).
+    if (coop) tiles.splice(Math.ceil((tiles.length + 1) / 2), 0, pressable(coopTile(), 'coop'))
     const play = pressable(h('button', { class: 'lobby-play', type: 'button' }, h('span', {}, m.play), h('span', { class: 'key-hint' }, 'ENTER')), 'play')
     // JOGAR sits in the middle of the dock on wide screens, between the two halves (centered however many tiles each has); the CSS moves it above the tab bar on phones.
     const half = Math.ceil(tiles.length / 2)
@@ -801,7 +814,7 @@ export const titleScreen = (
       pressable(challengeCard(), 'challenge'),
       pressable(missionsCard(), 'missions'),
     )
-    const next = h('div', { class: 'lobby' }, h('h1', { class: 'sr-only' }, 'Pokémon Survivors'), h('div', { class: 'lobby-logo' }, logo), todayEl, side, stage.el, bottom)
+    const next = h('div', { class: tiles.length > 5 ? 'lobby dock6' : 'lobby' }, h('h1', { class: 'sr-only' }, 'Pokémon Survivors'), h('div', { class: 'lobby-logo' }, logo), todayEl, side, stage.el, bottom)
     ;(lobby ?? intro).replaceWith(next)
     lobby = next
     if (logo.width > 1) fitLogo(logo, false)

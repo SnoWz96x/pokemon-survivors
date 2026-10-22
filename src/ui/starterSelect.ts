@@ -57,7 +57,8 @@ const tabOf = (id: PlayableId): Tab => (isHatchling(id) ? 'eggs' : isLegend(id) 
 type SelectActions = {
   pick: (id: PlayableId) => void
   back: () => void
-  mart: () => void
+  /** The Poké Mart; co-op has none (the Bag stays home). */
+  mart?: () => void
   settings: () => void
   incubator: () => void
 }
@@ -75,8 +76,11 @@ type SelectActions = {
  * Lure and an Incense, O opens the incubator, L the Poké Mart, Enter starts, Esc/Backspace go back.
  * Pointer: a tap selects, a tap on the selected cell (or Start) starts.
  * `selected` reads the selected Pokémon, so a rebuilt screen (language switch, back from a sub-screen) keeps it.
+ * `coop`: picking the Pokémon for a co-op room, which plays the normal mode (`COOP_LOCKS`): no
+ * Lendários tab, no Bag, TMs or Bottle Caps, no Poké Mart, and the host sets the difficulty, so the
+ * bar is just "Escolher".
  */
-export const starterSelect = (root: HTMLElement, input: Input, actions: SelectActions, initial: PlayableId = 'charmander'): Screen & { selected: () => PlayableId } => {
+export const starterSelect = (root: HTMLElement, input: Input, actions: SelectActions, initial: PlayableId = 'charmander', opts: { coop?: boolean } = {}): Screen & { selected: () => PlayableId } => {
   const m = t()
   const save = loadSave()
   const unlocked = (id: PlayableId) => canPlay(save, id)
@@ -85,7 +89,9 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
   const canPick = (id: PlayableId) => ownsShiny(save, id)
   const shinyOf = (id: PlayableId) => playsShiny(forms, id)
 
-  let tab: Tab = tabOf(initial)
+  /** Co-op leaves the Legend mode home: no Lendários tab, and a legend partner opens on the starters. */
+  const tabs: readonly Tab[] = opts.coop ? TABS.filter((k) => k !== 'legends') : TABS
+  let tab: Tab = tabs.includes(tabOf(initial)) ? tabOf(initial) : 'starters'
   /** Each tab remembers its own cursor, so switching back lands where it was. */
   const firstHatched = HATCHLING_IDS.find((id) => save.hatched[id]) ?? HATCHLING_IDS[0]!
   const firstCaptured = LEGEND_IDS.find((id) => isCaptured(save.legends, id)) ?? LEGEND_IDS[0]
@@ -134,7 +140,7 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
     return level ? h('img', { class: 'partner-cell-clear', src: trophyIcon(level), alt: clearText(id) ?? '' }) : null
   }
   /** A Pokémon's Bottle Caps (`game/evoItems.ts`) as pips at the cell's foot, when it has any. */
-  const capTag = (id: PlayableId) => (capLevel(save.caps, id) > 0 ? capPips(capLevel(save.caps, id)) : null)
+  const capTag = (id: PlayableId) => (!opts.coop && capLevel(save.caps, id) > 0 ? capPips(capLevel(save.caps, id)) : null)
   const cellTitle = (id: PlayableId, name: string) => [name, clearText(id)].filter((s) => s !== null).join(' · ')
 
   const cells = new Map<PlayableId, HTMLElement>()
@@ -255,10 +261,10 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
   const roster = h(
     'section',
     { class: 'partner-roster box' },
-    h('div', { class: 'partner-tabs', role: 'tablist' }, tabButtons.starters, tabButtons.eggs, tabButtons.legends, h('span', { class: 'key-hint' }, 'TAB')),
+    h('div', { class: 'partner-tabs', role: 'tablist' }, ...tabs.map((k) => tabButtons[k]), h('span', { class: 'key-hint' }, 'TAB')),
     h('div', { class: 'partner-pane starters' }, starterGrid, teaser),
     eggsPane,
-    legendsPane,
+    !opts.coop && legendsPane,
   )
 
   /* ---------- Partner panel ---------- */
@@ -461,18 +467,21 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
   renderTms()
   }
 
-  const bar = actionBar(
-    h('div', { class: 'partner-bag' }, bagLabel, ...slots, tmSlots),
-    h('div', { class: 'partner-diff' }, h('div', { class: 'partner-diff-row' }, seg.el, h('span', { class: 'key-hint' }, 'X')), blurb),
-    go,
-  )
+  const bar = opts.coop
+    ? actionBar(go)
+    : actionBar(
+        h('div', { class: 'partner-bag' }, bagLabel, ...slots, tmSlots),
+        h('div', { class: 'partner-diff' }, h('div', { class: 'partner-diff-row' }, seg.el, h('span', { class: 'key-hint' }, 'X')), blurb),
+        go,
+      )
   bar.classList.add('partner-bar')
+  if (opts.coop) bar.classList.add('coop')
 
   /* ---------- State ---------- */
 
   const renderGo = () => {
     const id = current()
-    go.querySelector('.partner-go-label')!.textContent = unlocked(id) ? `${m.partner.start} ▶` : isLegend(id) ? m.legend.lockedButton : m.eggs.lockedButton
+    go.querySelector('.partner-go-label')!.textContent = unlocked(id) ? `${opts.coop ? m.coop.lobby.pick : m.partner.start} ▶` : isLegend(id) ? m.legend.lockedButton : m.eggs.lockedButton
     paintGo()
   }
 
@@ -535,7 +544,7 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
       const cols = getComputedStyle(eggGrid).gridTemplateColumns.split(' ').length || 1
       const next = stepGrid(HATCHLING_IDS.indexOf(cursor.eggs), dir, cols, HATCHLING_IDS.length)
       if (next === 'above') return setTab('starters')
-      if (next === 'below') return setTab('legends')
+      if (next === 'below') return tabs.includes('legends') ? setTab('legends') : undefined
       return select(HATCHLING_IDS[next]!)
     }
     if (tab === 'legends') {
@@ -580,7 +589,7 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
       id,
       stage,
       shiny: shinyOf(id),
-      go: h('button', { class: 'partner-go', type: 'button', onclick: () => confirm() }, m.partner.startWith(PLAYABLE[id].name)),
+      go: h('button', { class: 'partner-go', type: 'button', onclick: () => confirm() }, opts.coop ? m.coop.lobby.pick : m.partner.startWith(PLAYABLE[id].name)),
       onStage: (i) => ((stage = i), renderHero()),
       onClose: closeDetails,
     })
@@ -590,25 +599,26 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
 
   /** Leaves for another screen after this press is done. */
   const leave = (fn: () => void) => (playSfx('select'), later(fn))
+  const mart = opts.coop ? undefined : actions.mart
   const back = () => (playSfx('move'), later(actions.back))
 
   const off = input.onKey((key) => {
     if (sheet?.onKey(key)) return
-    if (key === 'KeyX') return setDifficulty(DIFFICULTY_IDS[(DIFFICULTY_IDS.indexOf(difficulty) + 1) % DIFFICULTY_IDS.length]!)
+    if (key === 'KeyX' && !opts.coop) return setDifficulty(DIFFICULTY_IDS[(DIFFICULTY_IDS.indexOf(difficulty) + 1) % DIFFICULTY_IDS.length]!)
     if (key === 'KeyZ') return setShiny(!shinyOf(current()))
-    const item = BAG_ITEM_IDS.find((i) => BAG_KEYS[i] === key)
+    const item = opts.coop ? undefined : BAG_ITEM_IDS.find((i) => BAG_KEYS[i] === key)
     if (item) return toggleBag(item)
     if (sheet) return
     if (key === 'ArrowLeft' || key === 'KeyA') step('left')
     else if (key === 'ArrowRight' || key === 'KeyD') step('right')
     else if (key === 'ArrowUp' || key === 'KeyW') step('up')
     else if (key === 'ArrowDown' || key === 'KeyS') step('down')
-    else if (key === 'Tab' || key === 'KeyE' || key === 'PageDown') setTab(TABS[(TABS.indexOf(tab) + 1) % TABS.length]!)
-    else if (key === 'KeyQ' || key === 'PageUp') setTab(TABS[(TABS.indexOf(tab) + TABS.length - 1) % TABS.length]!)
+    else if (key === 'Tab' || key === 'KeyE' || key === 'PageDown') setTab(tabs[(tabs.indexOf(tab) + 1) % tabs.length]!)
+    else if (key === 'KeyQ' || key === 'PageUp') setTab(tabs[(tabs.indexOf(tab) + tabs.length - 1) % tabs.length]!)
     else if (/^Digit[1-9]$/.test(key)) select(STARTER_IDS[(Number(key.slice(5)) - 1) * 3 + (STARTER_IDS.indexOf(cursor.starters) % 3)]!)
     else if (key === 'KeyI') openDetails()
     else if (key === 'KeyO') openIncubator()
-    else if (key === 'KeyL') leave(actions.mart)
+    else if (key === 'KeyL' && mart) leave(mart)
     else if (key === 'Escape' || key === 'Backspace') back()
     else if (key === 'Enter' || key === 'Space') confirm()
   })
@@ -621,7 +631,7 @@ export const starterSelect = (root: HTMLElement, input: Input, actions: SelectAc
     top: topBar({
       left: backButton(back),
       title: h('span', {}, h('span', { class: 'partner-title-long' }, m.partner.title), h('span', { class: 'partner-title-short' }, m.partner.titleShort)),
-      right: [walletChip(save.wallet, { label: m.mart.open, onClick: () => leave(actions.mart), key: 'L' }), gearButton(() => leave(actions.settings))],
+      right: [mart && walletChip(save.wallet, { label: m.mart.open, onClick: () => leave(mart), key: 'L' }), gearButton(() => leave(actions.settings))],
     }),
     body: [h('div', { class: 'partner-layout' }, hero, roster)],
     bottom: bar,

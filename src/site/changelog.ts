@@ -28,7 +28,7 @@ export type ChangelogUpdate = {
 export const CHANGELOG: readonly ChangelogUpdate[] = [
   {
     date: '2026-10-21',
-    title: { pt: 'Noite das Bruxas e lendários jogáveis', en: 'Halloween Night and playable legendaries', es: 'Noche de Brujas y legendarios jugables' },
+    title: { pt: 'Noite das Bruxas, lendários jogáveis e co-op em beta', en: 'Halloween Night, playable legendaries and co-op in beta', es: 'Noche de Brujas, legendarios jugables y co-op en beta' },
     highlights: [
       { pt: 'Modo Lendário: vença os 23 lendários como chefes, no mapa ou nas novas fendas épicas, para capturá-los e jogar com eles, com ranking próprio.', en: 'Legend Mode: beat all 23 legendaries as bosses, on the map or in the new epic rifts, to catch them and play as them, with their own ranking.', es: 'Modo Legendario: vence a los 23 legendarios como jefes, en el mapa o en las nuevas grietas épicas, para capturarlos y jugar con ellos, con su propio ranking.' },
       { pt: 'Noite das Bruxas de 24/10 a 2/11: partidas assombradas, à noite, com um surto de fantasma por dia, abóboras pelo mapa e 12 chefes da noite no lugar do Onix e do Snorlax. Os doces enchem um pote de prêmios.', en: 'Halloween Night from Oct 24 to Nov 2: haunted runs, at night, with a ghost outbreak every day, jack-o\'-lanterns all over the map and 12 night bosses in Onix\'s and Snorlax\'s places. Candies fill a jar of prizes.', es: 'Noche de Brujas del 24/10 al 2/11: partidas embrujadas, de noche, con un brote de fantasma por día, calabazas por el mapa y 12 jefes de la noche en el lugar de Onix y Snorlax. Los dulces llenan un frasco de premios.' },
@@ -37,6 +37,36 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
       { pt: 'Apoiadores até 2/11 trocam o coração por uma abóbora, para sempre, e ganham o Pumpkaboo como companheiro (shiny no Ouro).', en: 'Supporters by Nov 2 swap their heart for a jack-o\'-lantern, forever, and get Pumpkaboo as a companion (shiny for Gold).', es: 'Quien apoye hasta el 2/11 cambia el corazón por una calabaza, para siempre, y gana a Pumpkaboo como compañero (shiny en Oro).' },
     ],
     changes: [
+      {
+        title: { pt: 'Jogar junto (beta)', en: 'Play together (beta)', es: 'Jugar juntos (beta)' },
+        notes: [
+          {
+            pt: 'Até 4 treinadores na mesma partida, cada um com o seu Pokémon. Crie uma sala pelo Co-op do lobby e mande o link ou o código de 5 letras; quem abre o link entra com a sua conta (grátis), e a equipe vê o @ de cada um. O anfitrião escolhe a dificuldade e começa quando todos estiverem prontos.',
+            en: 'Up to 4 trainers in the same run, each with their own Pokémon. Create a room from the lobby\'s Co-op and send the link or the 5-letter code; whoever opens the link joins with their free account, and the team sees each player\'s @handle. The host picks the difficulty and starts once everyone is ready.',
+            es: 'Hasta 4 entrenadores en la misma partida, cada uno con su Pokémon. Crea una sala desde el Co-op del lobby y manda el enlace o el código de 5 letras; quien abre el enlace entra con su cuenta (es gratis), y el equipo ve el @ de cada uno. El anfitrión elige la dificultad y empieza cuando todos estén listos.',
+          },
+          {
+            pt: 'Os level-ups e as escolhas acontecem ao mesmo tempo para todos, com um relógio. Quem desmaia vira uma Poké Ball que um colega revive ficando ao lado, e enquanto isso assiste a partida de quem ainda está de pé.',
+            en: 'Level-ups and picks happen for everyone at once, on a clock. A fainted player turns into a Poké Ball a teammate revives by standing next to it, and meanwhile watches whoever is still standing.',
+            es: 'Las subidas de nivel y las elecciones pasan para todos a la vez, con un reloj. Quien se desmaya se vuelve una Poké Ball que un compañero revive quedándose al lado, y mientras tanto mira la partida de quien sigue en pie.',
+          },
+          {
+            pt: 'O ₽ da equipe é dividido entre todos, e cada um leva o próprio bônus do fim. No fim tem os números de cada um, com um destaque para cada treinador, e Jogar de novo mantém a equipe na sala. O co-op é o modo normal: não vale para o ranking e fica sem Modo Lendário, Surto do dia, Noite das Bruxas, Mochila e TMs da loja.',
+            en: "The team's ₽ is split among everyone, and each player keeps their own end bonus. The end shows everyone's numbers, with a highlight for each trainer, and Play again keeps the team in the room. Co-op is the standard mode: it doesn't count for the ranking and leaves out Legend Mode, the daily Outbreak, Halloween Night, the Bag and the shop's TMs.",
+            es: 'Los ₽ del equipo se reparten entre todos, y cada uno se lleva su propio bono del final. Al final se ven los números de cada uno, con un destacado para cada entrenador, y Jugar de nuevo mantiene al equipo en la sala. El co-op es el modo normal: no cuenta para el ranking y queda sin Modo Legendario, Brote del día, Noche de Brujas, Mochila ni MT de la tienda.',
+          },
+          {
+            pt: 'Adicione amigos pelo @nome, veja quem está online, numa sala ou jogando, e convide para a sua sala. O convite aparece no lobby de quem você chamou.',
+            en: 'Add friends by @handle, see who\'s online, in a room or playing, and invite them to your room. The invite shows up in their lobby.',
+            es: 'Agrega amigos por @nombre, mira quién está en línea, en una sala o jugando, e invítalos a tu sala. La invitación aparece en su lobby.',
+          },
+          {
+            pt: 'É um beta: primeiro para quem está no nosso Discord. Se a conexão cair, a partida continua e você volta de onde parou.',
+            en: "It's a beta: first for the people in our Discord. If your connection drops, the run goes on and you pick up where you left off.",
+            es: 'Es una beta: primero para quienes están en nuestro Discord. Si se cae la conexión, la partida sigue y vuelves donde quedaste.',
+          },
+        ],
+      },
       {
         title: { pt: 'Cenário e ícones novos', en: 'New scenery and icons', es: 'Escenario e íconos nuevos' },
         notes: [

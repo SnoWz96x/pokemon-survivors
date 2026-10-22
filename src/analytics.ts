@@ -8,6 +8,7 @@ import type { BagItem } from './data/shop'
 import type { SurveyAnswer } from './data/survey'
 import type { Difficulty } from './game/difficulty'
 import type { RunMode } from './game/ranking'
+import { isRecord } from './game/parse'
 import type { LobbyFocus } from './ui/title'
 
 /**
@@ -103,6 +104,19 @@ type AnalyticsEvents = {
   survey_difficulty: Record<Difficulty, SurveyAnswer> & { runs: number; wins: number }
   /** A co-op client diverged and was healed from the agreed snapshot: the room, the tick it was told at, and how long until it was back in step. */
   coop_heal: { room: string; tick: number; ms: number }
+  /**
+   * Co-op's beta, one event per step: a room created, a room joined (by a typed code, a link or a friend's
+   * invite), a run started (by the host, once per run), a run ended for this player (how, how long, how many),
+   * a failure to create, join or stay (`why`: the client's `CloseWhy` or the create refusal), and a guest
+   * stopped at the door to sign in (`gate`: from the lobby's tile or a room's link).
+   */
+  coop:
+    | { step: 'gate'; via: 'tile' | 'link' }
+    | { step: 'create' }
+    | { step: 'join'; via: 'code' | 'link' | 'invite' }
+    | { step: 'start'; players: number; difficulty: Difficulty }
+    | { step: 'end'; players: number; minute: number; outcome: 'victory' | 'wipe' | 'endless' | 'left'; difficulty: Difficulty }
+    | { step: 'fail'; at: 'create' | 'join' | 'room' | 'run'; why: string }
 }
 
 declare global {
@@ -120,12 +134,21 @@ const MAX_ERRORS = 20
 const MAX_REPLAY = 400_000
 
 let posthog: PostHog | null = null
-/** Calls waiting for PostHog to load; null once it won't (not a live domain, failed to load). */
-let pending: ((ph: PostHog) => void)[] | null = []
+/** Calls waiting for PostHog to load, with what to do if it never does; null once it won't (not a live domain, failed to load). */
+let pending: { fn: (ph: PostHog) => void; never?: () => void }[] | null = []
 
-const withPosthog = (fn: (ph: PostHog) => void) => {
+/** Runs `fn` with PostHog once it's loaded; `never` runs instead where it won't load (or too many calls already wait). */
+const withPosthog = (fn: (ph: PostHog) => void, never?: () => void) => {
   if (posthog) return fn(posthog)
-  if (pending && pending.length < 100) pending.push(fn)
+  if (pending && pending.length < 100) pending.push({ fn, never })
+  else never?.()
+}
+
+/** PostHog won't load: whoever waits on it hears so. */
+const giveUp = () => {
+  const waiting = pending ?? []
+  pending = null
+  for (const p of waiting) p.never?.()
 }
 
 /** Umami takes flat data only. */
@@ -153,6 +176,39 @@ export const identify = (userId: string | null, handle: string | null) => {
     if (ph.get_distinct_id() !== userId) ph.identify(userId, handle ? { handle } : undefined)
     else if (handle && before?.userId === userId) ph.setPersonProperties({ handle })
   })
+}
+
+/**
+ * Evaluates one feature flag for this device's person, or null where PostHog
+ * doesn't run (the promise waits for it to load, and gets null if it never
+ * does). PostHog's own flags stay off (`advanced_disable_flags`: they'd fetch
+ * the remote config, whose `/array/<key>/config` gets Vercel's trailing-slash
+ * 308 and a 404, and could turn on features from the dashboard), so this asks
+ * `/flags/` itself, a path that already ends in a slash, for the one key. The
+ * handle goes along so a flag can target players before PostHog has ingested
+ * their person.
+ */
+export const featureFlag = (key: string): Promise<boolean | null> =>
+  new Promise((resolve) => {
+    withPosthog(
+      (ph) => {
+        const body = { token: POSTHOG_KEY, distinct_id: ph.get_distinct_id(), person_properties: identity?.handle ? { handle: identity.handle } : {}, flag_keys: [key] }
+        fetch('/ingest/flags/?v=2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000) })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((json: unknown) => resolve(flagIn(json, key)))
+          .catch(() => resolve(null))
+      },
+      () => resolve(null),
+    )
+  })
+
+/** A flag's answer in a `/flags/?v=2` response (`flags[key].enabled`, or the older `featureFlags[key]`), or null. */
+export const flagIn = (json: unknown, key: string): boolean | null => {
+  if (!isRecord(json)) return null
+  const flag = isRecord(json.flags) ? json.flags[key] : undefined
+  if (isRecord(flag) && 'enabled' in flag) return flag.enabled === true
+  const legacy = isRecord(json.featureFlags) ? json.featureFlags[key] : undefined
+  return legacy === undefined ? null : Boolean(legacy)
 }
 
 /** What an error report carries besides the error: where the player was, and the run's replay (see `game/replay.ts`). */
@@ -222,7 +278,7 @@ const live = () => {
  */
 export const startAnalytics = (context: () => ErrorContext) => {
   const key = POSTHOG_KEY
-  if (!key || !live()) return void (pending = null)
+  if (!key || !live()) return giveUp()
   // "Script error." comes from other origins (extensions) with nothing to go on.
   addEventListener('error', (e) => e.error && isOwnError(e.error, e.filename, location.origin) && reportError(e.error, context))
   addEventListener('unhandledrejection', (e) => isOwnError(e.reason, undefined, location.origin) && reportError(e.reason, context))
@@ -241,17 +297,17 @@ export const startAnalytics = (context: () => ErrorContext) => {
           capture_performance: false,
           disable_session_recording: true,
           disable_surveys: true,
-          // No feature flags, and so no remote config: its `/array/<key>/config` would get Vercel's trailing slash and a 404.
+          // No feature flags, and so no remote config: its `/array/<key>/config` would get Vercel's trailing slash and a 404. The co-op beta's one flag goes through `featureFlag`.
           advanced_disable_flags: true,
           // Our listeners above report errors, with the run's context.
           capture_exceptions: false,
         })
         ph.register({ version: __GAME_VERSION__ })
         posthog = ph
-        pending?.forEach((fn) => fn(ph))
+        pending?.forEach((p) => p.fn(ph))
         pending = null
       })
-      .catch(() => void (pending = null))
+      .catch(giveUp)
   if ('requestIdleCallback' in window) requestIdleCallback(() => void load(), { timeout: 4000 })
   else setTimeout(() => void load(), 2000)
 }

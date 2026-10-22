@@ -93,12 +93,37 @@ const constantIn = (path: string, name: string) => Number(new RegExp(`export con
 export const simBuild = () =>
   simBuildId(SIM_ROOTS, readRepoFile, { rules: constantIn('src/game/replay.ts', 'RULES_VERSION'), protocol: constantIn('src/net/protocol.ts', 'PROTOCOL') }).id
 
+const SIM_BUILD = simBuild()
+
+/**
+ * `/sim-build.json`: the co-op build id the site serves now (`{ build }`), so a
+ * page refused by a room on another build can tell an older room from its own
+ * page being behind (`coop/lobby.ts`, `buildAdvice`). Emitted by the build, served in dev.
+ */
+const simBuildFile = (): Plugin => {
+  const body = JSON.stringify({ build: SIM_BUILD })
+  return {
+    name: 'sim-build-file',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'sim-build.json', source: body })
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if ((req.url ?? '').split('?')[0] !== '/sim-build.json') return next()
+        res.setHeader('Content-Type', 'application/json')
+        res.setHeader('Cache-Control', 'no-store')
+        res.end(body)
+      })
+    },
+  }
+}
+
 // One page per language for the game (index.html, en/index.html, es/index.html); the site pages are added by `sitePages`.
 export default defineConfig({
-  plugins: [sitePages()],
+  plugins: [sitePages(), simBuildFile()],
   // The co-op relay (`relay/`) is its own package with its own Workers test runner.
   test: { exclude: ['**/node_modules/**', '**/.git/**', 'relay/**'] },
-  define: { __GAME_VERSION__: JSON.stringify(gameVersion()), __SIM_BUILD__: JSON.stringify(simBuild()) },
+  define: { __GAME_VERSION__: JSON.stringify(gameVersion()), __SIM_BUILD__: JSON.stringify(SIM_BUILD) },
   // PostHog's proxy, as vercel.json has it, to try analytics locally (`ps:analytics` set to `on` in localStorage).
   server: { proxy: { '/ingest': { target: 'https://us.i.posthog.com', changeOrigin: true, rewrite: (path) => path.replace(/^\/ingest/, '') } } },
   build: {

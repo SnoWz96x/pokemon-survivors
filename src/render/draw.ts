@@ -64,7 +64,7 @@ import { CALM_PERIOD, HURT_TINT, type Flashes } from './flashes'
 import { detail } from './quality'
 import { localPlayer } from '../game/players'
 import { riftDomain } from '../game/rift'
-import { COOP } from '../data/coop'
+import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, flushTeamAttacks, showsPlain, showsStanding, teamAttackLayer } from './team'
 
 type Ctx = CanvasRenderingContext2D
 
@@ -635,12 +635,13 @@ const drawRageEmbers = (ctx: Ctx, x: number, cy: number, size: number, t: number
 
 const hpColor = (ratio: number) => (ratio > 0.5 ? '#48d048' : ratio > 0.2 ? '#f8c830' : '#f04030')
 
-/** Chain dash afterimages: fading type-colored copies of the player along the lunge. */
+/** Chain dash afterimages: fading type-colored copies of `g`'s player along their own lunge (co-op: each teammate's from their copy). */
 const drawAfterimages = (ctx: Ctx, g: Game, calm: boolean) => {
   const p = localPlayer(g)
-  const s = playerSprites(g, megaLook(g, calm).form)
+  let s: ReturnType<typeof sprites> | null = null
   for (const a of g.attacks) {
-    if (a.visual !== 'afterimage' || a.age < 0) continue
+    if (a.visual !== 'afterimage' || a.age < 0 || a.owner !== p.slot) continue
+    s ??= playerSprites(g, megaLook(g, calm).form)
     const k = a.age / a.ttl
     drawPokemon(ctx, s, airborne(s, inSky(g), 'Walk'), p.dir, p.animTime, a.x, a.y, { alpha: 0.7 * (1 - k), tint: { color: TYPE_COLORS[a.type], amount: 1 } })
   }
@@ -865,39 +866,8 @@ const TEXT_PASSES = [false, true] as const
 export type RenderOptions = { damageNumbers: DamageNumbers; screenShake: boolean; flashes: Flashes; companion?: CompanionView | null; mates?: readonly Game[] }
 
 const isMate = (d: Drawable): d is Mate => typeof d === 'object' && 'mate' in d
-
-/** A name as the in-world font can write it: capitals and digits, accents off, short. */
-const nameTag = (name: string) =>
-  name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9 ]/g, '')
-    .trim()
-    .slice(0, 12)
-
-/** A teammate where they stand: their Pokémon and name, or the Poké Ball they fainted into (a teammate standing by gets them up). */
-const drawMate = (ctx: Ctx, mate: Game, calm: boolean, t: number) => {
-  const p = localPlayer(mate)
-  if (p.gone) return
-  const name = nameTag(mate.coop?.names[p.slot] ?? '')
-  if (p.hp <= 0) {
-    blitCentered(ctx, PICKUPS.pokeball(), p.x, p.y - 3 + Math.round(Math.sin(t * 3) * 1))
-    if (p.revive > 0) {
-      const w = 18
-      ctx.fillStyle = '#181818'
-      ctx.fillRect(Math.round(p.x - w / 2) - 1, Math.round(p.y + 5), w + 2, 3)
-      ctx.fillStyle = '#f8d830'
-      ctx.fillRect(Math.round(p.x - w / 2), Math.round(p.y + 6), Math.ceil((w * p.revive) / COOP.revive.time), 1)
-    }
-  } else drawPlayer(ctx, mate, calm)
-  if (name) {
-    const s = playerSprites(mate)
-    ctx.globalAlpha = p.away ? 0.5 : 0.9
-    blitCentered(ctx, textSprite(name, p.away ? '#a0a0a0' : '#f8f8f8'), p.x, p.y - (p.hp > 0 ? s.bodyH : 10) - 6)
-    ctx.globalAlpha = 1
-  }
-}
+/** The teammates' drawables, kept from frame to frame. */
+const mateSlots: Mate[] = []
 
 /** Particles a lean frame draws at most (`render/quality.ts`). */
 const LEAN_PARTICLES = 120
@@ -932,7 +902,11 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
 
   drawTerrainGround(ctx, g, look, camX, camY)
   // Ground marks far off screen (trails left behind, lingering fields) are skipped; the margin covers the widest of them.
-  for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, Math.max(200, reachOf(a.shape)))) drawGroundAttack(ctx, a, t)
+  const me = localPlayer(g)
+  // Co-op: teammates' hitboxes go through a see-through layer, so your own read first (`teamAttackLayer`).
+  let team = g.coop ? teamAttackLayer(w, h, camX, camY) : null
+  for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, Math.max(200, reachOf(a.shape)))) drawGroundAttack(team && a.owner !== me.slot ? team : ctx, a, t)
+  if (team) flushTeamAttacks(ctx, camX, camY)
   drawVerbGround(ctx, g, t)
   drawTmGround(ctx, g, t)
   drawShopTm2Ground(ctx, g, t)
@@ -959,13 +933,22 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   drawTraitGround(ctx, g, visible)
   drawAlphaGround(ctx, g, t, visible)
   drawPickups(ctx, g, t)
+  if (g.coop) drawTeamGround(ctx, g, t)
 
   drawables.length = 0
   // A wave legendary's scene draws it itself (its arrival, its capture).
   const hiddenBoss = sceneHides(g)
   for (const e of g.enemies) if (visible(e.x, e.y) && e.id !== hiddenBoss) drawables.push(e)
   drawables.push('player')
-  for (const mate of opts.mates ?? []) drawables.push({ mate })
+  const mates = opts.mates ?? []
+  for (let i = 0; i < mates.length; i++) {
+    const mate = mates[i]!
+    const p = localPlayer(mate)
+    if (p.gone || !visible(p.x, p.y)) continue
+    const slot = (mateSlots[i] ??= { mate })
+    slot.mate = mate
+    drawables.push(slot)
+  }
   const companion = opts.companion
   if (companion) drawables.push('companion')
   solidsInView(g, camX, camY, w, h, drawables)
@@ -988,12 +971,15 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   const hidden = playerUnderground(g)
   for (const d of inDepth) {
     if (aloft) break
+    // A fainted co-op player's Poké Ball casts its own.
     if (d === 'player') {
       if (hidden) continue
-      const body = playerSprites(g).bodyW
-      shadow(ctx, localPlayer(g).x, localPlayer(g).y, body)
-      drawWading(ctx, g, body, t)
-      drawLegendAura(ctx, g, t, calm)
+      if (!g.coop || showsStanding(me)) {
+        const body = playerSprites(g).bodyW
+        shadow(ctx, localPlayer(g).x, localPlayer(g).y, body)
+        drawWading(ctx, g, body, t)
+        drawLegendAura(ctx, g, t, calm)
+      }
     }
     else if (d === 'companion') companion && shadow(ctx, companion.x, companion.y, sprites(companion.dex).bodyW)
     // Drawing lean, the regular horde goes without: a shadow each is a draw call each.
@@ -1003,10 +989,12 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
     } else if (!isSolid(d) && d.dying < 0 && (!lean || d.boss || d.alpha)) shadow(ctx, d.x, d.y, d.radius * 3)
   }
   drawAfterimages(ctx, g, calm)
+  for (const mate of mates) drawAfterimages(ctx, mate, calm)
   for (const d of inDepth) {
-    if (d === 'player') !hidden && drawPlayer(ctx, g, calm)
+    // Co-op: a player fainted, away or wrapped up in a moment of their own draws its own way (`render/team.ts`); this one only when fainted (their screen says the rest).
+    if (d === 'player') !hidden && (g.coop && !showsStanding(me) ? drawTeammate(ctx, g, me, t, calm) : drawPlayer(ctx, g, calm))
     else if (d === 'companion') companion && drawCompanion(ctx, companion, t)
-    else if (isMate(d)) drawMate(ctx, d.mate, calm, t)
+    else if (isMate(d)) showsPlain(localPlayer(d.mate)) ? drawPlayer(ctx, d.mate, calm) : drawTeammate(ctx, d.mate, localPlayer(d.mate), t, calm)
     else if (isSolid(d)) drawSolid(ctx, g, d, look)
     else drawEnemy(ctx, d, g.now, t, calm, aloft, isClone(g, d))
   }
@@ -1037,8 +1025,11 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   drawCapture(ctx, g, t)
   drawDomainAir(ctx, g, t)
   drawLegendScene(ctx, g, t)
+  if (g.coop) drawTeamAir(ctx, g, me, t)
 
-  for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, 200)) drawAttack(ctx, a, t)
+  team = g.coop ? teamAttackLayer(w, h, camX, camY) : null
+  for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, 200)) drawAttack(team && a.owner !== me.slot ? team : ctx, a, t)
+  if (team) flushTeamAttacks(ctx, camX, camY)
   drawVerbAir(ctx, g, t, visible)
   drawTmAir(ctx, g, t, visible)
   drawShopTmAir(ctx, g, t, visible)
@@ -1094,6 +1085,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   if (!indoors) drawMapEventMarkers(ctx, g, t)
   drawAlphaMarkers(ctx, g, t, markerInsets())
   drawBossMarker(ctx, g, camX, camY, t)
+  if (g.coop) drawTeamMarkers(ctx, g, me, camX, camY, t)
   drawRiftFallOut(ctx, g)
   drawPlaceFallOut(ctx, g)
   // Explosions, rift jumps, a Mega's burst: white over the whole screen, unless flashes are reduced.
