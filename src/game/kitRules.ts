@@ -7,7 +7,7 @@ import type { Enemy, OwnedMove, Player } from './types'
 /**
  * Pure rules of the move kit (`moveKit.ts` documents how moves use them):
  * conditional damage bonuses, execute, drain, per-move stacks, player
- * readings, seed jumps and the one-manual-move rule. No game state is touched
+ * readings, seed jumps, the one-manual-move rule and the ward rule. No game state is touched
  * here, so each rule is tested on its own (`kitRules.test.ts`).
  */
 
@@ -159,3 +159,21 @@ export const nearestFoes = <T extends Foe>(foes: readonly T[], from: T, count: n
 /** At most one manual move in the loadout: a manual `id` can only be learned when none of `owned` is manual. */
 export const learnable = (owned: readonly MoveId[], id: MoveId, manual: (id: MoveId) => boolean) =>
   !manual(id) || !owned.some(manual)
+
+/* ---------------- Immunity windows ---------------- */
+
+/** Seconds after one move's immunity window (a guard, a burrow) closes before a different move can open one. */
+export const WARD_GAP = 0.75
+
+/** The player's last immunity window: the move that held it and the last time it stood, on the never-paused clock (`g.now`). */
+export type Ward = { move: MoveId; at: number }
+
+/**
+ * Whether `move` may open an immunity window at `now`. Protections from
+ * different moves don't chain, like Protect failing when used twice in a row:
+ * another move waits until `WARD_GAP` s after the window closed (`holder` is
+ * the move whose window is open right now, if any). The move holding the
+ * window may always renew it (Protect's bubble, an echo).
+ */
+export const wardOpens = (ward: Ward | null, holder: MoveId | null, move: MoveId, now: number) =>
+  holder !== null ? holder === move : ward === null || ward.move === move || now - ward.at >= WARD_GAP

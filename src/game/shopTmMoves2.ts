@@ -173,12 +173,12 @@ const thunderWave = (g: Game, s: CastStats) => {
 /**
  * Takes off for `duration` s: invulnerable and lost to the foes (the kit's
  * burrow), still steering, then `flySlam` where it lands. A player already
- * out of reach (Dig) stays put.
+ * out of reach (Dig), or whose last protection from another move just fell
+ * (`wardOpens`), stays put.
  */
 const fly = (g: Game, s: CastStats) => {
   const p = g.player
-  if (p.hidden) return
-  burrow(g, 'fly', s.duration)
+  if (p.hidden || !burrow(g, 'fly', s.duration)) return
   spawnAttack(g, {
     ...look('fly', 'flying', 'flyLift'), x: p.x, y: p.y, shape: { kind: 'circle', r: 1 }, motion: { kind: 'follow', ox: 0, oy: 0 },
     damage: 0, ttl: s.duration, activeFrom: Infinity, mod: null,

@@ -141,16 +141,18 @@ const thiefHit = (g: Game, _a: Attack, e: Enemy) => {
 /**
  * A bubble closes around you for `duration` s: nothing gets through (every
  * hit is negated, `onGuard` reopens the guard until the bubble pops), and it
- * shoves what touches it.
+ * shoves what touches it. It fails while another move's protection stands
+ * or just fell (`wardOpens`).
  */
 const protect = (g: Game, s: CastStats) => {
   const p = g.player
+  // Another move's protection stands or just fell: it fails, as Protect used twice in a row does.
+  if (!guard(g, 'protect', s.duration)) return
   spawnAttack(g, {
     ...look('protect', 'normal', 'protect'), x: p.x, y: p.y - 8,
     shape: { kind: 'circle', r: PROTECT.r * s.area }, motion: { kind: 'follow', ox: 0, oy: -8 },
     damage: s.damage, knockback: s.knockback, hitInterval: PROTECT.hitInterval, ttl: s.duration,
   })
-  guard(g, 'protect', s.duration)
   cast(g, 'protect')
 }
 

@@ -45,7 +45,7 @@ import type { WeatherState } from './weather'
 import type { TraitState } from './traits'
 import type { BossFight } from './bossFight'
 import type { ModState } from './mods'
-import type { DamageBonus } from './kitRules'
+import type { DamageBonus, Ward } from './kitRules'
 import type { MoveSound } from './moveVerbs'
 import type { TmSource } from './tmRules'
 import type { TmState } from './tms'
@@ -133,6 +133,8 @@ export type Player = {
   guard: MoveWindow | null
   /** Burrowed or out of sight (Dig, Fly): invulnerable, foes lose track; the move's `emerge` runs when it ends. */
   hidden: MoveWindow | null
+  /** The last immunity window (guard or burrow) and when it last stood: another move's window waits `WARD_GAP` after it (`wardOpens`). */
+  ward: Ward | null
   /** Drain heal budget (`drainRefill`) and the game time it was last spent. */
   drain: { left: number; at: number }
   /** Seconds the player can't walk (Giga Impact's recharge); moves still carry them. */

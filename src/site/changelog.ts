@@ -75,6 +75,16 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
           },
         ],
       },
+      {
+        title: { pt: 'Proteções', en: 'Protections', es: 'Protecciones' },
+        notes: [
+          {
+            pt: 'Proteções de golpes diferentes não se emendam mais, como um Protect usado duas vezes seguidas nos jogos. Enquanto Protect, Fly, Dig, Iron Head, Burning Bulwark ou Needle Arm protegem você, a proteção dos outros falha, e só volta a funcionar 0,75 s depois que essa acaba. Cada golpe sozinho continua igual. Obrigado, Armonich, por avisar da build que deixava o jogador imortal!',
+            en: "Protections from different moves no longer chain, like Protect used twice in a row in the main games. While Protect, Fly, Dig, Iron Head, Burning Bulwark or Needle Arm shields you, the others' protection fails, and it only works again 0.75 s after that one ends. Each move on its own works as before. Thanks, Armonich, for reporting the build that made the player immortal!",
+            es: 'Las protecciones de movimientos distintos ya no se encadenan, como un Protect usado dos veces seguidas en los juegos. Mientras Protect, Fly, Dig, Iron Head, Burning Bulwark o Needle Arm te protegen, la protección de los demás falla, y solo vuelve a funcionar 0,75 s después de que esa termina. Cada movimiento por sí solo sigue igual. ¡Gracias, Armonich, por avisar de la build que dejaba al jugador inmortal!',
+          },
+        ],
+      },
     ],
   },
   {
