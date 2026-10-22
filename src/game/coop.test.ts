@@ -328,6 +328,27 @@ const script = (g: Game) => (t: number): TickEntry[] => {
 }
 
 describe('co-op lockstep', () => {
+  it('a hitstop counts down without holding the team in co-op; solo still freezes for it', () => {
+    const g = team(2)
+    calm(g)
+    const [a] = players(g)
+    const { x, time } = { x: a.x, time: g.time }
+    g.hitstop = 0.07
+    run(g, 0.05, () => [{ slot: 0, kind: 'move', code: moveCode({ x: 1, y: 0 }) }])
+    expect(g.time).toBeCloseTo(time + 0.05)
+    expect(a.x).toBeGreaterThan(x)
+    expect(g.hitstop).toBeCloseTo(0.02)
+
+    const solo = createGame('charmander', { w: 480, h: 270 }, 42)
+    solo.phase = 'playing'
+    const before = { x: solo.player.x, time: solo.time }
+    solo.hitstop = 0.07
+    for (let t = 0; t < 3; t++) step(solo, { move: { x: 1, y: 0 }, special: false }, TICK)
+    expect(solo.time).toBe(before.time)
+    expect(solo.player.x).toBe(before.x)
+    expect(solo.hitstop).toBeCloseTo(0.07 - 3 * TICK)
+  })
+
   it('keeps two clients fed the same entries identical, bit for bit', () => {
     const a = team(3, 77)
     const b = team(3, 77)
