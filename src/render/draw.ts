@@ -44,14 +44,14 @@ import { drawGuard, drawKitStatus, drawTelegraph } from './kitFx'
 import { drawEggAttack, drawEggGround, drawEggPlayer, eggPlayerLook } from './eggMoveFx'
 import { drawEgg3Attack, drawEgg3Ground, drawEgg3Player, egg3PlayerLook } from './eggMove3Fx'
 import { drawEgg2Attack, drawEgg2Ground } from './eggMove2Fx'
-import { drawVerbAir, drawVerbGround } from './verbFx'
+import { drawVerbAir, drawVerbGround, drawVerbPlayerAir, drawVerbPlayerGround } from './verbFx'
 import { drawTmAir, drawTmDisc, drawTmGround, drawTmPlayer } from './tmFx'
 import { drawShopTmAir } from './shopTmFx'
 import { drawShopTm2Air, drawShopTm2Ground, drawShopTm2Player, shopTm2PlayerLook } from './shopTmFx2'
 import { drawVerbEvolvedAir, drawVerbEvolvedGround } from './verbEvolvedFx'
 import { drawDuoAir, drawDuoGround } from './duoFx'
-import { drawLegendaryAir, drawLegendaryGround } from './legendaryFx'
-import { drawLegendary2Air, drawLegendary2Ground } from './legendaryFx2'
+import { drawAncientAura, drawLegendaryAir, drawLegendaryGround } from './legendaryFx'
+import { drawHeatAura, drawIronDefense, drawLegendary2Air, drawLegendary2Ground } from './legendaryFx2'
 import { drawSignatureAttack, drawSignatureGround, drawSignaturePlayer } from './signatureFx'
 import { drawTraitAir, drawTraitGround, traitLift, traitTint } from './traits'
 import { bolt, dashedRing } from './strokes'
@@ -877,6 +877,32 @@ const isMate = (d: Drawable): d is Mate => typeof d === 'object' && 'mate' in d
 /** The teammates' drawables, kept from frame to frame. */
 const mateSlots: Mate[] = []
 
+/**
+ * On the floor around a player, from their own state (Sucker Punch's zone,
+ * Focus Punch's and a special's charge, Roost's nest, Overheat, a Mega's
+ * aura): `g` is that player's copy of the game, this screen's or a
+ * teammate's. `own`: this screen's player (a Mega's transformation veils it).
+ */
+const drawPlayerGround = (ctx: Ctx, g: Game, camX: number, camY: number, t: number, own: boolean) => {
+  drawVerbPlayerGround(ctx, g, t)
+  drawHeatAura(ctx, g, t)
+  drawSpecialAura(ctx, g, t)
+  drawMegaGround(ctx, g, camX, camY, t, own)
+}
+
+/** Over a player, from their own state (a guard, buffs, charges, stacks, a called sky): `g` is that player's copy of the game. */
+const drawPlayerAir = (ctx: Ctx, g: Game, t: number) => {
+  drawGuard(ctx, g, t)
+  drawEggPlayer(ctx, g, t)
+  drawEgg3Player(ctx, g, t)
+  drawSignaturePlayer(ctx, g, t)
+  drawTmPlayer(ctx, g, t)
+  drawShopTm2Player(ctx, g, t, g.player.y - playerSprites(g).bodyH)
+  drawVerbPlayerAir(ctx, g, t)
+  drawAncientAura(ctx, g, t)
+  drawIronDefense(ctx, g, t)
+}
+
 /** Particles a lean frame draws at most (`render/quality.ts`). */
 const LEAN_PARTICLES = 120
 
@@ -908,6 +934,12 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   ctx.translate(-camX, -camY)
 
   const visible = (x: number, y: number, m = 48) => x > camX - m && x < camX + w + m && y > camY - m && y < camY + h + m * 2
+  const mates = opts.mates ?? []
+  // Teammates standing in view wear their own auras, as this screen's player does.
+  const shown = (mate: Game) => {
+    const p = localPlayer(mate)
+    return showsPlain(p) && visible(p.x, p.y)
+  }
 
   drawTerrainGround(ctx, g, look, camX, camY)
   // Ground marks far off screen (trails left behind, lingering fields) are skipped; the margin covers the widest of them.
@@ -936,8 +968,8 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   if (g.rift.portal && !indoors) (riftDomain(g, g.rift.portal.legend) ? drawTear : drawRiftPortal)(ctx, g.rift.portal, t)
   drawEntranceGround(ctx, g, t)
   drawPlaceGround(ctx, g, t)
-  drawSpecialAura(ctx, g, t)
-  drawMegaGround(ctx, g, camX, camY, t)
+  drawPlayerGround(ctx, g, camX, camY, t, true)
+  for (const mate of mates) if (shown(mate)) drawPlayerGround(ctx, mate, camX, camY, t, false)
   drawRiftFallGround(ctx, g, camX, camY)
   drawTraitGround(ctx, g, visible)
   drawAlphaGround(ctx, g, t, visible)
@@ -949,7 +981,6 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   const hiddenBoss = sceneHides(g)
   for (const e of g.enemies) if (visible(e.x, e.y) && e.id !== hiddenBoss) drawables.push(e)
   drawables.push('player')
-  const mates = opts.mates ?? []
   for (let i = 0; i < mates.length; i++) {
     const mate = mates[i]!
     const p = localPlayer(mate)
@@ -994,7 +1025,11 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
     // Drawing lean, the regular horde goes without: a shadow each is a draw call each.
     else if (isMate(d)) {
       const m = localPlayer(d.mate)
-      if (m.hp > 0 && !m.gone && !playerUnderground(d.mate)) shadow(ctx, m.x, m.y, playerSprites(d.mate).bodyW)
+      if (m.hp > 0 && !m.gone && !playerUnderground(d.mate)) {
+        const body = playerSprites(d.mate).bodyW
+        shadow(ctx, m.x, m.y, body)
+        drawWading(ctx, d.mate, body, t)
+      }
     } else if (!isSolid(d) && d.dying < 0 && (!lean || d.boss || d.alpha)) shadow(ctx, d.x, d.y, d.radius * 3)
   }
   drawAfterimages(ctx, g, calm)
@@ -1020,12 +1055,8 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   drawPlaceOver(ctx, g, camX, camY)
   drawSleep(ctx, g, t)
   drawKitStatus(ctx, g, t, visible)
-  drawGuard(ctx, g, t)
-  drawEggPlayer(ctx, g, t)
-  drawEgg3Player(ctx, g, t)
-  drawSignaturePlayer(ctx, g, t)
-  drawTmPlayer(ctx, g, t)
-  drawShopTm2Player(ctx, g, t, g.player.y - playerSprites(g).bodyH)
+  drawPlayerAir(ctx, g, t)
+  for (const mate of mates) if (shown(mate)) drawPlayerAir(ctx, mate, t)
   drawTraitAir(ctx, g, visible)
   drawAlphaAir(ctx, g, t, visible)
   drawRiftFallAir(ctx, g, t)

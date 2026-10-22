@@ -94,14 +94,15 @@ export const megaLook = (g: Game, calm: boolean): MegaLook => {
 }
 
 /**
- * Under the entities: a veil over the world while the keystone energy gathers,
- * an aura's reach (Shadow Tag, Electric Surge) while the Mega lasts, and the rainbow motes at a Mega's feet.
+ * Under the entities: a veil over the world while the keystone energy gathers
+ * (`veil`: only for this screen's own player, not a teammate's), an aura's
+ * reach (Shadow Tag, Electric Surge) while the Mega lasts, and the rainbow motes at a Mega's feet.
  */
-export const drawMegaGround = (ctx: Ctx, g: Game, camX: number, camY: number, t: number) => {
+export const drawMegaGround = (ctx: Ctx, g: Game, camX: number, camY: number, t: number, veil = true) => {
   const def = heldMega(g)
   if (!def) return
   const p = localPlayer(g)
-  if (localPlayer(g).mega.intro > 0) {
+  if (veil && localPlayer(g).mega.intro > 0) {
     ctx.fillStyle = `rgba(16,8,40,${(0.45 * Math.min(1, introProgress(g) * 4)).toFixed(2)})`
     ctx.fillRect(camX, camY, g.view.w, g.view.h)
   }

@@ -583,7 +583,7 @@ const drawDart = (ctx: Ctx, a: Attack, t: number) => {
 export const eggPlayerLook = (g: Game) => {
   if (localPlayer(g).hidden?.move === 'dig') return { lift: 0, alpha: 0 }
   for (const a of g.attacks) {
-    if (a.visual !== 'bodySlam' || a.motion.kind !== 'lunge' || a.age < 0) continue
+    if (a.visual !== 'bodySlam' || a.motion.kind !== 'lunge' || a.age < 0 || a.owner !== localPlayer(g).slot) continue
     const k = 1 - a.motion.left / SLAM_LEAP
     return { lift: Math.round(Math.sin(k * Math.PI) * SLAM_LIFT), alpha: 1 }
   }

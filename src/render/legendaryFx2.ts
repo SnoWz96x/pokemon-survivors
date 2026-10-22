@@ -4,6 +4,7 @@ import { hash2 } from '../engine/rng'
 import { TYPE_COLORS } from '../data/types'
 import { HEAT } from '../game/legendaryMoves2'
 import type { Attack, Game } from '../game/types'
+import { ownerOf } from '../game/players'
 import { LEGEND_FX_2 } from './legendaryArt2'
 import { band, clamp01, fadeOut, px, radiusOf, spokes, thickLine, twinkle, type Ctx } from './legendaryFx'
 import { dashedRing } from './strokes'
@@ -139,8 +140,8 @@ const drawTerrainBolt = (ctx: Ctx, g: Game, a: Attack) => {
 
 const FIRE = ['#fff8d0', '#f8c030', '#f06018', '#a01810'] as const
 
-/** Moltres's heat on the player between casts: embers at one, flames licking up at two (the next cast overheats). */
-const drawHeatAura = (ctx: Ctx, g: Game, t: number) => {
+/** Moltres's heat on `g`'s player between casts: embers at one, flames licking up at two (the next cast overheats). `draw.ts` draws it for each player. */
+export const drawHeatAura = (ctx: Ctx, g: Game, t: number) => {
   const owned = g.player.moves.find((m) => m.id === 'overheat')
   const heat = owned?.stacks ?? 0
   if (heat <= 0) return
@@ -301,7 +302,7 @@ const AURORA = ['#ffffff', '#a8f0f8', '#58b8f0', '#a868e8'] as const
 const drawAquaRunner = (ctx: Ctx, g: Game, a: Attack, t: number) => {
   if (a.motion.kind !== 'orbit') return
   const m = a.motion
-  const p = g.player
+  const p = ownerOf(g, a.owner)
   const dir = Math.sign(m.spin) || 1
   for (let i = 18; i >= 0; i--) {
     const ang = m.angle - dir * i * 0.07
@@ -328,7 +329,7 @@ const drawAquaRunner = (ctx: Ctx, g: Game, a: Attack, t: number) => {
 const drawAquaRing = (ctx: Ctx, g: Game, a: Attack, t: number) => {
   if (a.motion.kind !== 'orbit') return
   const m = a.motion
-  const p = g.player
+  const p = ownerOf(g, a.owner)
   const life = Math.min(clamp01(a.age / 0.15), fadeOut(a, 0.4))
   ctx.globalAlpha = life
   // Enough of the arc to meet the next piece: a band of deep water, a lighter crest and white foam.
@@ -480,8 +481,8 @@ const drawGlaciateShatter = (ctx: Ctx, a: Attack) => {
 
 const STEEL = ['#ffffff', '#e0e8f0', '#a8b4c8', '#687890'] as const
 
-/** Iron Defense on the player while it holds: steel plates turning slowly around them. */
-const drawIronDefense = (ctx: Ctx, g: Game, t: number) => {
+/** Iron Defense on `g`'s player while it holds: steel plates turning slowly around them. `draw.ts` draws it for each player. */
+export const drawIronDefense = (ctx: Ctx, g: Game, t: number) => {
   const buff = g.player.moveBuffs.find((b) => b.move === 'metalBurst')
   if (!buff || (buff.left < 0.4 && Math.floor(t * 16) % 2 === 0)) return
   const p = g.player
@@ -541,7 +542,7 @@ const drawLiftGround = (ctx: Ctx, a: Attack, t: number) => {
 const drawLift = (ctx: Ctx, g: Game, a: Attack, t: number) => {
   if (a.motion.kind !== 'tether') return
   const e = a.motion.target
-  const p = g.player
+  const p = ownerOf(g, a.owner)
   const sx = p.x
   const sy = p.y - 14
   const ex = e.x
@@ -632,7 +633,6 @@ const drawJudgmentLance = (ctx: Ctx, a: Attack) => {
 
 /** Ground layer (under the Pokémon). */
 export const drawLegendary2Ground = (ctx: Ctx, g: Game, t: number) => {
-  drawHeatAura(ctx, g, t)
   for (const a of g.attacks) {
     if (a.age < 0) continue
     switch (a.visual) {
@@ -666,7 +666,6 @@ export const drawLegendary2Ground = (ctx: Ctx, g: Game, t: number) => {
 
 /** Air layer (over the Pokémon). */
 export const drawLegendary2Air = (ctx: Ctx, g: Game, t: number, visible: (x: number, y: number, m?: number) => boolean) => {
-  drawIronDefense(ctx, g, t)
   for (const a of g.attacks) {
     if (a.age < 0) continue
     // Beams, domes and lobs span the screen: they draw even when their center is off it.

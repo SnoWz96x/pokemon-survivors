@@ -491,7 +491,7 @@ const drawBeam = (ctx: Ctx, a: Attack, t: number) => {
 /** How the player's sprite shows: lifted mid-hop by Heavy Slam, or null. */
 export const egg3PlayerLook = (g: Game) => {
   for (const a of g.attacks) {
-    if (a.visual !== 'heavySlam' || a.age < 0) continue
+    if (a.visual !== 'heavySlam' || a.age < 0 || a.owner !== localPlayer(g).slot) continue
     const k = Math.min(1, a.age / HEAVY_HOP)
     return { lift: Math.round(Math.sin(k * Math.PI) * HEAVY_LIFT), alpha: 1 }
   }
