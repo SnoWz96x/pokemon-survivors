@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import { CLOSE_CODES, LIMITS, parseClientMessage, type Auth, type Phase, type ServerMessage } from '../../src/net/protocol'
+import { CLOSE_CODES, LIMITS, parseClientMessage, type Auth, type Phase, type ServerMessage, type TickEntries } from '../../src/net/protocol'
 import { jwksKeys, verifyClerkToken } from './auth'
 import type { Env } from './env'
 import { gzip } from './gzip'
@@ -33,12 +33,31 @@ const HELLO_TIMEOUT_MS = 10_000
 /** Ticks of the log per catch-up frame. */
 const TAIL_FRAME_TICKS = 600
 
-const SCHEMA = [
-  'CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)',
-  'CREATE TABLE IF NOT EXISTS log (run INTEGER NOT NULL, tick INTEGER NOT NULL, e TEXT NOT NULL, PRIMARY KEY (run, tick)) WITHOUT ROWID',
-  'CREATE TABLE IF NOT EXISTS hashes (run INTEGER NOT NULL, tick INTEGER NOT NULL, v TEXT NOT NULL, PRIMARY KEY (run, tick)) WITHOUT ROWID',
-  'CREATE TABLE IF NOT EXISTS snaps (run INTEGER NOT NULL, tick INTEGER NOT NULL, part INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (run, tick, part)) WITHOUT ROWID',
-]
+/**
+ * Storage. The room (rare, durable) is a row of the SQL table `kv`: `sql.exec`
+ * writes always hold outgoing messages until they commit (Cloudflare's output
+ * gate). The run's log batches and snapshot chunks (frequent, lazy) are KV
+ * keys written with `allowUnconfirmed`, so no frame or pong ever waits on a
+ * commit. Both live in the same SQLite database: writes land in order, and a
+ * room save commits every lazy write before it.
+ *
+ * - `log:<run>:<at>:<n>` → `LogBatch` (numbers zero-padded, so keys sort as the batches do)
+ * - `snap:<run>:<tick>:<part>` → the chunk's base64
+ */
+const SCHEMA = 'CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)'
+
+/** A log batch as stored: the clock bound, the ticks with entries, the hashes decided. */
+type LogBatch = { b: number; l: TickEntries[]; h: [number, Record<number, string>][] }
+
+const LAZY = { allowUnconfirmed: true } as const
+
+/** Keys a delete takes at most. */
+const DELETE_MAX = 128
+
+const pad = (n: number, width = 10) => String(n).padStart(width, '0')
+const logPrefix = (run: number) => `log:${run}:`
+const logKey = (run: number, at: number, n: number) => `${logPrefix(run)}${pad(at)}:${pad(n, 6)}`
+const snapPrefix = (run: number, tick?: number) => `snap:${run}:${tick === undefined ? '' : `${pad(tick)}:`}`
 
 const PHASES: readonly Phase[] = ['lobby', 'playing', 'ended']
 
@@ -78,7 +97,8 @@ export class RoomObject extends DurableObject<Env> {
     super(ctx, env)
     void ctx.blockConcurrencyWhile(async () => {
       const now = Date.now()
-      this.state = loadState(this.readRoom(), gen, now)
+      const room = this.readRoom()
+      this.state = loadState(room, gen, now, room?.run ? this.readBound(room.run.start.id) : 0)
       const back = ctx.getWebSockets().flatMap((ws) => {
         const a: unknown = ws.deserializeAttachment()
         if (!isAttachment(a)) return []
@@ -94,7 +114,7 @@ export class RoomObject extends DurableObject<Env> {
   /** Reserves the room (the Worker's `POST /rooms`). False when the code is taken. */
   async create(init: { code: string; build: string; region: string }): Promise<boolean> {
     const r = createRoom(this.state, init, Date.now())
-    if (r.ok) for (const q of SCHEMA) this.ctx.storage.sql.exec(q)
+    if (r.ok) this.ctx.storage.sql.exec(SCHEMA)
     this.apply(r.effects)
     return r.ok
   }
@@ -172,14 +192,63 @@ export class RoomObject extends DurableObject<Env> {
     return sub ? { id: `u:${sub}`, account: true } : null
   }
 
+  private hasTable(name: string) {
+    return this.ctx.storage.sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", name).toArray().length > 0
+  }
+
   private readRoom(): Room | null {
-    const sql = this.ctx.storage.sql
-    const hasSchema = sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'kv'").toArray().length > 0
-    if (!hasSchema) return null
-    const row = sql.exec<{ v: string }>("SELECT v FROM kv WHERE k = 'room'").toArray()[0]
+    if (!this.hasTable('kv')) return null
+    const row = this.ctx.storage.sql.exec<{ v: string }>("SELECT v FROM kv WHERE k = 'room'").toArray()[0]
     if (!row) return null
     const v: unknown = JSON.parse(row.v)
     return isRoom(v) ? v : null
+  }
+
+  /** The clock bound of the run's newest log batch (0 without one). */
+  private readBound(run: number): number {
+    for (const [, batch] of this.ctx.storage.kv.list<LogBatch>({ prefix: logPrefix(run), reverse: true, limit: 1 })) return batch.b
+    return 0
+  }
+
+  /** The log's batches of `run` that may hold ticks from `from` on (all of them by default), in order. */
+  private batches(run: number, from = -1): LogBatch[] {
+    return [...this.ctx.storage.kv.list<LogBatch>({ prefix: logPrefix(run), start: logKey(run, from + 1, 0) })].map(([, b]) => b)
+  }
+
+  /** The ticks with entries in `[from, to)`, each with its entries as JSON, in order. */
+  private readLog(run: number, from: number, to: number): [number, string][] {
+    const rows = this.legacy('log', run).filter(([tick]) => tick >= from && tick < to)
+    for (const b of this.batches(run, from)) for (const [tick, entries] of b.l) if (tick >= from && tick < to) rows.push([tick, JSON.stringify(entries)])
+    return rows
+  }
+
+  /** The chunks of the snapshot of `run` at `tick`, in order. */
+  private readChunks(run: number, tick: number): string[] {
+    const chunks = [...this.ctx.storage.kv.list<string>({ prefix: snapPrefix(run, tick) })].map(([, data]) => data)
+    return chunks.length > 0 ? chunks : this.legacy('snaps', run).filter(([t]) => t === tick).map(([, data]) => data)
+  }
+
+  /**
+   * Rows of the SQL tables (`log`, `hashes`, `snaps`) a room created before the
+   * log moved to KV still holds, as `[tick, JSON or data]` in order. Rooms live
+   * 6 hours at most: this goes once that deploy is older than that.
+   */
+  private legacy(table: 'log' | 'hashes' | 'snaps', run: number): [number, string][] {
+    if (!this.hasTable(table)) return []
+    const q = { log: 'SELECT tick, e AS v FROM log', hashes: 'SELECT tick, v FROM hashes', snaps: 'SELECT tick, data AS v FROM snaps' }[table]
+    return this.ctx.storage.sql
+      .exec<{ tick: number; v: string }>(`${q} WHERE run = ? ORDER BY tick${table === 'snaps' ? ', part' : ''}`, run)
+      .toArray()
+      .map((r) => [r.tick, r.v])
+  }
+
+  private keys(prefix: string): string[] {
+    return [...this.ctx.storage.kv.list({ prefix })].map(([k]) => k)
+  }
+
+  /** Deletes `keys` lazily (no message waits on it). */
+  private dropKeys(keys: readonly string[]) {
+    for (let i = 0; i < keys.length; i += DELETE_MAX) void this.ctx.storage.delete(keys.slice(i, i + DELETE_MAX), LAZY)
   }
 
   private send(id: ConnId, text: string) {
@@ -201,24 +270,24 @@ export class RoomObject extends DurableObject<Env> {
   }
 
   /**
-   * Applies the room's effects: every storage write first (the room saved
-   * once), then the messages and closes in order, so the output gate holds
-   * each message until what it reflects is durable. Then sets the timers.
+   * Applies the room's effects: every storage write first (lazy ones as they
+   * come, then the room saved once), then the messages and closes in order.
+   * Only a room save holds the messages (the output gate) until it is
+   * durable, with every lazy write before it. Then sets the timers.
    */
   private apply(effects: readonly Effect[]) {
-    const sql = this.ctx.storage.sql
+    const storage = this.ctx.storage
     let save = false
     for (const e of effects) {
       if (e.k === 'save') save = true
-      else if (e.k === 'log') sql.exec('INSERT OR REPLACE INTO log (run, tick, e) VALUES (?, ?, ?)', e.run, e.tick, JSON.stringify(e.entries))
-      else if (e.k === 'hashes') sql.exec('INSERT OR REPLACE INTO hashes (run, tick, v) VALUES (?, ?, ?)', e.run, e.tick, JSON.stringify(e.bySeat))
-      else if (e.k === 'chunk') sql.exec('INSERT OR REPLACE INTO snaps (run, tick, part, data) VALUES (?, ?, ?, ?)', e.run, e.tick, e.part, e.data)
-      else if (e.k === 'keepSnapshot') sql.exec('DELETE FROM snaps WHERE run = ? AND tick <> ?', e.run, e.tick)
-      else if (e.k === 'dropSnapshot') sql.exec('DELETE FROM snaps WHERE run = ? AND tick = ?', e.run, e.tick)
-      else if (e.k === 'dropRun') for (const table of ['log', 'hashes', 'snaps']) sql.exec(`DELETE FROM ${table} WHERE run = ?`, e.run)
+      else if (e.k === 'log') void storage.put(logKey(e.run, e.at, e.n), { b: e.bound, l: e.ticks, h: e.hashes } satisfies LogBatch, LAZY)
+      else if (e.k === 'chunk') void storage.put(`${snapPrefix(e.run, e.tick)}${pad(e.part, 4)}`, e.data, LAZY)
+      else if (e.k === 'keepSnapshot') this.dropKeys(this.keys(snapPrefix(e.run)).filter((k) => !k.startsWith(snapPrefix(e.run, e.tick))))
+      else if (e.k === 'dropSnapshot') this.dropKeys(this.keys(snapPrefix(e.run, e.tick)))
+      else if (e.k === 'dropRun') this.dropKeys([...this.keys(logPrefix(e.run)), ...this.keys(snapPrefix(e.run))])
     }
     const room = this.state.room
-    if (save && room) sql.exec("INSERT OR REPLACE INTO kv (k, v) VALUES ('room', ?)", JSON.stringify(room))
+    if (save && room) storage.sql.exec("INSERT OR REPLACE INTO kv (k, v) VALUES ('room', ?)", JSON.stringify(room))
     const texts = new Map<ServerMessage, string>()
     let wiped = false
     for (const e of effects) {
@@ -265,22 +334,21 @@ export class RoomObject extends DurableObject<Env> {
 
   /** A sync: the message, the base snapshot's chunks, then the log from `from` to `to` in frames. */
   private sendSync(e: Extract<Effect, { k: 'sync' }>) {
-    const sql = this.ctx.storage.sql
     const run = e.msg.run.id
     let msg = e.msg
     const base = msg.base
-    const chunks = base
-      ? sql.exec<{ part: number; data: string }>('SELECT part, data FROM snaps WHERE run = ? AND tick = ? ORDER BY part', run, base.tick).toArray()
-      : []
+    const chunks = base ? this.readChunks(run, base.tick) : []
     // A snapshot that isn't all there (it never should be) falls back to the seed.
     if (base && chunks.length !== base.parts) msg = { ...msg, base: null, from: 0 }
     this.send(e.to, JSON.stringify(msg))
-    if (msg.base) for (const c of chunks) this.send(e.to, JSON.stringify({ t: 'snapPart', tick: msg.base.tick, part: c.part, data: c.data } satisfies ServerMessage))
-    for (let from = msg.from; from < msg.to; from += TAIL_FRAME_TICKS) {
+    const sent = msg.base
+    if (sent) chunks.forEach((data, part) => this.send(e.to, JSON.stringify({ t: 'snapPart', tick: sent.tick, part, data } satisfies ServerMessage)))
+    // The tail in frames of `TAIL_FRAME_TICKS`, entries spliced in as their JSON.
+    const frames: string[][] = []
+    for (const [tick, entries] of this.readLog(run, msg.from, msg.to)) (frames[Math.floor((tick - msg.from) / TAIL_FRAME_TICKS)] ??= []).push(`[${tick},${entries}]`)
+    for (let from = msg.from, i = 0; from < msg.to; from += TAIL_FRAME_TICKS, i++) {
       const to = Math.min(msg.to, from + TAIL_FRAME_TICKS)
-      const rows = sql.exec<{ tick: number; e: string }>('SELECT tick, e FROM log WHERE run = ? AND tick >= ? AND tick < ? ORDER BY tick', run, from, to).toArray()
-      // Entries are stored as their JSON: spliced in as they are.
-      this.send(e.to, `{"t":"frame","from":${from},"to":${to},"ticks":[${rows.map((r) => `[${r.tick},${r.e}]`).join(',')}]}`)
+      this.send(e.to, `{"t":"frame","from":${from},"to":${to},"ticks":[${(frames[i] ?? []).join(',')}]}`)
     }
   }
 
@@ -288,9 +356,9 @@ export class RoomObject extends DurableObject<Env> {
   private async dump(e: Extract<Effect, { k: 'dump' }>) {
     const room = this.state.room
     if (!room?.run) return
-    const sql = this.ctx.storage.sql
-    const log = sql.exec<{ tick: number; e: string }>('SELECT tick, e FROM log WHERE run = ? ORDER BY tick', e.run).toArray()
-    const hashes = sql.exec<{ tick: number; v: string }>('SELECT tick, v FROM hashes WHERE run = ? ORDER BY tick', e.run).toArray()
+    const batches = this.batches(e.run)
+    const log = [...this.legacy('log', e.run), ...batches.flatMap((b) => b.l.map(([tick, entries]): [number, string] => [tick, JSON.stringify(entries)]))]
+    const hashes = [...this.legacy('hashes', e.run), ...batches.flatMap((b) => b.h.map(([tick, bySeat]): [number, string] => [tick, JSON.stringify(bySeat)]))]
     const at = Date.now()
     const meta = {
       code: room.code,
@@ -307,7 +375,7 @@ export class RoomObject extends DurableObject<Env> {
       clock: { next: room.run.next, bound: room.run.bound, agreed: room.run.agreed },
       seats: room.seats.map((s) => ({ seat: s.seat, account: s.account, name: s.name, build: s.build, ua: s.ua })),
     }
-    const body = `{"meta":${JSON.stringify(meta)},"log":[${log.map((r) => `[${r.tick},${r.e}]`).join(',')}],"hashes":[${hashes.map((r) => `[${r.tick},${r.v}]`).join(',')}]}`
+    const body = `{"meta":${JSON.stringify(meta)},"log":[${log.map(([t, v]) => `[${t},${v}]`).join(',')}],"hashes":[${hashes.map(([t, v]) => `[${t},${v}]`).join(',')}]}`
     const bytes = await gzip(body)
     const id = `${room.code}-${e.run}-${e.tick}-${randomToken(3)}`
     await this.env.VAULT.getByName('dumps').put({ id, code: room.code, run: e.run, tick: e.tick, at, size: bytes.byteLength }, bytes)
