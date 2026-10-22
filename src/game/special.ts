@@ -1153,10 +1153,10 @@ export const updateSpecial = (g: Game, pressed: boolean, dt: number) => {
  * (`dashStep`, `jumpStep`) and the chain's window. Nothing is spawned, shown,
  * heard or rolled. Co-op's prediction ghost (`coop/predict.ts`) runs it on its
  * copy of the player, from the confirmed state, so a press dashes the drawn
- * sprite at once. Returns the hitstop (s) the tick starts, 0 for none. Keep it
- * in step with `updateSpecial`.
+ * sprite at once. It starts the hitstops the real one does (the release, a
+ * dash's blast, a jump landing on a foe). Keep it in step with `updateSpecial`.
  */
-export const predictSpecial = (g: Game, pressed: boolean, dt: number): number => {
+export const predictSpecial = (g: Game, pressed: boolean, dt: number) => {
   const s = g.player.special
   const p = g.player
   const r = gameSpecial(g)
@@ -1165,37 +1165,39 @@ export const predictSpecial = (g: Game, pressed: boolean, dt: number): number =>
     const cooldown = specialCooldown(r.def, p.stats)
     if (s.active <= 0) tickChain(s, dt, cooldown)
     if (triggerSpecial(s, pressed, dt)) aimJump(g, r)
-    if (s.active <= 0) return 0
+    if (s.active <= 0) return
     const step = jumpStep(s.angle, s.reach, s.active, dt)
     s.active = Math.max(0, s.active - dt)
     p.x += step.dx
     p.y += step.dy
     p.dir = dir8(step.dir.x, step.dir.y)
-    if (s.active > 0) return 0
+    if (s.active > 0) return
     const hit = s.target >= 0
+    if (hit) g.hitstop = Math.max(g.hitstop, LANDING_HITSTOP)
     landJump(s, hit, cooldown)
-    return hit ? LANDING_HITSTOP : 0
+    return
   }
   if (s.chaining) endChain(s, specialCooldown(r.def, p.stats))
   if (triggerSpecial(s, pressed, dt)) {
     s.cooldown = s.total = specialCooldown(r.def, p.stats)
-    if (r.def.kind === 'stance') return 0
+    if (r.def.kind === 'stance') return
     s.charge = r.def.charge
   }
   if (s.charge > 0) {
     s.charge -= dt
-    if (s.charge > 0) return 0
+    if (s.charge > 0) return
     s.charge = 0
     s.angle = dm.atan2(p.facing.y, p.facing.x)
+    g.hitstop = RELEASE_HITSTOP
     s.active = activeTime(r)
-    return RELEASE_HITSTOP
+    return
   }
-  if (s.active <= 0) return 0
+  if (s.active <= 0) return
   s.active = Math.max(0, s.active - dt)
-  if (r.def.kind !== 'dash') return 0
+  if (r.def.kind !== 'dash') return
   const step = dashStep(s.angle, specialReach(g, r), dt)
   p.x += step.dx
   p.y += step.dy
   p.dir = dir8(step.dir.x, step.dir.y)
-  return s.active <= 0 ? BLAST_HITSTOP : 0
+  if (s.active <= 0) g.hitstop = Math.max(g.hitstop, BLAST_HITSTOP)
 }

@@ -780,6 +780,19 @@ const stepMoves = (g: Game, input: StepInput, dt: number) => {
   updateDuos(g, dt)
 }
 
+/**
+ * A hitstop running counts down and says whether it holds the tick there:
+ * in solo it freezes the whole world; in co-op never, since it would hold
+ * every teammate for one player's hit (and pull their predicted sprites
+ * back), so it only counts down while the team plays on. Co-op's prediction
+ * ghost (`coop/predict.ts`) asks the same, so it plays through one too.
+ */
+export const hitstopHolds = (g: Game, dt: number) => {
+  if (g.hitstop <= 0) return false
+  g.hitstop -= dt
+  return g.coop === null
+}
+
 /** One fixed-timestep simulation tick of a solo run. */
 export const step = (g: Game, input: StepInput, dt: number) => stepTeam(g, [input], dt)
 
@@ -808,13 +821,7 @@ export const stepTeam = (g: Game, inputs: readonly StepInput[], dt: number) => {
   if (updateDomainScene(g, dt)) return
   if (updateLegendScene(g, dt)) return
   if (updatePlaceFall(g, dt)) return
-  // A hitstop holds the whole world in solo. In co-op it would hold every
-  // teammate for one player's hit (and pull their predicted sprites back), so
-  // it only counts down while the team plays on.
-  if (g.hitstop > 0) {
-    g.hitstop -= dt
-    if (g.coop === null) return
-  }
+  if (hitstopHolds(g, dt)) return
 
   // The run clock stops inside a rift (`clockRuns`); `now` never does.
   g.now += dt
