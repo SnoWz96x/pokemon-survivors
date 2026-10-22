@@ -2,24 +2,31 @@ import { accountState, accountsEnabled, onAccountChange, signIn } from '../accou
 import { isAdmin } from '../admin'
 import { playSfx } from '../engine/audio'
 import type { Input } from '../engine/input'
-import { nextVote, parseSuggestionDraft, SUGGESTION, SUGGESTION_SORTS, withVote, type Suggestion, type SuggestionSort, type SuggestionStatus } from '../game/suggestions'
+import { BOARD_COLUMNS, boardColumns, isVotable, nextVote, parseSuggestionDraft, SUGGESTION, withVote, type BoardColumn, type Suggestion, type SuggestionStatus } from '../game/suggestions'
 import { formatNumber, LOCALES, locale, t } from '../i18n'
 import { bulbIcon } from '../render/art'
 import { fetchSuggestions, postSuggestion, setSuggestionStatus, voteSuggestion } from '../suggestions'
 import { h, later } from './dom'
 import { profileEditor } from './profile'
 import { hint, type Screen } from './screens'
-import { actionBar, backButton, shellBody, tabStrip, topBar } from './shell'
+import { actionBar, backButton, shellBody, topBar } from './shell'
 import { nearestInDirection, type Direction } from './spatial'
 import { toast } from './toasts'
 
 /*
- * Ideias: the idea board. The admin's buttons on each idea are only shown to
- * the admin (the API answers 403 to anyone else), so their words are in
- * Portuguese only, like the gift desk's.
+ * Ideias: the idea board, a kanban. The admin's buttons on each idea are only
+ * shown to the admin (the API answers 403 to anyone else), so their words are
+ * in Portuguese only, like the gift desk's.
  */
 
-const ADMIN: Readonly<Record<SuggestionStatus, string>> = { done: '✓ Marcar feita', open: 'Reabrir', hidden: 'Ocultar' }
+const ADMIN: Readonly<Record<SuggestionStatus, string>> = {
+  pending: 'Em análise',
+  open: '→ Backlog',
+  todo: '→ A fazer',
+  cooking: '→ Cozinhando',
+  done: '✓ Pronto',
+  hidden: 'Ocultar',
+}
 
 /** A second tap on "Ocultar" within this long hides the idea; after it, the button asks again. */
 const CONFIRM_MS = 4000
@@ -36,20 +43,23 @@ const ago = (iso: string) => {
 /** A date in the current language (`14/10/2026`). */
 const longDay = (iso: string) => new Date(iso).toLocaleDateString(LOCALES[locale()].tag, { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-/** What the arrows reach, and a key that finds it again after a redraw. */
-type Item = { el: HTMLElement; key: string }
+/** What the arrows reach, and a key that finds it again after a redraw. `column`: the board column it sits in (Q/E jump between them). */
+type Item = { el: HTMLElement; key: string; column?: BoardColumn }
 
 type CardActions = { vote: (pressed: 1 | -1) => void; admin: ((status: SuggestionStatus) => void) | null }
 
+/** Where the admin can send an idea from `status`: the other columns (approving a pending one puts it in the Backlog), or off the board. */
+const moves = (status: Suggestion['status']): SuggestionStatus[] => [...BOARD_COLUMNS.filter((c) => c !== status), 'hidden']
+
 /**
- * One idea: ▲ score ▼ on the left (just the score once it shipped), then
- * its title, details (three lines until tapped), who posted it and when,
- * and when it shipped. The admin gets its status buttons under it. `set`
- * shows a new score and vote.
+ * One idea: ▲ score ▼ on the left (just the score once it shipped, or while
+ * it waits for review), then its title, details (three lines until tapped),
+ * who posted it and when, and when it shipped. The admin gets buttons under
+ * it to move it to another column or hide it. `set` shows a new score and vote.
  */
 const ideaCard = (s: Suggestion, actions: CardActions) => {
   const m = t().ideas
-  const open = s.status === 'open'
+  const votable = isVotable(s.status)
   const score = h('b', { class: 'idea-score' })
   const arrow = (dir: 1 | -1) =>
     h('button', { class: `idea-vote ${dir === 1 ? 'up' : 'down'}`, type: 'button', 'aria-label': dir === 1 ? m.up : m.down, title: dir === 1 ? m.up : m.down, onclick: () => actions.vote(dir) }, dir === 1 ? '▲' : '▼')
@@ -59,7 +69,7 @@ const ideaCard = (s: Suggestion, actions: CardActions) => {
   body?.addEventListener('click', () => body.classList.toggle('open'))
   const admin = actions.admin
   const adminButtons = admin
-    ? (open ? (['done', 'hidden'] as const) : (['open', 'hidden'] as const)).map((status) => {
+    ? moves(s.status).map((status) => {
         let armed = 0
         const b = h('button', { class: 'btn idea-admin-btn', type: 'button' }, ADMIN[status])
         b.addEventListener('click', () => {
@@ -75,15 +85,16 @@ const ideaCard = (s: Suggestion, actions: CardActions) => {
     : []
   const el = h(
     'article',
-    { class: `idea box${open ? '' : ' shipped'}${s.mine ? ' mine' : ''}` },
-    h('div', { class: 'idea-votes' }, open && up, score, open && down),
+    { class: `idea box ${s.status}${s.mine ? ' mine' : ''}` },
+    h('div', { class: 'idea-votes' }, votable && up, score, votable && down),
     h(
       'div',
       { class: 'idea-main' },
       h('h3', { class: 'idea-title' }, s.title),
       body,
       h('small', { class: 'idea-meta' }, `@${s.handle} · ${ago(s.at)}`, s.mine && h('span', { class: 'idea-you' }, m.you)),
-      !open && h('p', { class: 'idea-done' }, h('span', { class: 'idea-tag' }, `✓ ${m.done}`), s.doneAt && h('small', {}, m.doneOn(longDay(s.doneAt)))),
+      s.status === 'pending' && h('p', { class: 'idea-done pending' }, h('span', { class: 'idea-tag pending' }, m.pending), h('small', {}, m.pendingNote)),
+      s.status === 'done' && h('p', { class: 'idea-done' }, h('span', { class: 'idea-tag' }, `✓ ${m.done}`), s.doneAt && h('small', {}, m.doneOn(longDay(s.doneAt)))),
       adminButtons.length > 0 && h('div', { class: 'idea-admin' }, ...adminButtons),
     ),
   )
@@ -97,7 +108,7 @@ const ideaCard = (s: Suggestion, actions: CardActions) => {
   }
   set(s)
   const items: Item[] = [
-    ...(open ? [{ el: up, key: `${s.id}:up` }, { el: down, key: `${s.id}:down` }] : []),
+    ...(votable ? [{ el: up, key: `${s.id}:up` }, { el: down, key: `${s.id}:down` }] : []),
     ...adminButtons.map((el, i) => ({ el, key: `${s.id}:admin${i}` })),
   ]
   return { el, items, set }
@@ -178,37 +189,35 @@ const DIRECTIONS: Readonly<Record<string, Direction>> = {
 }
 
 /**
- * Ideias, the idea board: tabs for the open ideas by votes and newest
- * first, and the ones that shipped. Guests read it; with an account a
- * player votes each open idea up or down (the same arrow again takes the
- * vote back) and, once they have a handle, posts ideas from the action bar.
- * The admin also marks ideas shipped, reopens them or hides them.
+ * Ideias, the idea board: a kanban with the Backlog, A fazer, Cozinhando and
+ * Pronto side by side (on a phone, a column at a time, swiped sideways).
+ * Guests read it; with an account a player votes each idea that hasn't
+ * shipped up or down (the same arrow again takes the vote back) and, once
+ * they have a handle, posts ideas from the action bar. A new idea waits for
+ * staff's review (in the Discord) on top of the Backlog, seen only by its
+ * author. The admin also moves ideas between columns or hides them.
  *
- * Keys: arrows move between the tabs, the votes and the action bar by where
- * they are on screen, Enter presses, Q/E switch tabs, N opens the form, Esc
- * goes back. `onClose` runs after the key dispatch.
+ * Keys: arrows move between the votes and the action bar by where they are
+ * on screen, Enter presses, Q/E jump to the column before or after, N opens
+ * the form, Esc goes back. `onClose` runs after the key dispatch.
  */
 export const suggestionsScreen = (root: HTMLElement, input: Input, onClose: () => void): Screen => {
   const m = t().ideas
-  let sort: SuggestionSort = 'top'
-  /** The tab on screen: loading, unreachable, or its ideas. */
+  /** The board: loading, unreachable, or its ideas. */
   let list: Suggestion[] | 'loading' | 'offline' = 'loading'
   let admin = false
   let request = 0
   let closed = false
   let sub: Screen | null = null
   let items: Item[] = []
+  /** The ideas' buttons, column by column, as the board last drew them. */
+  let columnItems: Item[] = []
   let index = 0
   const cards = new Map<string, ReturnType<typeof ideaCard>>()
   /** The latest vote sent per idea: an answer to an older one is ignored. */
   const sent = new Map<string, number>()
 
-  const tabs = tabStrip(
-    SUGGESTION_SORTS.map((s) => m.tabs[s]),
-    0,
-    (i) => setSort(SUGGESTION_SORTS[i]!),
-  )
-  const listEl = h('div', { class: 'idea-list', 'aria-live': 'polite' })
+  const boardEl = h('div', { class: 'idea-board', 'aria-live': 'polite' })
   const postLabel = h('span', {})
   const post = h('button', { class: 'btn confirm ideas-post', type: 'button', onclick: () => later(compose) }, h('img', { src: bulbIcon(), alt: '' }), postLabel, h('span', { class: 'key-hint' }, 'N'))
   const bar = accountsEnabled ? actionBar(post) : null
@@ -216,7 +225,7 @@ export const suggestionsScreen = (root: HTMLElement, input: Input, onClose: () =
     'div',
     { class: 'screen shell dim ideas-screen' },
     topBar({ left: backButton(() => close()), title: m.title }),
-    shellBody(h('p', { class: 'ideas-lead' }, m.lead), tabs.el, listEl, hint(m.hintKeys, m.hintTouch)),
+    shellBody(h('p', { class: 'ideas-lead' }, m.lead), boardEl, hint(m.hintKeys, m.hintTouch)),
     bar,
   )
 
@@ -227,39 +236,49 @@ export const suggestionsScreen = (root: HTMLElement, input: Input, onClose: () =
     return s.handle === null ? m.createProfile : m.post
   }
 
-  const focus = (i: number, sound = true) => {
+  /** Highlights item `i`, scrolling it into view unless `scroll` is off (the board's first draw starts at the top). */
+  const focus = (i: number, sound = true, scroll = true) => {
     if (items.length === 0) return
     index = Math.max(0, Math.min(i, items.length - 1))
     items.forEach((it, j) => it.el.classList.toggle('selected', j === index))
-    items[index]!.el.scrollIntoView({ block: 'nearest' })
+    if (scroll) items[index]!.el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     if (sound) playSfx('move')
   }
 
   /** Gathers what the arrows reach, keeping the highlight on `keep` when it's still there, else on the first idea's ▲ (or retry, or the action bar). */
   const gather = (keep: string | null) => {
-    const tabItems = [...tabs.el.querySelectorAll('button')].map((b, i) => ({ el: b, key: `tab:${i}` }))
-    const retry = listEl.querySelector<HTMLElement>('.ideas-retry')
-    const ideaItems = [...cards.values()].flatMap((c) => c.items)
-    items = [...tabItems, ...(retry ? [{ el: retry, key: 'retry' }] : []), ...ideaItems, ...(bar ? [{ el: post, key: 'post' }] : [])]
+    const retry = boardEl.querySelector<HTMLElement>('.ideas-retry')
+    items = [...(retry ? [{ el: retry, key: 'retry' }] : []), ...columnItems, ...(bar ? [{ el: post, key: 'post' }] : [])]
     const kept = keep === null ? -1 : items.findIndex((it) => it.key === keep)
-    const first = items.findIndex((it) => it.key !== 'post' && !it.key.startsWith('tab:'))
-    focus(kept >= 0 ? kept : first >= 0 ? first : items.length - 1, false)
+    focus(kept >= 0 ? kept : 0, false, kept >= 0)
   }
 
   const status = (text: string, cls = '') => h('p', { class: `ideas-status ${cls}` }, text)
 
-  /** Draws the tab's ideas; `keep` is the item to keep highlighted (null: the first idea). */
-  const renderList = (keep: string | null = null) => {
+  /** Draws the board; `keep` is the item to keep highlighted (null: the first idea). */
+  const renderBoard = (keep: string | null = null) => {
     cards.clear()
-    if (list === 'loading') listEl.replaceChildren(status(m.loading, 'blink'))
-    else if (list === 'offline') listEl.replaceChildren(status(m.offline), h('button', { class: 'btn ideas-retry', type: 'button', onclick: () => void load() }, m.retry))
-    else if (list.length === 0) listEl.replaceChildren(status(m.empty[sort]))
+    columnItems = []
+    boardEl.classList.toggle('columns', typeof list === 'object')
+    if (list === 'loading') boardEl.replaceChildren(status(m.loading, 'blink'))
+    else if (list === 'offline') boardEl.replaceChildren(status(m.offline), h('button', { class: 'btn ideas-retry', type: 'button', onclick: () => void load() }, m.retry))
     else {
-      listEl.replaceChildren(
-        ...list.map((s) => {
-          const card = ideaCard(s, { vote: (dir) => void vote(s.id, dir), admin: admin ? (next) => void setStatus(s, next) : null })
-          cards.set(s.id, card)
-          return card.el
+      const columns = boardColumns(list)
+      boardEl.replaceChildren(
+        ...BOARD_COLUMNS.map((column) => {
+          const ideas = columns[column]
+          const cardEls = ideas.map((s) => {
+            const card = ideaCard(s, { vote: (dir) => void vote(s.id, dir), admin: admin ? (next) => void setStatus(s, next) : null })
+            cards.set(s.id, card)
+            columnItems.push(...card.items.map((it) => ({ ...it, column })))
+            return card.el
+          })
+          return h(
+            'section',
+            { class: `idea-column ${column}` },
+            h('h3', { class: 'idea-column-head' }, h('span', {}, m.columns[column]), h('small', {}, formatNumber(ideas.filter((s) => s.status !== 'pending').length))),
+            h('div', { class: 'idea-column-list' }, ...(cardEls.length ? cardEls : [status(m.empty[column], 'small')])),
+          )
         }),
       )
     }
@@ -269,19 +288,20 @@ export const suggestionsScreen = (root: HTMLElement, input: Input, onClose: () =
   const load = async () => {
     const id = ++request
     list = 'loading'
-    renderList()
-    const next = await fetchSuggestions(sort)
+    renderBoard()
+    const next = await fetchSuggestions('board')
     if (id !== request || closed) return
     list = next ?? 'offline'
-    renderList()
+    renderBoard()
   }
 
-  function setSort(next: SuggestionSort) {
-    if (next === sort) return
-    sort = next
-    tabs.set(SUGGESTION_SORTS.indexOf(next))
-    playSfx('move')
-    void load()
+  /** Q/E: the first thing to press in the next column with any, that way. */
+  const jump = (step: 1 | -1) => {
+    const here = BOARD_COLUMNS.indexOf(items[index]?.column ?? (step > 0 ? 'open' : 'done'))
+    for (let i = here + step; i >= 0 && i < BOARD_COLUMNS.length; i += step) {
+      const first = items.findIndex((it) => it.column === BOARD_COLUMNS[i])
+      if (first >= 0) return focus(first)
+    }
   }
 
   /** Shows `s` in place of the idea with its id. */
@@ -328,7 +348,7 @@ export const suggestionsScreen = (root: HTMLElement, input: Input, onClose: () =
     })
   }
 
-  /** The action bar: signs in, creates the profile, or opens the form. A posted idea shows on top of Novas. */
+  /** The action bar: signs in, creates the profile, or opens the form. A posted idea shows on top of the Backlog, waiting for review. */
   function compose() {
     if (sub || closed) return
     playSfx('select')
@@ -339,10 +359,9 @@ export const suggestionsScreen = (root: HTMLElement, input: Input, onClose: () =
       ideaForm(root, input, (idea) => {
         back()
         toast(root, m.posted, 2600)
-        sort = 'new'
-        tabs.set(SUGGESTION_SORTS.indexOf(sort))
-        list = [idea]
-        renderList()
+        list = [idea, ...(typeof list === 'object' ? list : [])]
+        renderBoard()
+        boardEl.scrollTo({ left: 0 })
         void load()
       }, back),
     )
@@ -357,8 +376,8 @@ export const suggestionsScreen = (root: HTMLElement, input: Input, onClose: () =
       return next >= 0 && focus(next)
     }
     if (key === 'Enter' || key === 'Space') return void items[index]?.el.click()
-    const step = key === 'KeyQ' || key === 'PageUp' ? -1 : key === 'KeyE' || key === 'PageDown' ? 1 : 0
-    if (step) return setSort(SUGGESTION_SORTS[(SUGGESTION_SORTS.indexOf(sort) + step + SUGGESTION_SORTS.length) % SUGGESTION_SORTS.length]!)
+    if (key === 'KeyQ' || key === 'PageUp') return jump(-1)
+    if (key === 'KeyE' || key === 'PageDown') return jump(1)
     if (key === 'KeyN' && bar) compose()
   })
 
@@ -397,7 +416,7 @@ export const suggestionsScreen = (root: HTMLElement, input: Input, onClose: () =
   void isAdmin().then((yes) => {
     if (!yes || closed) return
     admin = true
-    if (typeof list === 'object') renderList(items[index]?.key ?? null)
+    if (typeof list === 'object') renderBoard(items[index]?.key ?? null)
   })
   return { el, dispose, dim: 0.5 }
 }

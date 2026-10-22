@@ -1091,12 +1091,14 @@ export const en: Messages = {
 
   ideas: {
     title: 'IDEAS',
-    lead: 'Ask for what you want to see in the game and vote on other trainers’ ideas. The most voted go in the queue!',
-    tabs: { top: 'Top', new: 'New', done: 'Shipped' },
+    lead: 'Ask for what you want to see in the game and vote on other trainers’ ideas. The team reviews each idea before it goes in the Backlog, and the most voted go in the queue!',
+    columns: { open: 'Backlog', todo: 'To do', cooking: 'Cooking', done: 'Done' },
     loading: 'Loading…',
     offline: 'Can’t reach the idea board. Try again in a bit.',
     retry: 'Try again',
-    empty: { top: 'No ideas yet. Why not send the first one?', new: 'No ideas yet. Why not send the first one?', done: 'Nothing shipped yet, but it’s coming!' },
+    empty: { open: 'No ideas yet. Why not send the first one?', todo: 'Nothing queued right now.', cooking: 'Nothing cooking right now.', done: 'Nothing shipped yet, but it’s coming!' },
+    pending: 'In review',
+    pendingNote: 'Only you see this idea until the team approves it.',
     you: 'yours',
     done: 'Shipped',
     doneOn: (date) => `In the game since ${date}`,
@@ -1109,7 +1111,7 @@ export const en: Messages = {
     createProfile: 'Create a profile to suggest',
     voteGuest: 'Sign in with an account to vote.',
     closed: 'This idea is no longer open for votes.',
-    posted: 'Idea sent! Now cross your fingers for votes.',
+    posted: 'Idea sent! The team takes a look and it goes in the Backlog.',
     form: {
       title: 'NEW IDEA',
       titleField: 'Your idea',
@@ -1129,7 +1131,7 @@ export const en: Messages = {
         offline: 'No connection. Try again in a bit.',
       },
     },
-    hintKeys: '↑ ↓ ← → choose · ENTER vote · Q E tab · N new idea · ESC back',
+    hintKeys: '↑ ↓ ← → choose · ENTER vote · Q E column · N new idea · ESC back',
     hintTouch: 'Tap ▲ or ▼ to vote',
   },
 

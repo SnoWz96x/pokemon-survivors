@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextVote, parseSuggestionDraft, SUGGESTION, withVote, type Suggestion } from './suggestions'
+import { boardColumns, nextVote, parseSuggestion, parseSuggestionDraft, SUGGESTION, withVote, type Suggestion } from './suggestions'
 
 describe('parseSuggestionDraft', () => {
   it('puts the title on one line and keeps at most one blank line in the body', () => {
@@ -42,5 +42,22 @@ describe('votes', () => {
     expect(withVote(idea, -1)).toMatchObject({ vote: -1, score: 3 })
     expect(withVote(idea, 0)).toMatchObject({ vote: 0, score: 4 })
     expect(withVote({ ...idea, vote: 0 }, 1)).toMatchObject({ vote: 1, score: 6 })
+  })
+})
+
+describe('the board', () => {
+  const idea = (id: string, status: Suggestion['status']): Suggestion => ({ id, title: id, body: '', handle: 'ash', name: 'Ash', status, score: 1, at: '', doneAt: null, vote: 0, mine: false })
+
+  it('puts each idea in its column, the asker’s ideas under review first in the Backlog', () => {
+    const columns = boardColumns([idea('a', 'open'), idea('b', 'cooking'), idea('c', 'pending'), idea('d', 'open'), idea('e', 'done')])
+    expect(columns.open.map((s) => s.id)).toEqual(['c', 'a', 'd'])
+    expect(columns.todo).toEqual([])
+    expect(columns.cooking.map((s) => s.id)).toEqual(['b'])
+    expect(columns.done.map((s) => s.id)).toEqual(['e'])
+  })
+
+  it('reads every status but hidden from the API', () => {
+    expect(parseSuggestion({ ...idea('a', 'todo') })?.status).toBe('todo')
+    expect(parseSuggestion({ ...idea('a', 'open'), status: 'hidden' })).toBeNull()
   })
 })

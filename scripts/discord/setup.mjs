@@ -197,6 +197,10 @@ const LAYOUT = [
     channels: [
       { name: 'mod-chat' },
       { name: 'mod-log', topic: 'Discord’s own community updates and safety alerts.' },
+      {
+        name: 'idea-review',
+        topic: 'Ideas posted in the game land here first. React ✅ (or 👍) to put one on the board’s Backlog, ❌ (or 👎) to hide it.',
+      },
     ],
   },
 ]
