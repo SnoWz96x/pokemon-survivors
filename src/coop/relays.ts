@@ -1,21 +1,34 @@
-import { homeOf, type RelayHome } from '../net/protocol'
+import { homeOf, type RelayHome, type VpsHome } from '../net/protocol'
 
 /**
- * Which relay a room lives on. Cloudflare's (`url`) everywhere, plus, when the
- * build has one (`VITE_COOP_URL_SA`), the São Paulo relay for rooms whose host
- * is in South America: Cloudflare has no Durable Objects there, so a Brazilian
- * room runs in the US, 116–140 ms away, where São Paulo answers in under 10.
- * A room's code says its relay (`homeOf`), so links and typed codes find it.
+ * Which relay a room lives on. Cloudflare's everywhere (the default and the
+ * fallback), plus the VPS relays this build has a URL for (`RELAY_URLS` in
+ * `coopShell.ts`): the São Paulo one first, for rooms whose host is in South
+ * America, since Cloudflare has no Durable Objects there and a Brazilian room
+ * runs in the US, 116–140 ms away. A room's code says its relay (`homeOf`),
+ * so links and typed codes find it without asking anyone.
  */
 
-/** A São Paulo round trip up to this (ms) makes the host's room São Paulo's: Brazil, Argentina, Uruguay, Paraguay, Chile. Past it, Cloudflare's US relay is about as near. */
-export const SA_MAX_RTT_MS = 70
+/** Each VPS relay's base URL in this build (absent: that relay is off). */
+export type VpsUrls = Partial<Record<VpsHome, string>>
 
-/** The relay serving room `code`: São Paulo's for its codes when this build has it, Cloudflare's otherwise. */
-export const relayFor = (code: string, url: string, saUrl: string | null) => (saUrl && homeOf(code) === 'sa' ? saUrl : url)
+/** A VPS relay round trip up to this (ms) makes the host's room that relay's (for São Paulo: Brazil, Argentina, Uruguay, Paraguay, Chile). Past it, Cloudflare is about as near. */
+export const NEAR_RTT_MS = 70
 
-/** Where a host's new room goes, from the São Paulo relay's round trip (null: it didn't answer). */
-export const pickHome = (rtt: number | null): RelayHome => (rtt !== null && rtt <= SA_MAX_RTT_MS ? 'sa' : 'cf')
+const isVps = (home: RelayHome): home is VpsHome => home !== 'cf'
+
+/** The relay serving room `code`: its home's when this build has it, Cloudflare's (`cf`) otherwise. */
+export const relayFor = (code: string, cf: string, vps: VpsUrls) => {
+  const home = homeOf(code)
+  return (isVps(home) ? vps[home] : undefined) ?? cf
+}
+
+/** Where a host's new room goes: the nearest VPS relay that answered within `NEAR_RTT_MS`, else Cloudflare. */
+export const pickHome = (rtts: ReadonlyMap<VpsHome, number | null>): RelayHome => {
+  let best: { home: RelayHome; rtt: number } = { home: 'cf', rtt: NEAR_RTT_MS }
+  for (const [home, rtt] of rtts) if (rtt !== null && rtt <= best.rtt) best = { home, rtt }
+  return best.home
+}
 
 /**
  * The round trip to a relay (ms) as this device sees it, or null when it
@@ -31,7 +44,7 @@ export const measureRtt = async (url: string, get: (url: string) => Promise<unkn
       await get(`${url}/health`)
       best = Math.min(best, now() - at)
       // Clearly near or clearly far: more tries won't change the pick.
-      if (best <= SA_MAX_RTT_MS / 2 || best >= SA_MAX_RTT_MS * 3) break
+      if (best <= NEAR_RTT_MS / 2 || best >= NEAR_RTT_MS * 3) break
     }
     return best
   } catch {

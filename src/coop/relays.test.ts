@@ -1,21 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import { createCoopClient } from './client'
-import { SA_MAX_RTT_MS, measureRtt, pickHome, relayFor } from './relays'
+import { NEAR_RTT_MS, measureRtt, pickHome, relayFor } from './relays'
 
 const CF = 'https://cf.test'
 const SA = 'https://sa.test'
 
 describe('relays', () => {
-  it('finds a room on the relay its code names, and on Cloudflare in a build without São Paulo', () => {
-    expect(relayFor('9K7QF', CF, SA)).toBe(SA)
-    expect(relayFor('K7QF2', CF, SA)).toBe(CF)
-    expect(relayFor('9K7QF', CF, null)).toBe(CF)
+  it('finds a room on the relay its code names, and on Cloudflare when this build lacks that relay', () => {
+    expect(relayFor('3K7QF', CF, { sa: SA })).toBe(SA)
+    expect(relayFor('K7QF2', CF, { sa: SA })).toBe(CF)
+    expect(relayFor('3K7QF', CF, {})).toBe(CF)
+    // 6 to 9 belong to no relay yet: Cloudflare's.
+    expect(relayFor('7K7QF', CF, { sa: SA })).toBe(CF)
   })
 
-  it("puts a host's room in São Paulo only when it answers near", () => {
-    expect(pickHome(8)).toBe('sa')
-    expect(pickHome(SA_MAX_RTT_MS + 1)).toBe('cf')
-    expect(pickHome(null)).toBe('cf')
+  it("puts a host's room on a VPS relay only when it answers near", () => {
+    expect(pickHome(new Map([['sa', 8]]))).toBe('sa')
+    expect(pickHome(new Map([['sa', NEAR_RTT_MS + 1]]))).toBe('cf')
+    expect(pickHome(new Map([['sa', null]]))).toBe('cf')
+    expect(pickHome(new Map())).toBe('cf')
   })
 
   it('measures the best round trip after the one that opens the connection, null when unreachable', async () => {
@@ -31,13 +34,13 @@ describe('relays', () => {
     const client = (saUp: boolean) =>
       createCoopClient({
         url: CF,
-        saUrl: SA,
+        vps: { sa: SA },
         build: 'b1',
         socket: () => ({ send: () => {}, close: () => {}, isOpen: () => false, buffered: () => 0 }),
         fetch: async (url, init) => {
           if (url.startsWith(SA) && !saUp) throw new Error('offline')
           if (init.method === 'POST') posted.push(url)
-          return { json: async () => (url.startsWith(SA) ? { code: '9K7QF', region: 'sam' } : { code: 'K7QF2', region: 'enam' }) }
+          return { json: async () => (url.startsWith(SA) ? { code: '3K7QF', region: 'sam' } : { code: 'K7QF2', region: 'enam' }) }
         },
         store: { get: () => null, set: () => {}, remove: () => {}, keys: () => [] },
         token: async () => null,
@@ -45,7 +48,7 @@ describe('relays', () => {
         now: () => 0,
         random: () => 0.5,
       })
-    expect(await client(true).create()).toMatchObject({ ok: true, code: '9K7QF', home: 'sa' })
+    expect(await client(true).create()).toMatchObject({ ok: true, code: '3K7QF', home: 'sa' })
     expect(await client(false).create()).toMatchObject({ ok: true, code: 'K7QF2', home: 'cf' })
     expect(posted).toEqual([`${SA}/rooms`, `${CF}/rooms`])
   })

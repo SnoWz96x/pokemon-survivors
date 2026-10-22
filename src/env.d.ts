@@ -11,8 +11,8 @@ interface ImportMetaEnv {
   /** The co-op relay (`relay/`), e.g. `https://ps-coop.pedrobarretto.workers.dev`. Dev builds default to the dev relay. */
   readonly VITE_COOP_URL?: string
   /**
-   * The São Paulo co-op relay (`relay/node`, the CloudFront URL `sst deploy` prints), for South American hosts'
-   * rooms (`coop/relays.ts`). Unset: every room is Cloudflare's, as before.
+   * The São Paulo co-op relay (`relay/node` on the VPS, `https://coop-sa.pokemonsurvivors.com`), for South American
+   * hosts' rooms (`coop/relays.ts`). Unset: every room is Cloudflare's, as before.
    */
   readonly VITE_COOP_URL_SA?: string
 }

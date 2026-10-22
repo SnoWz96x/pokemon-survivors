@@ -3,6 +3,7 @@ import { featureFlag, track, type RunPerf } from './analytics'
 import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/bank'
 import { createBot, botPick, type Bot } from './coop/bot'
 import { createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
+import type { VpsUrls } from './coop/relays'
 import { betaOn, buildAdvice } from './coop/lobby'
 import { netSummary, type NetStats } from './coop/netStats'
 import type { Runner } from './coop/runner'
@@ -11,7 +12,7 @@ import { coopPayout, playerDexLog } from './game/coop'
 import { mergeDex, recordRun, type Pokedex } from './game/dex'
 import { localPlayer } from './game/players'
 import type { Game, GameEvent } from './game/types'
-import { ROOM_PARAM, parseRoomCode } from './net/protocol'
+import { ROOM_PARAM, parseRoomCode, type VpsHome } from './net/protocol'
 import { REF_PARAM } from './game/referral'
 import { ROUTES } from './site/routes'
 import { locale } from './i18n'
@@ -28,7 +29,6 @@ import { bankEggs, depositPokeDollars, recordRunProgress, updateSave } from './u
 export const DEV_RELAY = 'https://ps-coop-dev.pedrobarretto.workers.dev'
 
 const URL_KEY = 'ps:coopUrl'
-const SA_URL_KEY = 'ps:coopUrlSa'
 const NAME_KEY = 'ps:coopName'
 
 const local: Store = {
@@ -75,12 +75,22 @@ export const coopUrl = (): string | null => {
 export const setCoopUrl = (url: string | null) => (url ? local.set(URL_KEY, url) : local.remove(URL_KEY))
 
 /**
- * The São Paulo relay, for South American hosts' rooms (`coop/relays.ts`): the
- * build's (`VITE_COOP_URL_SA`) or a dev override. Null: every room is Cloudflare's.
+ * The VPS relays (`relay/node`) this build has, by the home their room codes
+ * name (`RELAY_HOMES`): one entry and one `VITE_COOP_URL_*` per relay. An
+ * unset one is off, and its rooms' codes go to Cloudflare.
  */
-export const coopSaUrl = (): string | null => (import.meta.env.DEV ? local.get(SA_URL_KEY) : null) ?? import.meta.env.VITE_COOP_URL_SA ?? null
+const RELAY_URLS = { sa: import.meta.env.VITE_COOP_URL_SA } as const satisfies Record<VpsHome, string | undefined>
 
-export const setCoopSaUrl = (url: string | null) => (url ? local.set(SA_URL_KEY, url) : local.remove(SA_URL_KEY))
+/** The VPS relays' URLs, with a dev build's overrides (`ps.coop('relay', home, url)`). */
+export const coopVpsUrls = (): VpsUrls =>
+  Object.fromEntries(
+    Object.entries(RELAY_URLS).flatMap(([home, url]) => {
+      const chosen = (import.meta.env.DEV ? local.get(`${URL_KEY}:${home}`) : null) ?? url
+      return chosen ? [[home, chosen]] : []
+    }),
+  )
+
+export const setCoopVpsUrl = (home: VpsHome, url: string | null) => (url ? local.set(`${URL_KEY}:${home}`, url) : local.remove(`${URL_KEY}:${home}`))
 
 /**
  * The name teammates see: the account's @handle (unique, the one the boards
@@ -108,7 +118,7 @@ const coopToken = async () => (import.meta.env.DEV && local.get('ps:devToken') ?
 
 const browserDeps = (url: string, store: Store, token: () => Promise<string | null>, name: () => string): CoopDeps => ({
   url,
-  saUrl: coopSaUrl(),
+  vps: coopVpsUrls(),
   build: __SIM_BUILD__,
   socket: webSocket,
   fetch: (u, init) => fetch(u, init),
