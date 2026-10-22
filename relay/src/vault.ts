@@ -1,17 +1,11 @@
 import { DurableObject } from 'cloudflare:workers'
 import type { Env } from './env'
+import { RETENTION, type DumpInfo, type DumpKind } from './store'
 
-/** What a dump is: a desync, a bad snapshot, or a finished run's input log kept for the lab (`run`). */
-export type DumpKind = 'desync' | 'badSnap' | 'run'
-
-/** `score`: how laggy a kept run was (`labScore`), 0 for the rest. */
-export type DumpInfo = { id: string; code: string; run: number; tick: number; at: number; size: number; kind: DumpKind; score: number }
+export { RETENTION, type DumpInfo, type DumpKind }
 
 /** Bytes per stored part (SQLite rows hold 2 MB at most). */
 const PART_BYTES = 1_500_000
-
-/** Dumps kept: the newest `max`, none older than `days`. Pruned by the vault's alarm, once a day while it holds any. */
-export const RETENTION = { days: 30, max: 500 } as const
 
 /**
  * Finished runs kept for the lab (their own budget, apart from the dumps): at most `perDay` a UTC day,

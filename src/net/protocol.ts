@@ -32,6 +32,36 @@ export const SNAPSHOT_EVERY = 600
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 export const ROOM_CODE_LENGTH = 5
 
+/**
+ * Which relay a room lives on, told by its code's first character, so a link
+ * or a typed code finds its room without asking anyone. Each relay only makes
+ * codes of its own home:
+ *
+ * - `cf`: Cloudflare (a letter, 23 × 31^4 ≈ 21 million codes), the default.
+ * - `sa`: the São Paulo VPS relay (`relay/node`), 2 to 5 (4 × 31^4 ≈ 3.7 million).
+ * - `us`: the US east VPS relay (Boston), 6 to 9 (another 3.7 million).
+ *
+ * Another VPS relay takes characters from one of these (a letter from
+ * Cloudflare's, say) after its old codes' rooms are gone (6 h): one entry
+ * here, one in the game's `RELAY_URLS` (`coopShell.ts`) and its
+ * `VITE_COOP_URL_*`. A code of a home this build has no URL for is Cloudflare's.
+ */
+export const RELAY_HOMES = { cf: 'ABCDEFGHJKMNPQRSTUVWXYZ', sa: '2345', us: '6789' } as const satisfies Record<string, string>
+export type RelayHome = keyof typeof RELAY_HOMES
+
+/** The relays that aren't Cloudflare (each a `relay/node` server). */
+export type VpsHome = Exclude<RelayHome, 'cf'>
+
+export const isRelayHome = (v: unknown): v is RelayHome => typeof v === 'string' && Object.hasOwn(RELAY_HOMES, v)
+
+const HOMES: readonly RelayHome[] = Object.keys(RELAY_HOMES).filter(isRelayHome)
+
+/** The VPS relays' homes. */
+export const VPS_HOMES: readonly VpsHome[] = HOMES.filter((h): h is VpsHome => h !== 'cf')
+
+/** The relay a (valid) room code belongs to. */
+export const homeOf = (code: string): RelayHome => HOMES.find((h) => RELAY_HOMES[h].includes(code.charAt(0))) ?? 'cf'
+
 /** The room code in a shared link (`/?sala=K7QF2`). */
 export const ROOM_PARAM = 'sala'
 

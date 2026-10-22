@@ -1,12 +1,5 @@
-import {
-  PROTOCOL,
-  REGIONS,
-  ROOM_CODE_ALPHABET,
-  ROOM_CODE_LENGTH,
-  parseRoomCode,
-  type CreateResponse,
-  type Region,
-} from '../../src/net/protocol'
+import { PROTOCOL, parseRoomCode, type CreateResponse, type Region } from '../../src/net/protocol'
+import { parseCreate, randomCode } from './codes'
 import type { Env } from './env'
 import { allowedOrigin } from './origins'
 import { EDGE_HEADER, edgeOf } from './telemetry'
@@ -26,15 +19,6 @@ export { Vault } from './vault'
 
 /** Room codes tried before giving up (a collision in 28.6 million codes is rare already). */
 const CREATE_TRIES = 8
-
-/** A uniformly random room code (rejection sampling over random bytes). */
-export const randomCode = (random: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n))) => {
-  const n = ROOM_CODE_ALPHABET.length
-  const limit = 256 - (256 % n)
-  let code = ''
-  while (code.length < ROOM_CODE_LENGTH) for (const b of random(8)) if (b < limit && code.length < ROOM_CODE_LENGTH) code += ROOM_CODE_ALPHABET[b % n]
-  return code
-}
 
 type Hint = Exclude<Region, 'auto'>
 
@@ -61,8 +45,6 @@ export const hintFor = (cf: { continent?: string; longitude?: string } | undefin
   }
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
-
 const json = (body: unknown, status = 200, headers: HeadersInit = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
 
@@ -74,22 +56,14 @@ const ipOf = (request: Request) => request.headers.get('CF-Connecting-IP') ?? 'u
 const createRoom = async (request: Request<unknown, IncomingRequestCfProperties>, env: Env, headers: Record<string, string>): Promise<Response> => {
   const reply = (body: CreateResponse, status = 200) => json(body, status, headers)
   if (!(await env.CREATE_LIMIT.limit({ key: ipOf(request) })).success) return reply({ error: 'rate' }, 429)
-  const text = await request.text()
-  let body: unknown = null
-  try {
-    body = text.length <= 1024 ? JSON.parse(text) : null
-  } catch {
-    body = null
-  }
-  if (!isRecord(body)) return reply({ error: 'invalid' }, 400)
-  if (body.v !== PROTOCOL) return reply({ error: 'version' }, 426)
-  const build = typeof body.build === 'string' && /^[\w.-]{1,40}$/.test(body.build) ? body.build : null
-  const asked = REGIONS.find((r) => r === body.region) ?? 'auto'
-  if (!build) return reply({ error: 'invalid' }, 400)
+  const body = parseCreate(await request.text())
+  if ('error' in body) return reply({ error: body.error }, body.status)
+  const { build, region: asked } = body
   const hint = asked === 'auto' ? hintFor(request.cf) : asked
   const region: Region = hint ?? 'auto'
   for (let i = 0; i < CREATE_TRIES; i++) {
-    const code = randomCode()
+    // Cloudflare's codes start with a letter: a digit names a VPS relay (`RELAY_HOMES`).
+    const code = randomCode('cf')
     const stub = env.ROOMS.get(env.ROOMS.idFromName(code), hint ? { locationHint: hint } : undefined)
     if (await stub.create({ code, build, region })) return reply({ code, region })
   }

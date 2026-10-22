@@ -429,6 +429,16 @@ const flush = (state: State, run: Run, force = false): Effect[] => {
   return [{ k: 'log', run: run.start.id, at: run.next, n: live.batches++, ticks, hashes, bound: run.bound }]
 }
 
+/**
+ * The log held in memory, written now: for a shell stopping on purpose (a VPS
+ * relay's deploy), so its restart loses none of what went out. A crash may
+ * still lose the newest second of it (the doc block above).
+ */
+export const flushLog = (state: State): Effect[] => {
+  const run = state.room?.run
+  return run && !run.ended ? flush(state, run) : []
+}
+
 /** Brings `conn` to the present: the log written first, so the sync reads all of it. */
 const syncEffect = (state: State, conn: ConnId, run: Run, s: { reason: SyncReason; from: number; base: SnapshotRef | null }): Effect[] => [
   ...flush(state, run),

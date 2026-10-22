@@ -3,5 +3,6 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [cloudflareTest({ wrangler: { configPath: './wrangler.jsonc' } })],
-  test: { testTimeout: 30_000 },
+  // node/ is the São Paulo shell, tested in Node by its own config.
+  test: { testTimeout: 30_000, exclude: ['**/node_modules/**', 'node/**'] },
 })

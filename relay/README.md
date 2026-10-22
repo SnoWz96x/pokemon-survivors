@@ -8,12 +8,12 @@ compares the players' state hashes, keeps the latest snapshot a majority agreed
 on, heals a diverged client and records a desync dump. It runs no game code: it
 imports only `../src/net/protocol.ts`, which imports nothing (a test checks it).
 
-Storage comes two ways (the doc block atop `src/room.ts`). Rare state (seats,
-run start and end, the agreed snapshot, pauses) is a durable room save: the
-output gate holds every message until it commits. The input log, decided
-hashes, clock bound and snapshot chunks are written with `allowUnconfirmed`
-(KV keys; `sql.exec` always takes the gate), so frames and pongs never wait on
-a commit. A crash can lose the newest second of log: the clock bound, written
+Storage comes two ways (the doc block atop `src/room.ts`; `src/store.ts` writes
+and reads it for both shells). Rare state (seats, run start and end, the agreed
+snapshot, pauses) is a durable room save: the output gate holds every message
+until it commits. The input log, decided hashes, clock bound and snapshot
+chunks are written with `allowUnconfirmed` (KV keys; `sql.exec` always takes
+the gate), so frames and pongs never wait on a commit. A crash can lose the newest second of log: the clock bound, written
 3 s ahead with every batch (never under 2 s, so a lost batch is covered while
 its commit takes under 2 s; the worst measured took 1.1 s), keeps the
 restarted room from sending a tick twice, the clients resume from their own
@@ -77,6 +77,101 @@ JSON lines in Workers Logs (observability is on), one per event:
 `welcome` also says where the room runs (`net`: `colo`, `region`, the socket's `edge` and `edgeRtt`), for the client's own `coop_net` event.
 
 **Kept runs.** A run that lasted a minute or more is offered to the vault when it is summed up (above): its input log, as a dump (`kind: 'run'`, `meta.why`, `meta.net` per seat, `score`; one id per run, so an offer made when everyone left is replaced if the run goes on), so a laggy run can be replayed in the lab. At most 20 a UTC day, the laggiest win (`score`: the worst seat's round trip p95, plus 20 per underrun and 50 per reconnect), kept 14 days. `/admin/dumps` lists them with the rest (`kind`, `score`).
+
+## VPS relays: São Paulo and US east (`node/`)
+
+Cloudflare has no Durable Objects in South America, so a Brazilian room runs in the US
+(116–140 ms away). `node/` runs the same room (`src/room.ts`, `src/store.ts`, `src/auth.ts`,
+`src/codes.ts`) on Node 24 as a Docker image, on Pedro's VPSes through Dokploy:
+
+| Relay | Home (`RELAY_HOME`) | Codes start with | Where | Address | Game env |
+|---|---|---|---|---|---|
+| São Paulo | `sa` | 2–5 | the main VPS (72.60.58.225, next to the API, ~9 ms from a Brazilian player) | `coop-sa.pokemonsurvivors.com` | `VITE_COOP_URL_SA` |
+| US east | `us` | 6–9 | Hostinger Boston (2.25.92.11), a Dokploy remote server | `coop-us.pokemonsurvivors.com` | `VITE_COOP_URL_US` |
+
+- **Routing:** a room's code says its relay (`RELAY_HOMES` in the protocol). Cloudflare makes
+  codes starting with a letter, each VPS relay with its own digits. The game (`src/coop/relays.ts`)
+  measures every VPS relay it has a URL for and creates on the one with the lowest round trip
+  within 70 ms, else on Cloudflare (also the fallback when that relay can't take it). A build
+  without a relay's `VITE_COOP_URL_*` sends its codes to Cloudflare. Another relay is one entry in
+  `RELAY_HOMES`, one in `RELAY_URLS` (`src/coopShell.ts`), its env var and this image with its
+  `RELAY_HOME` (taking characters from a home only after that home's rooms are gone, 6 h).
+- **One process, every room:** one SQLite file per room (`node:sqlite`, WAL) on the `/data`
+  volume, a 60 Hz timer per running room, the Worker's routes, origin checks, Clerk tokens,
+  rate limits (by `X-Real-Ip` from Traefik) and the dump vault. An exclusive lock on
+  `/data/relay.lock` keeps a second container off the same rooms.
+- **Storage as the Durable Object's (`src/store.ts`):** the same log batch a second with its
+  clock bound (3 s ahead, never under 2 s), the same keys (rows of the room's `kv` here) and the
+  same restart (the clock resumes at the newest batch's bound). No output gate: a step's writes
+  go in one local transaction (microseconds) before anything it sends.
+- **A deploy or a crash loses only sockets:** SIGTERM writes the log still in memory, closes
+  the sockets with 1012 (clients reconnect at once and resume) and rooms load back from the
+  volume. A crash may lose the newest second of log, covered as on Cloudflare. A room whose
+  step throws starts over from its file without touching the others. Logs are the room's
+  events as on the Workers, plus `relay.stats` a minute (rooms, sockets, event-loop lag, CPU,
+  memory); the telemetry (`run.summary`, `conn.*`, `welcome`'s `net`, kept runs) is
+  Cloudflare's only for now.
+
+```bash
+cd node && npm ci
+npm test && npm run typecheck   # the Node shell (restart, lock and rate-limit tests)
+npm run dev                     # :8795, guests on; the game: ps.coop('relay', 'sa', 'http://localhost:8795')
+node ../scripts/probe.mjs --url http://localhost:8795 --bots 3 --secs 40 --desync --rejoin
+docker build -f relay/node/Dockerfile -t ps-relay .   # from the repository root, as Dokploy does
+```
+
+### One-time setup (Pedro)
+
+The same steps for each relay, with its row of the table above (`<home>`: `sa` or `us`).
+
+1. **DNS** (GoDaddy, `ns23`/`ns24.domaincontrol.com`): an `A` record per relay, TTL 600:
+   `coop-sa` → `72.60.58.225` (the main VPS, like `api`) and `coop-us` → `2.25.92.11` (Boston).
+   Check: `dig +short coop-<home>.pokemonsurvivors.com`.
+2. **Dokploy** (US east: first add the Boston VPS as a **remote server** in Dokploy, Settings →
+   Remote Servers, and set it up so it runs Traefik; its app then deploys there), project
+   **Pokémon Survivors**, a new application `coop-<home>` (`coop-us` on the Boston server):
+   - Source: this GitHub repository, branch `main`. Build type **Dockerfile**, Dockerfile
+     `relay/node/Dockerfile`, build context `.` (the repository root).
+   - Auto deploy on, with watch paths `relay/src/**`, `relay/node/**` and `src/net/protocol.ts`
+     (all the image bundles: game deploys never restart it).
+   - **Volume** (Advanced → Mounts): a volume mount, name `ps-relay-<home>-data`, mount path `/data`.
+     Without it every deploy loses the rooms in play.
+   - **Rollout: stop-first** (Advanced → Swarm → Update config, `Order: stop-first`, Swarm's
+     default; not the API's start-first). Two relays can't share the rooms: a new container
+     started first would wait on the lock, never get healthy, and roll back.
+   - **Environment:**
+     ```
+     RELAY_HOME=<home>
+     ALLOWED_ORIGINS=https://www.pokemonsurvivors.com,https://pokemonsurvivors.com
+     ALLOW_GUESTS=off
+     ADMIN_TOKEN=<openssl rand -base64 32, kept in ~/.config/ps-coop/<home>-admin-token, mode 600>
+     ```
+     (`CLERK_ISSUER` defaults to `https://clerk.pokemonsurvivors.com`; `PORT`, `DATA_DIR` and
+     `IP_HEADER=x-real-ip` come from the image.)
+   - **Domain:** host `coop-<home>.pokemonsurvivors.com`, path `/`, container port `8080`, HTTPS on,
+     certificate Let's Encrypt.
+3. Deploy, then check: `curl https://coop-<home>.pokemonsurvivors.com/health` answers
+   `{"ok":true,"home":"<home>","version":…}`. To soak one, set `ALLOW_GUESTS=on` for a while and run
+   the probe with `--url https://coop-<home>.pokemonsurvivors.com`: it must keep its sockets well past
+   a minute (Traefik's timeouts) and end with every check green.
+4. Ship the Cloudflare relay's code change (`npm run deploy:prod` here: its codes now always start
+   with a letter) and wait 6 h, a room's longest life, so no live Cloudflare room has a digit code.
+5. Vercel, Production: `VITE_COOP_URL_SA=https://coop-sa.pokemonsurvivors.com` and
+   `VITE_COOP_URL_US=https://coop-us.pokemonsurvivors.com` (either alone works), then redeploy the site.
+
+No Clerk change is needed: the issuer is the same, and a token's `azp` is checked against `ALLOWED_ORIGINS`.
+
+### Running it
+
+- **Deploy:** a push to `main` touching the watch paths, or Deploy in Dokploy. The old container
+  stops (1012 to every socket), the new one loads the rooms from the volume: players freeze for
+  about a second and resume.
+- **Rollback:** Dokploy's Deployments tab, redeploy the previous one (the volume stays).
+- **Logs:** the app's Logs tab in Dokploy (JSON lines: `run.*`, `seat.*`, `room.*`, `relay.stats`).
+- **Dumps:** `curl -s -H "Authorization: Bearer $(cat ~/.config/ps-coop/<home>-admin-token)" https://coop-<home>.pokemonsurvivors.com/admin/dumps`
+  (then `/admin/dumps/<id> | gunzip > dump.json`).
+- **Costs:** São Paulo shares the main VPS (nothing extra); US east is the Boston VPS's own plan. A 4-player room takes ~1–1.5% of a core and
+  ~1 MB of memory past the process's ~80 MB.
 
 ## Limits and costs
 
