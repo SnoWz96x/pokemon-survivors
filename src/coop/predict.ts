@@ -19,12 +19,12 @@ import type { Runner } from './runner'
  * predicted (a knockback, a dash, a hit), the difference blends away over a
  * few frames instead of snapping; the drawn spot is kept out of the terrain
  * too, so the sprite never sinks into a wall. While the step doesn't walk the
- * player (a hitstop, the rift's fall, a held world) the sprite eases to the
- * confirmed spot the same way.
+ * player (the rift's fall, a held world) the sprite eases to the confirmed
+ * spot the same way. A hitstop never stops it: co-op plays on through one.
  *
  * Each frame: the steady offset (`steadyOffset`) says which sample the
- * confirmed state has reached (`simSample`); `walking` says how the next
- * ticks treat the stick; `walkAhead` walks the ghost from there to the
+ * confirmed state has reached (`simSample`); `walking` says whether the next
+ * ticks walk the stick; `walkAhead` walks the ghost from there to the
  * latest sample; the change against last frame's prediction for the same
  * sample is the correction (`err`), faded over `BLEND`. Only walking is
  * modelled: a dash, lunge or roll moves the confirmed player on its own and
@@ -146,16 +146,12 @@ export const createPrediction = (): Prediction => ({
 })
 
 /**
- * How the next steps treat this player's stick, mirroring the step's own
- * checks: null while it doesn't walk them for now (a screen up, the world
- * held, the rift's fall, a wave legendary's scene, fainted or wrapped up); else how many ticks the
- * hitstop still eats (the samples those ticks read never move the player).
+ * Whether the next steps walk this player with their stick, mirroring the
+ * step's own checks: not while a screen is up, the world is held, the rift's
+ * fall or a wave legendary's scene plays, or they're fainted or wrapped up.
  */
-const walking = (g: Game, p: Player): number | null => {
-  if (g.phase !== 'playing' || !inPlay(p) || worldHeld(g) || (g.rift.arena?.fall ?? null) !== null || g.legendScene !== null) return null
-  // `stepTeam` takes a tick off the hitstop each tick it holds the world; a hair under a whole tick counts as one.
-  return g.hitstop > 0 ? Math.ceil(g.hitstop / TICK - 1e-6) : 0
-}
+const walking = (g: Game, p: Player) =>
+  g.phase === 'playing' && inPlay(p) && !worldHeld(g) && (g.rift.arena?.fall ?? null) === null && g.legendScene === null
 
 /**
  * Walks a copy of the confirmed player through the samples after `from` up
@@ -192,15 +188,13 @@ export const predict = (pr: Prediction, r: Runner, history: Uint8Array, sample: 
   let prev: Pos = cur
   let atLast: Pos | null = null
   let walked = false
-  const frozen = anchor ? walking(g, p) : null
-  if (anchor && frozen !== null) {
+  if (anchor && walking(g, p)) {
     // Ticks and samples both count 60 a second: tick `t` reads the sample `t + offset`.
     const simSample = steadyOffset(pr.offset, anchor) + r.next - 1
     // How good the prediction was for the sample the confirmed state just reached.
     const k = ((simSample % HISTORY) + HISTORY) % HISTORY
     if (pr.predictedAt[k] === simSample && pr.errors.length < 100_000) pr.errors.push(Math.hypot(pr.predicted[k * 2]! - p.x, pr.predicted[k * 2 + 1]! - p.y))
-    // A hitstop eats the samples its ticks read: the walk starts past them.
-    const from = Math.min(simSample + frozen, sample)
+    const from = Math.min(simSample, sample)
     const ahead = Math.max(0, Math.min(MAX_AHEAD, sample - from))
     const w = walkAhead(pr, g, p, history, from, from + ahead, pr.lastSample)
     cur = w.cur
