@@ -37,11 +37,16 @@ export const randomCode = (random: (n: number) => Uint8Array = (n) => crypto.get
 
 type Hint = Exclude<Region, 'auto'>
 
-/** The location hint nearest a request (its continent, and longitude in North America). */
+/**
+ * The location hint nearest a request (its continent, and longitude in North
+ * America). No Durable Object runs in South America (`sam` lands anywhere from
+ * Miami to Chicago): from São Paulo the US east coast answers first (EWR
+ * 116 ms, MIA 131 ms).
+ */
 export const hintFor = (cf: { continent?: string; longitude?: string } | undefined): Hint | null => {
   switch (cf?.continent) {
     case 'SA':
-      return 'sam'
+      return 'enam'
     case 'NA':
       return Number(cf.longitude) < -100 ? 'wnam' : 'enam'
     case 'EU':

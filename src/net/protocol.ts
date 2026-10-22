@@ -143,7 +143,8 @@ export type RunStart = {
 /**
  * Where a new room's relay runs (Durable Object location hints). `auto` picks
  * the region nearest the host. There are no Durable Objects in South America:
- * `sam` lands in Miami most of the time (or New Jersey), the closest to Brazil.
+ * `sam` lands anywhere from Miami to Chicago, so `auto` sends South America to
+ * `enam` (New Jersey answers São Paulo first).
  */
 export const REGIONS = ['auto', 'sam', 'enam', 'wnam', 'weur', 'eeur', 'apac', 'oc'] as const
 export type Region = (typeof REGIONS)[number]
