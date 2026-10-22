@@ -168,6 +168,7 @@ export const createPlayer = (slot: number, setup: PlayerSetup, lucky: boolean, x
     still: 0,
     guard: null,
     hidden: null,
+    ward: null,
     drain: { left: 0, at: 0 },
     rooted: 0,
     moveBuffs: [],

@@ -127,7 +127,7 @@ const win = (g: Game, inside: GraveInside, boss: Enemy | undefined) => {
   const s = inside.state
   const x = boss?.x ?? inside.x
   const y = boss?.y ?? inside.y
-  const coins = [COIN_VALUES[2], COIN_VALUES[1], COIN_VALUES[1], COIN_VALUES[1], COIN_VALUES[1]]
+  const coins = [COIN_VALUES[2]]
   dropCoins(g, x, y, s.shiny ? [...coins, ...coins] : coins)
   PLACE_LOOT.graveyard.forEach((item, i) => dropItem(g, x + 10 + i * 6, y, item))
   for (const p of g.players) {

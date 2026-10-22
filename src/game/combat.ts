@@ -177,7 +177,7 @@ export const killEnemy = (g: Game, e: Enemy, source?: DamageSource | null) => {
   // Under tension a regular's faint gives a share of its loot (`tension.ts`); a boss's never shrinks.
   const share = e.boss ? 1 : g.tension.share
   if (e.xp > 0) dropXp(g, e.x, e.y, e.xp * share)
-  dropCoins(g, e.x, e.y, coinDrops(g.rng, e))
+  dropCoins(g, e.x, e.y, coinDrops(g.rng, e, g.endless !== null))
   faintCandies(g, e, share)
   if (e.shiny) dropPickup(g, e.x + 6, e.y, 'pokeball')
   if (e.alpha) {

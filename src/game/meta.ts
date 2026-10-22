@@ -322,25 +322,42 @@ export const COIN_VALUES = [10, 50, 250] as const
 export const coinTier = (value: number) => (value >= COIN_VALUES[2] ? 2 : value >= COIN_VALUES[1] ? 1 : 0)
 
 /**
- * Coins dropped by a fainted enemy. Regular Pokémon drop one now and then
- * (tougher ones more often), shinies always pay out and bosses shower ₽.
+ * ₽ fainted foes drop, before greed. A regular one drops a coin with chance
+ * `chance + perXp × its EXP` (a pile in `pile` of those), `endless` times that
+ * past Mewtwo; shinies and bosses (Alphas too) always shower ₽. Halved when the
+ * Kecleon Shop opened: runs paid faster than its shelves could take, and
+ * bosses, Alphas and shinies made more of a run's coins than the regular horde.
  */
-export const coinDrops = (rng: Rng, enemy: { boss: boolean; xp: number; shiny?: boolean }): number[] => {
-  if (enemy.boss) return [250, 50, 50, 50, 50, 50]
-  if (enemy.shiny) return [50, 50, 50]
-  if (!chance(rng, 0.025 + enemy.xp * 0.01)) return []
-  return [chance(rng, 0.1) ? 50 : 10]
+export const FOE_COINS = {
+  chance: 0.0125,
+  perXp: 0.005,
+  pile: 0.1,
+  endless: 0.5,
+  shiny: [COIN_VALUES[1], COIN_VALUES[0], COIN_VALUES[0]],
+  boss: [COIN_VALUES[1], COIN_VALUES[1], COIN_VALUES[1], COIN_VALUES[1], COIN_VALUES[1]],
+} as const
+
+/** Coins dropped by a fainted enemy (`FOE_COINS`); `endless` once the run went on past Mewtwo. */
+export const coinDrops = (rng: Rng, enemy: { boss: boolean; xp: number; shiny?: boolean }, endless = false): readonly number[] => {
+  if (enemy.boss) return FOE_COINS.boss
+  if (enemy.shiny) return FOE_COINS.shiny
+  if (!chance(rng, (FOE_COINS.chance + enemy.xp * FOE_COINS.perXp) * (endless ? FOE_COINS.endless : 1))) return []
+  return [chance(rng, FOE_COINS.pile) ? COIN_VALUES[1] : COIN_VALUES[0]]
 }
+
+/** ₽ per survived minute in the run bonus, and the extra per endless minute past 15:00 (after Mewtwo). */
+const BONUS_PER_MINUTE = { run: 30, endless: 30 } as const
 
 /**
  * End-of-run bonus for surviving and fainting foes, scaled by greed (Amulet Coin).
- * Beating Mewtwo pays a lump sum; after it, every endless minute pays triple
+ * Beating Mewtwo pays a lump sum; after it, every endless minute pays double
  * and every defeated Arceus a fortune, so surviving longer always pays more.
  */
 export const runBonus = (run: { time: number; kills: number; victory: boolean; greed: number; reaperDefeats?: number }) => {
   const endlessMinutes = run.victory ? overtime(run.time) / 60 : 0
   const reaper = (run.reaperDefeats ?? 0) * ENDLESS.reaperBonus
-  return Math.round(((run.time / 60) * 30 + endlessMinutes * 60 + run.kills * 0.25 + (run.victory ? 1000 : 0) + reaper) * run.greed)
+  const minutes = (run.time / 60) * BONUS_PER_MINUTE.run + endlessMinutes * BONUS_PER_MINUTE.endless
+  return Math.round((minutes + run.kills * 0.25 + (run.victory ? 1000 : 0) + reaper) * run.greed)
 }
 
 /** Mewtwo fell this run: on the victory screen, or still going in endless mode. */

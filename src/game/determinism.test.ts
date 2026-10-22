@@ -111,30 +111,30 @@ describe('golden runs', () => {
   it('Eevee: the opening draft, level-ups, rerolls, skips and Esquecer', () => {
     const { live, replayed, branch } = golden('eevee', 41, 180)
     expect(replayed).toBe(live)
-    expect([live, branch]).toEqual(['playing@180s L9 S0 347k 18ef8ac1', null])
+    expect([live, branch]).toEqual(['playing@180s L9 S0 335k be505705', null])
   }, SLOW)
 
   it('Charmander evolves and picks its Ability', () => {
     const { live, replayed, branch } = golden('charmander', 42, 240)
     expect(replayed).toBe(live)
-    expect([live, branch]).toEqual(['playing@240s L15 S1 529k 5ba22149', null])
+    expect([live, branch]).toEqual(['playing@240s L15 S1 570k 6aa527ed', null])
   }, SLOW)
 
   it('Honedge switches stances', () => {
     const { live, replayed, branch } = golden('honedge', 43, 150)
     expect(replayed).toBe(live)
-    expect([live, branch]).toEqual(['playing@150s L9 S0 253k a234035e', null])
+    expect([live, branch]).toEqual(['playing@150s L9 S0 281k f4173c7b', null])
   }, SLOW)
 
   it('Kyogre in the Legend mode on a haunted night: Pressure, its innate, an awakening, candies and jack-o\'-lanterns', () => {
     const { live, replayed, branch } = golden('kyogre', 44, 240, { halloween: true })
     expect(replayed).toBe(live)
-    expect([live, branch]).toEqual(['playing@240s L13 S0 758k 2153acb0', null])
+    expect([live, branch]).toEqual(['playing@240s L14 S0 738k efb399e1', null])
   }, SLOW)
 
   it('Bulbasaur with Bag items, armed shop TMs and Bottle Caps', () => {
     const { live, replayed, branch } = golden('bulbasaur', 45, 240, { bag: ['rareCandy', 'luckyEgg', 'xAttack', 'maxRevive'], tms: ['payDay', 'thief'], caps: 2 })
     expect(replayed).toBe(live)
-    expect([live, branch]).toEqual(['playing@240s L15 S1 613k b252c3e', null])
+    expect([live, branch]).toEqual(['playing@240s L17 S1 628k d4addeea', null])
   }, SLOW)
 })

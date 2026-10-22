@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bonusMult, DRAIN_RATE, drainAmount, drainRefill, executes, learnable, LOW_HP, nearestFoes, nextStacks, scaleBy, type StackRule,
+  bonusMult, DRAIN_RATE, drainAmount, drainRefill, executes, learnable, LOW_HP, nearestFoes, nextStacks, scaleBy, WARD_GAP, wardOpens, type StackRule,
 } from './kitRules'
 import { HEX_BONUS } from './moveRules'
 import type { MoveId } from './moves'
@@ -160,5 +160,19 @@ describe('new conditions', () => {
     const boss = enemy({ boss: true })
     applyStatus(boss.status, { kind: 'confuse', chance: 1, duration: 3, power: 0 }, 10, true, 'swift')
     expect(boss.status.confuse.time).toBe(0)
+  })
+})
+
+describe('wardOpens', () => {
+  it('lets protections from different moves not chain, and the holder renew its own', () => {
+    // Nothing held yet: any move opens.
+    expect(wardOpens(null, null, 'protect', 0)).toBe(true)
+    // Fly is up: Protect fails, Fly renews.
+    expect(wardOpens({ move: 'fly', at: 5 }, 'fly', 'protect', 5)).toBe(false)
+    expect(wardOpens({ move: 'fly', at: 5 }, 'fly', 'fly', 5)).toBe(true)
+    // Fly just landed: Protect waits out the gap, an echo of Fly doesn't.
+    expect(wardOpens({ move: 'fly', at: 5 }, null, 'protect', 5 + WARD_GAP - 0.01)).toBe(false)
+    expect(wardOpens({ move: 'fly', at: 5 }, null, 'fly', 5.1)).toBe(true)
+    expect(wardOpens({ move: 'fly', at: 5 }, null, 'protect', 5 + WARD_GAP)).toBe(true)
   })
 })

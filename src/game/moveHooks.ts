@@ -1,6 +1,7 @@
 import { TYPE_COLORS } from '../data/types'
 import { burst } from './effects'
 import { nextStacks, type StackEvent } from './kitRules'
+import { stampWard, wardHolder } from './moveKit'
 import { MOVES, moveStats, type CastStats, type MoveDef, type MoveId } from './moves'
 import type { Attack, Enemy, Game, MoveWindow, OwnedMove } from './types'
 
@@ -60,11 +61,14 @@ const withMods = (g: Game, s: CastStats, run: (s: CastStats) => void) => {
 }
 
 /**
- * Per tick, before the moves cast: standing-still and walking stack events,
- * the guard window running out and a burrow ending in its move's `emerge`.
+ * Per tick, before the moves cast: the open window keeps the ward fresh,
+ * standing-still and walking stack events, the guard window running out and a
+ * burrow ending in its move's `emerge`.
  */
 export const updateMoveKit = (g: Game, dt: number) => {
   const p = g.player
+  const holder = wardHolder(p)
+  if (holder !== null) stampWard(p, holder, g.now)
   if (p.moving) moveEvent(g, null, 'move')
   else if (p.still > 0 && Math.floor(p.still) > Math.floor(p.still - dt)) moveEvent(g, null, 'still')
   if (p.guard && (p.guard.left -= dt) <= 0) p.guard = null

@@ -25,7 +25,7 @@ export const ENDLESS = {
   /** A ring or swarm of the current horde every this many seconds. */
   eventEvery: 40,
   /** ₽ the run bonus pays per defeated Arceus. */
-  reaperBonus: 5000,
+  reaperBonus: 2500,
 } as const
 
 export type EndlessState = {

@@ -122,11 +122,11 @@ export const domainHarm = (g: Game, body: boolean) => {
 
 /**
  * What beating a rift legendary pays, on top of a regular boss drop (₽ shower
- * and a Poké Ball): EXP, money bags, extra Poké Balls, items and a heal.
+ * and a Poké Ball): EXP, a money bag, extra Poké Balls, items and a heal.
  * A shiny legendary doubles the ₽ and adds a Poké Ball.
  */
 export const riftLoot = (time: number, shiny: boolean) => {
-  const coins = [250, 250, 50, 50, 50, 50]
+  const coins = [250, 50, 50, 50, 50]
   return {
     xp: Math.round(150 + (time / 60) * 40),
     coins: shiny ? [...coins, ...coins] : coins,
