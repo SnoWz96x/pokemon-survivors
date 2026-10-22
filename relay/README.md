@@ -16,7 +16,7 @@ a commit. A crash can lose the newest second of log: the clock bound, written
 10 s ahead, keeps the restarted room from sending a tick twice, the clients
 resume from their own state, and the hash check heals anyone who rebuilt
 without it. The cost: after a restart the clock resumes at the bound, so the
-players get 5 to 10 s of ticks without their input. It runs
+players get 4 to 10 s of ticks without their input. It runs
 no game code: it imports only `../src/net/protocol.ts`, which imports nothing
 (a test checks it).
 
