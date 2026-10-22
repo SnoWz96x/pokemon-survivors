@@ -1,4 +1,4 @@
-import { dir8, dirTo, fromAngle, TAU } from '../engine/math'
+import { dir8, dirTo, fromAngle, TAU, type Vec } from '../engine/math'
 import { chance, pick, range } from '../engine/rng'
 import { PLAYABLE, type PlayableId } from '../data/hatchlings'
 import { BRANCHES, type BranchDef, type BranchId } from '../data/branches'
@@ -644,6 +644,10 @@ const CHAIN_TIME = 0.1
 const CHAIN_RANGE = 170
 const CHAIN_OVERSHOOT = 10
 const CHAIN_MISS = 70
+/** Hitstop (s) a release starts, then a dash's blast where it lands and a chain jump landing on a foe. */
+const RELEASE_HITSTOP = 0.07
+const BLAST_HITSTOP = 0.05
+const LANDING_HITSTOP = 0.03
 /** Spacing of the capsule's circles and of the afterimages, in px. */
 const CHAIN_STEP = 8
 const CHAIN_GHOST = 14
@@ -662,6 +666,37 @@ export const specialReach = (g: Game, r: ResolvedSpecial) => {
     case 'wave': return WAVE_SPEED * WAVE_TTL
     default: return 0
   }
+}
+
+/** Seconds the release phase lasts (the dash, the beam, the trail); 0 for a special that's done once released. */
+const activeTime = (r: ResolvedSpecial) => {
+  switch (r.def.kind) {
+    case 'dash': return DASH_TIME
+    case 'beam': return BEAM_TIME
+    case 'trail': return r.tier.count * TRAIL_EVERY
+    default: return 0
+  }
+}
+
+/** One tick of the special's own motion: the aim (`dir`), the move (px) and its length. */
+export type SpecialStep = { dir: Vec; dx: number; dy: number; dist: number }
+
+/**
+ * A dash's step: `reach` px over `DASH_TIME` along the aim locked at release.
+ * Pure, so the simulation (`dashTick`) and co-op's prediction ghost
+ * (`predictSpecial`) move the player by the same bits.
+ */
+export const dashStep = (angle: number, reach: number, dt: number): SpecialStep => {
+  const v = reach / DASH_TIME
+  const dir = fromAngle(angle)
+  return { dir, dx: dir.x * v * dt, dy: dir.y * v * dt, dist: v * dt }
+}
+
+/** A chain jump's step: `reach` px over `CHAIN_TIME`, never past the jump's end (`active` seconds left). Pure, like `dashStep`. */
+export const jumpStep = (angle: number, reach: number, active: number, dt: number): SpecialStep => {
+  const moved = (reach / CHAIN_TIME) * Math.min(dt, active)
+  const dir = fromAngle(angle)
+  return { dir, dx: dir.x * moved, dy: dir.y * moved, dist: moved }
 }
 
 const typeColors = (type: PokeType) => [TYPE_COLORS[type], '#ffffff', '#f8f8c8'] as const
@@ -696,7 +731,7 @@ const explode = (g: Game, r: ResolvedSpecial, x: number, y: number, radius: numb
   })
   burst(g, x, y, { colors: ['#fff8c0', '#f8d030', '#f08030', '#c03020'], count: 40, speed: radius * 3, ttl: 0.5, gravity: -40 })
   shakeScreen(g, 7)
-  g.hitstop = Math.max(g.hitstop, 0.05)
+  g.hitstop = Math.max(g.hitstop, BLAST_HITSTOP)
 }
 
 const release = (g: Game, r: ResolvedSpecial) => {
@@ -705,7 +740,7 @@ const release = (g: Game, r: ResolvedSpecial) => {
   const area = areaOf(g, r)
   const dmg = power(g, r)
   s.angle = dm.atan2(p.facing.y, p.facing.x)
-  g.hitstop = 0.07
+  g.hitstop = RELEASE_HITSTOP
   shakeScreen(g, 5)
   g.events.push({ kind: 'special', phase: 'release', name: r.tier.name })
   burst(g, p.x, p.y - 10, { colors: typeColors(r.def.type), count: 24, speed: 120, ttl: 0.35 })
@@ -714,7 +749,7 @@ const release = (g: Game, r: ResolvedSpecial) => {
 
   switch (r.def.kind) {
     case 'dash': {
-      s.active = DASH_TIME
+      s.active = activeTime(r)
       s.trail = TRAIL_STEP
       p.iframes = Math.max(p.iframes, DASH_TIME + 0.25)
       spawnAttack(g, {
@@ -725,7 +760,7 @@ const release = (g: Game, r: ResolvedSpecial) => {
       return
     }
     case 'beam': {
-      s.active = BEAM_TIME
+      s.active = activeTime(r)
       const dir = fromAngle(s.angle)
       const ox = p.x
       const oy = p.y - 8
@@ -794,7 +829,7 @@ const release = (g: Game, r: ResolvedSpecial) => {
       return
     }
     case 'trail':
-      s.active = r.tier.count * TRAIL_EVERY
+      s.active = activeTime(r)
       s.trail = TRAIL_EVERY
       return
     // Chain and stance never charge: `updateSpecial` runs them on the press.
@@ -848,12 +883,11 @@ const dashTick = (g: Game, r: ResolvedSpecial, dt: number) => {
   const s = g.player.special
   const p = g.player
   const area = areaOf(g, r)
-  const v = specialReach(g, r) / DASH_TIME
-  const dir = fromAngle(s.angle)
-  p.x += dir.x * v * dt
-  p.y += dir.y * v * dt
+  const { dir, dx, dy, dist } = dashStep(s.angle, specialReach(g, r), dt)
+  p.x += dx
+  p.y += dy
   p.dir = dir8(dir.x, dir.y)
-  s.trail += v * dt
+  s.trail += dist
   for (; s.trail >= TRAIL_STEP; s.trail -= TRAIL_STEP) fireTrail(g, r, area, power(g, r))
   if (s.active <= 0) {
     explode(g, r, p.x + dir.x * 10, p.y - 6 + dir.y * 10, 52 * area, power(g, r) * 1.2)
@@ -938,6 +972,21 @@ const chainTarget = (g: Game, skip: number) => {
   return best
 }
 
+/** Spends a jump and aims it: at the nearest foe in reach (its id kept, to skip next time), or `CHAIN_MISS` px ahead. Returns the aim. */
+const aimJump = (g: Game, r: ResolvedSpecial): Vec => {
+  const s = g.player.special
+  const p = g.player
+  beginJump(s, r.tier.count)
+  const foe = chainTarget(g, s.target)
+  const dir = foe ? dirTo(p.x, p.y, foe.x, foe.y, p.facing) : p.facing
+  s.reach = foe ? dm.hypot(foe.x - p.x, foe.y - p.y) + CHAIN_OVERSHOOT : CHAIN_MISS
+  s.angle = dm.atan2(dir.y, dir.x)
+  s.target = foe ? foe.id : -1
+  s.active = CHAIN_TIME
+  s.trail = 0
+  return dir
+}
+
 /**
  * One jump: aims at the nearest foe (or dashes ahead when none is in reach)
  * and lays the capsule along the path, stepped circles that switch on as the
@@ -947,14 +996,7 @@ const startJump = (g: Game, r: ResolvedSpecial) => {
   const s = g.player.special
   const p = g.player
   const first = !s.chaining
-  beginJump(s, r.tier.count)
-  const foe = chainTarget(g, s.target)
-  const dir = foe ? dirTo(p.x, p.y, foe.x, foe.y, p.facing) : p.facing
-  s.reach = foe ? dm.hypot(foe.x - p.x, foe.y - p.y) + CHAIN_OVERSHOOT : CHAIN_MISS
-  s.angle = dm.atan2(dir.y, dir.x)
-  s.target = foe ? foe.id : -1
-  s.active = CHAIN_TIME
-  s.trail = 0
+  const dir = aimJump(g, r)
   p.iframes = Math.max(p.iframes, CHAIN_IFRAMES)
   if (first) g.events.push({ kind: 'special', phase: 'charge', name: r.tier.name })
 
@@ -974,13 +1016,12 @@ const startJump = (g: Game, r: ResolvedSpecial) => {
   burst(g, p.x, p.y - 10, { colors: typeColors(r.def.type), count: 10, speed: 70, ttl: 0.25 })
 }
 
-/** Moves the player `moved` px along the jump, leaving afterimages behind (cosmetic: never active). */
-const lungeTick = (g: Game, r: ResolvedSpecial, moved: number) => {
+/** Moves the player one step of the jump (`jumpStep`), leaving afterimages behind (cosmetic: never active). */
+const lungeTick = (g: Game, r: ResolvedSpecial, { dir, dx, dy, dist: moved }: SpecialStep) => {
   const s = g.player.special
   const p = g.player
-  const dir = fromAngle(s.angle)
-  p.x += dir.x * moved
-  p.y += dir.y * moved
+  p.x += dx
+  p.y += dy
   p.dir = dir8(dir.x, dir.y)
   s.trail += moved
   for (; s.trail >= CHAIN_GHOST; s.trail -= CHAIN_GHOST) {
@@ -1007,7 +1048,7 @@ const landChain = (g: Game, r: ResolvedSpecial, cooldown: number) => {
   burst(g, p.x, p.y - 8, { colors: typeColors(r.def.type), count: hit ? 18 : 8, speed: hit ? 130 : 80, ttl: 0.3 })
   shakeScreen(g, hit ? 4 : 2)
   if (hit) {
-    g.hitstop = Math.max(g.hitstop, 0.03)
+    g.hitstop = Math.max(g.hitstop, LANDING_HITSTOP)
     g.events.push({ kind: 'special', phase: 'release', name: r.tier.name })
   }
   if (r.def.orbs) orbBurst(g, r, r.def.orbs)
@@ -1040,9 +1081,9 @@ const updateChain = (g: Game, r: ResolvedSpecial, pressed: boolean, dt: number) 
   if (s.active <= 0) tickChain(s, dt, cooldown)
   if (triggerSpecial(s, pressed, dt)) startJump(g, r)
   if (s.active <= 0) return
-  const moved = (s.reach / CHAIN_TIME) * Math.min(dt, s.active)
+  const step = jumpStep(s.angle, s.reach, s.active, dt)
   s.active = Math.max(0, s.active - dt)
-  lungeTick(g, r, moved)
+  lungeTick(g, r, step)
   if (s.active <= 0) landChain(g, r, cooldown)
 }
 
@@ -1102,4 +1143,59 @@ export const updateSpecial = (g: Game, pressed: boolean, dt: number) => {
     else if (r.def.kind === 'beam') beamTick(g, r)
     else if (r.def.kind === 'trail') trailTick(g, r, dt)
   }
+}
+
+/* ---------------- Prediction ---------------- */
+
+/**
+ * `updateSpecial` cut down to what moves the acting player: the trigger, the
+ * charge, the release's aim and timers, a dash's or a chain jump's motion
+ * (`dashStep`, `jumpStep`) and the chain's window. Nothing is spawned, shown,
+ * heard or rolled. Co-op's prediction ghost (`coop/predict.ts`) runs it on its
+ * copy of the player, from the confirmed state, so a press dashes the drawn
+ * sprite at once. Returns the hitstop (s) the tick starts, 0 for none. Keep it
+ * in step with `updateSpecial`.
+ */
+export const predictSpecial = (g: Game, pressed: boolean, dt: number): number => {
+  const s = g.player.special
+  const p = g.player
+  const r = gameSpecial(g)
+  if (r.def.kind === 'chain') {
+    s.charge = 0
+    const cooldown = specialCooldown(r.def, p.stats)
+    if (s.active <= 0) tickChain(s, dt, cooldown)
+    if (triggerSpecial(s, pressed, dt)) aimJump(g, r)
+    if (s.active <= 0) return 0
+    const step = jumpStep(s.angle, s.reach, s.active, dt)
+    s.active = Math.max(0, s.active - dt)
+    p.x += step.dx
+    p.y += step.dy
+    p.dir = dir8(step.dir.x, step.dir.y)
+    if (s.active > 0) return 0
+    const hit = s.target >= 0
+    landJump(s, hit, cooldown)
+    return hit ? LANDING_HITSTOP : 0
+  }
+  if (s.chaining) endChain(s, specialCooldown(r.def, p.stats))
+  if (triggerSpecial(s, pressed, dt)) {
+    s.cooldown = s.total = specialCooldown(r.def, p.stats)
+    if (r.def.kind === 'stance') return 0
+    s.charge = r.def.charge
+  }
+  if (s.charge > 0) {
+    s.charge -= dt
+    if (s.charge > 0) return 0
+    s.charge = 0
+    s.angle = dm.atan2(p.facing.y, p.facing.x)
+    s.active = activeTime(r)
+    return RELEASE_HITSTOP
+  }
+  if (s.active <= 0) return 0
+  s.active = Math.max(0, s.active - dt)
+  if (r.def.kind !== 'dash') return 0
+  const step = dashStep(s.angle, specialReach(g, r), dt)
+  p.x += step.dx
+  p.y += step.dy
+  p.dir = dir8(step.dir.x, step.dir.y)
+  return s.active <= 0 ? BLAST_HITSTOP : 0
 }
