@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers'
 import { CLOSE_CODES, LIMITS, parseClientMessage, type Auth, type ServerMessage } from '../../src/net/protocol'
 import { jwksKeys, verifyClerkToken } from './auth'
 import type { Env } from './env'
+import { gen, randomToken } from './codes'
 import { gzip } from './gzip'
 import { allowedOrigin } from './origins'
 import {
@@ -34,7 +35,6 @@ import {
   tick,
   type ConnId,
   type Effect,
-  type Gen,
   type Identity,
   type Room,
   type State,
@@ -79,13 +79,6 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 
 const isAttachment = (v: unknown): v is Attachment =>
   isRecord(v) && typeof v.id === 'string' && typeof v.ua === 'string' && (v.seat === null || typeof v.seat === 'number')
-
-const randomToken = (bytes: number) => {
-  const b = crypto.getRandomValues(new Uint8Array(bytes))
-  return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-const gen: Gen = { secret: () => randomToken(24), seed: () => crypto.getRandomValues(new Uint32Array(1))[0] ?? 0 }
 
 /** One JWKS cache per isolate, shared by the rooms it runs. */
 let jwks: ReturnType<typeof jwksKeys> | null = null

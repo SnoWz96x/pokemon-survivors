@@ -1,0 +1,25 @@
+{
+  "name": "pokemon-survivors-relay-sa",
+  "private": true,
+  "type": "module",
+  "description": "The co-op relay's São Paulo shell: the same pure room (../src/room.ts) on Node 24, one SQLite per room, on one EC2 instance in sa-east-1 deployed with SST.",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs && PORT=8795 DATA_DIR=.data ALLOW_GUESTS=on node --disable-warning=ExperimentalWarning dist/relay.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "deploy": "sst deploy --stage production"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "sst": "^4.17.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

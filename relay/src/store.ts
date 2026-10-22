@@ -73,6 +73,13 @@ export const snapPrefix = (run: number, tick?: number) => `snap:${run}:${tick ==
 const batchOf = (v: Stored): LogBatch | null => (typeof v === 'string' ? null : v)
 const chunkOf = (v: Stored): string | null => (typeof v === 'string' ? v : null)
 
+/** A lazy value a shell kept as JSON text (a VPS relay), or null when it isn't one. */
+export const parseStored = (json: string): Stored | null => {
+  const v: unknown = JSON.parse(json)
+  if (typeof v === 'string') return v
+  return isRecord(v) && typeof v.b === 'number' && Array.isArray(v.l) && Array.isArray(v.h) ? { b: v.b, l: v.l, h: v.h } : null
+}
+
 export const createSchema = (sql: Sql) => sql.run(SCHEMA)
 
 const hasTable = (sql: Sql, name: string) => sql.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", name).length > 0

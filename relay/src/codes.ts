@@ -1,8 +1,10 @@
+import type { Gen } from './room'
 import { PROTOCOL, REGIONS, RELAY_HOMES, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, type CreateResponse, type Region, type RelayHome } from '../../src/net/protocol'
 
 /**
  * What both relay shells (the Cloudflare Worker and the São Paulo Node server)
- * say the same way about making a room: its code and the `POST /rooms` body.
+ * say the same way about making a room: its code, the `POST /rooms` body and
+ * the randomness the room asks for.
  */
 
 const randomBytes = (n: number) => crypto.getRandomValues(new Uint8Array(n))
@@ -36,3 +38,12 @@ export const parseCreate = (text: string): { build: string; region: Region } | {
   if (!build) return { error: 'invalid', status: 400 }
   return { build, region: REGIONS.find((r) => r === body.region) ?? 'auto' }
 }
+
+/** `bytes` random bytes in base64url (seat secrets, dump ids). */
+export const randomToken = (bytes: number) => {
+  const b = crypto.getRandomValues(new Uint8Array(bytes))
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/** The room's randomness (`Gen`): seat secrets and run seeds. */
+export const gen: Gen = { secret: () => randomToken(24), seed: () => crypto.getRandomValues(new Uint32Array(1))[0] ?? 0 }
