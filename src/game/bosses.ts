@@ -176,6 +176,10 @@ const fire = (g: Game, boss: Enemy, written: BossPattern, fight: BossFight | nul
       if (!fight) return
       const windup = telegraph(pattern.windup, fight)
       const spots = pattern.safe === 'spots' ? shelters(g, pattern.spots ?? 3, p) : []
+      // Co-op: every other teammate the blast reaches gets shelters of their own.
+      if (pattern.safe === 'spots' && g.coop !== null) {
+        for (const q of g.players) if (q !== p && standing(g, q) && inBlastReach(g, q, boss.x, boss.y)) spots.push(...shelters(g, pattern.spots ?? 3, q))
+      }
       const radius = pattern.radius ?? (pattern.safe === 'spots' ? SHELTER.radius : 90)
       fight.blast = { left: windup, total: windup, x: boss.x, y: boss.y, damage: pattern.damage, safe: pattern.safe, radius, visual: pattern.visual, spots }
       return
@@ -549,7 +553,14 @@ const updateMotion = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
 /** How fast a dive's wake follows the player, px/s (a bit slower than they walk, so it can be outrun). */
 const DIVE_WAKE = 58
 
-/** Lands a charged blast: any player not in a safe spot is hit. */
+/** Px past a player's screen edge a boss's blast still reaches them from. */
+const BLAST_REACH = 40
+
+/** Co-op: whether a blast from (x, y) reaches player `p`: its boss stands on their screen, or near it. A teammate far off never feels it. */
+const inBlastReach = (g: Game, p: Player, x: number, y: number) =>
+  x > p.screen.x - BLAST_REACH && x < p.screen.x + g.view.w + BLAST_REACH && y > p.screen.y - BLAST_REACH && y < p.screen.y + g.view.h + BLAST_REACH
+
+/** Lands a charged blast: any player not in a safe spot is hit (in co-op, the ones it reaches: `inBlastReach`). */
 const updateBlast = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
   const b = fight.blast
   if (!b) return
@@ -563,7 +574,7 @@ const updateBlast = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
   g.flash = Math.max(g.flash, 0.35)
   g.events.push({ kind: 'quake' })
   for (const p of g.players) {
-    if (!standing(g, p) || blastSpares(g, b, p)) continue
+    if (!standing(g, p) || (g.coop !== null && !inBlastReach(g, p, b.x, b.y)) || blastSpares(g, b, p)) continue
     const before = actAs(g, p)
     hurtPlayer(g, b.damage, undefined, HAZARD_TYPES[b.visual], 'hazard')
     actAs(g, before)

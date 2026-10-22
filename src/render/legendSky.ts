@@ -4,6 +4,7 @@ import { domainOf, type LegendSky } from '../data/domains'
 import { RIFT } from '../data/rifts'
 import { REVEAL_AT } from '../game/domainRules'
 import type { Game } from '../game/types'
+import { riftDomain } from '../game/rift'
 
 type Ctx = CanvasRenderingContext2D
 
@@ -383,7 +384,7 @@ export const skyNow = (g: Game): LegendSky | null => {
   }
   if (arena) return null
   const legend = g.rift.omen?.legend ?? g.rift.portal?.legend
-  return legend ? (domainOf(legend)?.omen.sky ?? null) : null
+  return legend ? (riftDomain(g, legend)?.omen.sky ?? null) : null
 }
 
 /** Paints the sky in play over the frame, if any. */

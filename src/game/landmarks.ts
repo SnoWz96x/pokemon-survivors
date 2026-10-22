@@ -1,4 +1,5 @@
 import { lerp } from '../engine/math'
+import { coopLocked } from '../data/coop'
 import { DROP_TABLES, rollDrop } from '../data/consumables'
 import { LANDMARK, LANDMARK_LOOT, TUNNEL, type LandmarkId, type TreasureLandmark } from '../data/landmarks'
 import { dropItem } from './consumables'
@@ -75,8 +76,9 @@ const openTreasure = (g: Game, lm: Landmark & { id: TreasureLandmark }, x: numbe
 
 const isTreasure = (lm: Landmark): lm is Landmark & { id: TreasureLandmark } => lm.id in LANDMARK_LOOT
 
-/** Names the landmarks the acting player comes close to, opens the treasure they stand at and steps them into a tunnel's mouth. */
+/** Names the landmarks the acting player comes close to, opens the treasure they stand at and steps them into a tunnel's mouth. Scenery only in co-op (`COOP_LOCKS`). */
 export const updateLandmarks = (g: Game, dt: number) => {
+  if (coopLocked(g, 'landmarks')) return
   const p = g.player
   const w = g.landmarks
   const s = p.landmark

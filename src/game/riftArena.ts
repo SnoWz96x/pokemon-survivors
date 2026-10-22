@@ -16,6 +16,7 @@ import { rollShiny } from './shiny'
 import { groundAt, playerTypes } from './terrain'
 import { updateDomain } from './domain'
 import { centerScreen, eachPlayer, placeTeam } from './players'
+import { dropForEach } from './coop'
 import type { Game } from './types'
 
 /**
@@ -106,8 +107,9 @@ export const updateArenaFall = (g: Game, dt: number) => {
   if (arena.fall > 0) return true
   for (const p of g.players) {
     // Solo the one player is the one who fell.
-    if (g.players.length > 1 && p.hp > 0) continue
+    if (g.players.length > 1 && (p.hp > 0 || p.gone)) continue
     p.hp = Math.max(1, Math.round(p.stats.maxHp * RIFT.fallHp))
+    p.revive = 0
     p.hurt = 0
   }
   exitArena(g, 'fallen')
@@ -118,17 +120,24 @@ export const updateArenaFall = (g: Game, dt: number) => {
 export const riftWin = (g: Game, arena: RiftArena, x: number, y: number) => {
   const loot = riftLoot(g.time, arena.shiny)
   dropCoins(g, x, y, loot.coins)
-  for (let i = 0; i < loot.pokeballs; i++) dropPickup(g, x - 8 + i * 8, y + 4, 'pokeball')
+  dropForEach(g, () => {
+    for (let i = 0; i < loot.pokeballs; i++) dropPickup(g, x - 8 + i * 8, y + 4, 'pokeball')
+  })
   loot.items.forEach((item, i) => dropItem(g, x + 10 + i * 6, y, item))
   const before = g.player
   // A Mega line's first beaten legendary also leaves its Mega Stone (or both, to choose from).
+  // Co-op: each player gets their own line's stones (`Pickup.owner`), so nobody is locked out by a teammate's.
   for (const p of g.players) {
     g.player = p
-    if (!heldMega(g) && !g.pickups.some((k) => k.kind === 'megaStone')) dropMegaStones(g, x, y - 10)
+    const owner = g.coop === null ? undefined : p.slot
+    if (p.gone || heldMega(g) || g.pickups.some((k) => k.kind === 'megaStone' && k.owner === owner)) continue
+    const from = g.pickups.length
+    dropMegaStones(g, x, y - 10)
+    if (owner !== undefined) for (let i = from; i < g.pickups.length; i++) g.pickups[i]!.owner = owner
   }
   g.player = before
   // So does its legendary TM, until everyone has learned one.
-  dropLegendaryTm(g, arena.legend, x + 14, y - 6)
+  dropForEach(g, () => dropLegendaryTm(g, arena.legend, x + 14, y - 6))
   for (const p of g.players) {
     g.player = p
     const heal = Math.round(healPlayer(g, p.stats.maxHp * loot.heal))

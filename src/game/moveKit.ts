@@ -159,13 +159,13 @@ export const burrow = (g: Game, move: MoveId, seconds: number) => {
 
 /**
  * Hurls `e` toward `angle` with `force` (÷ mass, like knockback). While it flies
- * fast it deals `damage` to each foe it crashes into, once per throw, credited to `move`.
+ * fast it deals `damage` to each foe it crashes into, once per throw, credited to `move` of the player at slot `by`.
  */
-export const throwFoe = (e: Enemy, angle: number, force: number, damage: number, move: DamageSource) => {
+export const throwFoe = (e: Enemy, angle: number, force: number, damage: number, move: DamageSource, by: number) => {
   const v = fromAngle(angle, force / e.mass)
   e.kx += v.x
   e.ky += v.y
-  e.thrown = { damage, move, hit: new Set([e.id]) }
+  e.thrown = { damage, move, hit: new Set([e.id]), by }
 }
 
 export { hpFraction, scaleBy, stacksOf, took, walkedSince } from './kitRules'

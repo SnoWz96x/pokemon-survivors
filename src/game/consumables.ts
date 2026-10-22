@@ -46,7 +46,7 @@ const FLUTE: StatusSpec = { kind: 'sleep', chance: 1, duration: FLUTE_SLEEP, pow
 const sleepOnScreen = (g: Game) => {
   for (const e of g.enemies) {
     if (!isAlive(e) || !inSight(g, e.x, e.y, 16)) continue
-    applyStatus(e.status, FLUTE, 0, e.boss, null)
+    applyStatus(e.status, FLUTE, 0, e.boss, null, g.player.slot)
     e.kx = 0
     e.ky = 0
   }
@@ -76,9 +76,16 @@ export const CONSUMABLES = {
   rareCandy: {
     name: 'Rare Candy',
     sfx: 'levelUp',
+    // Co-op: a level for the whole team, so its levels stay together (`shareXp`).
     apply: (g) => {
-      g.player.xp = g.player.xpNext
-      gainXp(g, 0)
+      const actor = g.player
+      for (const p of g.coop === null ? [actor] : g.players) {
+        if (p.gone) continue
+        g.player = p
+        p.xp = p.xpNext
+        gainXp(g, 0)
+      }
+      g.player = actor
     },
   },
   expShare: {

@@ -311,7 +311,7 @@ const contactPulse = (g: Game, e: Extract<AbilityEffect, { kind: 'contact' }>) =
     if (dm.sq(foe.x - p.x) + dm.sq(foe.y - p.y) > reach * reach) continue
     const spec = e.status.length === 0 ? null : e.status.length === 1 ? e.status[0]! : pick(g.rng, e.status)
     if (spec && chance(g.rng, spec.chance)) {
-      applyStatus(foe.status, spec, power, foe.boss, 'ability')
+      applyStatus(foe.status, spec, power, foe.boss, 'ability', g.player.slot)
       burst(g, foe.x, foe.y - foe.radius, { colors: ['#ffffff', '#f8e8b0'], count: 4, speed: 50, ttl: 0.3 })
     }
     if (e.damage > 0) strike(g, foe, power * e.damage)
@@ -323,7 +323,7 @@ const auraPulse = (g: Game, e: Extract<AbilityEffect, { kind: 'aura' }>) => {
   const p = g.player
   const reach = e.radius * e.radius
   for (const foe of g.enemies) {
-    if (isAlive(foe) && dm.sq(foe.x - p.x) + dm.sq(foe.y - p.y) < reach) applyStatus(foe.status, e.status, 0, foe.boss, null)
+    if (isAlive(foe) && dm.sq(foe.x - p.x) + dm.sq(foe.y - p.y) < reach) applyStatus(foe.status, e.status, 0, foe.boss, null, g.player.slot)
   }
 }
 

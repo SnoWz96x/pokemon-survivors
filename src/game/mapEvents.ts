@@ -23,7 +23,7 @@ import { clearSpot } from './terrain'
 import { createFieldMissions, directMissions, FIELD_MISSIONS, type FieldMissionNotice, type FieldMissionState, type FieldMissionStates } from './fieldMissions'
 import { openTutor } from './tms'
 import { TUTOR, tutorWeight } from './tmRules'
-import { actAs, anchorPlayer, mostHurt, nearestPlayer, playerWithin, standing } from './players'
+import { actAs, anchorPlayer, mostHurt, nearestPlayer, phaseOf, playerWithin, standing } from './players'
 import type { Game, Player } from './types'
 import * as dm from '../engine/dmath'
 
@@ -235,8 +235,9 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
       s.progress = chestProgress(s.progress, inside, dt)
       if (s.progress > before && Math.floor(s.progress * 6) !== Math.floor(before * 6)) notify(g, { kind: 'chestTick' })
       if (s.progress > 0) ev.ttl = Math.max(ev.ttl, ev.age + 4)
-      // Its cursed item asks the player, so it opens on a running run only: never over a faint, a win or another screen.
-      if (s.progress < 1 || g.phase !== 'playing') return
+      // Its cursed item asks the player, so it opens on a running run only: never over a faint, a win or another screen
+      // (the opener's own, in co-op: `phaseOf`).
+      if (s.progress < 1 || phaseOf(g, opener ?? g.players[0]!) !== 'playing') return
       const coins = chestCoins(g.time)
       dropCoins(g, ev.x, ev.y - 4, coins)
       dropPickup(g, ev.x + 8, ev.y, 'pokeball')
@@ -347,8 +348,8 @@ export const MAP_EVENTS: { [K in MapEventKind]: MapEventDef<K> } = {
       const pupil = playerWithin(g, ev.x, ev.y, TUTOR.radius, true)
       s.stand = Math.max(0, Math.min(TUTOR.stand, s.stand + (pupil ? dt : -dt)))
       if (s.stand > 0) ev.ttl = Math.max(ev.ttl, ev.age + 3)
-      // One lesson at a time: it waits while another screen is open.
-      if (s.stand < TUTOR.stand || g.phase !== 'playing') return
+      // One lesson at a time: it waits while another screen is open (the pupil's own, in co-op: `phaseOf`).
+      if (s.stand < TUTOR.stand || phaseOf(g, pupil ?? g.players[0]!) !== 'playing') return
       burst(g, ev.x, ev.y - 12, { colors: ['#ffffff', '#f8e8a0', '#78c0f8', '#f87878'], count: 30, speed: 90, ttl: 0.7, gravity: -40 })
       // The lesson is for whoever stands in the tent (the first player solo).
       const before = actAs(g, pupil ?? g.players[0]!)

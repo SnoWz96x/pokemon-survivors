@@ -1,7 +1,6 @@
 import { drawEvoItem } from './evoItemArt'
 import { blitCentered, blitEllipse, blitRing, blitRotated, textSprite } from '../engine/pixelart'
 import { HAZARD_COLORS } from './hazardColors'
-import { domainOf } from '../data/domains'
 import { drawCapture } from './capture'
 import { drawDomainFloor, drawTear, warmDomain } from './domain'
 import { bossForm, drawBeamAir, drawBeamGround, drawBlasts, drawBossGround, drawBossMarker, drawEntrance, drawLegendScene, drawPairDown, drawPhantoms } from './legendFx'
@@ -64,6 +63,7 @@ import { damageBudget, showsText, textAlpha, type DamageNumbers } from './damage
 import { CALM_PERIOD, HURT_TINT, type Flashes } from './flashes'
 import { detail } from './quality'
 import { localPlayer } from '../game/players'
+import { riftDomain } from '../game/rift'
 
 type Ctx = CanvasRenderingContext2D
 
@@ -908,7 +908,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   drawProps(ctx, g, t, look)
   // Map events wait outside with the rest of the world while the player is in a room.
   if (!indoors) drawMapEvents(ctx, g, t, calm)
-  if (g.rift.portal && !indoors) (domainOf(g.rift.portal.legend) ? drawTear : drawRiftPortal)(ctx, g.rift.portal, t)
+  if (g.rift.portal && !indoors) (riftDomain(g, g.rift.portal.legend) ? drawTear : drawRiftPortal)(ctx, g.rift.portal, t)
   drawEntranceGround(ctx, g, t)
   drawPlaceGround(ctx, g, t)
   drawSpecialAura(ctx, g, t)

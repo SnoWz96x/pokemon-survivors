@@ -3,6 +3,7 @@ import { RIFT, RIFT_DRAWS, RIFT_ITEMS, type RiftLegend } from '../data/rifts'
 import { RUN_LENGTH } from '../data/waves'
 import type { EnemyId } from '../data/enemies'
 import { domainOf, DOMAIN_PRESS } from '../data/domains'
+import { coopLocked } from '../data/coop'
 import type { FloorPlan } from '../data/arenas'
 import type { DomainState } from './domain'
 import type { Room, Stash } from './room'
@@ -76,6 +77,9 @@ export const riftDue = (s: { time: number; nextAt: number; busy: boolean; bossAl
   !s.busy &&
   (!s.bossAlive || (!s.endless && s.time >= s.nextAt + RIFT.bossWait)) &&
   (s.endless || s.time + RIFT.omenTime + RIFT.portalTime < RUN_LENGTH)
+
+/** The domain behind `legend`'s rift, or undefined for its old arena (`data/arenas.ts`), which co-op keeps (`COOP_LOCKS`). */
+export const riftDomain = (g: Pick<Game, 'coop'>, legend: EnemyId) => (coopLocked(g, 'domains') ? undefined : domainOf(legend))
 
 /** Whether the run clock runs: it stops while the player is inside a rift. */
 export const clockRuns = (g: Pick<Game, 'rift'>) => g.rift.arena === null

@@ -4,6 +4,7 @@ import type { EnemyId } from '../data/enemies'
 import { burst, updateEffects } from './effects'
 import { despawnEnemy } from './enemies'
 import { centerScreen } from './players'
+import { winRun } from './coop'
 import type { Enemy, Game } from './types'
 
 /**
@@ -96,11 +97,7 @@ export const sceneHides = (g: Game) => {
 /** The scene is over: the next entrance waiting, or what it was holding (Mewtwo's victory). */
 const finish = (g: Game, s: LegendScene) => {
   g.legendScene = null
-  if (s.then === 'victory') {
-    g.phase = 'victory'
-    g.events.push({ kind: 'victory' })
-    return
-  }
+  if (s.then === 'victory') return winRun(g)
   for (const id of s.next) {
     const boss = g.enemies.find((e) => e.id === id && e.dying < 0)
     if (!boss) continue

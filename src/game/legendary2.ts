@@ -1,4 +1,5 @@
 import * as dm from '../engine/dmath'
+import { ownAttack } from './players'
 import { burst } from './effects'
 import { AQUA, erupt, HEAT, LIFT, SNOW, TERRAIN } from './legendaryMoves2'
 import { throwFoe } from './moveKit'
@@ -91,7 +92,7 @@ const hurl = (g: Game, a: Attack) => {
   if (!isAlive(e)) return
   const p = g.player
   const angle = dm.atan2(e.y - p.y, e.x - p.x)
-  if (!e.boss) throwFoe(e, angle, LIFT.force * e.mass, a.memo * LIFT.crash, 'telekinesis')
+  if (!e.boss) throwFoe(e, angle, LIFT.force * e.mass, a.memo * LIFT.crash, 'telekinesis', p.slot)
   const slam = spawnAttack(g, {
     move: a.move, type: a.type, visual: 'psySlam', x: e.x, y: e.y - e.radius,
     shape: { kind: 'circle', r: Math.max(LIFT.slam, e.radius + 6) }, motion: { kind: 'static' },
@@ -104,7 +105,8 @@ const hurl = (g: Game, a: Attack) => {
 
 export const updateLegendary2 = (g: Game) => {
   for (const a of g.attacks) {
-    if (a.age < 0 || a.move === 'special' || a.move === 'ability') continue
+    // Run as each player: only their own hitboxes (a teammate's shell, field or hold acts as them).
+    if (a.age < 0 || a.move === 'special' || a.move === 'ability' || !ownAttack(g, a)) continue
     switch (a.visual) {
       case 'snowCrystal':
         if (a.tier === 0 && a.age >= a.memo) shatter(g, a)

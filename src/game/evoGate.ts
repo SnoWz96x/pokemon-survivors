@@ -6,7 +6,7 @@ import type { EvolutionStage } from '../data/starters'
 import { canBranch } from './branch'
 import { burst } from './effects'
 import { branchNeeds } from './evoItems'
-import type { Game } from './types'
+import type { Game, Pickup } from './types'
 
 /**
  * Evolution items in a run. A branch that needs an item (`branchNeeds`) is
@@ -48,28 +48,20 @@ export const missingEvoItems = (g: Game): EvoItemId[] => {
   return EVO_ITEM_IDS.filter((id) => needed.includes(id) && !held.includes(id))
 }
 
-/** The items some player lacks (`missingEvoItems`), in catalog order: what a boss may drop for the team. */
-const teamMissing = (g: Game): EvoItemId[] => {
-  if (g.players.length === 1) return missingEvoItems(g)
-  const before = g.player
-  const lacking = new Set<EvoItemId>()
-  for (const p of g.players) {
-    g.player = p
-    for (const id of missingEvoItems(g)) lacking.add(id)
-  }
-  g.player = before
-  return EVO_ITEM_IDS.filter((id) => lacking.has(id))
-}
-
 /** Whether the acting player's line's next step can go on with the items they hold: a level step always, an item step once they hold the item. */
 export const stepOpen = (g: Game) => {
   const item = stepNeeds(g.player.starter, g.player.stage + 1)
   return item === null || runEvoItems(g).includes(item)
 }
 
-/** A boss down: with `EVO_FIND.chance` it drops one of the items some player lacks (never one already lying on the ground). */
+/**
+ * A boss down: with `EVO_FIND.chance` it drops one of the items the acting
+ * player lacks (never one already lying on the ground for them). Co-op runs
+ * it as each player (`dropForEach`), so each drop is that player's own (`Pickup.owner`).
+ */
 export const dropEvoItem = (g: Game, x: number, y: number) => {
-  const missing = teamMissing(g).filter((id) => !g.pickups.some((k) => k.kind === 'evoItem' && k.item === id))
+  const mine = (k: Pickup) => g.coop === null || k.owner === g.player.slot
+  const missing = missingEvoItems(g).filter((id) => !g.pickups.some((k) => k.kind === 'evoItem' && k.item === id && mine(k)))
   if (missing.length === 0 || !chance(g.rng, EVO_FIND.chance)) return
   g.pickups.push({ id: g.nextId++, x, y, vx: range(g.rng, -20, 20), vy: range(g.rng, -40, -20), attracted: false, age: 0, kind: 'evoItem', item: pick(g.rng, missing) })
 }

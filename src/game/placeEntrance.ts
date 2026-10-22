@@ -9,7 +9,8 @@ import { notifyPlace, solidAt } from './placeKit'
 import { teamFlies } from './sky'
 import { isOpen } from './terrain'
 import { anchorPlayer } from './players'
-import type { Game, Player } from './types'
+import { coopLocked } from '../data/coop'
+import type { Game } from './types'
 import * as dm from '../engine/dmath'
 
 /**
@@ -58,8 +59,9 @@ export const openEntrance = (g: Game, id: PlaceId = pickPlace(g.rng, { offered: 
   return g.place.entrance
 }
 
-/** Opens entrances on schedule, closes them when their time is up, drops them once out of everyone's sight and steps the team in. */
+/** Opens entrances on schedule, closes them when their time is up, drops them once out of everyone's sight and steps the team in. None in co-op (`COOP_LOCKS`). */
 export const updatePlaceEntrance = (g: Game, dt: number) => {
+  if (coopLocked(g, 'places')) return
   const s = g.place
   const ent = s.entrance
   if (!ent) {
@@ -77,13 +79,14 @@ export const updatePlaceEntrance = (g: Game, dt: number) => {
     }
   }
   if (!ent.open) {
-    const away = g.players.every((p) => Math.abs(ent.x - p.x) > g.view.w / 2 + 110 || Math.abs(ent.y - p.y) > g.view.h / 2 + 130)
+    let away = true
+    for (const p of g.players) away &&= Math.abs(ent.x - p.x) > g.view.w / 2 + 110 || Math.abs(ent.y - p.y) > g.view.h / 2 + 130
     if (away) s.entrance = null
     return
   }
   const def: PlaceDef = PLACES[ent.id]
-  const inDoor = (p: Player) => dm.sq(p.x - ent.x) + dm.sq(p.y - ent.y) < dm.sq(def.door + p.radius * 0.5)
-  const inside = g.players.some(inDoor)
+  let inside = false
+  for (const p of g.players) inside ||= dm.sq(p.x - ent.x) + dm.sq(p.y - ent.y) < dm.sq(def.door + p.radius * 0.5)
   // Only a team of flyers rides the updraft.
   if (inside && def.flyers && !teamFlies(g)) {
     // Told once per visit to the door.

@@ -86,8 +86,12 @@ export const MOD = {
   cruel: { mult: 1.35 },
 } as const
 
-const HUNTER: readonly DamageBonus[] = [{ when: 'elite', mult: MOD.hunter.mult }, { when: 'boss', mult: MOD.hunter.mult }]
-const CRUEL: DamageBonus = { when: 'afflicted', mult: MOD.cruel.mult }
+// Tagged (`stamp`), so a hitbox tells it already took them by value: a copy restored from a snapshot holds equal entries, not these objects.
+const HUNTER: readonly DamageBonus[] = [{ when: 'elite', mult: MOD.hunter.mult, stamp: 'hunter' }, { when: 'boss', mult: MOD.hunter.mult, stamp: 'hunter' }]
+const CRUEL: DamageBonus = { when: 'afflicted', mult: MOD.cruel.mult, stamp: 'cruel' }
+
+/** Whether a hitbox's bonuses already hold the mod's own (`stamp`). */
+const stamped = (a: Attack, stamp: DamageBonus['stamp']) => a.bonus.some((b) => b.stamp === stamp)
 
 /**
  * Puts the hit-time mods (Drain, Execute, Vortex, Hunter, Cruel) on a hitbox's
@@ -100,8 +104,8 @@ export const stampMods = (a: Attack) => {
   if (bits & MODS.drain.bit) a.drain = Math.max(a.drain, MOD.drain.share)
   if (bits & MODS.execute.bit) a.execute = Math.max(a.execute, MOD.execute.share)
   if (bits & MODS.vortex.bit) a.pull = Math.max(a.pull, MOD.vortex.pull)
-  if (bits & MODS.hunter.bit && !a.bonus.includes(HUNTER[0]!)) a.bonus = [...a.bonus, ...HUNTER]
-  if (bits & MODS.cruel.bit && !a.bonus.includes(CRUEL)) a.bonus = [...a.bonus, CRUEL]
+  if (bits & MODS.hunter.bit && !stamped(a, 'hunter')) a.bonus = [...a.bonus, ...HUNTER]
+  if (bits & MODS.cruel.bit && !stamped(a, 'cruel')) a.bonus = [...a.bonus, CRUEL]
 }
 
 /**

@@ -40,8 +40,22 @@ export const ownAttack = (g: Game, a: Attack) => a.owner === g.player.slot
 /** The player whose hitbox this is (`Attack.owner`); the first one if that slot is gone. */
 export const ownerOf = (g: Game, slot: number): Player => g.players[slot] ?? g.players[0]!
 
-/** Standing in the run: can be chased, hit and pick things up. Fainted players aren't (co-op). */
-export const inPlay = (p: Player) => p.hp > 0
+/**
+ * Standing in the run: can be chased, hit and pick things up. In co-op a
+ * fainted, away or gone player isn't, nor one wrapped up in something of their
+ * own: their evolution, a Mega Evolution or a personal pick (`personal`),
+ * which play without holding the team.
+ */
+export const inPlay = (p: Player) => p.hp > 0 && !p.away && !p.gone && p.phase === 'playing' && p.mega.intro <= 0
+
+/**
+ * Co-op: phases that are one player's own and don't hold the world: the
+ * evolution and the screens that follow it (where it branches, the Ability)
+ * and the ones a pickup or chest opens (a TM, a Poké Ball's prize, a cursed
+ * item). Only level-ups, which the team's shared EXP brings to everyone on the
+ * same tick, hold the world for everyone.
+ */
+export const personal = (phase: PlayerPhase) => phase !== 'playing' && phase !== 'levelup'
 
 /** Whether `p` counts for a world system (can be chased, touched, hit): solo the player always does (their HP only hits 0 as the run ends, mid-tick). */
 export const standing = (g: Game, p: Player) => g.players.length === 1 || inPlay(p)
@@ -65,6 +79,27 @@ export const nearestPlayer = (g: Game, x: number, y: number): Player => {
     }
   }
   return best ?? players[0]!
+}
+
+/**
+ * The player in play nearest to (x, y) the horde can see: not hidden (Dig,
+ * Phantom Force) nor under a tunnel's ridge. When nobody in play can be seen,
+ * the nearest in play (`nearestPlayer`): the foe loses track of them. Solo, the player.
+ */
+export const nearestSeen = (g: Game, x: number, y: number): Player => {
+  const { players } = g
+  if (players.length === 1) return players[0]!
+  let best: Player | null = null
+  let bestD = Infinity
+  for (const p of players) {
+    if (!inPlay(p) || p.hidden || p.landmark.transit !== null) continue
+    const d = dm.sq(p.x - x) + dm.sq(p.y - y)
+    if (d < bestD) {
+      bestD = d
+      best = p
+    }
+  }
+  return best ?? nearestPlayer(g, x, y)
 }
 
 /** The first player in play within `r` px of (x, y) (plus their body radius with `body`), or null. */
@@ -140,17 +175,19 @@ export const aimScreen = (g: Game, p: Player, x: number, y: number) => {
 /** Centers player `p`'s screen on (x, y), framed like a player: 10 px above their feet. */
 export const centerScreen = (g: Game, p: Player, x: number, y: number) => aimScreen(g, p, x - g.view.w / 2, y - 10 - g.view.h / 2)
 
+const noFrame = () => false
+
 /**
  * Moves every player's screen to where they stand (centered, a little above
- * their feet) unless `frame` aims it itself (a legendary's domain eases it to
- * frame the fight: `domainCamera`, run as each player); the drawn camera goes
- * with the first one's.
+ * their feet) unless `frame` aims it itself over `dt` (a legendary's domain
+ * eases it to frame the fight: `domainCamera`, run as each player); the drawn
+ * camera goes with the first one's. A module function, so a tick allocates no closure.
  */
-export const followPlayers = (g: Game, frame: (g: Game) => boolean = () => false) => {
+export const followPlayers = (g: Game, dt = 0, frame: (g: Game, dt: number) => boolean = noFrame) => {
   const before = g.player
   for (const p of g.players) {
     g.player = p
-    if (!frame(g)) centerScreen(g, p, p.x, p.y)
+    if (!frame(g, dt)) centerScreen(g, p, p.x, p.y)
   }
   g.player = before
 }
@@ -172,21 +209,24 @@ const worldPhase = (phase: Phase) => phase === 'playing' || phase === 'paused' |
 
 /**
  * The phase as `p` sees it: the world's while it plays, is paused or is over;
- * their own pick screen or evolution while the world waits on the team. Solo
- * it's always `g.phase`. Pick rules check it, so a pick belongs to its player.
+ * their own pick screen or evolution while the world waits on the team, or
+ * plays on around them (co-op's `personal` phases). Solo it's always `g.phase`. Pick rules check it, so a pick belongs to its player.
  */
-export const phaseOf = (g: Game, p: Player = g.player): Phase => (worldPhase(g.phase) ? g.phase : p.phase)
+export const phaseOf = (g: Game, p: Player = g.player): Phase =>
+  worldPhase(g.phase) && !(g.phase === 'playing' && p.phase !== 'playing') ? g.phase : p.phase
 
 /**
  * Sets `p`'s own phase (a pick screen, an evolution, back to playing) and the
  * world's: held on the first player in slot order who isn't playing, playing
- * once nobody is busy. Solo the world takes `phase` as is.
+ * once nobody is busy. Solo the world takes `phase` as is. In co-op only a
+ * level-up holds the world: a `personal` phase plays with the player wrapped
+ * up, untargetable, while the team plays on (`inPlay`).
  */
 export const setPhase = (g: Game, phase: PlayerPhase, p: Player = g.player) => {
   p.phase = phase
   let team: PlayerPhase = 'playing'
   for (const q of g.players) {
-    if (q.phase === 'playing') continue
+    if (q.phase === 'playing' || (g.coop !== null && personal(q.phase))) continue
     team = q.phase
     break
   }

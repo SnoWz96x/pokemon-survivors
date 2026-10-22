@@ -31,6 +31,8 @@ import { legendFell } from './legendScene'
 import { hordeGrit } from './horde'
 import type { Attack, DamageSource, Enemy, Game } from './types'
 import { playerWeatherBoost, weatherHere, weatherPower } from './weather'
+import { dropForEach, faint, winRun } from './coop'
+import { inPlay } from './players'
 import * as dm from '../engine/dmath'
 
 const TEXT_COLORS = { super: '#ffd830', normal: '#ffffff', weak: '#a8a8b8', warded: '#88b8f8' } as const
@@ -61,7 +63,7 @@ export const damageEnemy = (g: Game, e: Enemy, attack: Attack) => {
   const status = attack.status
   if (status && chance(g.rng, status.chance)) {
     const fresh = e.status[status.kind].time <= 0
-    applyStatus(e.status, status, base, e.boss, attack.move)
+    applyStatus(e.status, status, base, e.boss, attack.move, g.player.slot)
     if (fresh && status.kind !== 'slow') burst(g, e.x, e.y - e.radius, { colors: [STATUS_RULES[status.kind].color, '#ffffff'], count: 5, speed: 50, ttl: 0.3 })
   }
 
@@ -125,7 +127,7 @@ const spreadSeed = (g: Game, e: Enemy) => {
   const seed = e.status.seed
   const spec = { kind: 'seed', chance: 1, duration: Math.max(seed.time, SEED_MIN_TIME), power: seed.power * SEED_DECAY } as const
   for (const o of nearestFoes(g.enemies, e, SEED_JUMPS, SEED_REACH, (f) => f.status.seed.time > 0)) {
-    applyStatus(o.status, spec, 1, o.boss, seed.move)
+    applyStatus(o.status, spec, 1, o.boss, seed.move, seed.by)
     const dx = o.x - e.x
     const dy = o.y - o.radius - (e.y - e.radius)
     for (let i = 0; i < 3; i++) {
@@ -155,9 +157,12 @@ export const killEnemy = (g: Game, e: Enemy, source?: DamageSource | null) => {
   e.dying = 0
   e.hp = 0
   g.kills++
+  g.player.record.kills++
   noteKill(g, e)
   if (source === 'special' || g.player.special.chaining) g.player.special.kills++
   countKill(g.tally, e, weatherHere(g), g.biome.id, g.outbreak)
+  // Co-op: the killer's own count too, for their missions (`coopPayout`).
+  if (g.coop !== null) countKill(g.player.record.tally, e, weatherHere(g), g.biome.id, g.outbreak)
   abilityKill(g, e)
   const big = e.boss || e.shiny
   burst(g, e.x, e.y - e.radius, { colors: ['#ffffff', '#f8f8c8', '#c8d8f8'], count: big ? 60 : 8, speed: big ? 160 : 70, ttl: 0.45 })
@@ -187,10 +192,11 @@ export const killEnemy = (g: Game, e: Enemy, source?: DamageSource | null) => {
       g.events.push({ kind: 'legendBeaten', legend: e.kind, shiny: e.shiny })
     }
     nightBossDown(g, e)
-    dropPickup(g, e.x, e.y, 'pokeball')
+    // Co-op: a Poké Ball, the TM and an evolution item for each player (`dropForEach`); the egg is everyone's.
+    dropForEach(g, () => dropPickup(g, e.x, e.y, 'pokeball'))
     awardEgg(g, bossEggSource(e.kind), e.x, e.y)
-    dropBossTm(g, e)
-    dropEvoItem(g, e.x + 10, e.y + 2)
+    dropForEach(g, () => dropBossTm(g, e))
+    dropForEach(g, () => dropEvoItem(g, e.x + 10, e.y + 2))
     if (g.bossId === e.id) g.bossId = null
     g.shake = 6
     // A wave legendary's capture plays where it fell; Mewtwo's victory waits for it.
@@ -198,10 +204,7 @@ export const killEnemy = (g: Game, e: Enemy, source?: DamageSource | null) => {
     // A faint earlier in the tick stands: the run is over, not won.
     if (e.kind === 'mewtwo' && g.phase !== 'gameover') {
       if (captured && g.legendScene) g.legendScene.then = 'victory'
-      else {
-        g.phase = 'victory'
-        g.events.push({ kind: 'victory' })
-      }
+      else winRun(g)
     }
   } else if (chance(g.rng, ENEMY_BERRY_CHANCE * share)) {
     dropPickup(g, e.x + 6, e.y, 'berry')
@@ -224,6 +227,8 @@ export const armored = (raw: number, armor: number) => Math.max(1, Math.round(ra
 export const hurtPlayer = (g: Game, amount: number, from?: Enemy, types: readonly PokeType[] = from?.types ?? [], hit: HitKind = from ? 'body' : 'hazard') => {
   const p = g.player
   if (p.iframes > 0 || p.hidden || isRepelled(g) || g.phase !== 'playing') return
+  // Co-op: fainted, away, gone or mid-evolution players can't be hurt.
+  if (g.coop !== null && !inPlay(p)) return
   if (p.guard) return guardHit(g, p.guard, from)
   if (from && blinded(g, from)) return
   const taken = abilityTakes(g, amount, types, hit, from)
@@ -233,6 +238,7 @@ export const hurtPlayer = (g: Game, amount: number, from?: Enemy, types: readonl
   const weather = abilityImmune(g, 'weather') ? 1 : weatherPower(weatherHere(g), types)
   const dmg = armored(taken * mods.enemyDamage * weather * domainHarm(g, from !== undefined) * p.stats.damageTaken, p.stats.armor)
   p.hp -= dmg
+  p.record.taken += dmg
   p.iframes = mods.iframes
   noteHarm(g, dmg)
   p.hurt = 0.3
@@ -250,16 +256,21 @@ export const hurtPlayer = (g: Game, amount: number, from?: Enemy, types: readonl
   }
 
   if (p.hp > 0) return
-  // Falling in a rift arena or a place isn't the end: the rift throws the player back out, a rescue brings them back.
-  if (g.rift.arena) return fallInArena(g)
-  if (g.place.inside) return fallInPlace(g)
+  // Falling in a rift arena or a place isn't the end: the rift throws the player back out, a rescue brings them back
+  // (in co-op once the last one standing falls; until then they faint).
+  if (g.rift.arena && (g.coop === null || !teammateStanding(g))) return fallInArena(g)
+  if (g.place.inside && (g.coop === null || !teammateStanding(g))) return fallInPlace(g)
   // Sturdy holds before a Max Revive (the Bag's), which goes before a held Revive.
   if (!abilityHolds(g) && !tryMaxRevive(g) && !tryRevive(g)) {
+    if (g.coop !== null) return faint(g, from?.kind ?? null, hit)
     p.hp = 0
     g.phase = 'gameover'
     g.events.push({ kind: 'gameover', foe: from?.kind ?? null, hit })
   }
 }
+
+/** Co-op: someone besides the acting player still stands. */
+const teammateStanding = (g: Game) => g.players.some((q) => q !== g.player && inPlay(q))
 
 /**
  * Whether `from`'s contact hit misses: it stands in a hitbox with `blind`
@@ -282,9 +293,14 @@ const blinded = (g: Game, from: Enemy) => {
 /** I-frames after a foe's blinded contact misses, so a crowd in the sand rolls once in a while, not every tick. */
 const BLIND_IFRAMES = 0.4
 
-/** Heals the player by `amount`, cut or not by the difficulty, up to max HP. Returns the HP actually restored. */
+/**
+ * Heals the player by `amount`, cut or not by the difficulty, up to max HP.
+ * Returns the HP actually restored. A fainted co-op player takes no heal: only
+ * a teammate gets them back up (`coop.ts`).
+ */
 export const healPlayer = (g: Game, amount: number) => {
   const p = g.player
+  if (g.coop !== null && p.hp <= 0) return 0
   const healed = Math.max(0, Math.min(amount * runMods(g).healing, p.stats.maxHp - p.hp))
   p.hp += healed
   return healed

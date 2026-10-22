@@ -25,6 +25,34 @@ const tunnelNear = (g: Game) => {
   throw new Error('no tunnel')
 }
 
+/**
+ * Arrays a run shares with module tables, harmlessly: a foe's `types` (its
+ * species'), a hitbox's `bonus` (`NO_BONUS`, a move's table, a mod's entries). The original
+ * shares them with hitboxes and foes made after a snapshot; a copy restored in
+ * another module graph shares its own. Nothing reads them by identity.
+ */
+const TABLE_ALIASES: ReadonlySet<string> = new Set(['types', 'bonus'])
+
+/** A game's snapshot bytes with `TABLE_ALIASES` unshared (each its own array of its own entries), so two runs compare byte for byte otherwise. */
+const unsharedBytes = (g: Game) => {
+  const clone: unknown = restore(snapshot(g))
+  const seen = new Set<object>()
+  const walk = (v: unknown) => {
+    if (typeof v !== 'object' || v === null || seen.has(v)) return
+    seen.add(v)
+    if (v instanceof Map) return v.forEach(walk)
+    if (v instanceof Set) return v.forEach(walk)
+    if (Array.isArray(v)) return v.forEach(walk)
+    const o = v as Record<string, unknown>
+    for (const k of Object.keys(o)) {
+      if (TABLE_ALIASES.has(k) && Array.isArray(o[k])) o[k] = (o[k] as unknown[]).map((x) => (typeof x === 'object' && x !== null ? { ...x } : x))
+      walk(o[k])
+    }
+  }
+  walk(clone)
+  return snapshot(clone as Game)
+}
+
 /** Ticks the restored copy and the original play on after a checkpoint. */
 const AFTER = 240
 
@@ -69,8 +97,9 @@ const proveRestores = (s: Scenario, ticks: number, every: number, stage?: (g: Ga
       tickScenario(copy)
     }
     expect(stateHash(copy.g), `${s.starter} diverged after a restore at ${at.tick - AFTER}`).toBe(stateHash(at.g))
-    // Down to the last value (not byte for byte: the original may share a data table's array that the copy holds its own of).
+    // Byte for byte, but for the module tables the original shares (`TABLE_ALIASES`).
     expect(diffGames(at.g, copy.g)).toEqual([])
+    expect(unsharedBytes(copy.g)).toEqual(unsharedBytes(at.g))
     checkpoints++
   }
   while (d.tick < ticks && tickScenario(d)) {
@@ -142,9 +171,10 @@ describe('snapshot and restore', () => {
     const copy: Driver = { ...saved, g: fresh.snapshot.restore(bytes), bot: fresh.rng.rngFrom(saved.bot), over: false }
     for (let i = 0; i < 600; i++) fresh.scenario.tickScenario(copy)
     expect(fresh.snapshot.stateHash(copy.g)).toBe(stateHash(d.g))
-    // Down to the last value. Not byte for byte: foes spawned before the snapshot share their species' `types` table with
-    // the ones spawned after it in the original, while the copy holds its own (a place's stash keeps such foes for long).
+    // Byte for byte, once the module tables the original shares are unshared (`TABLE_ALIASES`): foes and hitboxes made
+    // before the snapshot share their species' and moves' tables with later ones in the original, the copy its own.
     expect(diffGames(d.g, copy.g)).toEqual([])
+    expect(unsharedBytes(copy.g)).toEqual(unsharedBytes(d.g))
   }, 60_000)
 
   it('play a run the same in a fresh module context as in one that played other runs before', async () => {

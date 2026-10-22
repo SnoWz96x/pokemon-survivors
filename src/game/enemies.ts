@@ -16,8 +16,10 @@ import { createTraitState, isAirborne, traitPace } from './traits'
 import { dungeonNav } from './dungeon'
 import { underground } from './landmarks'
 import { TRAITS } from '../data/traits'
-import { actAs, nearestPlayer, standing } from './players'
-import type { Enemy, EnemyBehavior, Game } from './types'
+import { actAs, nearestPlayer, nearestSeen, onAnyScreen, ownerOf, standing } from './players'
+import { coopScale } from './coop'
+import { COOP } from '../data/coop'
+import type { DamageSource, Enemy, EnemyBehavior, Game } from './types'
 import * as dm from '../engine/dmath'
 
 const neighbors: number[] = []
@@ -43,7 +45,8 @@ export const spawnEnemy = (g: Game, kind: EnemyId, x: number, y: number, behavio
   const boss = def.boss === true
   const mods = runMods(g)
   const scale = boss ? { hp: mods.enemyHp, damage: 1, xp: 1 } : enemyScale(g)
-  const hp = Math.round(def.hp * scale.hp)
+  // Co-op: the whole team hits it (`coopScale`; exactly 1 solo).
+  const hp = Math.round(def.hp * scale.hp * coopScale(g, boss ? COOP.scale.bossHp : COOP.scale.hp))
   const enemy: Enemy = {
     id: g.nextId++,
     kind,
@@ -108,11 +111,18 @@ const bodyBlow = (g: Game, e: Enemy, o: Enemy) => {
     t.hit.add(o.id)
     o.kx += e.kx * 0.5 / o.mass
     o.ky += e.ky * 0.5 / o.mass
-    return bumpDamage(g, o, t.damage, t.move)
+    return blowAs(g, t.by, o, t.damage, t.move)
   }
   if (e.status.bump > 0) return
   e.status.bump = CONFUSE_BUMP
-  bumpDamage(g, o, e.damage * CONFUSE_CONTACT, e.status.confuse.move)
+  blowAs(g, e.status.confuse.by, o, e.damage * CONFUSE_CONTACT, e.status.confuse.move)
+}
+
+/** A body blow credited to the player at `slot` (who threw or confused the foe), as them. */
+const blowAs = (g: Game, slot: number, o: Enemy, amount: number, move: DamageSource | null) => {
+  const before = actAs(g, ownerOf(g, slot))
+  bumpDamage(g, o, amount, move)
+  actAs(g, before)
 }
 
 const FAINT_TIME = 0.4
@@ -133,6 +143,8 @@ const mateOf = (g: Game, e: Enemy) => {
   return mate && mate.dying < 0 && !mate.fight?.down ? mate : null
 }
 
+/** Each player's way through the cave's corridors this tick, by slot (`dungeonNav`), reused every tick. */
+const caveNavs: ReturnType<typeof dungeonNav>[] = []
 /** Where a walker heads instead of the player (a dungeon's corridor), reused every tick. */
 const waypoint = { x: 0, y: 0 }
 /** Where a boss with phases heads (`steerBoss`), reused every tick. */
@@ -149,7 +161,12 @@ export const updateEnemies = (g: Game, dt: number) => {
   const inside = g.place.inside
   const cave = inside?.id === 'cave' && inside.state.plan ? inside : null
   const plan = cave?.state.plan
-  const navs = cave && plan ? g.players.map((p) => dungeonNav(plan, p.x - cave.x, p.y - cave.y)) : null
+  let navs: typeof caveNavs | null = null
+  if (cave && plan) {
+    navs = caveNavs
+    navs.length = g.players.length
+    for (let i = 0; i < g.players.length; i++) navs[i] = dungeonNav(plan, g.players[i]!.x - cave.x, g.players[i]!.y - cave.y)
+  }
   const band = spitBand(g.view)
 
   for (const e of g.enemies) {
@@ -161,7 +178,8 @@ export const updateEnemies = (g: Game, dt: number) => {
       }
       continue
     }
-    const p = nearestPlayer(g, e.x, e.y)
+    // A hidden teammate (Dig, a tunnel) is passed over for one the foe can see.
+    const p = nearestSeen(g, e.x, e.y)
     const lost = underground(g, p)
     const nav = navs?.[p.slot] ?? null
     const frozen = e.status.stun > 0 || isFrozen(e.status)
@@ -233,10 +251,14 @@ export const updateEnemies = (g: Game, dt: number) => {
     // A spitter backing off keeps facing the player.
     if (Math.abs(vx) + Math.abs(vy) > 1) e.dir = isSpitter(e) && e.behavior.kind === 'chase' ? dir8(p.x - e.x, p.y - e.y) : dir8(vx, vy)
 
-    // Wrap stragglers back in front of the player instead of letting them get lost.
+    // Wrap stragglers back in front of the player instead of letting them get lost (in co-op, never onto a teammate's screen).
     if (e.behavior.kind === 'chase' && !e.boss && Math.abs(e.x - p.x) + Math.abs(e.y - p.y) > recycleDist * 1.3) {
-      e.x = p.x + (p.x - e.x) * 0.7
-      e.y = p.y + (p.y - e.y) * 0.7
+      const x = p.x + (p.x - e.x) * 0.7
+      const y = p.y + (p.y - e.y) * 0.7
+      if (g.coop === null || !onAnyScreen(g, x, y)) {
+        e.x = x
+        e.y = y
+      }
     }
   }
 

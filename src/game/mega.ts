@@ -171,7 +171,7 @@ const auraTick = (g: Game, def: MegaDef, dt: number) => {
   const p = g.player
   const reach = dm.sq(effect.radius)
   for (const e of g.enemies) {
-    if (isAlive(e) && dm.sq(e.x - p.x) + dm.sq(e.y - p.y) < reach) applyStatus(e.status, effect.status, 0, e.boss, null)
+    if (isAlive(e) && dm.sq(e.x - p.x) + dm.sq(e.y - p.y) < reach) applyStatus(e.status, effect.status, 0, e.boss, null, p.slot)
   }
 }
 

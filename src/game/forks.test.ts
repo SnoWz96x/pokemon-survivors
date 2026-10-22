@@ -6,6 +6,7 @@ import { NO_RANKS } from './meta'
 import { createModState, hasMod, inheritMods, MOD, modBits, refreshMods, stampMods } from './mods'
 import { took } from './kitRules'
 import { spawnAttack } from './spawn'
+import { restore, snapshot, stateHash } from './snapshot'
 import { forkAt, isLegendary, maxMoveLevel, MOVE_IDS, moveStats, withBranch } from './moves'
 import { parseReplay, recordEvent, recordStep, resimulate, startGame, startRecording, TICK, type ReplayStart } from './replay'
 import { BASE_STATS } from './stats'
@@ -216,6 +217,17 @@ describe('hit-time mods', () => {
     expect(hasMod(inheritMods(aura).mod!.bits, 'drain')).toBe(true)
     expect(inheritMods({ ...aura, mod: null }).mod).toBeNull()
     expect(createModState(0)).toBeNull()
+  })
+
+  it('a hitbox restored from a snapshot takes a refresh the same way: Hunter and Cruel go on once', () => {
+    hitbox(modBits(['hunter', 'cruel']))
+    const copy = restore(snapshot(g))
+    for (const run of [g, copy]) {
+      run.player.castMods = modBits(['hunter', 'cruel', 'drain'])
+      refreshMods(run, run.attacks.at(-1)!)
+    }
+    expect(copy.attacks.at(-1)!.bonus.length).toBe(3)
+    expect(stateHash(copy)).toBe(stateHash(g))
   })
 })
 

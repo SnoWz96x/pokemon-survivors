@@ -112,11 +112,14 @@ const reward = (g: Game, ev: MapEventOf<FieldMissionKind>, x: number, y: number,
   g.shake = Math.max(g.shake, 3)
   notify(g, { kind: 'missionDone', mission: ev.kind, coins: coins.reduce((a, b) => a + b, 0), egg: hatched })
   ev.gone = 0
-  // The whole team earned it: everyone gets the prize level-up.
+  // The whole team earned it: everyone gets the prize level-up. In co-op a
+  // player on a screen of their own takes it as a regular level-up once free
+  // (`openPendingPicks`), so their screen isn't replaced; one who left gets none.
   const actor = g.player
   for (const p of g.players) {
     g.player = p
-    openPrizeLevelUp(g, 'mission', r.shinyCard)
+    if (g.coop !== null && p.phase !== 'playing') p.pendingLevelUps += p.gone ? 0 : 1
+    else if (!p.gone) openPrizeLevelUp(g, 'mission', r.shinyCard)
   }
   g.player = actor
 }

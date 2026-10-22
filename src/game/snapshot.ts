@@ -462,6 +462,14 @@ const MAX_DEPTH = 64
  * it skips what can't change on its own between two runs of one build: the
  * key names and which objects are shared. Twice as fast as `snapshot`, with
  * nothing allocated per object, so it can run every second on a phone.
+ *
+ * The contract for comparing hashes across clients: since key names aren't
+ * mixed in, two builds whose state differs only by a renamed (or reordered)
+ * key hash the same, which is why rooms are pinned to a sim build id, not to
+ * this hash. And `g.events` and `g.view` are part of the state like the rest:
+ * the co-op runner drains `events` every tick before hashing (`coop/runner.ts`)
+ * and every client simulates the same `COOP.view` (480×270), so a shell that
+ * left events queued or resized its sim view would hash differently.
  */
 export const stateHash = (g: Game): string => {
   let h1 = 0x9e3779b9
