@@ -32,7 +32,7 @@ const walkingRight = () => {
 }
 
 describe('own-movement prediction', () => {
-  it('eases instead of snapping back when the step stops walking the player (a hitstop, a held world)', () => {
+  it('eases instead of snapping back when the step stops walking the player (a held world)', () => {
     const { r, history } = walkingRight()
     const pr = createPrediction()
     // 20 samples ahead of the confirmed state.
@@ -40,16 +40,12 @@ describe('own-movement prediction', () => {
     const snap = ahead.x - r.game.player.x
     expect(snap).toBeGreaterThan(10)
     // A frame moves the sprite a step or two (a blend), never the whole way back.
-    r.game.hitstop = 0.2
-    const hit = predict(pr, r, history, 80, 0, 1 / 60)
-    expect(Math.abs(hit.x - ahead.x)).toBeLessThan(snap / 4)
-    r.game.hitstop = 0
     r.game.phase = 'levelup'
-    const held = predict(pr, r, history, 81, 0, 1 / 60)
-    expect(Math.abs(held.x - hit.x)).toBeLessThan(snap / 4)
+    const held = predict(pr, r, history, 80, 0, 1 / 60)
+    expect(Math.abs(held.x - ahead.x)).toBeLessThan(snap / 4)
     // Held long enough, it settles on the confirmed spot.
     let last = held
-    for (let s = 82; s < 140; s++) last = predict(pr, r, history, s, 0, 1 / 60)
+    for (let s = 81; s < 140; s++) last = predict(pr, r, history, s, 0, 1 / 60)
     expect(Math.abs(last.x - r.game.player.x)).toBeLessThan(0.5)
   })
 })

@@ -792,7 +792,7 @@ export type Game = {
   camera: { x: number; y: number }
   /** The screen shake (px), fading (`updateEffects`); raised with `shakeScreen`. */
   shake: number
-  /** Seconds the simulation stays frozen for impact (hit-stop). */
+  /** Seconds the simulation stays frozen for impact (hit-stop). Solo only: in co-op it counts down without freezing. */
   hitstop: number
   kills: number
   /** Poké Dollars collected this run (already multiplied by greed). */

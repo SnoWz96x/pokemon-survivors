@@ -808,9 +808,12 @@ export const stepTeam = (g: Game, inputs: readonly StepInput[], dt: number) => {
   if (updateDomainScene(g, dt)) return
   if (updateLegendScene(g, dt)) return
   if (updatePlaceFall(g, dt)) return
+  // A hitstop holds the whole world in solo. In co-op it would hold every
+  // teammate for one player's hit (and pull their predicted sprites back), so
+  // it only counts down while the team plays on.
   if (g.hitstop > 0) {
     g.hitstop -= dt
-    return
+    if (g.coop === null) return
   }
 
   // The run clock stops inside a rift (`clockRuns`); `now` never does.
