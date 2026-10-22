@@ -1,9 +1,11 @@
 import { accountHandle, accountsEnabled, sessionToken } from './account'
-import { featureFlag, track } from './analytics'
+import { featureFlag, track, type RunPerf } from './analytics'
 import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/bank'
 import { createBot, botPick, type Bot } from './coop/bot'
 import { createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
 import { betaOn, buildAdvice } from './coop/lobby'
+import { netSummary, type NetStats } from './coop/netStats'
+import type { Runner } from './coop/runner'
 import { EGGS } from './game/eggs'
 import { coopPayout, playerDexLog } from './game/coop'
 import { mergeDex, recordRun, type Pokedex } from './game/dex'
@@ -250,6 +252,67 @@ export const bankCoopRun = (g: Game, room: string, run: number, slot: number, wi
 
 /** Reports a heal to PostHog: when, where and how long it took. */
 export const reportHeal = (room: string, tick: number, ms: number) => track('coop_heal', { room, tick, ms: Math.round(ms) })
+
+type NavigatorExtras = Navigator & { connection?: { effectiveType?: string }; userAgentData?: { platform?: string; mobile?: boolean } }
+
+/** The network type (`4g`, `3g`… where the browser says) and the platform, for `coop_net`. */
+const device = () => {
+  const nav: NavigatorExtras = navigator
+  const ua = nav.userAgentData
+  return {
+    effectiveType: nav.connection?.effectiveType ?? null,
+    platform: (ua?.platform || nav.platform || null)?.slice(0, 24) ?? null,
+    mobile: (ua?.mobile ?? /Mobi|Android|iPhone|iPad/.test(nav.userAgent)) ? (1 as const) : (0 as const),
+  }
+}
+
+/** The runs whose `coop_net` went out (`room:run`), and whether it was the final one. */
+const netSent = new Map<string, 'partial' | 'final'>()
+
+/** The last `coop_net` built on this page, for `ps.coop('net')`. */
+let lastNet: unknown = null
+export const lastCoopNet = () => lastNet
+
+export type CoopNetOutcome = 'victory' | 'wipe' | 'endless' | 'left' | 'hidden' | 'unload'
+
+/**
+ * Builds this player's `coop_net` for a run (`net`: its stats, kept by the
+ * shell from the run's start) without sending it, for the dev console too.
+ */
+export const coopNetPayload = (client: CoopClient, runner: Runner, net: NetStats, outcome: CoopNetOutcome, perf: RunPerf) => {
+  const g = runner.game
+  const where = client.state().where
+  return {
+    room: runner.room,
+    run: runner.start.id,
+    seat: runner.seat,
+    seats: g.players.length,
+    outcome,
+    final: outcome === 'hidden' ? (0 as const) : (1 as const),
+    minute: Math.floor(g.time / 60),
+    difficulty: g.difficulty,
+    ...netSummary(net, performance.now(), { underruns: runner.stats.underruns, heals: runner.stats.heals.length, syncs: runner.stats.syncs.length }, where),
+    ...device(),
+    ...perf,
+  }
+}
+
+/**
+ * Sends this player's `coop_net` for a run: the final one once (the end, or
+ * the page unloading), and before it at most one partial (the page hidden
+ * mid-run, by beacon, in case it never comes back). Logged instead in dev.
+ */
+export const reportCoopNet = (client: CoopClient, runner: Runner, net: NetStats, outcome: CoopNetOutcome, perf: RunPerf) => {
+  const key = `${runner.room}:${runner.start.id}`
+  const sent = netSent.get(key)
+  const final = outcome !== 'hidden'
+  if (sent === 'final' || (sent === 'partial' && !final)) return
+  netSent.set(key, final ? 'final' : 'partial')
+  const payload = coopNetPayload(client, runner, net, outcome, perf)
+  lastNet = payload
+  if (import.meta.env.DEV) console.info('coop_net', payload)
+  track('coop_net', payload, { beacon: outcome === 'hidden' || outcome === 'unload' })
+}
 
 /** Events that are one player's own: only their client shows and plays them (the runner notes who pushed each). */
 const PERSONAL: ReadonlySet<GameEvent['kind']> = new Set<GameEvent['kind']>([

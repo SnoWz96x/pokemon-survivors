@@ -155,6 +155,11 @@ export type CreateResponse = { code: string; region: Region } | { error: 'versio
 
 /* ---------------- Client → relay ---------------- */
 
+/** How often a client in a run reports its link (`net`), in ms. */
+export const NET_REPORT_MS = 15_000
+
+export type NetReport = { t: 'net'; rtt: number; rtt95: number; hold: number; underruns: number; stalls: number; reconnects: number }
+
 export type Hello = {
   t: 'hello'
   v: number
@@ -208,6 +213,13 @@ export type BatchedMessage =
   | { t: 'badSnap'; tick: number }
   | { t: 'leave' }
   | { t: 'ping'; at: number }
+  /**
+   * How the link looks from this client in a run (every `NET_REPORT_MS`): round trip (ms, median and
+   * p95), the hold (ticks), and since the run began, underruns, stalled frames and reconnects. The relay
+   * only logs it (`run.summary`) and keeps the laggiest runs' input logs for the lab. Relays before it
+   * drop it as unparsed.
+   */
+  | NetReport
 
 /* ---------------- Relay → client ---------------- */
 
@@ -236,12 +248,20 @@ export const CLOSE_CODES = {
   abuse: 4008,
 } as const satisfies Record<CloseReason, number>
 
+/**
+ * Where the relay's room runs (`colo`: the Cloudflare data center, `region`: the location hint it was
+ * created with) and where this client meets Cloudflare (`edge` and its TCP round trip, ms), for the
+ * client's telemetry. Unknown fields are null.
+ */
+export type WelcomeNet = { colo: string | null; region: string | null; edge: string | null; edgeRtt: number | null }
+
 export type ServerMessage =
   /**
    * You hold `seat`; keep `secret` (by room code) to take it back from any tab. `batch`: this relay takes `batch`
-   * messages (an older one doesn't say it, and gets every message on its own).
+   * messages (an older one doesn't say it, and gets every message on its own). `net`: where things run (relays
+   * before it leave it out).
    */
-  | { t: 'welcome'; seat: number; secret: string; room: RoomView; batch?: boolean }
+  | { t: 'welcome'; seat: number; secret: string; room: RoomView; batch?: boolean; net?: WelcomeNet }
   /** `build`: with a `build` refusal, the build the room runs (the client tells whether it is older or newer). */
   | { t: 'refused'; code: Refusal; build?: string }
   | { t: 'room'; room: RoomView }
@@ -381,6 +401,12 @@ const parseBatched = (m: Record<string, unknown>): BatchedMessage | null => {
       return isWhole(m.tick, MAX_TICK) && m.tick % SNAPSHOT_EVERY === 0 ? { t: 'badSnap', tick: m.tick } : null
     case 'ping':
       return typeof m.at === 'number' && Number.isFinite(m.at) ? { t: 'ping', at: m.at } : null
+    case 'net': {
+      const { rtt, rtt95, hold, underruns, stalls, reconnects } = m
+      const max = 1e6
+      if (!isWhole(rtt, max) || !isWhole(rtt95, max) || !isWhole(hold, max) || !isWhole(underruns, max) || !isWhole(stalls, max) || !isWhole(reconnects, max)) return null
+      return { t: 'net', rtt, rtt95, hold, underruns, stalls, reconnects }
+    }
     case 'start':
     case 'hb':
     case 'leave':

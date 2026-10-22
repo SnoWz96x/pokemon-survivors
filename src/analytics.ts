@@ -10,6 +10,7 @@ import type { Difficulty } from './game/difficulty'
 import type { RunMode } from './game/ranking'
 import { isRecord } from './game/parse'
 import type { LobbyFocus } from './ui/title'
+import type { NetSummary } from './coop/netStats'
 
 /**
  * Analytics and error reports. Events go to PostHog (product analytics and
@@ -18,6 +19,16 @@ import type { LobbyFocus } from './ui/title'
  * waits on it; events and errors from before it loads wait in a short queue.
  * Only production domains report (or a device with `ps:analytics` set to `on`, for testing).
  */
+
+/** How the device coped with a run: canvas memory at its peak (MB, `createCanvas`), `navigator.deviceMemory` (GB), and the frames while playing (ms; long: past 50 ms). */
+export type RunPerf = {
+  peakCanvasMb: number
+  peakCanvases: number
+  deviceMemory: number | null
+  frameAvg: number | null
+  frameP95: number | null
+  longFrames: number
+}
 
 /** Custom events, with their payloads. Keep this list short: every event counts against the free tier. */
 type AnalyticsEvents = {
@@ -50,16 +61,9 @@ type AnalyticsEvents = {
     /** The Bag items the run took (`ReplayStart.bag`). */
     bag: BagItem[]
     challenge?: 'official' | 'practice'
-    /** How the device coped: canvas memory at its peak (MB, `createCanvas`), `navigator.deviceMemory` (GB), and the frames while playing (ms; long: past 50 ms). */
-    peakCanvasMb: number
-    peakCanvases: number
-    deviceMemory: number | null
-    frameAvg: number | null
-    frameP95: number | null
-    longFrames: number
     /** A haunted run's (Noite das Bruxas) candies, to tune the candy jar. */
     candies?: number
-  }
+  } & RunPerf
   /**
    * The page died mid-run last time (the crash watch, `takeCrash` in `bugReport.ts`), sent once
    * by the next boot whether or not the player files a report. Rare, so it fits the budget.
@@ -104,6 +108,28 @@ type AnalyticsEvents = {
   survey_difficulty: Record<Difficulty, SurveyAnswer> & { runs: number; wins: number }
   /** A co-op client diverged and was healed from the agreed snapshot: the room, the tick it was told at, and how long until it was back in step. */
   coop_heal: { room: string; tick: number; ms: number }
+  /**
+   * How a co-op run's link and pacing went for this player (`coop/netStats.ts`), one per player per run,
+   * flat: where the relay ran and this player met Cloudflare, round trip, frame jitter, the hold, underruns,
+   * stalls, reconnects by reason, heals and syncs, the display, simulation and render times, prediction
+   * errors, shake, the network type and platform, and the device's run perf (as `run_end` has it; co-op
+   * sends no `run_end`). Sent at the run's end (`final` 1), or once with what it has when the page hides
+   * mid-run (`hidden`, `final` 0: the run may go on, and a final one follows) or unloads (`unload`).
+   */
+  coop_net: NetSummary &
+    RunPerf & {
+      room: string
+      run: number
+      seat: number
+      seats: number
+      outcome: 'victory' | 'wipe' | 'endless' | 'left' | 'hidden' | 'unload'
+      final: 0 | 1
+      minute: number
+      difficulty: Difficulty
+      effectiveType: string | null
+      platform: string | null
+      mobile: 0 | 1
+    }
   /**
    * Co-op's beta, one event per step: a room created, a room joined (by a typed code, a link or a friend's
    * invite), a run started (by the host, once per run), a run ended for this player (how, how long, how many),
@@ -154,10 +180,13 @@ const giveUp = () => {
 /** Umami takes flat data only. */
 const flat = (data: object) => Object.fromEntries(Object.entries(data).filter((e): e is [string, string | number] => typeof e[1] === 'string' || typeof e[1] === 'number'))
 
-/** Sends a custom event. Silently does nothing where analytics don't run. */
-export const track = <E extends keyof AnalyticsEvents>(event: E, data: AnalyticsEvents[E]) => {
+/**
+ * Sends a custom event. Silently does nothing where analytics don't run.
+ * `beacon`: the page may be going away (`pagehide`, hidden), so PostHog sends it at once by `sendBeacon`.
+ */
+export const track = <E extends keyof AnalyticsEvents>(event: E, data: AnalyticsEvents[E], opts: { beacon?: boolean } = {}) => {
   window.umami?.track(event, flat(data))
-  withPosthog((ph) => ph.capture(event, data))
+  withPosthog((ph) => ph.capture(event, data, opts.beacon ? { transport: 'sendBeacon', send_instantly: true } : undefined))
 }
 
 let identity: { userId: string | null; handle: string | null } | null = null

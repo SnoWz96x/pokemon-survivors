@@ -9,6 +9,7 @@ import {
 } from '../../src/net/protocol'
 import type { Env } from './env'
 import { allowedOrigin } from './origins'
+import { EDGE_HEADER, edgeOf } from './telemetry'
 
 export { RoomObject } from './roomObject'
 export { Vault } from './vault'
@@ -132,7 +133,10 @@ export default {
       if (!(await env.CONNECT_LIMIT.limit({ key: ipOf(request) })).success) return new Response('Too many connections', { status: 429 })
       const code = parseRoomCode(ws[1])
       if (!code) return new Response('Bad room code', { status: 400 })
-      return env.ROOMS.getByName(code).fetch(request)
+      // Where this socket meets Cloudflare, for the room's telemetry (set here, so a client can't say it).
+      const headers = new Headers(request.headers)
+      headers.set(EDGE_HEADER, JSON.stringify(edgeOf(request.cf)))
+      return env.ROOMS.getByName(code).fetch(new Request(request, { headers }))
     }
     if (path.startsWith('/admin/dumps') && request.method === 'GET') return admin(request, env, path)
     return new Response('Not found', { status: 404, headers })

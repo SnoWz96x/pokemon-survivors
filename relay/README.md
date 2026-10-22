@@ -23,7 +23,8 @@ without their input.
 
 - `src/room.ts`: the room as a pure state machine (all the rules, tested in `test/room.test.ts`).
 - `src/roomObject.ts`: the Durable Object, a thin shell doing the storage, sockets and timers the room asks for.
-- `src/vault.ts`: one Durable Object keeping desync dumps after their room is gone (30 days, the newest 500, pruned by its alarm).
+- `src/vault.ts`: one Durable Object keeping desync dumps after their room is gone (30 days, the newest 500, pruned by its alarm), and the lab's kept runs (below).
+- `src/telemetry.ts`: what makes every run diagnosable (below), kept out of the room's rules.
 - `src/index.ts`: the Worker routes; `src/auth.ts`: Clerk session tokens (RS256 against the JWKS).
 
 ```bash
@@ -64,6 +65,18 @@ A dump has `meta` (room, build, region, the run's start with seed and loadouts, 
 hashes reported at the diverged tick, seats with builds and user agents), `log`
 (`[tick, entries]` for every tick with inputs) and `hashes` (`[tick, {seat: hash}]`).
 Re-simulating `meta.run` with `log` reproduces the run.
+
+## Telemetry
+
+JSON lines in Workers Logs (observability is on), one per event:
+
+- `do.boot`: a room's object started (`colo`: where it runs, from Cloudflare's trace asked once per isolate; the run and tick it resumes at).
+- `conn.open` / `conn.close`: a socket, with where it meets Cloudflare (`colo`, `country`, `asn`, `rtt`: the edge's TCP round trip, set by the Worker in `X-PS-Edge`), and at close its code or the relay's reason and how long it lived.
+- `run.summary`: at a run's end or when its room goes (`why`, `final`), and also when everyone left it (`why: 'left'`, `final: false`: an idle room's object is usually evicted before it expires, and its counts with it): frames sent and those carrying more than a tick, the frame timer's lateness (p50, p99, max ms), messages in by kind (a `batch` once, and each message it carries by its own kind), stick inputs coalesced and messages dropped, bytes per seat, storage writes by kind (log batches, room saves, snapshot chunks, deletes), snapshot sizes, pauses, and per seat its edge, how many times it joined, and its own link report (`net`: round trip, hold, underruns, stalls, reconnects, sent every 15 s).
+
+`welcome` also says where the room runs (`net`: `colo`, `region`, the socket's `edge` and `edgeRtt`), for the client's own `coop_net` event.
+
+**Kept runs.** A run that lasted a minute or more is offered to the vault when it is summed up (above): its input log, as a dump (`kind: 'run'`, `meta.why`, `meta.net` per seat, `score`; one id per run, so an offer made when everyone left is replaced if the run goes on), so a laggy run can be replayed in the lab. At most 20 a UTC day, the laggiest win (`score`: the worst seat's round trip p95, plus 20 per underrun and 50 per reconnect), kept 14 days. `/admin/dumps` lists them with the rest (`kind`, `score`).
 
 ## Limits and costs
 

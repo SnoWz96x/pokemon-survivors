@@ -27,4 +27,11 @@ describe('protocol', () => {
     expect(parseClientMessage(JSON.stringify({ t: 'batch', m: [{ t: 'batch', m: [one] }] }))).toBeNull()
     expect(parseClientMessage(JSON.stringify({ t: 'batch', m: [{ t: 'snap', tick: 600, h: 'ab', part: 0, parts: 1, data: 'AA==' }] }))).toBeNull()
   })
+
+  it('takes a link report of whole numbers only', () => {
+    const net = { t: 'net', rtt: 120, rtt95: 180, hold: 5, underruns: 2, stalls: 7, reconnects: 1 }
+    expect(parseClientMessage(JSON.stringify(net))).toEqual(net)
+    expect(parseClientMessage(JSON.stringify({ ...net, rtt: 1.5 }))).toBeNull()
+    expect(parseClientMessage(JSON.stringify({ ...net, stalls: undefined }))).toBeNull()
+  })
 })

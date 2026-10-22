@@ -161,7 +161,8 @@ import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, tickToasts, toast } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
 import { localPlayer, phaseOf } from './game/players'
-import { addBots, bankCoopRun, botCount, buildRefusal, coopClient, coopEntry, coopEventFor, coopUrl, linkedRoom, linkRoom, markBuildReload, onCoopEntry, refreshCoopEntry, removeBots, reportHeal, setCoopBeta, setCoopUrl, surrenderBots } from './coopShell'
+import { addBots, bankCoopRun, botCount, buildRefusal, coopClient, coopEntry, coopEventFor, coopNetPayload, coopUrl, lastCoopNet, linkedRoom, linkRoom, markBuildReload, onCoopEntry, refreshCoopEntry, removeBots, reportCoopNet, reportHeal, setCoopBeta, setCoopUrl, surrenderBots, type CoopNetOutcome } from './coopShell'
+import { noteDraw, type NetStats } from './coop/netStats'
 import type { CloseWhy, CoopClient } from './coop/client'
 import { coopAccess, coopStarter, freshInvites } from './coop/lobby'
 import { REF_PARAM } from './game/referral'
@@ -321,6 +322,8 @@ type CoopRun = {
   again: boolean
   /** This screen's own shake (`coop/shake.ts`): a teammate's hit or move never shakes it. */
   shake: ScreenShake
+  /** The run's link and pacing numbers (the client's, kept from the run's start: the next run's `start` makes new ones). */
+  net: NetStats
 }
 
 let screen: Screen | null = null
@@ -1772,6 +1775,8 @@ document.addEventListener(
 document.addEventListener('visibilitychange', () => {
   // Co-op: hidden, the run isn't simulated and nothing is sent (the relay calls the seat away); back, it catches up.
   coopClient()?.setHidden(document.hidden)
+  // A phone may never come back to it: the run's link numbers so far go out now (once; the end sends the final ones).
+  if (document.hidden && run?.coop) reportNet(run.coop, 'hidden')
   if (document.hidden && !run?.coop && run?.game.phase === 'playing') run.game.phase = 'paused'
 })
 
@@ -1781,6 +1786,9 @@ document.addEventListener('visibilitychange', () => {
  * game makes (signing in, the guide, the title's links) starts from a menu,
  * with no run, so none of them is asked. iOS Safari ignores this prompt.
  */
+// The page goes away mid co-op run (closed, reloaded): its link numbers go out by beacon.
+window.addEventListener('pagehide', () => run?.coop && reportNet(run.coop, 'unload'))
+
 window.addEventListener('beforeunload', (e) => {
   if (!run || run.game.phase === 'gameover' || run.game.phase === 'victory') return
   e.preventDefault()
@@ -1805,6 +1813,7 @@ const endCoopRun = (r: Run, c: CoopRun) => {
   bankCoop(r, c, wonRun(g) || coopOver(g))
   const outcome = wonRun(g) ? (g.endless ? 'endless' : 'victory') : coopOver(g) ? 'wipe' : 'left'
   track('coop', { step: 'end', players: g.players.length, minute: Math.floor(g.time / 60), outcome, difficulty: g.difficulty })
+  reportNet(c, outcome)
   r.overlay?.dispose()
   r.closeText?.()
   r.hud.dispose()
@@ -1813,6 +1822,9 @@ const endCoopRun = (r: Run, c: CoopRun) => {
   run = null
   syncRunWatch()
 }
+
+/** This player's `coop_net` for the co-op run (`coopShell.ts`): at its end, or when the page hides or unloads mid-run. */
+const reportNet = (c: CoopRun, outcome: CoopNetOutcome) => reportCoopNet(c.client, c.runner, c.net, outcome, runPerf())
 
 /** Leaves the room for good (the Pokémon leaves the field), back to the title. */
 const leaveCoopRun = () => {
@@ -1908,6 +1920,7 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
     banked: { victory: false, over: false },
     shake: createScreenShake(),
     again: false,
+    net: client.state().net,
   }
   const me = localPlayer(live.game)
   run = {
@@ -2086,7 +2099,9 @@ const coopFrame = (r: Run, c: CoopRun, dt: number, t: number, realDt: number) =>
   for (const e of shakes) feelShake(c.shake, e, runner.slot, shown.camera, shown.view)
   settleShake(c.shake, dt, runner.next, Math.random)
   shown.shake = c.shake.amount
+  const drawAt = performance.now()
   render(ctx, shown, t, { ...settings(), companion: null, mates: c.view.mates, shakeOffset: c.shake })
+  noteDraw(c.net, { renderMs: performance.now() - drawAt, dt, shake: shown.shake > 0, prediction: c.prediction })
   const stick = input.readStick()
   if (stick && shown.phase === 'playing') drawJoystick(ctx, stick, cssScale)
   r.hud.update(shown)
@@ -2918,7 +2933,7 @@ const devLandmark = (g: Game, id?: LandmarkId, dy = 60) => {
  * failure would, `('fresh')` rejoins as a new tab (the snapshot), `('desync')`
  * nudges this client's state off the team's (the relay heals it), `('pick', id)` another
  * Pokémon for the room, `('url', u)`
- * points at another relay (null: the default), `('net')` the connection numbers; `('room')` and
+ * points at another relay (null: the default), `('net')` the connection numbers and the run's `coop_net` so far; `('room')` and
  * `('hub')` open those screens, `('beta', true|false|null)` forces the lobby's tile on this device,
  * `('build')` joins a room made for another build (the "update" refusal) and `('invite', code, name)`
  * stages a friend's invite banner without the API.
@@ -3002,8 +3017,11 @@ const devCoop = async (cmd?: string, arg?: string | number | boolean | null, ext
       return { me: { x: me.x, y: me.y }, drawn: { ...d }, nearest: best, drawnIn: inSolid(g, d.x, d.y, me.radius - 1), confirmedIn: inSolid(g, me.x, me.y, me.radius - 1) }
     }
     case 'net': {
+      // The connection now, the runner's stats, the run's `coop_net` so far (as it would go out) and the last one built.
       const r = st.runner
-      return { ...client.connection(), queued: client.queued(), stats: r?.stats, tickMs: r?.tickMs, slot: r?.slot, errors: run?.coop?.prediction.errors }
+      const c = run?.coop
+      const summary = c ? coopNetPayload(client, c.runner, c.net, 'left', runPerf()) : null
+      return { ...client.connection(), queued: client.queued(), stats: r?.stats, tickMs: r?.tickMs, slot: r?.slot, where: st.where, summary, last: lastCoopNet() }
     }
     default:
       return 'ps.coop(): create, join, bots, surrender, pick, ready, start, leave, drop, fresh, desync, url, net, wall, room, hub, beta, build, invite'
