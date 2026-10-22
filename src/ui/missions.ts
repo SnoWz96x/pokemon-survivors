@@ -155,12 +155,19 @@ export const missionsScreen = (root: HTMLElement, input: Input, onClose: () => v
   let tab: Tab = 'missions'
   let index = 0
   let entries: HTMLElement[] = []
+  let closed = false
   const resets: Array<[HTMLElement, MissionPeriod]> = []
 
   const tabs = { missions: h('button', { class: 'tab' }, m.tab), achievements: h('button', { class: 'tab' }, a.tab) } as const
   const list = h('div', { class: 'missions-list' })
   const back = h('button', { class: 'btn' }, m.back)
-  const close = () => later(onClose)
+  // Closes on its own: opened over the Trainer Card it isn't the shell's screen, so nothing else disposes it.
+  const close = () => {
+    if (closed) return
+    closed = true
+    dispose()
+    later(onClose)
+  }
 
   const missionsTab = () => {
     resets.length = 0
@@ -289,6 +296,8 @@ export const missionsScreen = (root: HTMLElement, input: Input, onClose: () => v
   root.append(el)
   render()
 
+  const dispose = () => (off(), el.remove())
+
   let lastTick = 0
   return {
     el,
@@ -298,6 +307,6 @@ export const missionsScreen = (root: HTMLElement, input: Input, onClose: () => v
       lastTick = time
       for (const [span, period] of resets) setText(span, resetsIn(period))
     },
-    dispose: () => (off(), el.remove()),
+    dispose,
   }
 }
