@@ -145,6 +145,9 @@ export type CoopDeps = {
 /** Stick samples kept for prediction: far more than any round trip. */
 export const HISTORY = 256
 
+/** Special presses kept for prediction: a round trip never holds more than a few. */
+const SPECIALS_KEPT = 8
+
 export type ClientState = {
   status: Status
   code: string | null
@@ -169,6 +172,8 @@ export type ClientState = {
   /** The stick: input samples taken (60 a second while the run plays), their codes, and the last one sent. */
   sample: number
   history: Uint8Array
+  /** The samples the last special presses went out at (`SPECIALS_KEPT` of them, oldest first), for prediction to press them before the run does. */
+  specials: number[]
   stickSent: { code: number; at: number }
   /** Next rejoin should skip the resume (fresh: the agreed snapshot). */
   fresh: boolean
@@ -202,6 +207,7 @@ export const createCoopClient = (deps: CoopDeps) => {
     hidden: false,
     sample: 0,
     history: new Uint8Array(HISTORY),
+    specials: [],
     stickSent: { code: -1, at: -Infinity },
     fresh: false,
     uploader: false,
@@ -508,6 +514,10 @@ export const createCoopClient = (deps: CoopDeps) => {
   /** Queues an input of the player's for the run. */
   const input = (i: Input) => {
     if (s.status.kind !== 'playing' || s.hidden) return 0
+    if (i.k === 'special') {
+      s.specials.push(i.sample)
+      if (s.specials.length > SPECIALS_KEPT) s.specials.shift()
+    }
     return push(s.outbox, i, deps.now())
   }
 

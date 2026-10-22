@@ -38,7 +38,8 @@ export const coopDriver = (client: CoopClient, onLobby: () => void = () => {}): 
         acc -= TICK
         client.stick(input.move)
       }
-      if (input.special) client.input({ k: 'special' })
+      // A press carries the latest stick sample: prediction knows when it went out, and when the run took it.
+      if (input.special) client.input({ k: 'special', sample: client.state().sample })
       if (input.mega) client.input({ k: 'mega' })
       if (input.lunge) client.input({ k: 'lunge' })
       return client.frame(dt)
@@ -49,6 +50,7 @@ export const coopDriver = (client: CoopClient, onLobby: () => void = () => {}): 
           // The stick goes through `advance`; a move sent here is a one-off nudge.
           return void client.input({ k: 'move', code: e.code, sample: client.state().sample })
         case 'special':
+          return void client.input({ k: 'special', sample: client.state().sample })
         case 'mega':
         case 'lunge':
           return void client.input({ k: e.kind })

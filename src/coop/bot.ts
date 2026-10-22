@@ -135,7 +135,7 @@ export const createBot = (deps: CoopDeps, opts: { seed: number; vote?: boolean }
     specialIn -= dt
     if (specialIn <= 0 && g.phase === 'playing') {
       specialIn = 4 + random() * 6
-      client.input({ k: 'special' })
+      client.input({ k: 'special', sample: client.state().sample })
     }
   }
 

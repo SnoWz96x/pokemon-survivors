@@ -52,7 +52,7 @@ describe('the outbox', () => {
     push(o, { k: 'pick', screen: 'tm', round: 1, index: 0 }, 0)
     due(o, 0, 50)
     push(o, { k: 'move', code: 7, sample: 9 }, 5)
-    push(o, { k: 'special' }, 5)
+    push(o, { k: 'special', sample: 9 }, 5)
     onReconnect(o)
     expect(inputs(due(o, 6, 50))).toEqual([['pick', 'tm', 1, 0, 1]])
   })
@@ -63,8 +63,8 @@ describe('the outbox', () => {
     expect(queued(o)).toBe(OUTBOX.reliable)
     expect(inputs(due(o, 500, 50))).toHaveLength(OUTBOX.burst)
     // Presses wait once each.
-    push(o, { k: 'special' }, 501)
-    push(o, { k: 'special' }, 501)
+    push(o, { k: 'special', sample: 1 }, 501)
+    push(o, { k: 'special', sample: 1 }, 501)
     expect(inputs(due(o, 501, 50)).filter((m) => m[0] === 'special')).toHaveLength(1)
     // Given up on long after its screen's timer picked.
     expect(queued(createOutbox())).toBe(0)
