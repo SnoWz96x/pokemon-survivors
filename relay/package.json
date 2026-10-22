@@ -1,0 +1,21 @@
+{
+  "name": "pokemon-survivors-relay",
+  "private": true,
+  "type": "module",
+  "description": "Co-op room relay for Pokémon Survivors: a Cloudflare Worker with one Durable Object per room.",
+  "scripts": {
+    "dev": "wrangler dev --port 8791",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "types": "wrangler types",
+    "typecheck": "npm run types && tsc --noEmit",
+    "test": "vitest run"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4",
+    "wrangler": "^4.151.2"
+  }
+}
