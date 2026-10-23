@@ -18,7 +18,7 @@ import { riftLoot, riftScale, type RiftArena } from './rift'
 import { exitArena, LAVA_BURN, riftWin } from './riftArena'
 import { keepOnFloor, setAside } from './room'
 import { rollShiny } from './shiny'
-import { groundAt, inSolid, playerTypes, type Solid } from './terrain'
+import { footOf, groundAt, inSolid, playerTypes, type Solid } from './terrain'
 import { actAs, aimScreen, anchorPlayer, centerScreen, placeTeam, standing } from './players'
 import type { Enemy, Game, Player } from './types'
 import * as dm from '../engine/dmath'
@@ -307,10 +307,14 @@ export const updateDomainScene = (g: Game, dt: number) => {
   return true
 }
 
-/** The legendary fell for good: its adds go, and the capture scene plays where it knelt. */
+/**
+ * The legendary fell for good: its adds go, and the capture scene plays where
+ * it knelt (and the loot drops there). One that fell off the floor on its
+ * script (hidden on a dive, out on a swoop's pass) kneels at its spot instead.
+ */
 const startCapture = (g: Game, arena: RiftArena, d: DomainState, boss: Enemy | undefined) => {
-  const x = boss?.x ?? arenaPoint(arena, d, defOf(d).arena.boss).x
-  const y = boss?.y ?? arenaPoint(arena, d, defOf(d).arena.boss).y
+  const spot = boss && !offstage(boss) ? boss : arenaPoint(arena, d, defOf(d).arena.boss)
+  const { x, y } = spot
   const mate = d.pair ? g.enemies.find((e) => e.id === d.pair!.partnerId) : undefined
   const partner = mate ? { kind: mate.kind, x: mate.x, y: mate.y, shiny: mate.shiny } : null
   d.capture = { kind: d.legend, x, y, shiny: arena.shiny, settled: false, partner }
@@ -389,7 +393,7 @@ export const updateDomain = (g: Game, arena: RiftArena, d: DomainState, dt: numb
 
 /** Keeps the players on the floor and out of its holes, walkers on the floor (the legendary and the retinue swim the holes), and breaks shots past its edge. */
 const keepInDomain = (g: Game, plan: FloorPlan, arena: RiftArena) => {
-  for (const p of g.players) keepOnFloor(p, arena, plan.floor, plan.holes ?? [], p.radius)
+  for (const p of g.players) keepOnFloor(p, arena, plan.floor, plan.holes ?? [], footOf(p))
   for (const e of g.enemies) if (e.dying < 0 && !offstage(e)) keepOnFloor(e, arena, plan.floor, [], e.boss ? e.radius * 0.5 : e.radius * 0.8)
   retain(g.hazards, (h) => h.kind !== 'shot' || h.phantom > 0 || onFloor(plan.floor, h.x - arena.x, h.y - arena.y, 6))
 }
