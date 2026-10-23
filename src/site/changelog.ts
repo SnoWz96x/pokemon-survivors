@@ -33,9 +33,19 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
       { pt: 'Ovo do Kecleon sem o limite de um por dia: até 6, e cada um custa o dobro do anterior (₽ 10.000, 20.000, 40.000…). A conta zera à meia-noite.', en: 'The Kecleon Egg is no longer one a day: up to 6, each costing double the last (₽ 10,000, 20,000, 40,000…). The count resets at midnight.', es: 'El Huevo Kecleon ya no es uno por día: hasta 6, y cada uno cuesta el doble del anterior (₽ 10.000, 20.000, 40.000…). La cuenta vuelve a cero a medianoche.' },
       { pt: 'Incubadora maior: a 4ª e a 5ª vaga, suas para sempre, e a Incubadora Rápida, que faz um ovo andar o dobro.', en: 'A bigger incubator: the 4th and 5th slots, yours for good, and the Quick Incubator, which makes an egg walk twice as fast.', es: 'Una incubadora más grande: el 4.º y el 5.º espacio, tuyos para siempre, y la Incubadora Rápida, que hace que un huevo avance el doble.' },
       { pt: 'As partidas pagam cerca de metade do ₽, agora que a loja tem onde gastar. O que você já guardou continua valendo o mesmo.', en: 'Runs pay about half the ₽, now that the shop has somewhere to spend it. What you already saved keeps its full value.', es: 'Las partidas pagan cerca de la mitad de los ₽, ahora que la tienda tiene en qué gastarlos. Lo que ya ahorraste sigue valiendo lo mismo.' },
-      { pt: 'Menos travamentos no celular no começo da partida e ao entrar numa fenda lendária.', en: 'Fewer crashes on phones at the start of a run and when stepping into a legendary rift.', es: 'Menos cierres en el celular al comenzar la partida y al entrar en una grieta legendaria.' },
+      { pt: 'Menos travamentos no celular: o começo da partida e as fendas lendárias pesam menos, e o novo Modo leve liga sozinho nos aparelhos que precisam.', en: 'Fewer crashes on phones: the start of a run and the legendary rifts weigh less, and the new Lite mode turns on by itself on devices that need it.', es: 'Menos cierres en el celular: el comienzo de la partida y las grietas legendarias pesan menos, y el nuevo Modo ligero se activa solo en los dispositivos que lo necesitan.' },
     ],
     changes: [
+      {
+        title: { pt: 'Modo leve', en: 'Lite mode', es: 'Modo ligero' },
+        notes: [
+          {
+            pt: 'Novo Modo leve: menos partículas, chuva e neve mais ralas, menos sombras e menos memória, para o jogo rodar liso em celulares mais simples. Ele liga sozinho no aparelho que precisa e desliga quando as partidas voltam a rodar bem, e dá para ligar ou desligar em Ajustes → Jogo.',
+            en: 'New Lite mode: fewer particles, lighter rain and snow, fewer shadows and less memory, so the game runs smoothly on simpler phones. It turns on by itself on a device that needs it and off once runs play well again, and you can switch it on or off in Settings → Game.',
+            es: 'Nuevo Modo ligero: menos partículas, lluvia y nieve más ralas, menos sombras y menos memoria, para que el juego corra fluido en celulares más sencillos. Se activa solo en el dispositivo que lo necesita y se apaga cuando las partidas vuelven a ir bien, y puedes activarlo o desactivarlo en Ajustes → Juego.',
+          },
+        ],
+      },
       {
         title: { pt: 'Passear pela praça no celular', en: 'Walk around the plaza on your phone', es: 'Pasear por la plaza en el celular' },
         notes: [

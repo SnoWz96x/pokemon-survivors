@@ -116,6 +116,7 @@ import type { Game, GameEvent, Offer, Phase, Player } from './game/types'
 import { setWeather } from './game/weather'
 import { render, warmScenery } from './render/draw'
 import { createGovernor, detail, observeFrame } from './render/quality'
+import { loadSafeMode, noteCleanRun, noteCrash, safeModeOn, setSafeMode, takeSafeNotice, type SafeChoice } from './safeMode'
 import { drawJoystick } from './render/joystick'
 import { cryUrl, loadAll, loadSpecies, overlayStats, portraitUrl, preloadShinies, releaseSprites, spriteMemory, streamSprites, sweepSprites, type Dex, type Variant } from './render/sprites'
 import { castNeeds, runSprites, type SpriteNeed } from './render/spriteNeeds'
@@ -808,8 +809,11 @@ const reportRun = (r: Run, faint: Extract<GameEvent, { kind: 'gameover' }> | nul
     ...(g.halloween ? { candies: g.candies } : {}),
     rerolls,
     opened: takeOpened(),
+    safeMode: detail.safe,
   }, { beacon: left })
   rerolls = 0
+  // The page dying would have left the run unreported: a long run that got here counts toward safe mode turning off.
+  if (outcome !== 'left') noteCleanRun(g.time / 60)
 }
 
 /** How the device coped with the run (memory now and at its peak, the frames while playing) and which device it was. */
@@ -1051,8 +1055,8 @@ const startRun = async (starter: PlayableId, daily: ChallengeRun | null = null) 
   if (me.luckyShiny) updateSave((s) => ({ ...s, shinyStarters: unlockShinyStarter(s.shinyStarters, starter) }))
   // A shiny run starts in its own colors (and loads only those).
   await loadRunSheets(familySheets(starter, me.shiny), openingDex(plan))
-  // The outbreak's shiny can show up in the first minute.
-  void preloadShinies([ENEMIES[plan.outbreak].dex])
+  // The outbreak's shiny can show up in the first minute (in safe mode it loads when one does).
+  if (!detail.safe) void preloadShinies([ENEMIES[plan.outbreak].dex])
   loading.remove()
   run = {
     game,
@@ -1092,8 +1096,9 @@ const startRun = async (starter: PlayableId, daily: ChallengeRun | null = null) 
   announceRun(start, run.challenge)
 }
 
-/** The run's first toasts: the challenge it plays, the day's outbreak, then each bag item it used and each TM it armed. */
+/** The run's first toasts: safe mode coming on after a crash, the challenge it plays, the day's outbreak, then each bag item it used and each TM it armed. */
 const announceRun = (start: ReplayStart, challenge: Run['challenge']) => {
+  if (takeSafeNotice()) toast(ui, h('span', { class: 'item-toast' }, h('span', {}, rich(t().toast.safeMode), h('small', {}, t().toast.safeModeHint))), 5200, 'safeMode')
   if (challenge) {
     const m = t().challenge
     toast(ui, h('span', { class: 'item-toast' }, h('img', { src: ribbonIcon('gold'), alt: '' }), h('span', {}, rich(m.started(formatDay(challenge.day))), h('small', {}, challenge.official ? m.startedOfficial : m.startedPractice))), 4200, 'challenge')
@@ -2483,9 +2488,10 @@ let last = performance.now()
 const pace = pacer()
 /** Watches how the run's frames hold up and turns lean drawing on and off (`render/quality.ts`). */
 const governor = createGovernor((navigator as Navigator & { deviceMemory?: number }).deviceMemory)
-detail.lean = governor.lean
 /** `ps.quality()` pins the governor's choice for screenshots and tests. */
 let qualityPin: 'auto' | 'lean' | 'full' = 'auto'
+/** Lean drawing as the governor says, always in safe mode (`safeMode.ts`), unless `ps.quality` pins it. */
+const drawsLean = () => (qualityPin === 'auto' ? governor.lean || detail.safe : qualityPin === 'lean')
 /** When the last frame that advanced the run was drawn (NaN after one that didn't). */
 let lastDrawn = NaN
 /** Seconds of menu time not drawn yet: the menus' meadow and screens draw at most about 60 times a second. */
@@ -2500,6 +2506,7 @@ const frame = (now: number) => {
   requestAnimationFrame(frame)
   const started = performance.now()
   recordFrame(frames, now - last, run?.game.phase === 'playing')
+  detail.lean = drawsLean()
   const dt = Math.min(0.1, (now - last) / 1000)
   // Co-op's stick and lockstep keep pace with the relay's clock through a long frame (a level-up screen, a GC);
   // the 0.1 s cap is for drawing and solo's steps.
@@ -2565,8 +2572,7 @@ const frame = (now: number) => {
       }
       // Only frames that moved the run tell how the device keeps up.
       if (steps > 0) {
-        const lean = observeFrame(governor, performance.now() - started, now - lastDrawn)
-        detail.lean = qualityPin === 'auto' ? lean : qualityPin === 'lean'
+        observeFrame(governor, performance.now() - started, now - lastDrawn)
         lastDrawn = now
       } else lastDrawn = NaN
     }
@@ -2714,7 +2720,7 @@ const watchDeploys = () => {
  * Counts a run the page died in, once, whether or not the player reports it: rare enough for an event of its own.
  * Waits for the device's Client Hints (2 s at most), which this boot asks for the same phone.
  */
-const reportCrash = async (c: BugCrash, crumb: Crumb | null) => {
+const reportCrash = async (c: BugCrash, crumb: Crumb | null, safeMode: boolean) => {
   const device = await deviceInfo()
   track('run_crash', {
     version: c.version,
@@ -2744,6 +2750,7 @@ const reportCrash = async (c: BugCrash, crumb: Crumb | null) => {
     deviceMemory: deviceMemory(),
     ...device,
     error: c.error?.message ?? null,
+    safeMode,
   })
 }
 
@@ -2752,12 +2759,15 @@ const askAboutCrash = () => {
   const found = takeCrash()
   if (!found) return
   const { crash, crumb } = found
-  void reportCrash(crash, crumb)
+  // Whether safe mode was on for the run that died, then on from here (`safeMode.ts`).
+  void reportCrash(crash, crumb, safeModeOn())
+  noteCrash()
   if (!bugReportsEnabled || !screen?.el.classList.contains('title-home')) return
   crashPrompt(screen.el, () => setScreen(bugReportForm(ui, input, () => showTitle(), crash)))
 }
 
 const boot = () => {
+  loadSafeMode()
   startAnalytics(errorContext)
   watchDeploys()
   // Events and errors tie to the account on this device, known from its link before Clerk loads.
@@ -3188,8 +3198,13 @@ if (import.meta.env.DEV) {
       /** `ps.quality('lean')` pins lean drawing (`'full'` full detail, `'auto'` back to the governor); returns the governor's state. */
       quality: (pin?: 'auto' | 'lean' | 'full') => {
         if (pin) qualityPin = pin
-        detail.lean = qualityPin === 'auto' ? governor.lean : qualityPin === 'lean'
-        return { pin: qualityPin, drawing: detail.lean ? 'lean' : 'full', governor: { ...governor } }
+        detail.lean = drawsLean()
+        return { pin: qualityPin, drawing: detail.lean ? 'lean' : 'full', safe: detail.safe, governor: { ...governor } }
+      },
+      /** `ps.safeMode(true)` turns safe mode on as Ajustes would (`false` off, `'auto'` back to the crashes); returns its stored state. */
+      safeMode: (choice?: boolean | SafeChoice) => {
+        if (choice !== undefined) setSafeMode(choice === true ? 'on' : choice === false ? 'off' : choice)
+        return { on: safeModeOn(), ...loadSafeMode() }
       },
       spawn: devSpawn,
       alpha: devAlpha,
