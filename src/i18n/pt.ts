@@ -472,6 +472,9 @@ export const pt = {
     screenShake: 'Tremor de tela',
     flashes: 'Clarões',
     flashModes: { normal: 'Normais', reduced: 'Reduzidos' },
+    /** How opaque your moves draw (and, in co-op, your teammates'): `render/attackLayers.ts`. */
+    attackOpacity: 'Opacidade dos golpes',
+    teamAttackOpacity: 'Opacidade do time',
     uiScale: 'Tamanho da interface',
     uiScaleAuto: 'Auto',
     /** Safe mode (`safeMode.ts`): lean drawing, on by itself after the game closed mid-run. */
@@ -1780,6 +1783,7 @@ export const pt = {
     drizzle: 'Chama a chuva ao começar e a cada bioma novo (fora das fendas): Água ×1,5.',
     airLock: 'O clima não fortalece os inimigos nem te desgasta, e os ataques do mundo não te atingem.',
     multitype: 'Seu tipo muda com o bioma, e golpes desse tipo causam +20%.',
+    badDreams: 'Inimigos dormindo a até 120 px sofrem pesadelos: dano a cada 0,5 s, sem acordar.',
   } satisfies Record<AbilityId, string>,
 
   /** Biomes and weather: banners, toasts and the HUD weather icon. */
@@ -1999,6 +2003,14 @@ export const pt = {
         omen: 'Uma chuva de meteoros risca o céu…',
         crossing: 'O meteoro está se partindo! Avance antes que o vazio te alcance!',
         phases: ['Deoxys muda para a *Forma Ataque*! Frágil, mas mortal.', 'Deoxys muda para a *Forma Defesa*! Derrube os guardiões para quebrar a barreira.', 'Deoxys muda para a *Forma Velocidade*! Não pare de se mexer.'],
+      },
+      darkrai: {
+        place: 'O Pesadelo',
+        epithet: 'Senhor dos Pesadelos',
+        omen: 'A lua some do céu e a noite fica negra…',
+        crossing: 'O sonho está desabando no escuro! Acenda as abóboras e avance!',
+        phases: ['Darkrai lança o *Dark Void*! Desvie das esferas ou você vai dormir.', 'O *pesadelo* toma conta! Só o Darkrai verdadeiro sente os golpes.'],
+        cues: { lunarWing: '*Cresselia* cruza o céu e quebra o pesadelo com a *Lunar Wing*!' },
       },
     } satisfies Partial<Record<RiftLegend, DomainLines>>,
     /** A pair fighting as one (Latias and Latios), and a boss's barrier (Deoxys's Defense Forme). */
@@ -4570,6 +4582,16 @@ export const pt = {
         'Recarga 0.3s mais rápida e +6 de dano',
       ],
     },
+    /* The Noite das Bruxas' event legend (`legendaryMoves.ts`) */
+    darkVoid: {
+      description: 'Esferas de escuridão de Darkrai flutuam até as maiores multidões e se abrem em vazios que fazem os inimigos dormirem onde estão: não andam nem ferem até um golpe acordá-los. O Bad Dreams fere sem acordar.',
+      upgrades: [
+        '+14 de dano',
+        '+20% de área',
+        { fork: [{ name: 'Abismo', desc: '+1 vazio' }, { name: 'Pesadelo sem fim', desc: 'Quem cai explode; +16 de dano' }] },
+        'Recarga 0.5s mais rápida e +14 de dano',
+      ],
+    },
     /* Legendary moves, second batch: the trios, Mewtwo and Arceus (`legendaryMoves2.ts`) */
     snowscape: {
       description: 'As asas de Articuno lançam um floco de neve de cristais de gelo ao seu redor. Eles ficam pairando e gelam quem encosta (fica lento), depois estilhaçam todos juntos e podem congelar (o próximo acerto dói em dobro).',
@@ -4849,6 +4871,7 @@ export const pt = {
     latios: 'Eon certeiro. Rápido e letal à distância.',
     deoxys: 'Vírus do espaço. O especial troca de Forma.',
     arceus: 'O deus. Seu tipo muda com cada bioma.',
+    darkrai: 'Pesadelo. Adormece multidões e as fere em sonho.',
   },
 
   specials: {
@@ -5086,10 +5109,18 @@ export const pt = {
       mythical: 'Às vezes (1 partida em 10) aparece junto do *Mewtwo* no final.',
       finale: 'É o chefe final: vença uma partida.',
       endless: 'O último troféu: depois de capturar os outros 22, vença-o no _modo sem fim_.',
+      event: 'Só na _Noite das Bruxas_: vença-o na _fenda do Pesadelo_.',
     },
     rule: (need: number) => (need === 1 ? 'Para capturar, vença este lendário 1 vez como chefe, em qualquer modo.' : `Para capturar, vença este lendário ${need} vezes como chefe, em qualquer modo.`),
     shinyRule: 'Vencer um shiny na vitória da captura, ou depois, libera a forma shiny.',
     selectNote: 'Lendários jogam o *Modo Lendário*: ranking próprio, horda mais forte, despertares no Nv 12 e 28.',
+    /** An event legend (`LegendUnlock.event`): its badge on the partner select, and its card before, during and after the event (dates as `formatDay`). */
+    event: {
+      badge: 'Noite das Bruxas 2026',
+      soon: (from: string, to: string) => `Chega com a _Noite das Bruxas_, de ${from} a ${to}.`,
+      live: (to: string) => `Só até ${to}: depois volta para as sombras.`,
+      gone: 'Voltou para as sombras com o fim da Noite das Bruxas. Quem o capturou segue jogando com ele.',
+    },
   },
   /** Wave legendaries on the map (`data/legendBosses.ts`): the epithet on each one's title card, and a line per phase after the first. */
   legends: {

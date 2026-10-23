@@ -353,6 +353,8 @@ export const fr: Messages = {
     screenShake: 'Tremblement d’écran',
     flashes: 'Flashs',
     flashModes: { normal: 'Normaux', reduced: 'Réduits' },
+    attackOpacity: 'Opacité des attaques',
+    teamAttackOpacity: 'Opacité de l’équipe',
     uiScale: 'Taille de l’interface',
     uiScaleAuto: 'Auto',
     safeMode: 'Mode léger',
@@ -1578,6 +1580,7 @@ export const fr: Messages = {
     drizzle: 'Appelle la pluie au début et dans chaque nouveau biome (hors des failles) : Eau ×1,5.',
     airLock: 'La météo ne renforce pas les ennemis et ne t’use pas, et les attaques du monde ne peuvent pas te toucher.',
     multitype: 'Ton type change avec le biome, et les capacités de ce type font +20%.',
+    badDreams: 'Les ennemis endormis à moins de 120 px font des cauchemars : dégâts toutes les 0,5 s, sans se réveiller.',
   },
 
   world: {
@@ -1782,6 +1785,14 @@ export const fr: Messages = {
         omen: 'Une pluie de météores traverse le ciel…',
         crossing: 'Le météoroïde se disloque ! Fonce avant que le vide ne te rattrape !',
         phases: ['Deoxys passe en *Forme Attaque* ! Fragile, mais mortel.', 'Deoxys passe en *Forme Défense* ! Abats les gardiens pour briser sa barrière.', 'Deoxys passe en *Forme Vitesse* ! Ne t’arrête pas.'],
+      },
+      darkrai: {
+        place: 'Le Cauchemar',
+        epithet: 'Seigneur des Cauchemars',
+        omen: 'La lune disparaît et la nuit devient d’encre…',
+        crossing: 'Le rêve s’effondre dans le noir ! Allume les citrouilles et fonce !',
+        phases: ['Darkrai lance *Dark Void* ! Esquive les sphères ou tu vas t’endormir.', 'Le *cauchemar* prend le dessus ! Seul le vrai Darkrai sent tes coups.'],
+        cues: { lunarWing: '*Cresselia* traverse le ciel et brise le cauchemar avec *Lunar Wing* !' },
       },
     },
     pairName: (a: string, b: string) => `${a} & ${b}`,
@@ -4338,6 +4349,16 @@ export const fr: Messages = {
         'Recharge −0.3s et +6 dégâts',
       ],
     },
+    /* The Noite das Bruxas' event legend (`legendaryMoves.ts`) */
+    darkVoid: {
+      description: 'Les sphères de ténèbres de Darkrai flottent jusqu’aux foules les plus denses et s’ouvrent en vides qui endorment les ennemis sur place : ils ne bougent ni ne blessent jusqu’à ce qu’un coup les réveille. Bad Dreams les blesse sans les réveiller.',
+      upgrades: [
+        '+14 dégâts',
+        '+20% de zone',
+        { fork: [{ name: 'Abysse', desc: '+1 vide' }, { name: 'Cauchemar sans fin', desc: 'Les ennemis vaincus explosent ; +16 dégâts' }] },
+        'Recharge −0.5s et +14 dégâts',
+      ],
+    },
     /* Legendary moves, second batch: the trios, Mewtwo and Arceus (`legendaryMoves2.ts`) */
     snowscape: {
       description: 'Les ailes d’Articuno projettent autour de toi un flocon de cristaux de glace. Ils restent suspendus dans l’air et glacent ce qui les touche (ralenti), puis volent tous en éclats d’un coup et peuvent geler (le coup suivant frappe deux fois plus fort).',
@@ -4616,6 +4637,7 @@ export const fr: Messages = {
     latios: 'Éon tranchant. Rapide et mortel à distance.',
     deoxys: 'Virus spatial. Son attaque spéciale change de Forme.',
     arceus: 'Le dieu. Son type change à chaque biome.',
+    darkrai: 'Cauchemar. Endort les foules et les blesse en rêve.',
   },
 
   specials: {
@@ -4824,10 +4846,17 @@ export const fr: Messages = {
       mythical: 'Parfois (1 partie sur 10), apparaît aux côtés de *Mewtwo* à la fin.',
       finale: 'C’est le boss final : gagne une partie.',
       endless: 'Le dernier trophée : une fois les 22 autres capturés, bats-le en _mode sans fin_.',
+      event: 'Seulement pendant la _Nuit des Sorcières_ : bats-le dans la _faille du Cauchemar_.',
     },
     rule: (need: number) => (need === 1 ? 'Bats-le une fois comme boss, dans n’importe quel mode, pour le capturer.' : `Bats-le ${need} fois comme boss, dans n’importe quel mode, pour le capturer.`),
     shinyRule: 'Battre un chromatique lors de la victoire de capture, ou après, débloque son chromatique.',
     selectNote: 'Les légendaires jouent en *Mode Légendaire* : leur propre classement, une horde plus coriace, des éveils au Nv 12 et 28.',
+    event: {
+      badge: 'Nuit des Sorcières 2026',
+      soon: (from: string, to: string) => `Arrive avec la _Nuit des Sorcières_, du ${from} au ${to}.`,
+      live: (to: string) => `Seulement jusqu’au ${to} : ensuite, il retourne dans l’ombre.`,
+      gone: 'Il est retourné dans l’ombre à la fin de la Nuit des Sorcières. Qui l’a capturé continue de le jouer.',
+    },
   },
   legends: {
     epithets: {

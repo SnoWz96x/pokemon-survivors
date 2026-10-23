@@ -13,7 +13,7 @@ import { NIGHT_BOSSES } from '../data/halloween'
 import { ENDLESS, REAPER } from '../game/endless'
 import { MEOWTH_DEX } from '../game/mapEventRules'
 import { SPECIAL_COMPANION_IDS, SPECIAL_COMPANIONS, type SpecialCompanionId } from '../data/companions'
-import { LEGEND_IDS, type LegendId } from '../data/legends'
+import { EVENT_LEGENDS, LEGEND_IDS, type LegendId } from '../data/legends'
 
 /**
  * The site's Pokédex model: every species the game uses, derived from
@@ -56,6 +56,8 @@ export type DexEntry = {
     | { kind: 'wild'; id: EnemyId }
     | { kind: 'event' }
     | { kind: 'companion'; id: SpecialCompanionId }
+    /** `cameo`: seen only in a domain's scene (Cresselia breaking Darkrai's nightmare, `LegendDomain.cameo`), never fought. */
+    | { kind: 'cameo'; by: RiftLegend }
 }
 
 /** Last national dex number of each generation, in `REGIONS` order. */
@@ -133,6 +135,13 @@ const companionEntry = (id: SpecialCompanionId): DexEntry => {
   return { ...base(c.dex, c.name, c.types), role: 'event', source: { kind: 'companion', id } }
 }
 
+/** The domains' cameos (`LegendDomain.cameo`), listed as event Pokémon. */
+const cameoEntries = (): DexEntry[] =>
+  (Object.keys(DOMAINS) as RiftLegend[]).flatMap((by) => {
+    const c = DOMAINS[by]?.cameo
+    return c ? [{ ...base(c.dex, c.name, c.types), role: 'event' as const, source: { kind: 'cameo' as const, by } }] : []
+  })
+
 const byDex = (a: DexEntry, b: DexEntry) => a.dex - b.dex
 
 /**
@@ -149,8 +158,8 @@ export const gameDex = (): DexEntry[] => {
   return [...playable, ...wild, eventEntry()].sort(byDex)
 }
 
-/** The site's Pokédex: every species the game loads, `gameDex()` plus the gift-only companions (never seen in a run, so never counted in game). */
-export const pokedex = (): DexEntry[] => [...gameDex(), ...SPECIAL_COMPANION_IDS.map(companionEntry)].sort(byDex)
+/** The site's Pokédex: every species the game loads, `gameDex()` plus the gift-only companions and the domains' cameos (never met in a run, so never counted in game). */
+export const pokedex = (): DexEntry[] => [...gameDex(), ...SPECIAL_COMPANION_IDS.map(companionEntry), ...cameoEntries()].sort(byDex)
 
 /* ---------------- When a wild Pokémon shows up ---------------- */
 
@@ -168,6 +177,8 @@ export type Appearance =
   | { kind: 'trio'; at: number; trio: TrioId }
   /** Waits behind a legendary rift, which first opens at `from`. */
   | { kind: 'rift'; from: number }
+  /** An event legend (`EVENT_LEGENDS`): its event's rift may take a rift's place in a haunted run, from `from`. */
+  | { kind: 'eventRift'; from: number }
   /** Hunts the player in endless mode from `at`. */
   | { kind: 'reaper'; at: number }
   /** Lives in a place (`data/places.ts`), coming out from `from`; `boss` for the place's own boss. */
@@ -207,7 +218,8 @@ export const appearances = (id: EnemyId): Appearance[] => {
     if (e.tier !== def.tier || (e.kind === 'swarm' && !def.types.includes('flying'))) return []
     return [{ kind: e.kind, at: e.at, count: e.count }]
   })
-  const rift: Appearance[] = isRiftLegend(id) ? [{ kind: 'rift', from: RIFT.slots[0] }] : []
+  const event = EVENT_LEGENDS.some((l) => l === id)
+  const rift: Appearance[] = event ? [{ kind: 'eventRift', from: RIFT.slots[0] }] : isRiftLegend(id) ? [{ kind: 'rift', from: RIFT.slots[0] }] : []
   const reaper: Appearance[] = id === REAPER ? [{ kind: 'reaper', at: ENDLESS.reaperAt }] : []
   // A place's dwellers come out once the run's stage has their tier (never before the first entrance).
   const placed = PLACE_IDS.flatMap((place): Appearance[] => {
@@ -235,6 +247,7 @@ const domainCast = (legend: RiftLegend): readonly EnemyId[] => {
   return [
     ...d.crossing.retinue.members.map((m) => m.id),
     ...patterns.flatMap((p) => (p.kind === 'summon' || p.kind === 'guard' ? p.enemies : [])),
+    ...(d.cast ?? []),
   ]
 }
 

@@ -2,6 +2,8 @@ import { drawEvoItem } from './evoItemArt'
 import { blitCentered, blitEllipse, blitRing, blitRotated, textSprite } from '../engine/pixelart'
 import { HAZARD_COLORS } from './hazardColors'
 import { drawCapture } from './capture'
+import { drawNightmareAir, drawNightmareDark, drawNightmareGround, shadeAlpha, SLEEP_TINT } from './darkrai'
+import { isAsleep } from '../game/playerSleep'
 import { drawDomainFloor, drawTear, warmDomain } from './domain'
 import { bossForm, drawBeamAir, drawBeamGround, drawBlasts, drawBossGround, drawBossMarker, drawEntrance, drawLegendScene, drawPairDown, drawPhantoms } from './legendFx'
 import { sceneHides } from '../game/legendScene'
@@ -51,7 +53,7 @@ import { drawShopTmAir } from './shopTmFx'
 import { drawShopTm2Air, drawShopTm2Ground, drawShopTm2Player, shopTm2PlayerLook } from './shopTmFx2'
 import { drawVerbEvolvedAir, drawVerbEvolvedGround } from './verbEvolvedFx'
 import { drawDuoAir, drawDuoGround } from './duoFx'
-import { drawAncientAura, drawLegendaryAir, drawLegendaryGround } from './legendaryFx'
+import { drawAncientAura, drawLegendaryAir, drawLegendaryGround, drawStoppedFoes } from './legendaryFx'
 import { drawHeatAura, drawIronDefense, drawLegendary2Air, drawLegendary2Ground } from './legendaryFx2'
 import { drawSignatureAttack, drawSignatureGround, drawSignaturePlayer } from './signatureFx'
 import { drawTraitAir, drawTraitGround, traitLift, traitTint } from './traits'
@@ -65,7 +67,8 @@ import { CALM_PERIOD, HURT_TINT, type Flashes } from './flashes'
 import { detail } from './quality'
 import { localPlayer } from '../game/players'
 import { riftDomain } from '../game/rift'
-import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, flushTeamAttacks, showsPlain, showsStanding, teamAttackLayer } from './team'
+import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, showsPlain, showsStanding } from './team'
+import { paintAttacks, type AttackSide } from './attackLayers'
 
 type Ctx = CanvasRenderingContext2D
 
@@ -582,7 +585,7 @@ const drawEnemy = (ctx: Ctx, e: Enemy, time: number, t: number, calm: boolean, a
   const hit = e.flash > 0.08
   const tint = traitTint(e) ?? statusTint(e.status, t, e.id) ?? (calm && hit ? HURT_TINT : rage ? RAGE_TINT : clone ? CLONE_TINT : undefined)
   if (look?.alpha === 0) return
-  drawPokemon(ctx, s, anim, e.dir, e.animTime, e.x, y, { flash: Math.max(look?.flash ?? 0, hit && !calm ? 0.85 : 0), tint: look?.tint ?? tint, scale, outline: outlineOf(e, t, calm) ?? (clone ? CLONE_OUTLINE : undefined), alpha: look?.alpha })
+  drawPokemon(ctx, s, anim, e.dir, e.animTime, e.x, y, { flash: Math.max(look?.flash ?? 0, hit && !calm ? 0.85 : 0), tint: look?.tint ?? tint, scale, outline: outlineOf(e, t, calm) ?? (clone ? CLONE_OUTLINE : undefined), alpha: look?.alpha ?? shadeAlpha(e.kind, e.id, t) })
   if (e.shiny) drawSparkles(ctx, e.x, y - s.bodyH / 2, Math.max(s.bodyW, s.bodyH), time - e.bornAt, e.id)
   if (rage) drawRageEmbers(ctx, e.x, y - (s.bodyH * scale) / 2, size, t, e.id)
 }
@@ -669,7 +672,8 @@ const drawPlayer = (ctx: Ctx, g: Game, calm: boolean) => {
   // Aegislash flashes white for a moment as it swaps stance.
   const swapped = localPlayer(g).special.stance !== null && localPlayer(g).special.total - localPlayer(g).special.cooldown < 0.12
   const flash = Math.max(mega.flash, calm ? 0 : p.hurt > 0.2 ? 0.7 : charging || swapped ? 0.6 : 0)
-  const tint = calm && p.hurt > 0.2 ? HURT_TINT : undefined
+  // Asleep (Dark Void): the player wears its violet.
+  const tint = calm && p.hurt > 0.2 ? HURT_TINT : isAsleep(p) ? SLEEP_TINT : undefined
   // Burrowed or out of sight (Dig): a faint ghost of the player.
   // Moves can lift the sprite (Body Slam's leap, Heavy Slam's hop, Fly) or hide it under the mound (Dig).
   const egg = flying ?? eggPlayerLook(g) ?? egg3PlayerLook(g)
@@ -869,9 +873,31 @@ export type RenderOptions = {
   damageNumbers: DamageNumbers
   screenShake: boolean
   flashes: Flashes
+  /** How opaque the moves draw, 0..1: this screen's player's, and in co-op the teammates' (`render/attackLayers.ts`). */
+  attackOpacity: number
+  teamAttackOpacity: number
   companion?: CompanionView | null
   mates?: readonly Game[]
   shakeOffset?: { x: number; y: number }
+}
+
+/** Reused lists of this screen's player's attacks and the teammates', refilled each co-op frame. */
+const ownAttacks: Attack[] = []
+const teamAttacks: Attack[] = []
+
+/**
+ * The moves on screen in the order they draw, each side with its opacity and a
+ * game holding only its attacks for the move modules' passes. Solo, one side:
+ * the game itself.
+ */
+const attackSides = (g: Game, slot: number, opts: RenderOptions): { side: AttackSide; alpha: number; game: Game }[] => {
+  if (g.coop === null) return [{ side: 'own', alpha: opts.attackOpacity, game: g }]
+  ownAttacks.length = teamAttacks.length = 0
+  for (const a of g.attacks) (a.owner === slot ? ownAttacks : teamAttacks).push(a)
+  return [
+    { side: 'own', alpha: opts.attackOpacity, game: { ...g, attacks: ownAttacks } },
+    { side: 'team', alpha: opts.teamAttackOpacity, game: { ...g, attacks: teamAttacks } },
+  ]
 }
 
 const isMate = (d: Drawable): d is Mate => typeof d === 'object' && 'mate' in d
@@ -943,25 +969,30 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   }
 
   drawTerrainGround(ctx, g, look, camX, camY)
-  // Ground marks far off screen (trails left behind, lingering fields) are skipped; the margin covers the widest of them.
   const me = localPlayer(g)
-  // Co-op: teammates' hitboxes go through a see-through layer, so your own read first (`teamAttackLayer`).
-  let team = g.coop ? teamAttackLayer(w, h, camX, camY) : null
-  for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, Math.max(200, reachOf(a.shape)))) drawGroundAttack(team && a.owner !== me.slot ? team : ctx, a, t)
-  if (team) flushTeamAttacks(ctx, camX, camY)
-  drawVerbGround(ctx, g, t)
-  drawTmGround(ctx, g, t)
-  drawShopTm2Ground(ctx, g, t)
-  drawVerbEvolvedGround(ctx, g, t)
-  drawDuoGround(ctx, g, t)
-  drawLegendaryGround(ctx, g, t)
-  drawLegendary2Ground(ctx, g, t)
+  // The moves go through see-through layers at the player's chosen opacity, your own first (`paintAttacks`).
+  const sides = attackSides(g, me.slot, opts)
+  for (const side of sides) {
+    paintAttacks(ctx, side.side, side.alpha, g.view, camX, camY, (into) => {
+      const v = side.game
+      // Ground marks far off screen (trails left behind, lingering fields) are skipped; the margin covers the widest of them.
+      for (const a of v.attacks) if (a.age >= 0 && visible(a.x, a.y, Math.max(200, reachOf(a.shape)))) drawGroundAttack(into, a, t)
+      drawVerbGround(into, v, t)
+      drawTmGround(into, v, t)
+      drawShopTm2Ground(into, v, t)
+      drawVerbEvolvedGround(into, v, t)
+      drawDuoGround(into, v, t)
+      drawLegendaryGround(into, v, t)
+      drawLegendary2Ground(into, v, t)
+    })
+  }
   for (const hz of g.hazards) if (hz.kind === 'beam') drawBeamGround(ctx, hz)
     else if (hz.pull !== 0) drawVortexGround(ctx, hz, t)
     else if (visible(hz.x, hz.y)) drawHazardGround(ctx, hz)
   drawBossGround(ctx, g, t)
   drawOmenGround(ctx, g)
   drawDomainGround(ctx, g)
+  drawNightmareGround(ctx, g, t)
   // Breakables change outfit halfway through the dissolve.
   drawProps(ctx, g, t, look)
   // Map events wait outside with the rest of the world while the player is in a room.
@@ -1065,21 +1096,27 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   drawPairDown(ctx, g, t)
   drawCapture(ctx, g, t)
   drawDomainAir(ctx, g, t)
+  drawNightmareAir(ctx, g, t)
   drawLegendScene(ctx, g, t)
   if (g.coop) drawTeamAir(ctx, g, me, t)
 
-  team = g.coop ? teamAttackLayer(w, h, camX, camY) : null
-  for (const a of g.attacks) if (a.age >= 0 && visible(a.x, a.y, 200)) drawAttack(team && a.owner !== me.slot ? team : ctx, a, t)
-  if (team) flushTeamAttacks(ctx, camX, camY)
-  drawVerbAir(ctx, g, t, visible)
-  drawTmAir(ctx, g, t, visible)
-  drawShopTmAir(ctx, g, t, visible)
-  drawShopTm2Air(ctx, g, t, visible)
-  drawVerbEvolvedAir(ctx, g, t, visible)
-  drawDuoAir(ctx, g, t, visible)
-  drawLegendaryAir(ctx, g, t, visible)
-  drawLegendary2Air(ctx, g, t, visible)
-  drawDrainVines(ctx, g, t)
+  for (const side of sides) {
+    paintAttacks(ctx, side.side, side.alpha, g.view, camX, camY, (into) => {
+      const v = side.game
+      for (const a of v.attacks) if (a.age >= 0 && visible(a.x, a.y, 200)) drawAttack(into, a, t)
+      drawVerbAir(into, v, t, visible)
+      drawTmAir(into, v, t, visible)
+      drawShopTmAir(into, v, t, visible)
+      drawShopTm2Air(into, v, t, visible)
+      drawVerbEvolvedAir(into, v, t, visible)
+      drawDuoAir(into, v, t, visible)
+      drawLegendaryAir(into, v, t, visible)
+      drawLegendary2Air(into, v, t, visible)
+      drawDrainVines(into, v, t)
+    })
+  }
+  // Roar of Time's clocks over the foes it stopped: a mark on them, not a move, so it stays opaque.
+  drawStoppedFoes(ctx, g, t, visible)
   for (const hz of g.hazards) if (hz.kind === 'beam') drawBeamAir(ctx, hz, t, g)
     else if (hz.pull !== 0) drawVortexAir(ctx, hz, t)
     else if (hz.phantom === 0 && visible(hz.x, hz.y, 200)) drawHazard(ctx, hz)
@@ -1101,6 +1138,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   if (g.halloween && !g.rift.arena && !g.place.inside) drawHauntedNight(ctx, g, camX, camY, t)
   // The cave's dark and the graveyard's night, then the weather, over the world but under damage numbers.
   drawPlaceDark(ctx, g, camX, camY, t)
+  drawNightmareDark(ctx, g, camX, camY, t)
   drawTunnelDark(ctx, g, camX, camY)
   drawWeather(ctx, g, camX, camY, t)
   drawLegendSky(ctx, g, camX, camY, t)

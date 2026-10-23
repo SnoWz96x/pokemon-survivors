@@ -38277,6 +38277,143 @@
       }
     }
   },
+  "488": {
+    "anims": {
+      "Walk": {
+        "frameWidth": 48,
+        "frameHeight": 72,
+        "durations": [
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4
+        ]
+      },
+      "Idle": {
+        "frameWidth": 48,
+        "frameHeight": 64,
+        "durations": [
+          12,
+          6,
+          4,
+          12,
+          6,
+          4
+        ]
+      },
+      "Hurt": {
+        "frameWidth": 64,
+        "frameHeight": 64,
+        "durations": [
+          2,
+          8
+        ]
+      }
+    },
+    "portrait": true,
+    "body": {
+      "bodyW": 31,
+      "bodyH": 31,
+      "footY": 1
+    },
+    "cry": true
+  },
+  "491": {
+    "anims": {
+      "Walk": {
+        "frameWidth": 40,
+        "frameHeight": 80,
+        "durations": [
+          7,
+          7,
+          9,
+          9,
+          9,
+          7,
+          7,
+          7
+        ]
+      },
+      "Idle": {
+        "frameWidth": 40,
+        "frameHeight": 80,
+        "durations": [
+          20,
+          6,
+          6,
+          20,
+          6,
+          6,
+          6
+        ]
+      },
+      "Hurt": {
+        "frameWidth": 48,
+        "frameHeight": 96,
+        "durations": [
+          2,
+          8
+        ]
+      }
+    },
+    "portrait": true,
+    "body": {
+      "bodyW": 29,
+      "bodyH": 32,
+      "footY": -6
+    },
+    "cry": true,
+    "shiny": {
+      "anims": {
+        "Walk": {
+          "frameWidth": 40,
+          "frameHeight": 80,
+          "durations": [
+            7,
+            7,
+            9,
+            9,
+            9,
+            7,
+            7,
+            7
+          ]
+        },
+        "Idle": {
+          "frameWidth": 40,
+          "frameHeight": 80,
+          "durations": [
+            20,
+            6,
+            6,
+            20,
+            6,
+            6,
+            6
+          ]
+        },
+        "Hurt": {
+          "frameWidth": 48,
+          "frameHeight": 96,
+          "durations": [
+            2,
+            8
+          ]
+        }
+      },
+      "portrait": true,
+      "body": {
+        "bodyW": 29,
+        "bodyH": 32,
+        "footY": -6
+      }
+    }
+  },
   "493": {
     "anims": {
       "Walk": {

@@ -81,6 +81,7 @@ export const siteEs: SiteMessages = {
     wildStats: { hp: 'HP', damage: 'Daño por contacto', speed: 'Velocidad', xp: 'EXP' },
     eventNote: 'Aparece en los eventos del mapa: huye de ti y suelta monedas con cada golpe. Derríbalo antes de que escape para ganarte el Pay Day.',
     companionNote: 'Compañero de regalo: llega a la caja de regalos de quienes apoyan durante la Noche de Brujas y camina a tu lado en la partida, dejando un rastro de dulces.',
+    cameoNote: 'No es un enemigo: aparece por un instante en la grieta de Darkrai durante la Noche de Brujas y rompe la pesadilla con Lunar Wing.',
     wildNote: 'Valores base. Los enemigos comunes se vuelven más fuertes cada minuto; los jefes, no.',
     appears: 'Cuándo aparece',
     horde: (from: string, until: string) => `Puede entrar en la horda, de ${from} a ${until}`,
@@ -93,6 +94,7 @@ export const siteEs: SiteMessages = {
     trio: (at: string, trio: string) => `Jefe a las ${at} en las partidas que sortean el trío ${trio} (1 de cada 3)`,
     night: (at: string, percent: number) => `Jefe de la Noche de Brujas a las ${at}, en las partidas embrujadas del evento (${n(percent)}% de probabilidad)`,
     rift: (from: string) => `En su dominio, detrás de una grieta legendaria, desde las ${from} (opcional)`,
+    eventRift: (from: string) => `Solo en la Noche de Brujas 2026: en una partida embrujada, la grieta de la Pesadilla puede tomar el lugar de una grieta, desde las ${from} (opcional)`,
     place: (name: string, from: string) => `Vive en ${name}, desde las ${from} (lugar opcional)`,
     placeBoss: (name: string, from: string) => `Sale de la Piedra Espíritu en ${name}, desde las ${from}`,
     places: { cave: 'la Cueva Oscura', graveyard: 'el Cementerio Embrujado', sky: 'el cielo sobre las nubes (solo para voladores)' },
@@ -107,6 +109,7 @@ export const siteEs: SiteMessages = {
     legendMode: 'Modo Legendario',
     capture: (need: number) => (need === 1 ? 'Véncelo 1 vez como jefe, en cualquier modo, y se vuelve jugable en el Modo Legendario (ranking propio, horda más dura, despertares en el Nv 12 y 28).' : `Véncelo ${need} veces como jefe, en cualquier modo, y se vuelve jugable en el Modo Legendario (ranking propio, horda más dura, despertares en el Nv 12 y 28).`),
     captureLast: 'El último trofeo: solo se deja capturar en el modo infinito, después de capturar a los otros 22 legendarios.',
+    captureEvent: (need: number) => `Legendario de evento: véncelo ${need} veces en la grieta de la Pesadilla durante la Noche de Brujas 2026 (del 24/10 al 2/11) y queda jugable en el Modo Legendario para siempre. No cuenta para Arceus.`,
     captureShiny: 'Vencer a uno shiny en la victoria de la captura, o después, desbloquea su forma shiny.',
     innate: (name: string) => `Innata (siempre activa): ${name}`,
     opens: (move: string) => `Empieza con ${move}`,
@@ -125,6 +128,7 @@ export const siteEs: SiteMessages = {
       `${name} es uno de los ${count} iniciales de Pokémon Survivors, de tipo ${list(types)}, de la región de ${region}.`,
     egg: (name: string, types: readonly string[]) => `${name} es una de las familias que salen de huevos en Pokémon Survivors, de tipo ${list(types)}.`,
     legend: (name: string, types: readonly string[], count: number) => `${name} es uno de los ${count} legendarios de Pokémon Survivors, de tipo ${list(types)}.`,
+    eventLegend: (name: string, types: readonly string[]) => `${name} es el legendario del evento Noche de Brujas 2026 en Pokémon Survivors, de tipo ${list(types)}.`,
     faq: 'Preguntas frecuentes',
     unlockQ: (name: string) => `¿Cómo desbloquear a ${name} en Pokémon Survivors?`,
     starterA: (name: string) => `${name} es un inicial: está desbloqueado desde la primera partida, sin necesitar nada.`,
@@ -487,7 +491,9 @@ export const siteEs: SiteMessages = {
       opensHead: 'Movimiento legendario',
       pressureTitle: 'Dificultades en el Modo Legendario',
       pressure: 'La Presión se suma a cada dificultad: así quedan los multiplicadores del Modo Legendario.',
-      where: { rift: 'Grieta legendaria', trio: 'Trío legendario', mythical: 'Junto a Mewtwo (1 de cada 10)', finale: 'Jefe final', endless: 'Modo infinito, al final' },
+      where: { rift: 'Grieta legendaria', trio: 'Trío legendario', mythical: 'Junto a Mewtwo (1 de cada 10)', finale: 'Jefe final', endless: 'Modo infinito, al final', event: 'Noche de Brujas 2026 (evento)' },
+      /** The event legends (`EVENT_LEGENDS`), after the table. */
+      eventNote: 'En la Noche de Brujas de 2026 (del 24 de octubre al 2 de noviembre), Darkrai llega como legendario de evento: solo aparece en la grieta de la Pesadilla, que puede tomar el lugar de una grieta en una partida embrujada, y se captura con 2 victorias. Juega con Dark Void, que duerme a las multitudes, y la innata Bad Dreams, que hiere a quien duerme cerca de él. Después del evento vuelve a las sombras, pero quien lo capturó sigue jugando con él. No cuenta para Arceus.',
     },
     megas: {
       paragraphs: (m) => [
