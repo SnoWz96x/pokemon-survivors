@@ -1,7 +1,8 @@
 import { isRecord } from '../../src/game/parse'
+import { personaPrompt } from './botPersona'
 import type { Embed } from './discordMessages'
 import { chatCompletion, IDEA_RULES, type OpenRouterConfig } from './ideaWriter'
-import { STAFF_GIFTS } from './staffGifts'
+import { STAFF_GIFTS, type StaffRank } from './staffGifts'
 import { toolArgs, type StaffTurn, type Tool } from './staffTools'
 
 /**
@@ -14,14 +15,16 @@ import { toolArgs, type StaffTurn, type Tool } from './staffTools'
 /** Tool rounds per turn at most, the whole turn's time, and the answer's length (tokens). */
 const AGENT = { rounds: 5, deadlineMs: 100_000, maxTokens: 700 } as const
 
-/** The system prompt: what the bot is, its rules and what it knows about the game (`loadKnowledge`). */
+/** The system prompt: what the bot is, how it sounds (`botPersona.ts`), its rules and what it knows about the game (`loadKnowledge`). */
 export const agentSystem = (knowledge: string) => `You are the Pokémon Survivors bot in the game's community Discord, helping its staff (the moderators, the devs and Pedro, who makes the game). Only staff talk to you.
 Pokémon Survivors is a free, browser-based survivors-like (Vampire Survivors style) fan game with Pokémon, at https://www.pokemonsurvivors.com.
+
+${personaPrompt()}
 
 Rules:
 - Reply in the language of the staff member's own message (not the player's, which is often English): Portuguese to Portuguese, English to English. Be brief: a few short lines, Discord markdown, no headings. Never ping anyone.
 - Act through the tools. Do what staff asked and nothing else. After acting, say in one line what you did; the bot shows the exact result of gifts, ideas and bug reports below your text, so don't repeat their details.
-- send_gift only when staff clearly asked to send that gift to that player; never guess the player, the egg or the amount. Staff can send common or rare eggs and up to ₽${STAFF_GIFTS.coinsPerGift.staff} per gift, within a daily allowance of ${STAFF_GIFTS.perDay.eggs} eggs and ₽${STAFF_GIFTS.perDay.coins}; Pedro has no allowance. If a tool refuses, say why.
+- send_gift only when staff clearly asked to send that gift to that player; never guess the player, the egg or the amount. Staff can send common or rare eggs and up to ₽${STAFF_GIFTS.coinsPerGift.staff} per gift, within a daily allowance of ${STAFF_GIFTS.perDay.eggs} eggs and ₽${STAFF_GIFTS.perDay.coins}; Pedro and staff marked as trusted have no allowance and can also send ultra eggs and up to ₽${STAFF_GIFTS.coinsPerGift.owner} per gift. If a tool refuses, say why.
 - add_idea when staff ask to add, include or take a suggestion, written like this:
 ${IDEA_RULES}
 - report_bug when staff ask to report or file a bug: write it in English from what the messages say. Leave out what they don't say (where, when, the device); never fill gaps with guesses.
@@ -32,6 +35,9 @@ ${IDEA_RULES}
 What you know about the game:
 ${knowledge}`
 
+/** How `agentPrompt` names a staff member's rank. */
+const RANK_LABEL = { owner: 'Pedro, the owner', trusted: 'trusted staff', staff: 'staff' } as const satisfies Record<StaffRank, string>
+
 const quote = (text: string) => text.split('\n').map((l) => `> ${l}`).join('\n')
 
 /**
@@ -41,7 +47,7 @@ const quote = (text: string) => text.split('\n').map((l) => `> ${l}`).join('\n')
  */
 export const agentPrompt = (turn: StaffTurn, said: string, earlier: string | null = null) =>
   [
-    `Staff member: ${turn.staff.name} (${turn.staff.rank === 'owner' ? 'Pedro, the owner' : 'staff'}; Discord <@${turn.staff.discordId}>; game account ${turn.staff.account ? `@${turn.staff.account.handle}` : 'not linked'}).`,
+    `Staff member: ${turn.staff.name} (${RANK_LABEL[turn.staff.rank]}; Discord <@${turn.staff.discordId}>; game account ${turn.staff.account ? `@${turn.staff.account.handle}` : 'not linked'}).`,
     turn.player
       ? `They replied to ${turn.player.name} (Discord <@${turn.player.discordId}>; game account ${turn.player.account ? `@${turn.player.account.handle}` : 'not linked'}), who wrote:\n${quote(turn.player.messages.join('\n'))}`
       : '',
@@ -87,7 +93,7 @@ export const runAgent = async (config: OpenRouterConfig, o: { system: string; pr
     const last = round >= AGENT.rounds || Date.now() > deadline - 20_000
     const body = await chatCompletion(
       config,
-      { messages, max_tokens: AGENT.maxTokens, temperature: 0.2, ...(defs.length && !last ? { tools: defs } : {}) },
+      { messages, max_tokens: AGENT.maxTokens, temperature: 0.6, ...(defs.length && !last ? { tools: defs } : {}) },
       Math.max(5_000, Math.min(30_000, deadline - Date.now())),
     )
     const { text, calls, message } = readChoice(body)
