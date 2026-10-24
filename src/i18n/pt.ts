@@ -5206,6 +5206,8 @@ export const pt = {
       confirm: 'Sair da partida? Seu Pokémon deixa o campo e você leva sua parte do ₽ até agora.',
       yes: 'Sair',
       no: 'Ficar',
+      /** The menu's section with the teammates' moves and items. */
+      builds: 'Builds da equipe',
     },
     toast: {
       fainted: (name: string) => `*${name}* desmaiou! Fique ao lado da _Poké Ball_ para reviver.`,

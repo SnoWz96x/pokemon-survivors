@@ -4929,6 +4929,7 @@ export const zh: Messages = {
       confirm: '要離開對局嗎？你的寶可夢會離開戰場，你會保留目前為止分得的₽。',
       yes: '離開',
       no: '留下',
+      builds: '隊友配置',
     },
     toast: {
       fainted: (name) => `*${name}* 倒下了！站在_Poké Ball_旁邊讓他復活。`,

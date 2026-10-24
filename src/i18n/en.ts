@@ -4933,6 +4933,7 @@ export const en: Messages = {
       confirm: 'Leave the run? Your Pokémon leaves the field and you keep your share of ₽ so far.',
       yes: 'Leave',
       no: 'Stay',
+      builds: 'Team builds',
     },
     toast: {
       fainted: (name) => `*${name}* fainted! Stand by the _Poké Ball_ to revive them.`,

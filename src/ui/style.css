@@ -15895,8 +15895,9 @@ button.hall-tile:hover {
 .team-card {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
+  gap: 3px 5px;
   width: 128px;
   padding: 3px 6px 4px 3px;
   background: rgba(16, 24, 48, 0.62);
@@ -16014,6 +16015,164 @@ button.hall-tile:hover {
   height: 2px;
   width: calc(var(--left, 1) * 100%);
   background: #f8e050;
+}
+
+/* A teammate's build (ui/teamHud.ts): their moves, then their items, as small icons under the card. */
+.team-build {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.build-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+}
+
+/* A move opens its card on hover or a held finger, so its icon takes the pointer the HUD lets through. */
+.build-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  pointer-events: auto;
+}
+
+.build-icon img {
+  width: 14px;
+  height: 14px;
+}
+
+.build-icon.item {
+  width: 13px;
+  height: 13px;
+}
+
+.build-icon.item img {
+  width: 12px;
+  height: 12px;
+}
+
+/* The HUD's cards show the icons alone; the menu adds the levels. */
+.build-icon i {
+  display: none;
+}
+
+.team-card.fainted .team-build,
+.team-card.away .team-build,
+.team-card.left .team-build {
+  display: none;
+}
+
+/* Landscape phones have no height to spare: smaller icons. */
+@media (max-height: 500px) {
+  .team-card .build-icon {
+    width: 12px;
+    height: 12px;
+  }
+  .team-card .build-icon img {
+    width: 11px;
+    height: 11px;
+  }
+  .team-card .build-icon.item,
+  .team-card .build-icon.item img {
+    width: 10px;
+    height: 10px;
+  }
+}
+
+/* The co-op menu's "Builds da equipe": a card per teammate, their face, name and level over their build with levels. */
+.team-builds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.team-build-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 5px 6px 6px;
+  background: #e8e8f0;
+  border: 2px solid var(--slot);
+  border-radius: 4px;
+}
+
+.team-build-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--title);
+  font-size: 8px;
+  color: var(--ink);
+}
+
+.team-build-head .team-portrait {
+  width: 22px;
+  height: 22px;
+}
+
+.team-build-head .team-name {
+  flex: 1;
+  color: var(--ink);
+}
+
+.team-build-head .team-level {
+  color: #6878a8;
+}
+
+.team-build.big {
+  gap: 4px;
+}
+
+.team-build.big .build-row {
+  gap: 4px;
+}
+
+.team-build.big .build-icon {
+  width: 28px;
+  height: 28px;
+  background: rgba(16, 24, 48, 0.1);
+  border-radius: 4px;
+}
+
+.team-build.big .build-icon img {
+  width: 22px;
+  height: 22px;
+}
+
+.team-build.big .build-icon.item {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+}
+
+.team-build.big .build-icon.item img {
+  width: 18px;
+  height: 18px;
+}
+
+.team-build.big .build-icon.cursed {
+  background: rgba(120, 48, 160, 0.25);
+}
+
+.team-build.big .build-icon i {
+  display: block;
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  font-family: var(--title);
+  font-size: 7px;
+  font-style: normal;
+  color: #f8f8f8;
+  text-shadow: 1px 1px 0 #101020, -1px -1px 0 #101020, 1px -1px 0 #101020, -1px 1px 0 #101020;
+}
+
+.team-build.big .build-icon.max i {
+  color: #f8d030;
 }
 
 /* Chips of who's in: the wait banner, the level-up's team row, the vote. */

@@ -41,6 +41,7 @@ import { boundPadHint, glyphText } from './inputLabels'
 import { pressGuard } from './pressGuard'
 import { holdMoveCard, hoverMoveCard, moveCard, withMoveCard } from './moveCard'
 import { localPlayer } from '../game/players'
+import { teamBuilds } from './teamHud'
 
 export type Screen = {
   el: HTMLElement
@@ -704,6 +705,8 @@ export const pauseMenu = (root: HTMLElement, input: Input, g: Game, actions: Pau
     const reportButton = report && h('button', { class: 'btn' }, m.reportBug)
     const quit = h('button', { class: 'btn' }, coop ? cm.leave : m.quit)
     const buttons = [resume, ...(sound ? [sound] : []), settingsButton, ...(reportButton ? [reportButton] : []), quit]
+    // Co-op: the teammates' builds, to read and coordinate while the run goes on.
+    const builds = coop && teamBuilds(g, localPlayer(g))
     nav?.off()
     nav = menu(input, buttons, (i) => {
       const pressed = buttons[i]
@@ -735,6 +738,7 @@ export const pauseMenu = (root: HTMLElement, input: Input, g: Game, actions: Pau
             pauseSection(m.statsTitle, statTable(g)),
             h('div', { class: 'pause-column' }, pauseSection(m.movesTitle, moveList(g)), pauseSection(m.itemsTitle, itemList(g))),
           ),
+          builds && pauseSection(cm.builds, builds),
           duoPanel(g),
           h('p', { class: 'evo-legend' }, m.evoLegend),
           hint(m.cardHintKeys, m.cardHintTouch),

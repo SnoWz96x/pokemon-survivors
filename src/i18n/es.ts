@@ -4934,6 +4934,7 @@ export const es: Messages = {
       confirm: '¿Dejar la partida? Tu Pokémon deja el campo y te llevas tu parte de ₽ hasta ahora.',
       yes: 'Salir',
       no: 'Quedarme',
+      builds: 'Builds del equipo',
     },
     toast: {
       fainted: (name) => `¡*${name}* se debilitó! Quédate junto a la _Poké Ball_ para revivirlo.`,
