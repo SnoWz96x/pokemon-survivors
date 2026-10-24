@@ -990,6 +990,8 @@ export const pt = {
       egg: (steps: string) => `Choca em ${steps} passos: fantasmas que nenhum outro ovo traz.`,
       /** Every family alike: their names, then the one share. */
       even: (names: string, pct: number) => `${names}: ${pct}% cada`,
+      /** The card's line under the name: how many of the egg's families the save has hatched (not a stock). */
+      hatched: (n: number, total: number) => `Chocados: ${n}/${total}`,
       odds: (list: string, shiny: number) => `${list}. Shiny 1 em ${shiny}.`,
       duplicate: (coins: string) => `Repetido: ${coins}.`,
       stock: 'Só na Noite das Bruxas (volta no ano que vem). Leve quantos couberem na incubadora.',

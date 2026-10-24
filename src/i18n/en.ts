@@ -827,6 +827,7 @@ export const en: Messages = {
       intro: (until) => `Duskull's stall · Halloween Night · until ${until}`,
       egg: (steps) => `Hatches in ${steps} steps: ghosts no other egg brings.`,
       even: (names, pct) => `${names}: ${pct}% each`,
+      hatched: (n, total) => `Hatched: ${n}/${total}`,
       odds: (list, shiny) => `${list}. Shiny 1 in ${shiny}.`,
       duplicate: (coins) => `Duplicate: ${coins}.`,
       stock: 'Only on Halloween Night (back next year). Take as many as your incubator holds.',

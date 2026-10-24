@@ -923,7 +923,7 @@ const stallCard = (good: StallGoodId): Card => {
     refresh: (save) => {
       const block = stallBlock(save, good, day)
       setBadges(badges, [badge('exclusive', t().shop.badges.exclusive)])
-      setText(sub, `${odds(save).filter(([id]) => save.hatched[id]).length}/${odds(save).length}`)
+      setText(sub, s.hatched(odds(save).filter(([id]) => save.hatched[id]).length, odds(save).length))
       setText(price, stallBlockText(block) ?? cost$)
       el.classList.toggle('sold', block === 'full')
       el.classList.toggle('poor', block === 'poor')

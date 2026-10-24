@@ -826,6 +826,7 @@ export const fr: Messages = {
       intro: (until) => `Stand de Duskull · Nuit des Sorcières · jusqu’au ${until}`,
       egg: (steps) => `Éclot en ${steps} pas : des fantômes qu’aucun autre œuf n’apporte.`,
       even: (names, pct) => `${names} : ${pct}% chacun`,
+      hatched: (n, total) => `Éclos : ${n}/${total}`,
       odds: (list, shiny) => `${list}. Chromatique : 1 sur ${shiny}.`,
       duplicate: (coins) => `Doublon : ${coins}.`,
       stock: 'Seulement pendant la Nuit des Sorcières (de retour l’an prochain). Prends-en autant que ton incubateur en contient.',
