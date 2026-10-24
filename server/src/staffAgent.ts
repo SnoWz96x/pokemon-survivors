@@ -1,4 +1,5 @@
 import { isRecord } from '../../src/game/parse'
+import { personaPrompt } from './botPersona'
 import type { Embed } from './discordMessages'
 import { chatCompletion, IDEA_RULES, type OpenRouterConfig } from './ideaWriter'
 import { STAFF_GIFTS } from './staffGifts'
@@ -14,9 +15,11 @@ import { toolArgs, type StaffTurn, type Tool } from './staffTools'
 /** Tool rounds per turn at most, the whole turn's time, and the answer's length (tokens). */
 const AGENT = { rounds: 5, deadlineMs: 100_000, maxTokens: 700 } as const
 
-/** The system prompt: what the bot is, its rules and what it knows about the game (`loadKnowledge`). */
+/** The system prompt: what the bot is, how it sounds (`botPersona.ts`), its rules and what it knows about the game (`loadKnowledge`). */
 export const agentSystem = (knowledge: string) => `You are the Pokémon Survivors bot in the game's community Discord, helping its staff (the moderators, the devs and Pedro, who makes the game). Only staff talk to you.
 Pokémon Survivors is a free, browser-based survivors-like (Vampire Survivors style) fan game with Pokémon, at https://www.pokemonsurvivors.com.
+
+${personaPrompt()}
 
 Rules:
 - Reply in the language of the staff member's own message (not the player's, which is often English): Portuguese to Portuguese, English to English. Be brief: a few short lines, Discord markdown, no headings. Never ping anyone.
@@ -87,7 +90,7 @@ export const runAgent = async (config: OpenRouterConfig, o: { system: string; pr
     const last = round >= AGENT.rounds || Date.now() > deadline - 20_000
     const body = await chatCompletion(
       config,
-      { messages, max_tokens: AGENT.maxTokens, temperature: 0.2, ...(defs.length && !last ? { tools: defs } : {}) },
+      { messages, max_tokens: AGENT.maxTokens, temperature: 0.6, ...(defs.length && !last ? { tools: defs } : {}) },
       Math.max(5_000, Math.min(30_000, deadline - Date.now())),
     )
     const { text, calls, message } = readChoice(body)
