@@ -56,7 +56,8 @@ export const RANKED = {
   slack: 30,
   /** Longer than any endless run Arceus allows. */
   maxTime: 4 * 3600,
-  maxLevel: 999,
+  /** A sanity bound, not a game rule: long endless runs pass Lv 1000 (Lv 1045 at 169 min), so a cap at 999 refused them as implausible. */
+  maxLevel: 9999,
   /**
    * Faints per second at the start, far above anything played. The horde grows
    * with the clock, so the cap rises by `killRateGrowth` every minute (`maxKills`):
