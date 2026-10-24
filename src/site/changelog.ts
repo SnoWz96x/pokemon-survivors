@@ -30,8 +30,34 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
       { pt: 'No celular em pé, o lobby ficou mais limpo: seu Pokémon parceiro volta para o centro da tela, com o JOGAR logo abaixo.', en: 'On a phone held upright, the lobby is cleaner: your partner Pokémon is back in the middle of the screen, with PLAY right under it.', es: 'En el celular en vertical, el lobby quedó más limpio: tu Pokémon compañero vuelve al centro de la pantalla, con JUGAR justo debajo.', fr: 'Sur un téléphone tenu droit, le lobby est plus clair : ton Pokémon partenaire revient au centre de l’écran, avec JOUER juste en dessous.', zh: '直拿手機時，大廳變得更清爽了：你的夥伴寶可夢回到畫面中央，下方就是開始遊戲。' },
       { pt: 'O evento, o Surto, o Desafio e as Missões viraram ícones à esquerda; o Presente, o Hall da Fama, Convidar, o Discord e Passear, à direita. Os selos mostram o que está esperando por você.', en: 'The event, the Outbreak, the Challenge and Missions are now icons on the left; the Gift, the Hall of Fame, Invite, Discord and Explore are on the right. Badges show what’s waiting for you.', es: 'El evento, la Horda, el Desafío y las Misiones ahora son íconos a la izquierda; el Regalo, el Salón de la Fama, Invitar, Discord y Pasear, a la derecha. Las insignias muestran lo que te espera.', fr: 'L’événement, l’Essaim, le Défi et les Missions sont maintenant des icônes à gauche ; le Cadeau, le Panthéon, Inviter, Discord et Se promener sont à droite. Les pastilles montrent ce qui t’attend.', zh: '活動、大量出現、挑戰和任務變成左側的圖示；禮物、名人堂、邀請、Discord 和散步在右側。小標記會告訴你有什麼在等你。' },
       { pt: 'TikTok, YouTube e Instagram agora ficam na janela do Discord (e em Ajustes → Sobre).', en: 'TikTok, YouTube and Instagram now live in the Discord window (and in Settings → About).', es: 'TikTok, YouTube e Instagram ahora están en la ventana de Discord (y en Ajustes → Acerca de).', fr: 'TikTok, YouTube et Instagram sont maintenant dans la fenêtre Discord (et dans Réglages → À propos).', zh: 'TikTok、YouTube 和 Instagram 現在放在 Discord 視窗裡（以及設定 → 關於）。' },
+      {
+        pt: 'Ovo Assombrado sem limite: o Duskull agora vende quantos couberem na incubadora, por ₽ 6.000 ou por 150 doces. O pote continua contando todos os doces para os prêmios.',
+        en: 'No more Haunted Egg limit: Duskull now sells as many as your incubator holds, for ₽6,000 or 150 candies. The jar still counts every candy for its prizes.',
+        es: 'Huevo Embrujado sin límite: Duskull ahora vende todos los que quepan en tu incubadora, por ₽6.000 o 150 dulces. El frasco sigue contando todos los dulces para los premios.',
+        fr: 'Plus de limite pour l’Œuf Hanté : Duskull en vend autant que ton incubateur en contient, pour 6 000 ₽ ou 150 bonbons. Le bocal compte toujours chaque bonbon pour ses prix.',
+        zh: '鬧鬼蛋不再限量：Duskull 現在孵化器放得下多少就賣多少，₽6,000 或 150 顆糖果一顆。糖果罐仍會把每顆糖果算進獎勵。',
+      },
     ],
     changes: [
+      {
+        title: { pt: 'Ovo Assombrado por doces', en: 'Haunted Eggs for candies', es: 'Huevos Embrujados por dulces', fr: 'Œufs Hantés contre des bonbons', zh: '用糖果買鬧鬼蛋' },
+        notes: [
+          {
+            pt: 'A barraca do Duskull não tem mais limite de um ovo por dia: compre quantos Ovos Assombrados couberem na incubadora, até o fim da Noite das Bruxas, para ir atrás de todos os fantasmas e dos shinies deles.',
+            en: "Duskull's stall no longer stops at one egg a day: buy as many Haunted Eggs as your incubator holds, until Halloween Night ends, to chase every ghost and their shinies.",
+            es: 'El puesto de Duskull ya no se limita a un huevo por día: compra todos los Huevos Embrujados que quepan en tu incubadora, hasta que termine la Noche de Brujas, para ir por todos los fantasmas y sus shinies.',
+            fr: 'Le stand de Duskull ne s’arrête plus à un œuf par jour : achète autant d’Œufs Hantés que ton incubateur en contient, jusqu’à la fin de la Nuit des Sorcières, pour attraper tous les fantômes et leurs shinies.',
+            zh: 'Duskull 的攤位不再限一天一顆：在女巫之夜結束前，孵化器放得下多少鬧鬼蛋就能買多少，把所有幽靈和牠們的異色都收集起來。',
+          },
+          {
+            pt: 'Cada ovo sai por ₽ 6.000 ou por 150 doces. Gastar doces não esvazia o pote: os prêmios continuam contando tudo o que você já juntou.',
+            en: 'Each egg costs ₽6,000 or 150 candies. Spending candies doesn’t empty the jar: its prizes still count everything you’ve collected.',
+            es: 'Cada huevo cuesta ₽6.000 o 150 dulces. Gastar dulces no vacía el frasco: los premios siguen contando todo lo que ya juntaste.',
+            fr: 'Chaque œuf coûte 6 000 ₽ ou 150 bonbons. Dépenser des bonbons ne vide pas le bocal : ses prix comptent toujours tout ce que tu as récolté.',
+            zh: '每顆蛋 ₽6,000 或 150 顆糖果。花掉糖果不會清空糖果罐：獎勵仍會計算你收集過的所有糖果。',
+          },
+        ],
+      },
       {
         title: { pt: 'Lobby no celular', en: 'Lobby on phones', es: 'Lobby en el celular', fr: 'Lobby sur mobile', zh: '手機大廳' },
         notes: [
