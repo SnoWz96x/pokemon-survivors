@@ -2,7 +2,7 @@ import { evolutionOf, evolvedFrom } from '../data/evolutions'
 import { ITEMS } from '../data/items'
 import { maxMoveLevel, MOVES, type MoveDef, type MoveId } from '../game/moves'
 import { moveSheet, type SheetRow } from '../game/moveSheet'
-import type { Game } from '../game/types'
+import type { Game, Player } from '../game/types'
 import { formatDecimal, t } from '../i18n'
 import { itemIcon, moveIcon } from '../render/art'
 import { h } from './dom'
@@ -28,6 +28,8 @@ type CardOptions = {
   path?: number
   /** Adds the move's description (the level-up cards already show it). */
   describe?: boolean
+  /** Whose move it is (a co-op teammate's build): their stats and items. The local player by default. */
+  owner?: Player
 }
 
 const formatRow = ({ stat, value }: Pick<SheetRow, 'stat' | 'value'>) => {
@@ -55,7 +57,7 @@ const rowLabel = (row: SheetRow, def: MoveDef) => {
 }
 
 /** "[Ember] Lv 8 + [Charcoal] → [Flamethrower]", each requirement lit once met. */
-const evolutionLine = (g: Game, id: MoveId, level: number) => {
+const evolutionLine = (owner: Player, id: MoveId, level: number) => {
   const m = t()
   const from = evolvedFrom(id)
   if (from) {
@@ -71,7 +73,7 @@ const evolutionLine = (g: Game, id: MoveId, level: number) => {
   const evo = evolutionOf(id)
   if (!evo) return null
   const maxed = level >= maxMoveLevel(id)
-  const held = localPlayer(g).items.some((i) => i.id === evo.item)
+  const held = owner.items.some((i) => i.id === evo.item)
   return h(
     'div',
     { class: 'card-evo' },
@@ -84,7 +86,7 @@ const evolutionLine = (g: Game, id: MoveId, level: number) => {
 }
 
 /** The card's content: name, type, level, the stats with the player's modifiers and how the move evolves. */
-export const moveCard = (g: Game, id: MoveId, { level, from, path, describe = false }: CardOptions) => {
+export const moveCard = (g: Game, id: MoveId, { level, from, path, describe = false, owner = localPlayer(g) }: CardOptions) => {
   const m = t()
   const def: MoveDef = MOVES[id]
   const evolved = evolvedFrom(id) !== undefined
@@ -108,7 +110,7 @@ export const moveCard = (g: Game, id: MoveId, { level, from, path, describe = fa
     h(
       'div',
       { class: 'card-stats' },
-      ...moveSheet(id, level, localPlayer(g).stats, from, path).flatMap((row) => [
+      ...moveSheet(id, level, owner.stats, from, path).flatMap((row) => [
         h('span', {}, rowLabel(row, def)),
         h(
           'b',
@@ -119,7 +121,7 @@ export const moveCard = (g: Game, id: MoveId, { level, from, path, describe = fa
         ),
       ]),
     ),
-    evolutionLine(g, id, level),
+    evolutionLine(owner, id, level),
   )
 }
 

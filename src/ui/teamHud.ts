@@ -1,12 +1,18 @@
 import { COOP } from '../data/coop'
+import { CURSES } from '../data/curses'
+import { evolvedFrom } from '../data/evolutions'
+import { ITEMS } from '../data/items'
 import { formAt } from '../game/branch'
 import { fainted } from '../game/coop'
+import { isDuo } from '../game/duoRules'
+import { MOVES, maxMoveLevel, type MoveId } from '../game/moves'
 import type { Game, Player } from '../game/types'
 import { t } from '../i18n'
-import { teamAwayIcon, teamBallIcon, sparkleIcon } from '../render/art'
+import { curseIcon, itemIcon, moveIcon, teamAwayIcon, teamBallIcon, sparkleIcon } from '../render/art'
 import { portraitUrl } from '../render/sprites'
 import { busyWith, slotColor } from '../render/team'
 import { h, setStyle, setText } from './dom'
+import { moveCard, withMoveCard } from './moveCard'
 
 /** The name the team sees for a seat: the one it joined with, or "Jogador 2". */
 export const seatName = (g: Game, slot: number) => g.coop?.names[slot]?.trim() || t().team.player(slot + 1)
@@ -23,13 +29,67 @@ const stateOf = (p: Player): CardState => {
   return busy ? 'choosing' : null
 }
 
-type Card = { el: HTMLElement; portrait: HTMLImageElement; badge: HTMLImageElement; level: HTMLElement; fill: HTMLElement; state: HTMLElement; clock: HTMLElement; key: string; mode: string }
+/** What a player's build looks like now: redraw their icons when it changes. */
+const buildKey = (p: Player) => [...p.moves.map((m) => `${m.id}${m.level}`), '|', ...p.items.map((i) => `${i.id}${i.level}`), '|', ...p.curses.held].join()
+
+/** A move's level as the HUD's slots write it: ★ evolved, ✦ duo. */
+const moveLevel = (id: MoveId, level: number) => (evolvedFrom(id) ? `★${level}` : isDuo(id) ? `✦${level}` : String(level))
+
+/**
+ * `p`'s build as icons with their levels: the moves (each opens its card with
+ * `p`'s stats on hover or a held finger), then the items and cursed items.
+ * `big`: the menu's size, the HUD's cards use the small one.
+ */
+const buildIcons = (g: Game, p: Player, big = false) => {
+  const cls = big ? 'team-build big' : 'team-build'
+  const moves = p.moves.map((m) => {
+    const icon = h('span', { class: m.level >= maxMoveLevel(m.id) ? 'build-icon max' : 'build-icon' }, h('img', { src: moveIcon(m.id), alt: MOVES[m.id].name }), h('i', {}, moveLevel(m.id, m.level)))
+    withMoveCard(icon, () => moveCard(g, m.id, { level: m.level, path: m.path, describe: true, owner: p }))
+    return icon
+  })
+  const items = [
+    ...p.items.map((i) => h('span', { class: 'build-icon item', title: ITEMS[i.id].name }, h('img', { src: itemIcon(i.id), alt: ITEMS[i.id].name }), h('i', {}, String(i.level)))),
+    ...p.curses.held.map((id) => h('span', { class: 'build-icon item cursed', title: `${CURSES[id].name}: ${t().curses[id].downside}` }, h('img', { src: curseIcon(id), alt: CURSES[id].name }))),
+  ]
+  return h('div', { class: cls }, h('div', { class: 'build-row' }, ...moves), items.length > 0 && h('div', { class: 'build-row' }, ...items))
+}
+
+/**
+ * The co-op menu's look at the team: each teammate's face, name and level
+ * over their build (moves and items with their levels), so a player can read
+ * what the others run and coordinate theirs. Null solo or alone.
+ */
+export const teamBuilds = (g: Game, me: Player) => {
+  const mates = g.players.filter((p) => p !== me && !p.gone)
+  if (g.coop === null || mates.length === 0) return null
+  return h(
+    'div',
+    { class: 'team-builds' },
+    ...mates.map((p) =>
+      h(
+        'div',
+        { class: 'team-build-card', style: `--slot:${slotColor(p.slot)}` },
+        h(
+          'div',
+          { class: 'team-build-head' },
+          h('img', { class: 'team-portrait', src: portraitUrl(formAt(p.starter, p.branch, p.stage).dex, p.shiny), alt: '' }),
+          h('b', { class: 'team-name' }, seatName(g, p.slot)),
+          h('span', { class: 'team-level' }, t().levelShort(p.level)),
+        ),
+        buildIcons(g, p, true),
+      ),
+    ),
+  )
+}
+
+type Card = { el: HTMLElement; portrait: HTMLImageElement; badge: HTMLImageElement; level: HTMLElement; fill: HTMLElement; state: HTMLElement; clock: HTMLElement; build: HTMLElement; key: string; mode: string; loadout: string }
 
 /**
  * Co-op HUD: one compact card per teammate (not the client's own player, whose
  * status box is the HUD's), in seat order: their Pokémon's portrait framed in
  * their seat color, name, level and HP, or what keeps them out (fainted,
- * away, choosing, evolving, left) with a pick screen's clock. Three cards fit
+ * away, choosing, evolving, left) with a pick screen's clock, and under it
+ * their build (moves and items, a move's card on hover or hold). Three cards fit
  * a phone held upright in one row under the top bar; landscape stacks them on
  * the left (`style.css`). `update` runs every frame and only touches what changed.
  */
@@ -46,6 +106,7 @@ export const createTeamHud = (root: HTMLElement) => {
     const fill = h('div', { class: 'hp-fill hp-high' })
     const state = h('span', { class: 'team-state hidden' })
     const clock = h('div', { class: 'team-clock hidden' })
+    const build = h('div', { class: 'team-build' })
     const card = h(
       'div',
       { class: 'team-card', style: `--slot:${slotColor(p.slot)}` },
@@ -57,9 +118,10 @@ export const createTeamHud = (root: HTMLElement) => {
         h('div', { class: 'team-hp' }, fill),
         state,
       ),
+      build,
       clock,
     )
-    const made: Card = { el: card, portrait, badge, level, fill, state, clock, key: '', mode: '' }
+    const made: Card = { el: card, portrait, badge, level, fill, state, clock, build, key: '', mode: '', loadout: '' }
     cards.set(p.slot, made)
     el.append(card)
     return made
@@ -109,6 +171,13 @@ export const createTeamHud = (root: HTMLElement) => {
         const icon = state === 'fainted' ? teamBallIcon() : state === 'away' ? teamAwayIcon() : state === 'evolving' ? sparkleIcon() : null
         card.badge.classList.toggle('hidden', !icon)
         if (icon) card.badge.src = icon
+      }
+      const loadout = buildKey(p)
+      if (loadout !== card.loadout) {
+        card.loadout = loadout
+        const next = buildIcons(g, p)
+        card.build.replaceWith(next)
+        card.build = next
       }
       setText(card.level, t().levelShort(p.level))
       const ratio = Math.max(0, Math.min(1, p.hp / p.stats.maxHp))

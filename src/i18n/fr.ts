@@ -4929,6 +4929,7 @@ export const fr: Messages = {
       confirm: 'Quitter la partie ? Ton Pokémon quitte le terrain et tu gardes ta part de ₽ jusqu’ici.',
       yes: 'Quitter',
       no: 'Rester',
+      builds: "Builds de l'équipe",
     },
     toast: {
       fainted: (name) => `*${name}* est K.O. ! Reste près de la _Poké Ball_ pour le ranimer.`,
