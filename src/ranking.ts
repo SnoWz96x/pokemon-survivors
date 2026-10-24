@@ -276,7 +276,7 @@ type TicketKind = 'regular' | 'challenge'
 
 const kindOf = (day: DayKey | null): TicketKind => (day ? 'challenge' : 'regular')
 
-/** The tickets in hand, one per kind: the API keeps only the newest of each kind live. */
+/** The tickets in hand, one per kind: the API keeps only the newest of each kind live (besides runs already streaming). */
 const held: Record<TicketKind, Ticket | null> = { regular: null, challenge: null }
 
 /** Asks in flight, one per kind. */
