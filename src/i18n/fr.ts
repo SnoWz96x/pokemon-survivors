@@ -2043,7 +2043,7 @@ export const fr: Messages = {
       starters: (n) => `Joue ${n} starters différents`,
       shinyKills: (n) => (n === '1' ? 'Vaincs un Pokémon chromatique' : `Vaincs ${n} Pokémon chromatiques`),
       shinyStarters: () => 'Commence une partie avec un starter chromatique (1 sur 64)',
-      shinyLegends: () => 'Vaincs un légendaire chromatique dans une faille',
+      shinyLegends: () => 'Vaincs un légendaire chromatique',
       rifts: (n) => (n === '1' ? 'Remporte une faille légendaire' : `Remporte ${n} failles légendaires`),
       legends: (n: string) => `Vaincs les ${n} légendaires des failles`,
       overtimeMinutes: (n) => (n === '1' ? 'Survis 1 min en mode sans fin' : `Survis ${n} min en mode sans fin`),

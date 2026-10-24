@@ -2045,7 +2045,7 @@ export const en: Messages = {
       starters: (n) => `Play ${n} different starters`,
       shinyKills: (n) => (n === '1' ? 'Defeat a shiny Pokémon' : `Defeat ${n} shiny Pokémon`),
       shinyStarters: () => 'Start a run with a shiny starter (1 in 64)',
-      shinyLegends: () => 'Defeat a shiny legendary in a rift',
+      shinyLegends: () => 'Defeat a shiny legendary',
       rifts: (n) => (n === '1' ? 'Win a legendary rift' : `Win ${n} legendary rifts`),
       legends: (n: string) => `Defeat all ${n} rift legendaries`,
       overtimeMinutes: (n) => (n === '1' ? 'Survive 1 min in endless mode' : `Survive ${n} min in endless mode`),

@@ -203,6 +203,19 @@ const SCENARIOS = {
       gainXp(g, 800)
     },
   },
+  /** Zapdos arriving at 5:00 a few levels in: a wave legendary's entrance (its HP, its shiny roll), then its first phase against the player. */
+  waveLegend: {
+    start: { ...START, starter: 'pichu' },
+    seconds: 25,
+    stage: (g) => {
+      g.time = 300
+      g.nextEvent = 99
+      g.player.revives = 2
+      gainXp(g, 1200)
+      const boss = spawnWaveBoss(g, 'zapdos', g.time)
+      Object.assign(boss, { x: g.player.x + 90, y: g.player.y })
+    },
+  },
 } as const satisfies Record<string, Scenario>
 
 type ScenarioId = keyof typeof SCENARIOS
@@ -213,7 +226,7 @@ type ScenarioId = keyof typeof SCENARIOS
  * failing test prints.
  */
 const PINNED: Partial<Record<number, Record<ScenarioId, string>>> = {
-  36: {
+  37: {
     levelUps: '2998·50·13·8c971102',
     mega: '1900·33·2·1fa9caeb',
     riftFall: '711·0·1·74733b0f',
@@ -226,6 +239,7 @@ const PINNED: Partial<Record<number, Record<ScenarioId, string>>> = {
     porygonGate: '2074·67·37·ffe05090',
     sketch: '1210·20·2·e776249d',
     legend: '1100·51·14·cdbdb688',
+    waveLegend: '1998·14·17·1fa0f40a',
   },
 }
 

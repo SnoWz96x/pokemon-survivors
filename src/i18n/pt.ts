@@ -2275,7 +2275,7 @@ export const pt = {
       starters: (n: string) => `Jogue com ${n} iniciais diferentes`,
       shinyKills: (n: string) => (n === '1' ? 'Derrote um Pokémon shiny' : `Derrote ${n} Pokémon shiny`),
       shinyStarters: () => 'Comece uma partida com um inicial shiny (1 em 64)',
-      shinyLegends: () => 'Derrote um lendário shiny numa fenda',
+      shinyLegends: () => 'Derrote um lendário shiny',
       rifts: (n: string) => (n === '1' ? 'Vença uma fenda lendária' : `Vença ${n} fendas lendárias`),
       legends: (n: string) => `Derrote os ${n} lendários das fendas`,
       overtimeMinutes: (n: string) => (n === '1' ? 'Sobreviva 1 min no modo sem fim' : `Sobreviva ${n} min no modo sem fim`),

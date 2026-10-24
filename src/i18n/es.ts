@@ -2046,7 +2046,7 @@ export const es: Messages = {
       starters: (n) => `Juega con ${n} iniciales distintos`,
       shinyKills: (n) => (n === '1' ? 'Derrota un Pokémon shiny' : `Derrota ${n} Pokémon shinies`),
       shinyStarters: () => 'Empieza una partida con un inicial shiny (1 de cada 64)',
-      shinyLegends: () => 'Derrota a un legendario shiny en una grieta',
+      shinyLegends: () => 'Derrota a un legendario shiny',
       rifts: (n) => (n === '1' ? 'Gana una grieta legendaria' : `Gana ${n} grietas legendarias`),
       legends: (n: string) => `Derrota a los ${n} legendarios de las grietas`,
       overtimeMinutes: (n) => (n === '1' ? 'Sobrevive 1 min en el modo infinito' : `Sobrevive ${n} min en el modo infinito`),

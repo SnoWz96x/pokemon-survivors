@@ -2043,7 +2043,7 @@ export const zh: Messages = {
       starters: (n) => `使用 ${n} 種不同的初始寶可夢`,
       shinyKills: (n) => (n === '1' ? '擊倒一隻異色寶可夢' : `擊倒 ${n} 隻異色寶可夢`),
       shinyStarters: () => '用異色初始寶可夢開始一局（1/64）',
-      shinyLegends: () => '在裂縫中擊敗異色傳說寶可夢',
+      shinyLegends: () => '擊敗異色傳說寶可夢',
       rifts: (n) => (n === '1' ? '贏得一次傳說裂縫' : `贏得 ${n} 次傳說裂縫`),
       legends: (n: string) => `擊敗裂縫中全部 ${n} 隻傳說寶可夢`,
       overtimeMinutes: (n) => `在無盡模式中存活 ${n} 分鐘`,

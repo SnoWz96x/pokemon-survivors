@@ -1768,8 +1768,9 @@ const handleEvent = (r: Run, e: GameEvent) => {
       playSfx(e.up ? 'legendary' : 'break')
       return toast(ui, rich(e.up ? t().rifts.guardUp(ENEMIES[e.enemy].name) : t().rifts.guardDown), e.up ? 3400 : 2200)
     case 'legendTitle':
-      playSfx('legendary')
+      playSfx(e.shiny ? 'shiny' : 'legendary')
       playCry(cryUrl(ENEMIES[e.enemy].dex), 0.9)
+      if (e.shiny) toast(ui, rich(t().toast.shiny(ENEMIES[e.enemy].name)), 3200)
       return flashScreen(ui)
     case 'bossCapture': {
       const capture = g.legendScene?.capture

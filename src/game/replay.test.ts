@@ -628,7 +628,7 @@ describe('replays', () => {
   }
 
   it("re-simulate Mewtwo on the map: its entrance, three phases, its ultimates and the capture its victory waits for", () => {
-    /** A player strong enough to take Mewtwo down in a couple of minutes, with Mewtwo arriving at once. */
+    /** A player strong enough to take Mewtwo down in a couple of minutes (Revives so the scripted walk survives its ultimates), with Mewtwo arriving at once. */
     const finale = (g: Game) => {
       g.player.moves = (['razorLeaf', 'thunder', 'flashCannon', 'swift'] as const).map((id) => ({ id, level: maxMoveLevel(id), cooldown: 0 }))
       g.player.items = ITEM_IDS.slice(0, 3).map((id) => ({ id, level: ITEMS[id].levels.length }))
@@ -637,6 +637,7 @@ describe('replays', () => {
       Object.assign(g.player, { phase: 'playing', pendingLevelUps: 0, offers: [] })
       recomputeStats(g)
       g.player.hp = g.player.stats.maxHp
+      g.player.revives = 3
       spawnWaveBoss(g, 'mewtwo', g.time, true)
     }
     const start: ReplayStart = START

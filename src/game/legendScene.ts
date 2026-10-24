@@ -1,9 +1,10 @@
 import { retain } from '../engine/math'
-import { isWaveLegend, WAVE_LEGEND_HP } from '../data/legendBosses'
+import { isWaveLegend, WAVE_LEGEND_HP, WAVE_LEGEND_SHINY } from '../data/legendBosses'
 import type { EnemyId } from '../data/enemies'
 import { burst, shakeScreen, updateEffects } from './effects'
 import { despawnEnemy } from './enemies'
 import { centerScreen } from './players'
+import { rollShiny } from './shiny'
 import { winRun } from './coop'
 import type { Enemy, Game } from './types'
 
@@ -62,10 +63,11 @@ export const entranceBeat = (t: number) => {
   return { camera: travel * (1 - back), arrive: Math.min(1, Math.max(0, (t - ENTRANCE.settle - ENTRANCE.pan) / ENTRANCE.arrive)) }
 }
 
-/** A wave legendary just came into play: it takes its HP (`WAVE_LEGEND_HP`) and its entrance plays now, or after the one playing. */
+/** A wave legendary just came into play: it takes its HP (`WAVE_LEGEND_HP`), may be shiny (`WAVE_LEGEND_SHINY`) and its entrance plays now, or after the one playing. */
 export const legendEntrance = (g: Game, boss: Enemy) => {
   if (!isWaveLegend(boss.kind)) return
   boss.hp = boss.maxHp = Math.round(boss.maxHp * WAVE_LEGEND_HP)
+  boss.shiny = rollShiny(g.rng, WAVE_LEGEND_SHINY)
   const s = g.legendScene
   if (s) {
     s.next.push(boss.id)
