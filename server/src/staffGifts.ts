@@ -5,23 +5,30 @@ import type { GiftContent } from '../../src/game/gifts'
  * What Discord staff may send players through the bot (`staffDesk.ts`), as
  * pure rules: eggs and ₽ only, never shinies, titles or styles. The server's
  * owner sends any egg with no daily cap. A Dev or Moderator gets a daily
- * allowance per Brasília day. Tune the numbers here.
+ * allowance per Brasília day, unless they're in `trusted`: then they send
+ * what staff can, as much as they like. Tune the numbers here.
  */
 export const STAFF_GIFTS = {
   /** The egg tiers each rank may send. */
-  tiers: { owner: ['common', 'rare', 'ultra'], staff: ['common', 'rare'] },
-  /** A staff member's allowance per Brasília day (the owner has none). */
+  tiers: { owner: ['common', 'rare', 'ultra'], trusted: ['common', 'rare'], staff: ['common', 'rare'] },
+  /** A staff member's allowance per Brasília day (the owner and the trusted have none). */
   perDay: { eggs: 5, coins: 5000 },
   /** The most ₽ one gift carries, per rank: a typo never sends a fortune. */
-  coinsPerGift: { owner: 50_000, staff: 2000 },
+  coinsPerGift: { owner: 50_000, trusted: 2000, staff: 2000 },
+  /** Discord ids of the Devs and Moderators with no daily allowance: LauKhaos. */
+  trusted: ['363965628140224515'],
 } as const satisfies {
   tiers: Record<StaffRank, readonly EggTier[]>
   perDay: { eggs: number; coins: number }
   coinsPerGift: Record<StaffRank, number>
+  trusted: readonly string[]
 }
 
-/** The guild's owner, or a Dev or Moderator. */
-export type StaffRank = 'owner' | 'staff'
+/** The guild's owner, a Dev or Moderator with no daily allowance (`STAFF_GIFTS.trusted`), or any other Dev or Moderator. */
+export type StaffRank = 'owner' | 'trusted' | 'staff'
+
+/** The rank of a Dev or Moderator. */
+export const staffRankOf = (discordId: string): StaffRank => (STAFF_GIFTS.trusted.some((id) => id === discordId) ? 'trusted' : 'staff')
 
 /** A gift staff may send. */
 export type StaffGift = { kind: 'egg'; tier: EggTier } | { kind: 'coins'; amount: number }
@@ -56,6 +63,6 @@ export const giftRefusal = (rank: StaffRank, gift: StaffGift, today: SentToday):
   return rank === 'staff' && today.coins + gift.amount > STAFF_GIFTS.perDay.coins ? 'coins' : null
 }
 
-/** What's left of a staff member's allowance today (the owner's is unlimited: null). */
+/** What's left of a staff member's allowance today (the owner's and the trusted's are unlimited: null). */
 export const allowanceLeft = (rank: StaffRank, today: SentToday): SentToday | null =>
-  rank === 'owner' ? null : { eggs: Math.max(0, STAFF_GIFTS.perDay.eggs - today.eggs), coins: Math.max(0, STAFF_GIFTS.perDay.coins - today.coins) }
+  rank !== 'staff' ? null : { eggs: Math.max(0, STAFF_GIFTS.perDay.eggs - today.eggs), coins: Math.max(0, STAFF_GIFTS.perDay.coins - today.coins) }

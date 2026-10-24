@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { giftRefusal, parseStaffGift, STAFF_GIFTS, tally } from './staffGifts'
+import { giftRefusal, parseStaffGift, STAFF_GIFTS, staffRankOf, tally } from './staffGifts'
 
 describe('giftRefusal', () => {
   const none = { eggs: 0, coins: 0 }
@@ -11,12 +11,17 @@ describe('giftRefusal', () => {
     expect(giftRefusal('owner', { kind: 'egg', tier: 'ultra' }, none)).toBeNull()
   })
 
-  it('holds staff to the daily allowance, never the owner', () => {
+  it('holds staff to the daily allowance, never the owner or the trusted', () => {
     const spent = { eggs: STAFF_GIFTS.perDay.eggs, coins: STAFF_GIFTS.perDay.coins - 100 }
     expect(giftRefusal('staff', { kind: 'egg', tier: 'common' }, spent)).toBe('eggs')
     expect(giftRefusal('staff', { kind: 'coins', amount: 100 }, spent)).toBeNull()
     expect(giftRefusal('staff', { kind: 'coins', amount: 101 }, spent)).toBe('coins')
     expect(giftRefusal('owner', { kind: 'egg', tier: 'common' }, { eggs: 99, coins: 99_999 })).toBeNull()
+    expect(giftRefusal('trusted', { kind: 'egg', tier: 'common' }, { eggs: 99, coins: 99_999 })).toBeNull()
+    expect(giftRefusal('trusted', { kind: 'egg', tier: 'ultra' }, none)).toBe('tier')
+    expect(giftRefusal('trusted', { kind: 'coins', amount: STAFF_GIFTS.coinsPerGift.trusted + 1 }, none)).toBe('amount')
+    expect(staffRankOf(STAFF_GIFTS.trusted[0])).toBe('trusted')
+    expect(staffRankOf('1')).toBe('staff')
   })
 
   it('refuses ₽ amounts that are not positive or past one gift’s cap', () => {

@@ -31,7 +31,7 @@ import { writeIdea, type OpenRouterConfig } from './ideaWriter'
 import type { RankingStore } from './ranking'
 import { agentPrompt, agentSystem, runAgent } from './staffAgent'
 import { parseWho, type StaffDesk } from './staffDesk'
-import type { StaffRank } from './staffGifts'
+import { staffRankOf, type StaffRank } from './staffGifts'
 import type { CoopBeta } from './coopBeta'
 import { messageLink, readTools, staffActions, staffTools, type Outcome, type Staff, type StaffTurn } from './staffTools'
 import type { SuggestionStore } from './suggestions'
@@ -433,7 +433,7 @@ export const startDiscord = (
 
     /** The owner (Pedro), staff (Dev, Moderator), or null for anyone else. */
     const rankOf = (userId: string, roles: readonly string[]): StaffRank | null =>
-      userId === ownerId ? 'owner' : roles.some((r) => staffRoles.has(r)) ? 'staff' : null
+      userId === ownerId ? 'owner' : roles.some((r) => staffRoles.has(r)) ? staffRankOf(userId) : null
 
     const staffOf = async (userId: string, name: string, rank: StaffRank): Promise<Staff> => ({ discordId: userId, name, rank, account: await ideas.accountOf(userId) })
 
