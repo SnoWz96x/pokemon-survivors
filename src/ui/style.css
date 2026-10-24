@@ -3154,6 +3154,30 @@ button {
   image-rendering: pixelated;
 }
 
+/* The official profiles under the buttons: the lobby's way to them on phones held upright. */
+.discord-socials {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.discord-social {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+}
+
+.discord-social img {
+  width: 30px;
+  height: 30px;
+}
+
+.discord-social:hover,
+.discord-social:focus-visible {
+  --frame: #e83838;
+}
+
 .btn.discord-btn {
   display: flex;
   align-items: center;
@@ -4227,75 +4251,278 @@ button {
   padding: 2px 3px;
 }
 
-/* Narrow screens (phones in portrait): one column, the Hoje cards in a row, JOGAR right above a tab bar. */
+/* The side rails' tiles (`railTile`, phones held upright): an icon over a short label, a badge on the corner. They shrink to fit a short screen. */
+.lobby-rail-tile {
+  position: relative;
+  flex: 0 1 60px;
+  min-height: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 4px 2px;
+  font: inherit;
+  color: var(--ink);
+  pointer-events: auto;
+}
+
+.lobby-rail-tile:hover,
+.lobby-rail-tile.selected {
+  --frame: #e83838;
+}
+
+.rail-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 28px;
+}
+
+.rail-icon img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.rail-icon .lobby-walker {
+  margin: -4px 0 0;
+}
+
+.rail-icon .lobby-discord-icon {
+  width: 32px;
+  height: 27px;
+}
+
+.rail-icon .lobby-invites-icon {
+  width: 24px;
+  height: 27px;
+}
+
+.rail-count {
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.rail-label {
+  align-self: stretch;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  font-family: var(--title);
+  font-size: 6px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.lobby-rail-tile > .lobby-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+}
+
+.lobby-rail-tile .rail-days {
+  min-width: 0;
+  padding: 0 3px;
+  font-size: 6px;
+}
+
+.lobby-rail-tile .rail-sparkle {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 12px;
+  height: 12px;
+  animation: blink 1.2s steps(2) infinite;
+}
+
+/* On the left corner: Discord's tile stands on the right rail, by the screen's edge. */
+.lobby-rail-tile .rail-prize {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 22px;
+  height: 22px;
+}
+
+.rail-outbreak .rail-label {
+  color: #c03878;
+}
+
+.rail-challenge .rail-label {
+  color: #3868c0;
+}
+
+.rail-missions .rail-label {
+  color: #389048;
+}
+
+.rail-invites {
+  --frame: #e05888;
+}
+
+.rail-invites .rail-label {
+  color: #c04890;
+}
+
+.rail-discord {
+  --frame: #5865f2;
+}
+
+.rail-discord .rail-label {
+  color: #5865f2;
+}
+
+/* The Hall's tile: the card's gold frame and turning rays, small. */
+.lobby-rail-tile.rail-hall {
+  overflow: hidden;
+  color: #f8d030;
+  background: linear-gradient(160deg, #3a2470, #1c1440 70%);
+  border: 3px solid #f8d030;
+  box-shadow:
+    inset 0 0 0 2px #7a5a10,
+    0 4px 0 rgba(0, 0, 0, 0.35),
+    0 0 12px rgba(248, 208, 48, 0.45);
+}
+
+.lobby-rail-tile.rail-hall:hover,
+.lobby-rail-tile.rail-hall.selected {
+  box-shadow:
+    inset 0 0 0 2px #7a5a10,
+    0 0 0 3px #fff,
+    0 0 16px rgba(248, 208, 48, 0.7);
+}
+
+.lobby-rail-tile.rail-hall.waiting {
+  animation: share-glow 1.4s steps(2, start) infinite;
+}
+
+.rail-hall .rail-icon,
+.rail-hall .rail-label {
+  position: relative;
+}
+
+.rail-hall .rail-label {
+  text-shadow: 1px 1px 0 #4a3008;
+}
+
+/* The night's and the festival's tiles wear their cards' colors. */
+.lobby-rail-tile.rail-halloween {
+  --paper: #2c1440;
+  --frame: #f07818;
+  color: #ffb040;
+}
+
+.lobby-rail-tile.rail-festival {
+  --frame: #f0b020;
+}
+
+.rail-festival .rail-label {
+  color: #c03820;
+}
+
+.lobby-rail-tile .rail-days {
+  color: #2c1440;
+  background: #ffb040;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-rail-tile .rail-sparkle {
+    animation: none;
+  }
+}
+
+/*
+ * Narrow screens (phones held upright): the lobby of a mobile game. The logo
+ * on top, the partner in the middle between two rails of tiles (`railTile`:
+ * Hoje on the left; the gift box, the Hall, Convide amigos, Discord and
+ * Passear on the right), a friend's invite under it, JOGAR right above a tab
+ * bar. Rows are spaced by margins, so an empty invite slot leaves no gap.
+ */
 @media (max-width: 759px) and (min-height: 501px), (max-width: 759px) and (orientation: portrait) {
-  .lobby {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  .lobby.rails {
+    grid-template-columns: 68px minmax(0, 1fr) 68px;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'logo logo logo'
+      'today stage side'
+      'notice notice notice'
+      'bottom bottom bottom';
+    gap: 0 8px;
   }
-  .lobby-rail-label {
-    display: none;
+  .lobby.rails .lobby-logo {
+    margin-bottom: 8px;
   }
-  .lobby-today {
-    flex-direction: row;
-    gap: 6px;
-    padding: 0;
-  }
-  .lobby-card {
-    flex: 1 1 0;
-    gap: 4px;
-    padding: 7px 7px 6px;
-  }
-  .lobby-card-label {
-    font-size: 6px;
-    letter-spacing: 0;
-  }
-  .lobby-card-row {
-    gap: 4px;
-    min-height: 26px;
-  }
-  .lobby-card-row b {
-    font-size: 16px;
-  }
-  .lobby-card.challenge .lobby-card-row b {
-    white-space: normal;
-  }
-  .lobby-walker.shiny,
-  .lobby-card .key-hint {
-    display: none;
-  }
-  .lobby-icon {
-    width: 16px;
-    height: 20px;
-  }
-  .lobby-today,
-  .lobby-side {
+  .lobby.rails .lobby-today,
+  .lobby.rails .lobby-side {
     align-self: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: 0;
+    padding: 4px 0 0;
   }
-  .lobby-side {
-    padding: 0;
-  }
-  .lobby-community {
-    flex-direction: row;
-    gap: 6px;
-  }
-  .lobby-community .lobby-discord-card {
-    flex: 1;
-  }
-  /* Three profile icons leave Discord little room: its "Join the server" breaks onto a second line instead of losing its end. */
-  .lobby-community .lobby-discord-card .lobby-invites-row {
-    white-space: normal;
-  }
-  .lobby-social {
-    flex: none;
-    padding: 6px;
-  }
-  .lobby-social .lobby-invites-text {
+  .lobby.rails .lobby-rail-label {
     display: none;
   }
-  .lobby-stage {
-    flex: 1 1 0;
+  .lobby.rails .lobby-stage {
+    margin-bottom: 8px;
+  }
+  .lobby-notice {
+    grid-area: notice;
+    display: flex;
+    justify-content: center;
+  }
+  .lobby-notice:not(:empty) {
+    margin-bottom: 8px;
+  }
+  /* The gift box and Passear join the right rail as tiles of their own. */
+  .lobby.rails .lobby-gift,
+  .lobby.rails .lobby-explore {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    transform: none;
+    flex: 0 1 60px;
+    min-height: 46px;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 2px;
+  }
+  .lobby.rails .lobby-gift-box {
+    width: 30px;
+    height: 28px;
+  }
+  .lobby.rails .lobby-gift b,
+  .lobby.rails .lobby-explore b {
+    font-size: 6px;
+  }
+  .lobby.rails .lobby-gift .lobby-badge {
+    top: -7px;
+    right: -7px;
+  }
+  .lobby.rails .lobby-gift-sparkle {
+    width: 12px;
+    height: 12px;
+  }
+  .lobby.rails .lobby-explore img {
+    width: 24px;
+    height: 24px;
+  }
+  /* Between the rails, the name plate puts Trocar under the name when both don't fit. */
+  .lobby.rails .lobby-plate {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 2px;
+    max-width: 100%;
+  }
+  /* The stroll hint wraps over the partner instead of running under the rails. */
+  .lobby.rails .lobby-stroll-hint {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
   }
   .lobby-bottom {
     display: grid;
@@ -4356,7 +4583,7 @@ button {
   }
 }
 
-/* The Hall da Fama as a strip (narrow screens and landscape): title and ticker on the left, the faces on the right. */
+/* The Hall da Fama as a strip (phones in landscape; upright ones show it as a rail tile): title and ticker on the left, the faces on the right. The dock's tiles keep their order on every phone. */
 @media (max-width: 759px), (max-height: 500px) and (orientation: landscape) {
   .lobby-hall {
     display: grid;
@@ -6404,35 +6631,6 @@ button {
   background: repeating-linear-gradient(90deg, #f8c838 0 6px, #f0b020 6px 8px);
 }
 
-/* Phones held upright: like the Noite das Bruxas' card, a row of its own above the day's three. */
-@media (max-width: 759px) and (min-height: 501px), (max-width: 759px) and (orientation: portrait) {
-  .lobby-today:has(.lobby-card.festival) {
-    flex-wrap: wrap;
-  }
-  .lobby-card.festival {
-    flex: 1 1 100%;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-  }
-  .lobby-card.festival .lobby-card-label {
-    flex: none;
-    gap: 8px;
-  }
-  .lobby-card.festival .lobby-card-row {
-    flex: 1 1 auto;
-    justify-content: flex-end;
-    min-height: 0;
-  }
-  .lobby-card.festival .lobby-progress {
-    flex: 0 1 110px;
-  }
-  .lobby-lantern {
-    width: 22px;
-    height: 22px;
-  }
-}
 
 /* ---------- Small screens ---------- */
 
@@ -15455,35 +15653,6 @@ button.hall-tile:hover {
   line-height: 1;
 }
 
-/* Phones held upright: the night's card takes a row of its own above the day's three. */
-@media (max-width: 759px) and (min-height: 501px), (max-width: 759px) and (orientation: portrait) {
-  .lobby-today {
-    flex-wrap: wrap;
-  }
-  .lobby-card.halloween {
-    flex: 1 1 100%;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-  }
-  .lobby-card.halloween .lobby-card-label {
-    flex: none;
-    gap: 8px;
-  }
-  .lobby-card.halloween .lobby-card-row {
-    flex: 1 1 auto;
-    justify-content: flex-end;
-    min-height: 0;
-  }
-  .lobby-card.halloween .lobby-progress {
-    flex: 0 1 110px;
-  }
-  .lobby-jack {
-    width: 22px;
-    height: 22px;
-  }
-}
 
 /*
  * The grid shelves snap whole rows to the top as they scroll (and as the

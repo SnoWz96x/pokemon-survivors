@@ -51,6 +51,17 @@ export const zh: Messages = {
     ranking: '排行榜',
     ideas: '點子',
     support: '贊助這個專案',
+    rail: {
+      halloween: '女巫',
+      festival: '祭典',
+      outbreak: '大量出現',
+      challenge: '挑戰',
+      missions: '任務',
+      hall: '名人堂',
+      invites: '邀請',
+      discord: 'Discord',
+      days: (n) => `${n}天`,
+    },
   },
 
   shell: {

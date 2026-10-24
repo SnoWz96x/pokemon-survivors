@@ -29,15 +29,15 @@ import { fetchWall } from '../supporters'
 import { h, later, rich } from './dom'
 import { boundKey } from './inputLabels'
 import { challengeToday, halloweenToday, loadAttempt, loadSave, outbreakToday, today } from './save'
-import { festivalCard, festivalCardShows, type FestivalTab } from './festival'
-import { halloweenCard, halloweenCardShows } from './halloween'
+import { festivalCard, festivalCardShows, festivalTile, type FestivalTab } from './festival'
+import { halloweenCard, halloweenCardShows, halloweenTile } from './halloween'
 import { contentLine } from './gifts'
 import { countedFriends, loadInvites } from './invites'
 import { isUnread, latestUpdate } from './news'
 import { hallFace, hallPortrait } from './supporters'
 import { surveyWaiting, takeSurveyOffer } from './survey'
 import type { Screen } from './screens'
-import { gearButton, helpButton, iconButton, shellBody, topBar, walletChip } from './shell'
+import { gearButton, helpButton, iconButton, railTile, shellBody, topBar, walletChip } from './shell'
 import { nearestInDirection, type Direction } from './spatial'
 import { toast } from './toasts'
 import { trainerChip } from './trainer'
@@ -158,7 +158,8 @@ export type TitleActions = {
 /**
  * The lobby's three layouts, in sync with the media queries of the lobby's
  * section in `style.css`: phones in landscape (two columns), narrow screens
- * (a column with a tab bar) and the rest (rails either side of the partner).
+ * (rails of tiles either side of the partner, over a tab bar) and the rest
+ * (rails of cards either side of the partner).
  */
 const LANDSCAPE = '(max-height: 500px) and (orientation: landscape)'
 const NARROW = '(max-width: 759px) and (min-height: 501px), (max-width: 759px) and (orientation: portrait)'
@@ -204,13 +205,12 @@ const todayCard = (key: LobbyFocus, label: string, badge: Node | null, hotkey: s
 /** A red count, or a green ✓ when nothing's left. */
 const badge = (n: number) => (n > 0 ? h('em', { class: 'lobby-badge' }, formatNumber(n)) : h('em', { class: 'lobby-badge done' }, '✓'))
 
-/** Surto do dia: the day's species walking, normal and shiny. `tick` animates them. */
-const outbreakCard = () => {
+/** The day's outbreak species walking on canvases (`shiny`: its shiny form beside it), which `tick` animates. */
+const outbreakWalkers = (shiny: boolean) => {
   const def = ENEMIES[outbreakToday()]
-  const sprite = (shiny: boolean) => h('canvas', { class: shiny ? 'lobby-walker shiny' : 'lobby-walker', width: 30, height: 32, 'aria-hidden': 'true' })
-  const walkers = [sprite(false), sprite(true)] as const
-  void Promise.allSettled([loadSpecies(def.dex), loadSpecies(def.dex, true)])
-  const el = todayCard('outbreak', t().home.outbreak, null, null, ...walkers, h('b', {}, def.name), h('img', { class: 'lobby-sparkle', src: sparkleIcon(), alt: '' }))
+  const sprite = (form: boolean) => h('canvas', { class: form ? 'lobby-walker shiny' : 'lobby-walker', width: 30, height: 32, 'aria-hidden': 'true' })
+  const walkers = shiny ? [sprite(false), sprite(true)] : [sprite(false)]
+  void Promise.allSettled([loadSpecies(def.dex), ...(shiny ? [loadSpecies(def.dex, true)] : [])])
   const tick = (time: number) => {
     const k = Math.max(1, Math.round(uiDpr() * (layout() === 'wide' ? 1.5 : 1)))
     walkers.forEach((canvas, i) => {
@@ -221,15 +221,35 @@ const outbreakCard = () => {
       if (s) drawPokemon(ctx, s, 'Walk', 0, time + i * 0.3, canvas.width / 2, canvas.height - 2)
     })
   }
+  return { def, walkers, tick }
+}
+
+/** Surto do dia: the day's species walking, normal and shiny. `tick` animates them. */
+const outbreakCard = () => {
+  const { def, walkers, tick } = outbreakWalkers(true)
+  const el = todayCard('outbreak', t().home.outbreak, null, null, ...walkers, h('b', {}, def.name), h('img', { class: 'lobby-sparkle', src: sparkleIcon(), alt: '' }))
   return { el, tick }
+}
+
+/** Surto do dia as a rail tile: the species walking, a sparkle on its corner for the shiny it may bring. */
+const outbreakTile = () => {
+  const m = t().home
+  const { def, walkers, tick } = outbreakWalkers(false)
+  const el = railTile('outbreak', walkers[0]!, m.rail.outbreak, `${m.outbreak}: ${def.name}`, h('img', { class: 'rail-sparkle', src: sparkleIcon(), alt: '' }))
+  return { el, tick }
+}
+
+/** Today's Desafio do dia, and this device's official attempt at it once made. */
+const challengeState = () => {
+  const c = challengeToday()
+  const attempt = loadAttempt()
+  return { c, done: attempt?.day === c.day ? attempt : null }
 }
 
 /** Desafio do dia: today's attempt time once made (with the ribbon it plays for), else the day's Pokémon and a "!". */
 const challengeCard = () => {
   const m = t().home
-  const c = challengeToday()
-  const attempt = loadAttempt()
-  const done = attempt?.day === c.day ? attempt : null
+  const { c, done } = challengeState()
   const el = todayCard(
     'challenge',
     m.challenge,
@@ -242,22 +262,47 @@ const challengeCard = () => {
   return el
 }
 
+/** Desafio do dia as a rail tile: the ribbon, with a "!" until today's attempt is made (a ✓ after). */
+const challengeTile = () => {
+  const m = t().home
+  const { done } = challengeState()
+  return railTile(
+    'challenge',
+    h('img', { class: 'lobby-icon', src: ribbonIcon('gold'), alt: '' }),
+    m.rail.challenge,
+    `${m.challenge}: ${done ? m.challengeDone(formatTime(done.time)) : m.challengeOpen}`,
+    done ? badge(0) : h('em', { class: 'lobby-badge' }, '!'),
+  )
+}
+
+/** Today's daily missions: how many are done, out of how many. */
+const dailyMissions = () => {
+  const daily = missionStatus(loadSave().missions, today()).filter((s) => s.period === 'daily')
+  const done = daily.filter((s) => s.done).length
+  return { done, total: daily.length, left: daily.length - done }
+}
+
 /** Missões: today's missions done out of all, with a badge of those left. */
 const missionsCard = () => {
   const m = t().home
-  const daily = missionStatus(loadSave().missions, today()).filter((s) => s.period === 'daily')
-  const done = daily.filter((s) => s.done).length
-  const left = daily.length - done
+  const { done, total, left } = dailyMissions()
   const el = todayCard(
     'missions',
     m.missions,
     badge(left),
     'M',
-    h('span', { class: 'lobby-progress' }, h('span', { style: `width:${daily.length ? Math.round((done / daily.length) * 100) : 0}%` })),
-    h('b', {}, `${done}/${daily.length}`),
+    h('span', { class: 'lobby-progress' }, h('span', { style: `width:${total ? Math.round((done / total) * 100) : 0}%` })),
+    h('b', {}, `${done}/${total}`),
   )
   el.setAttribute('aria-label', `${m.missions}: ${m.missionsLeft(left)}`)
   return el
+}
+
+/** Missões as a rail tile: done out of all over the label, with a badge of those left. */
+const missionsTile = () => {
+  const m = t().home
+  const { done, total, left } = dailyMissions()
+  return railTile('missions', h('b', { class: 'rail-count' }, `${done}/${total}`), m.rail.missions, `${m.missions}: ${m.missionsLeft(left)}`, badge(left))
 }
 
 /* ---------------- Novidades ---------------- */
@@ -326,6 +371,23 @@ const discordCard = () => {
     if (!linked && accountsEnabled) el.append(prize)
     else prize.remove()
     el.setAttribute('aria-label', `${m.title}: ${text}`)
+  })
+  return el
+}
+
+/** Discord as a rail tile: a green ✓ once linked, or, while linking can bring it, the gift it brings bobbing on its corner. */
+const discordTile = () => {
+  const m = t().discord
+  const done = h('em', { class: 'lobby-badge done' }, '✓')
+  const prize = h('img', { class: 'lobby-invites-prize rail-prize', src: contentLine({ content: DISCORD_GIFT }).src, alt: '' })
+  const el = railTile('discord', h('img', { class: 'lobby-discord-icon', src: discordIcon(), alt: '' }), t().home.rail.discord, m.title)
+  followAccount(el, (s) => {
+    const linked = s.kind === 'signedIn' && s.discord
+    done.remove()
+    prize.remove()
+    if (linked) el.append(done)
+    else if (accountsEnabled) el.append(prize)
+    el.setAttribute('aria-label', `${m.title}: ${linked ? `✓ @${s.discord}` : accountsEnabled ? m.cardGift(HATCHLINGS[DISCORD_GIFT.family].name) : m.join}`)
   })
   return el
 }
@@ -441,6 +503,18 @@ const hallCard = (open: () => void) => {
   return el
 }
 
+/** The Hall da Fama as a rail tile: gold, its rays turning, sparkling while a shiny ticket waits. Without accounts it opens the support page. */
+const hallTile = (open: () => void) => {
+  const m = t().home
+  const waiting = accountsEnabled && pendingPicks(loadSave()).length > 0
+  const el = railTile('hall', h('img', { src: supporterIcon('gold'), alt: '' }), m.rail.hall, waiting ? `${m.hall} · ${t().supporters.banner}` : m.hall)
+  el.prepend(h('span', { class: 'hall-rays', 'aria-hidden': 'true' }))
+  if (waiting) el.append(h('img', { class: 'rail-sparkle', src: sparkleIcon(), alt: '' }))
+  el.classList.toggle('waiting', waiting)
+  el.addEventListener('click', accountsEnabled ? open : () => (playSfx('select'), window.open(ROUTES.support[locale()], '_blank', 'noopener')))
+  return el
+}
+
 /**
  * "<Name> te convidou!": a guest who came by a friend's link sees who and
  * what signing up brings (a Friendship Egg each). It shows once the
@@ -486,6 +560,19 @@ const invitesCard = () => {
     el.setAttribute('aria-label', `${m.title}: ${text}`)
     if (next) prize.src = contentLine({ content: next.gifts[0] }).src
     else prize.remove()
+  })
+  return el
+}
+
+/** Convide amigos as a rail tile: the Friendship Egg, and in full for screen readers how far the next milestone is. */
+const invitesTile = () => {
+  const m = t().invites
+  const el = railTile('invites', h('img', { class: 'lobby-invites-icon', src: eggIcon('friend'), alt: '' }), t().home.rail.invites, `${m.title}: ${m.cardFirst}`)
+  void loadInvites().then((list) => {
+    const friends = countedFriends(list)
+    if (friends === 0) return
+    const next = nextMilestone(friends)
+    el.setAttribute('aria-label', `${m.title}: ${next ? m.cardNext(friends, next.friends) : m.cardAll(friends)}`)
   })
   return el
 }
@@ -645,7 +732,9 @@ export type ShopTrip = 'shop' | 'festival' | 'plaque' | 'look'
  * start", then the lobby. The top bar holds the Trainer chip, the wallet,
  * the survey while it waits for an answer (it opens by itself once), Novidades, `?` (how to play) and the gear. Hoje has the day's cards (Surto, Desafio,
  * Missões), the Hall da Fama card sits beside them (Convide amigos, Discord and the official profiles
- * under it; on landscape phones Discord and the profiles move to the top bar), the saved partner stands
+ * under it; on landscape phones Discord and the profiles move to the top bar; on phones held upright
+ * every card shrinks to a tile on the side rails, the gift box and Passear join them and the profiles
+ * move to the Discord screen), the saved partner stands
  * in the middle, and JOGAR goes with the collection dock (Pokédex, Ovos,
  * Loja, Ranking, Ideias, and Co-op where the beta lets it in). Arrows move between all of them by where they are on
  * screen; Enter presses the highlighted one, JOGAR at first. The movement
@@ -839,22 +928,30 @@ export const titleScreen = (
     bar.replaceWith(nextBar)
     bar = nextBar
 
-    const outbreak = outbreakCard()
+    // Phones held upright get rails: each card shrinks to a tile at the edges, so the partner keeps the middle.
+    const rails = layout() === 'narrow'
+    const outbreak = rails ? outbreakTile() : outbreakCard()
     const was = stage?.partner
     stage = partnerStage(press('play'))
-    stage.el.append(pressable(exploreButton(), 'explore'), pressable(giftButton(), 'gifts'))
+    const explore = pressable(exploreButton(), 'explore')
+    const gift = pressable(giftButton(), 'gifts')
+    if (!rails) stage.el.append(explore, gift)
     // Rebuilt with the same partner (`refresh`), a walk it's taking goes on and this lobby keeps its `leave`.
     if (!leave || was?.dex !== stage.partner.dex || was.shiny !== stage.partner.shiny) leave = actions.meadow.meet(stage.partner)
     tickers = [outbreak.tick, stage.tick]
-    const hall = navigable(hallCard(() => (select('hall', false), playSfx('select'), lobbyPress('hall'), later(() => openOver((focus) => actions.supporters(focus, 'pick'))))), 'hall')
-    const side = h(
-      'div',
-      { class: 'lobby-side' },
-      hall,
-      ...(accountsEnabled ? [pressable(invitesCard(), 'friends')] : []),
-      ...(landscape ? [] : [h('div', { class: 'lobby-community' }, pressable(discordCard(), 'discord'), ...SOCIAL_IDS.map((id) => pressable(socialCard(id), id)))]),
-    )
-    inviteBanner(side, press('invite'), (banner) => navigable(banner, 'invite'))
+    const openHall = () => (select('hall', false), playSfx('select'), lobbyPress('hall'), later(() => openOver((focus) => actions.supporters(focus, 'pick'))))
+    const hall = navigable(rails ? hallTile(openHall) : hallCard(openHall), 'hall')
+    const invites = accountsEnabled ? [pressable(rails ? invitesTile() : invitesCard(), 'friends')] : []
+    // On the rails the profiles leave the lobby for the Discord screen (and Ajustes → Sobre); landscape phones hold them in the top bar.
+    const community = rails
+      ? [pressable(discordTile(), 'discord')]
+      : landscape
+        ? []
+        : [h('div', { class: 'lobby-community' }, pressable(discordCard(), 'discord'), ...SOCIAL_IDS.map((id) => pressable(socialCard(id), id)))]
+    const side = h('div', { class: 'lobby-side' }, ...(rails ? [gift] : []), hall, ...invites, ...community, ...(rails ? [explore] : []))
+    // A friend's invite needs the room of a banner: under the partner on the rails, under the Hall elsewhere.
+    const notice = rails ? h('div', { class: 'lobby-notice' }) : side
+    inviteBanner(notice, press('invite'), (banner) => navigable(banner, 'invite'))
 
     const ready = save.eggs.filter(isReady).length
     const tiles = [
@@ -881,13 +978,24 @@ export const titleScreen = (
       'section',
       { class: 'lobby-today', 'aria-label': m.today },
       h('h2', { class: 'lobby-rail-label' }, m.today),
-      ...(halloweenCardShows() ? [pressable(halloweenCard(), 'halloween')] : []),
-      ...(festivalCardShows() ? [pressable(festivalCard(), 'festival')] : []),
+      ...(halloweenCardShows() ? [pressable(rails ? halloweenTile() : halloweenCard(), 'halloween')] : []),
+      ...(festivalCardShows() ? [pressable(rails ? festivalTile() : festivalCard(), 'festival')] : []),
       pressable(outbreak.el, 'outbreak'),
-      pressable(challengeCard(), 'challenge'),
-      pressable(missionsCard(), 'missions'),
+      pressable(rails ? challengeTile() : challengeCard(), 'challenge'),
+      pressable(rails ? missionsTile() : missionsCard(), 'missions'),
     )
-    const next = h('div', { class: tiles.length > 5 ? 'lobby dock6' : 'lobby' }, h('h1', { class: 'sr-only' }, 'Pokémon Survivors'), h('div', { class: 'lobby-logo' }, logo), todayEl, side, stage.el, bottom)
+    const kind = ['lobby', rails ? 'rails' : '', tiles.length > 5 ? 'dock6' : ''].join(' ').trim()
+    const next = h(
+      'div',
+      { class: kind },
+      h('h1', { class: 'sr-only' }, 'Pokémon Survivors'),
+      h('div', { class: 'lobby-logo' }, logo),
+      todayEl,
+      side,
+      stage.el,
+      rails && notice,
+      bottom,
+    )
     ;(lobby ?? intro).replaceWith(next)
     lobby = next
     if (logo.width > 1) fitLogo(logo, false)
@@ -1158,6 +1266,10 @@ export const titleScreen = (
     buildLobby()
   }
   const offSynced = onSaveSynced(refresh)
+  // Each layout builds its own lobby (rails, cards, profiles in the top bar): a rotation or a resized window that switches it rebuilds.
+  const layouts = [LANDSCAPE, NARROW].map((q) => matchMedia(q))
+  for (const q of layouts) q.addEventListener('change', refresh)
+  const offLayouts = () => layouts.forEach((q) => q.removeEventListener('change', refresh))
 
   if (opts.intro) {
     // Any key, pad button or tap. `later` keeps that same press from also pressing JOGAR.
@@ -1190,6 +1302,6 @@ export const titleScreen = (
       for (const tick of tickers) tick(time)
       if (logo.width > 1) fitLogo(logo, lobby === null)
     },
-    dispose: () => (overScreen?.dispose(), chat?.dispose(), offIntro?.(), offKeys?.(), closeChip?.(), offSynced(), offPointers(), leaveMeadow(), el.remove()),
+    dispose: () => (overScreen?.dispose(), chat?.dispose(), offIntro?.(), offKeys?.(), closeChip?.(), offSynced(), offLayouts(), offPointers(), leaveMeadow(), el.remove()),
   }
 }

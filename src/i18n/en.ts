@@ -51,6 +51,17 @@ export const en: Messages = {
     ranking: 'Ranking',
     ideas: 'Ideas',
     support: 'Support the project',
+    rail: {
+      halloween: 'Halloween',
+      festival: 'Festival',
+      outbreak: 'Outbreak',
+      challenge: 'Challenge',
+      missions: 'Missions',
+      hall: 'Hall',
+      invites: 'Invite',
+      discord: 'Discord',
+      days: (n) => `${n}d`,
+    },
   },
 
   shell: {

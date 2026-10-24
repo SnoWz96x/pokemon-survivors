@@ -24,6 +24,36 @@ export type ChangelogUpdate = {
  */
 export const CHANGELOG: readonly ChangelogUpdate[] = [
   {
+    date: '2026-10-24',
+    title: { pt: 'Um lobby novo no celular', en: 'A new lobby on phones', es: 'Un lobby nuevo en el celular', fr: 'Un nouveau lobby sur mobile', zh: '手機上的全新大廳' },
+    highlights: [
+      { pt: 'No celular em pé, o lobby ficou mais limpo: seu Pokémon parceiro volta para o centro da tela, com o JOGAR logo abaixo.', en: 'On a phone held upright, the lobby is cleaner: your partner Pokémon is back in the middle of the screen, with PLAY right under it.', es: 'En el celular en vertical, el lobby quedó más limpio: tu Pokémon compañero vuelve al centro de la pantalla, con JUGAR justo debajo.', fr: 'Sur un téléphone tenu droit, le lobby est plus clair : ton Pokémon partenaire revient au centre de l’écran, avec JOUER juste en dessous.', zh: '直拿手機時，大廳變得更清爽了：你的夥伴寶可夢回到畫面中央，下方就是開始遊戲。' },
+      { pt: 'O evento, o Surto, o Desafio e as Missões viraram ícones à esquerda; o Presente, o Hall da Fama, Convidar, o Discord e Passear, à direita. Os selos mostram o que está esperando por você.', en: 'The event, the Outbreak, the Challenge and Missions are now icons on the left; the Gift, the Hall of Fame, Invite, Discord and Explore are on the right. Badges show what’s waiting for you.', es: 'El evento, la Horda, el Desafío y las Misiones ahora son íconos a la izquierda; el Regalo, el Salón de la Fama, Invitar, Discord y Pasear, a la derecha. Las insignias muestran lo que te espera.', fr: 'L’événement, l’Essaim, le Défi et les Missions sont maintenant des icônes à gauche ; le Cadeau, le Panthéon, Inviter, Discord et Se promener sont à droite. Les pastilles montrent ce qui t’attend.', zh: '活動、大量出現、挑戰和任務變成左側的圖示；禮物、名人堂、邀請、Discord 和散步在右側。小標記會告訴你有什麼在等你。' },
+      { pt: 'TikTok, YouTube e Instagram agora ficam na janela do Discord (e em Ajustes → Sobre).', en: 'TikTok, YouTube and Instagram now live in the Discord window (and in Settings → About).', es: 'TikTok, YouTube e Instagram ahora están en la ventana de Discord (y en Ajustes → Acerca de).', fr: 'TikTok, YouTube et Instagram sont maintenant dans la fenêtre Discord (et dans Réglages → À propos).', zh: 'TikTok、YouTube 和 Instagram 現在放在 Discord 視窗裡（以及設定 → 關於）。' },
+    ],
+    changes: [
+      {
+        title: { pt: 'Lobby no celular', en: 'Lobby on phones', es: 'Lobby en el celular', fr: 'Lobby sur mobile', zh: '手機大廳' },
+        notes: [
+          {
+            pt: 'No celular em pé, cada card do lobby virou um ícone com um nome curto nas laterais da tela, e o seu Pokémon parceiro ganhou o espaço do meio de volta (antes ele ficava escondido atrás do JOGAR). Toque num ícone para abrir o que ele mostra, como antes; o PC e as telas grandes continuam iguais.',
+            en: 'On a phone held upright, each lobby card became an icon with a short name along the sides of the screen, and your partner Pokémon got the middle back (it used to hide behind PLAY). Tap an icon to open what it shows, as before; computers and big screens stay the same.',
+            es: 'En el celular en vertical, cada tarjeta del lobby se convirtió en un ícono con un nombre corto a los lados de la pantalla, y tu Pokémon compañero recuperó el centro (antes quedaba escondido detrás de JUGAR). Toca un ícono para abrir lo que muestra, como antes; la computadora y las pantallas grandes siguen iguales.',
+            fr: 'Sur un téléphone tenu droit, chaque carte du lobby est devenue une icône avec un nom court sur les côtés de l’écran, et ton Pokémon partenaire a retrouvé le centre (avant, il se cachait derrière JOUER). Touche une icône pour ouvrir ce qu’elle montre, comme avant ; l’ordinateur et les grands écrans ne changent pas.',
+            zh: '直拿手機時，大廳的每張卡片都變成畫面兩側附短名稱的圖示，你的夥伴寶可夢也重新回到中央（以前會被開始遊戲按鈕擋住）。點圖示就能打開它的內容，和以前一樣；電腦和大螢幕維持不變。',
+          },
+          {
+            pt: 'Girar o celular troca o lobby para o jeito certo na hora, sem precisar recarregar.',
+            en: 'Turning your phone switches the lobby to the right layout at once, no reload needed.',
+            es: 'Girar el celular cambia el lobby al diseño correcto al instante, sin recargar.',
+            fr: 'Tourner ton téléphone passe le lobby à la bonne disposition tout de suite, sans recharger.',
+            zh: '旋轉手機時，大廳會立刻切換成正確的版面，不必重新整理。',
+          },
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-10-23',
     title: { pt: 'Francês, chinês, golpes transparentes e uma página para cada Pokémon', en: 'French, Chinese, see-through moves and a page for every Pokémon', es: 'Francés, chino, ataques transparentes y una página para cada Pokémon', fr: 'Français, chinois, attaques transparentes et une page pour chaque Pokémon', zh: '法文、繁體中文、半透明招式，還有每隻寶可夢的專屬頁面' },
     highlights: [

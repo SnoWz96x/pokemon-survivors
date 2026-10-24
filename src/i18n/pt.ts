@@ -128,6 +128,18 @@ export const pt = {
     ideas: 'Ideias',
     /** Support chip (donations page), and the Hall da Fama card before it has names. */
     support: 'Apoie o projeto',
+    /** Phones held upright: the lobby's side rails, an icon over a short label (Press Start 2P at 6 px: keep them to about 9 letters), and the days an event has left on its corner. */
+    rail: {
+      halloween: 'Bruxas',
+      festival: 'Festival',
+      outbreak: 'Surto',
+      challenge: 'Desafio',
+      missions: 'Missões',
+      hall: 'Hall',
+      invites: 'Convidar',
+      discord: 'Discord',
+      days: (n: number) => `${n}d`,
+    },
   },
 
   /** The menus' top bar (`ui/shell.ts`). Press Start 2P has no uppercase accented glyphs: titles stay unaccented or mixed case. */
