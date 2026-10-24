@@ -1555,8 +1555,17 @@ const plazaInView = (plaza: Plaza, layout: Layout, camX: number, camY: number, w
   return layout.pieces.some((b) => b.right > left && b.left < right && b.bottom > top && b.top < bottom)
 }
 
-/** Where an edge marker for the view point `target` stands (its card's middle) and which way its arrow points. */
-const edgeSpot = (target: Vec, w: number, h: number, bob: number) => {
+/** A box on screen, view px. */
+export type ViewBox = { left: number; top: number; right: number; bottom: number }
+
+/**
+ * Where an edge marker for the view point `target` stands (its card's middle)
+ * and which way its arrow points. `inside` (a phone's lobby, its cards up) is
+ * the open meadow around the partner: the view's edges are under the cards
+ * there, so the marker sits at that box's lower corner on the target's side,
+ * where it shows whole and takes taps.
+ */
+const edgeSpot = (target: Vec, w: number, h: number, bob: number, inside: ViewBox | null) => {
   const cx = w / 2
   const cy = h / 2
   const dx = target.x - cx
@@ -1565,10 +1574,13 @@ const edgeSpot = (target: Vec, w: number, h: number, bob: number) => {
   const ex = w / 2 - 20
   const ey = h / 2 - 17
   const t = Math.min(ex / Math.max(1e-6, Math.abs(dx)), ey / Math.max(1e-6, Math.abs(dy)))
-  const sideways = Math.abs(dx) * ey >= Math.abs(dy) * ex
+  const sideways = inside !== null || Math.abs(dx) * ey >= Math.abs(dy) * ex
+  const edge = inside
+    ? { x: clamp(dx >= 0 ? inside.right - 18 : inside.left + 18, 18, w - 18), y: clamp(inside.bottom - 11, 11, h - 11) }
+    : { x: clamp(cx + dx * t, 20, w - 20), y: clamp(cy + dy * t, h * 0.16, h * 0.84) }
   return {
-    x: Math.round(clamp(cx + dx * t, 20, w - 20)) + (sideways ? Math.sign(dx) * bob : 0),
-    y: Math.round(clamp(cy + dy * t, h * 0.16, h * 0.84)) + (sideways ? 0 : Math.sign(dy) * bob),
+    x: Math.round(edge.x) + (sideways ? Math.sign(dx) * bob : 0),
+    y: Math.round(edge.y) + (sideways ? 0 : Math.sign(dy) * bob),
     dir: sideways ? { x: Math.sign(dx), y: 0 } : { x: 0, y: Math.sign(dy) },
   }
 }
@@ -1621,15 +1633,15 @@ const besideMarker = (a: EdgeSpot, b: EdgeSpot, w: number, h: number): EdgeSpot 
  * (Kecleon's head) and at a seasonal stall (its keeper's) while no piece of
  * the plaza (the building, a visitor, the festival's pieces) is on screen.
  * They remember where they were drawn (`plaza.markers`) so a tap on one can
- * lead there.
+ * lead there. On a phone's lobby they keep to `inside` (see `edgeSpot`).
  */
-export const drawPlazaMarker = (ctx: CanvasRenderingContext2D, plaza: Plaza, camX: number, camY: number, w: number, h: number, time: number, show: boolean) => {
+export const drawPlazaMarker = (ctx: CanvasRenderingContext2D, plaza: Plaza, camX: number, camY: number, w: number, h: number, time: number, show: boolean, inside: ViewBox | null) => {
   plaza.markers.keeper.shown = false
   plaza.markers.stall.shown = false
   const layout = plazaLayout(plaza)
   if (!show || !layout || plazaInView(plaza, layout, camX, camY, w, h)) return
   const bob = Math.floor(time * 3) % 2
-  const shop = edgeSpot({ x: plaza.x - camX, y: plaza.y - 30 - camY }, w, h, bob)
+  const shop = edgeSpot({ x: plaza.x - camX, y: plaza.y - 30 - camY }, w, h, bob, inside)
   const stallId = plaza.visitors.stall
   if (stallId) {
     const { dex } = STALLS[stallId]
@@ -1639,7 +1651,7 @@ export const drawPlazaMarker = (ctx: CanvasRenderingContext2D, plaza: Plaza, cam
     }
     const box = markerCard(dex, STALL_MARKERS[stallId])
     if (box) {
-      const at = besideMarker(shop, edgeSpot({ x: plaza.x + layout.stall.x - camX, y: plaza.y + layout.stall.y - 30 - camY }, w, h, bob), w, h)
+      const at = besideMarker(shop, edgeSpot({ x: plaza.x + layout.stall.x - camX, y: plaza.y + layout.stall.y - 30 - camY }, w, h, bob, inside), w, h)
       drawMarker(ctx, box, at, STALL_MARKERS[stallId].arrow)
       Object.assign(plaza.markers.stall, { x: at.x + camX, y: at.y + camY, shown: true })
     }
