@@ -29,6 +29,7 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
     highlights: [
       { pt: 'No celular em pé, o lobby ficou mais limpo: seu Pokémon parceiro volta para o centro da tela, com o JOGAR logo abaixo.', en: 'On a phone held upright, the lobby is cleaner: your partner Pokémon is back in the middle of the screen, with PLAY right under it.', es: 'En el celular en vertical, el lobby quedó más limpio: tu Pokémon compañero vuelve al centro de la pantalla, con JUGAR justo debajo.', fr: 'Sur un téléphone tenu droit, le lobby est plus clair : ton Pokémon partenaire revient au centre de l’écran, avec JOUER juste en dessous.', zh: '直拿手機時，大廳變得更清爽了：你的夥伴寶可夢回到畫面中央，下方就是開始遊戲。' },
       { pt: 'O evento, o Surto, o Desafio e as Missões viraram ícones à esquerda; o Presente, o Hall da Fama, Convidar, o Discord e Passear, à direita. Os selos mostram o que está esperando por você.', en: 'The event, the Outbreak, the Challenge and Missions are now icons on the left; the Gift, the Hall of Fame, Invite, Discord and Explore are on the right. Badges show what’s waiting for you.', es: 'El evento, la Horda, el Desafío y las Misiones ahora son íconos a la izquierda; el Regalo, el Salón de la Fama, Invitar, Discord y Pasear, a la derecha. Las insignias muestran lo que te espera.', fr: 'L’événement, l’Essaim, le Défi et les Missions sont maintenant des icônes à gauche ; le Cadeau, le Panthéon, Inviter, Discord et Se promener sont à droite. Les pastilles montrent ce qui t’attend.', zh: '活動、大量出現、挑戰和任務變成左側的圖示；禮物、名人堂、邀請、Discord 和散步在右側。小標記會告訴你有什麼在等你。' },
+      { pt: 'Partidas longas no modo infinito voltam a contar no ranking, mesmo passando do nível 999 ou se o jogo fechar no meio.', en: 'Long endless runs count on the ranking again, even past level 999 or if the game closes midway.', es: 'Las partidas largas en el modo infinito vuelven a contar en el ranking, aunque pasen del nivel 999 o el juego se cierre a mitad.', fr: 'Les longues parties en mode infini comptent de nouveau au classement, même au-delà du niveau 999 ou si le jeu se ferme en cours de route.', zh: '無盡模式的長時間對局重新計入排行榜，即使超過 999 級或遊戲中途關閉也一樣。' },
       { pt: 'TikTok, YouTube e Instagram agora ficam na janela do Discord (e em Ajustes → Sobre).', en: 'TikTok, YouTube and Instagram now live in the Discord window (and in Settings → About).', es: 'TikTok, YouTube e Instagram ahora están en la ventana de Discord (y en Ajustes → Acerca de).', fr: 'TikTok, YouTube et Instagram sont maintenant dans la fenêtre Discord (et dans Réglages → À propos).', zh: 'TikTok、YouTube 和 Instagram 現在放在 Discord 視窗裡（以及設定 → 關於）。' },
     ],
     changes: [
@@ -48,6 +49,25 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
             es: 'Girar el celular cambia el lobby al diseño correcto al instante, sin recargar.',
             fr: 'Tourner ton téléphone passe le lobby à la bonne disposition tout de suite, sans recharger.',
             zh: '旋轉手機時，大廳會立刻切換成正確的版面，不必重新整理。',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Ranking do modo infinito', en: 'Endless mode on the ranking', es: 'Ranking del modo infinito', fr: 'Le mode infini au classement', zh: '無盡模式的排行榜' },
+        notes: [
+          {
+            pt: 'Partidas que passavam do nível 999 no modo infinito eram recusadas pelo ranking e ficavam com o tempo da vitória. Agora contam com o tempo todo.',
+            en: 'Endless runs that went past level 999 were refused by the ranking and kept the victory’s time. They now count with their whole time.',
+            es: 'Las partidas que pasaban del nivel 999 en el modo infinito eran rechazadas por el ranking y se quedaban con el tiempo de la victoria. Ahora cuentan con todo su tiempo.',
+            fr: 'Les parties en mode infini qui dépassaient le niveau 999 étaient refusées par le classement et gardaient le temps de la victoire. Elles comptent maintenant avec tout leur temps.',
+            zh: '無盡模式中超過 999 級的對局會被排行榜拒絕，只留下勝利時的時間。現在會以完整時間計入。',
+          },
+          {
+            pt: 'Se o jogo fechar no meio do modo infinito (um travamento, a aba fechada), o tempo jogado até o último minuto entra no ranking quando você abrir o jogo de novo.',
+            en: 'If the game closes in the middle of endless mode (a crash, a closed tab), the time played up to the last minute goes on the ranking when you open the game again.',
+            es: 'Si el juego se cierra en medio del modo infinito (un cuelgue, la pestaña cerrada), el tiempo jugado hasta el último minuto entra en el ranking cuando vuelvas a abrir el juego.',
+            fr: 'Si le jeu se ferme en plein mode infini (un plantage, l’onglet fermé), le temps joué jusqu’à la dernière minute entre au classement quand tu rouvres le jeu.',
+            zh: '如果遊戲在無盡模式中途關閉（當機、分頁被關閉），重新打開遊戲時，玩到最後一分鐘的時間會計入排行榜。',
           },
         ],
       },
