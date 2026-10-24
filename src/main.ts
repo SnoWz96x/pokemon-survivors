@@ -11,7 +11,7 @@ import { createInput, type Stick } from './engine/input'
 import type { Vec } from './engine/math'
 import { currentTheme, duckMusic, playTheme, type ThemeId } from './engine/music'
 import { advancePacer, pacer, resetPacer } from './engine/pacing'
-import { canvasRestored, context2d, onCanvasReset } from './engine/pixelart'
+import { canvasRestored, context2d, onCanvasReset, sweepArt } from './engine/pixelart'
 import { frameStats, recentFrameMs, recordFrame, resetRunFrames, runFrames } from './engine/frameStats'
 import { fitView } from './engine/viewport'
 import { createRng } from './engine/rng'
@@ -924,6 +924,8 @@ const SPRITE_SYNC = 3000
  */
 const RUN_IDLE = 2
 const MENU_IDLE = 20
+/** Syncs code-drawn art (`lazy`) survives unasked for before it's let go (`sweepArt`): two minutes. */
+const ART_IDLE = 40
 
 /**
  * What the lobby draws from the save, in the colors it shows them: the partner (its first stage),
@@ -974,6 +976,7 @@ const menuSprites = (): Variant[] => [
 const syncSprites = () => {
   // A run loading its sheets (`loadRunSheets`) has let go of the lobby's: nothing streams them back meanwhile.
   if (startingRun) return
+  sweepArt(ART_IDLE)
   if (run) {
     const { stream, extras, keep } = runSprites(run.game, run.sprites.needs, run.sprites.always)
     // The forms and shiny colors about to show up first, then the cast by when it comes.
