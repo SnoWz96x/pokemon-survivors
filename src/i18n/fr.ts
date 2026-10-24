@@ -51,6 +51,17 @@ export const fr: Messages = {
     ranking: 'Classement',
     ideas: 'Idées',
     support: 'Soutenir le projet',
+    rail: {
+      halloween: 'Sorcières',
+      festival: 'Festival',
+      outbreak: 'Essaim',
+      challenge: 'Défi',
+      missions: 'Missions',
+      hall: 'Panthéon',
+      invites: 'Inviter',
+      discord: 'Discord',
+      days: (n) => `${n}j`,
+    },
   },
 
   shell: {

@@ -19,6 +19,7 @@ import { kecleonSpeaker } from './kecleon'
 import { profileEditor } from './profile'
 import { loadSave, today } from './save'
 import { confirmDialog, type Screen } from './screens'
+import { railTile } from './shell'
 import { nearestInDirection, type Direction } from './spatial'
 
 /**
@@ -575,6 +576,9 @@ const toNext = (f: Festival, pot: number) => {
   return (pot - prev) / Math.max(1, next.pot - prev)
 }
 
+/** The days the festival has left, today included. */
+const daysLeft = (f: Festival, v: FestivalView) => dayNumber(festivalEnd(f)) - dayNumber(v.day) + 1
+
 /**
  * The Hoje card while a festival runs: its lantern, the pot's way to the
  * next milestone and the pot in short, with the days left. It follows the
@@ -596,11 +600,28 @@ export const festivalCard = () => {
   const paint = (v: FestivalView) => {
     const f = v.festival
     if (!f) return
-    const days = dayNumber(festivalEnd(f)) - dayNumber(v.day) + 1
     icon.src = festivalIcon(f.id)
-    setText(left, m.daysLeftShort(days))
+    setText(left, m.daysLeftShort(daysLeft(f, v)))
     fill.style.width = `${Math.round(toNext(f, v.pot) * 100)}%`
     setText(pot, formatPokeDollarsShort(v.pot))
+    el.setAttribute('aria-label', `${m.names[f.id]}: ${formatPokeDollars(v.pot)}`)
+  }
+  paint(festivalView())
+  const off = onFestival((v) => (el.isConnected ? paint(v) : off()))
+  return el
+}
+
+/** The festival's Hoje card as a rail tile (phones held upright): its lantern, with the days left on its corner. */
+export const festivalTile = () => {
+  const m = t().festival
+  const icon = img('', 'lobby-lantern')
+  const left = h('em', { class: 'lobby-badge rail-days' })
+  const el = railTile('festival', icon, t().home.rail.festival, m.card, left)
+  const paint = (v: FestivalView) => {
+    const f = v.festival
+    if (!f) return
+    icon.src = festivalIcon(f.id)
+    setText(left, t().home.rail.days(daysLeft(f, v)))
     el.setAttribute('aria-label', `${m.names[f.id]}: ${formatPokeDollars(v.pot)}`)
   }
   paint(festivalView())

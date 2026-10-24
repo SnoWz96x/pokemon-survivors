@@ -95,6 +95,20 @@ export const walletChip = (wallet: number, open?: { label: string; onClick: () =
         h('b', {}, formatPokeDollars(wallet)),
       )
 
+/**
+ * A tile on the lobby's side rails (phones held upright): `icon` over a short
+ * `label`, an optional corner `badge`, and `aria` saying in full what the
+ * wide screens' card shows. `kind` names it for its colors (`rail-<kind>`).
+ */
+export const railTile = (kind: string, icon: Node, label: string, aria: string, badge: Slot = null) =>
+  h(
+    'button',
+    { class: `lobby-rail-tile box rail-${kind}`, type: 'button', 'aria-label': aria, title: aria },
+    h('span', { class: 'rail-icon' }, icon),
+    h('span', { class: 'rail-label' }, label),
+    badge,
+  )
+
 /** Bottom action bar: the screen's main buttons, in thumb reach. A flex child of `shellScreen`, so content above it never hides under it. */
 export const actionBar = (...children: Slot[]) => h('footer', { class: 'shell-actions' }, ...children)
 

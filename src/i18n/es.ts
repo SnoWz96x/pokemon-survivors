@@ -51,6 +51,17 @@ export const es: Messages = {
     ranking: 'Ranking',
     ideas: 'Ideas',
     support: 'Apoya al proyecto',
+    rail: {
+      halloween: 'Brujas',
+      festival: 'Festival',
+      outbreak: 'Horda',
+      challenge: 'Desafío',
+      missions: 'Misiones',
+      hall: 'Salón',
+      invites: 'Invitar',
+      discord: 'Discord',
+      days: (n) => `${n}d`,
+    },
   },
 
   shell: {

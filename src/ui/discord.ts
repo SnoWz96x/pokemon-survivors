@@ -4,7 +4,8 @@ import type { Input } from '../engine/input'
 import { t } from '../i18n'
 import { HATCHLINGS } from '../data/hatchlings'
 import { DISCORD_GIFT } from '../game/gifts'
-import { discordIcon } from '../render/art'
+import { discordIcon, socialIcon } from '../render/art'
+import { SOCIAL_IDS, SOCIALS } from '../site/routes'
 import { discordStatus } from './discordStatus'
 import { h, later, rich } from './dom'
 import { contentLine } from './gifts'
@@ -25,7 +26,9 @@ type Action = { label: string; run: () => void; tone?: 'discord' }
  * the account and links both), "Link Discord" for an account (leaves for
  * Discord and comes back linked: `linkDiscord`), the linked username once it
  * is, and the server's invite for everyone. Until it's linked, the gift
- * linking brings (`DISCORD_GIFT`) shows above the buttons. It follows the account state.
+ * linking brings (`DISCORD_GIFT`) shows above the buttons. The official
+ * profiles (`SOCIALS`) sit under them: on phones held upright this is the
+ * lobby's way to them. It follows the account state.
  * Back, Esc or Backspace call `onClose` after the key dispatch.
  */
 export const discordScreen = (root: HTMLElement, input: Input, onClose: () => void): Screen => {
@@ -65,6 +68,17 @@ export const discordScreen = (root: HTMLElement, input: Input, onClose: () => vo
         status.kind === 'busy' && line(m.busy, 'blink'),
         failed && line(m.failed, 'account-error'),
         h('div', { class: 'buttons account-buttons' }, ...buttons),
+        h(
+          'div',
+          { class: 'discord-socials' },
+          ...SOCIAL_IDS.map((id) =>
+            h(
+              'a',
+              { class: `discord-social box ${id}`, href: SOCIALS[id].url, target: '_blank', rel: 'noopener', 'aria-label': t().socials.follow(SOCIALS[id].name), title: t().socials.follow(SOCIALS[id].name), onclick: () => playSfx('select') },
+              h('img', { src: socialIcon(id), alt: '' }),
+            ),
+          ),
+        ),
         hint(t().account.hintKeys, t().account.hintTouch),
       ),
     )
