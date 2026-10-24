@@ -4,12 +4,12 @@ import { ENEMIES, type EnemyDef, type EnemyId } from '../data/enemies'
 import { bossWaveAt, RUN_LENGTH, stageIndexAt } from '../data/waves'
 import { spawnHazard } from './bosses'
 import { hurtPlayer } from './combat'
-import { coopScale, dropForEach } from './coop'
+import { coopScale } from './coop'
 import { COOP } from '../data/coop'
 import type { Difficulty } from './difficulty'
 import { burst, shakeScreen } from './effects'
 import { spawnEnemy } from './enemies'
-import { openPrizeLevelUp, xpFor } from './leveling'
+import { openTeamPrize, xpFor } from './leveling'
 import { dropPickup, dropXp } from './pickups'
 import { inView } from './queries'
 import { hasTrait, type StagePool } from './roster'
@@ -332,16 +332,20 @@ export const alphaDown = (g: Game, e: Enemy) => {
   const xp = Math.round(xpFor(g.player.level) * ALPHA.xpLevels)
   const candies = 6
   for (let i = 0; i < candies; i++) dropXp(g, e.x + range(g.rng, -14, 14), e.y + range(g.rng, -8, 8), Math.ceil(xp / candies))
-  // Co-op: a prize for each player.
-  dropForEach(g, () => dropPickup(g, e.x, e.y, 'alphaPrize'))
+  // One prize for the whole team: whoever takes it opens it for everyone (`openAlphaPrize`).
+  dropPickup(g, e.x, e.y, 'alphaPrize')
   g.alphas.next = Math.max(g.alphas.next, g.time + ALPHA.gap)
   shakeScreen(g, 6, e)
   burst(g, e.x, e.y - e.radius, { colors: ['#f83020', '#f8d030', '#ffffff'], count: 50, speed: 170, ttl: 0.7, size: 2, drag: 3 })
   g.events.push({ kind: 'alpha', enemy: e.kind, moment: 'down' })
 }
 
-/** The Alpha's prize picked up: a prize level-up of rare cards opens at once (`openPrizeLevelUp`). */
+/**
+ * The Alpha's prize picked up: a prize level-up of rare cards opens at once,
+ * for the whole team in co-op (`openTeamPrize`), so nobody crosses the map for
+ * an Alpha a teammate beat.
+ */
 export const openAlphaPrize = (g: Game) => {
-  openPrizeLevelUp(g, 'alpha')
+  openTeamPrize(g, 'alpha')
   g.events.push({ kind: 'alphaPrize' })
 }
