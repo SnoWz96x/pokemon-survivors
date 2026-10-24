@@ -128,6 +128,13 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
             fr: 'Ton Pokémon partenaire ne disparaît plus du lobby quand le jeu reste un moment dans un autre onglet (ni le shiny de l’Apparition massive du jour).',
             zh: '把遊戲放在其他分頁一段時間後，大廳裡的夥伴寶可夢不會再消失了（今日大量出現的異色寶可夢也一樣）。',
           },
+          {
+            pt: 'O campo do lobby fica parado de novo: o cenário não anda mais um pixel de cada vez, para os lados, para cima e para baixo.',
+            en: 'The lobby’s meadow stands still again: the scenery no longer creeps a pixel at a time, sideways, up and down.',
+            es: 'El prado del lobby vuelve a quedarse quieto: el escenario ya no se mueve de a un píxel, hacia los lados, arriba y abajo.',
+            fr: 'La prairie du lobby reste immobile à nouveau : le décor ne bouge plus pixel par pixel, sur les côtés, en haut et en bas.',
+            zh: '大廳的草原恢復靜止了：場景不會再一格一格地左右、上下移動。',
+          },
         ],
       },
       {
