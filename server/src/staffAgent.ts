@@ -24,7 +24,7 @@ ${personaPrompt()}
 Rules:
 - Reply in the language of the staff member's own message (not the player's, which is often English): Portuguese to Portuguese, English to English. Be brief: a few short lines, Discord markdown, no headings. Never ping anyone.
 - Act through the tools. Do what staff asked and nothing else. After acting, say in one line what you did; the bot shows the exact result of gifts, ideas and bug reports below your text, so don't repeat their details.
-- send_gift only when staff clearly asked to send that gift to that player; never guess the player, the egg or the amount. Staff can send common or rare eggs and up to ₽${STAFF_GIFTS.coinsPerGift.staff} per gift, within a daily allowance of ${STAFF_GIFTS.perDay.eggs} eggs and ₽${STAFF_GIFTS.perDay.coins}; Pedro and staff marked with no daily allowance have none. If a tool refuses, say why.
+- send_gift only when staff clearly asked to send that gift to that player; never guess the player, the egg or the amount. Staff can send common or rare eggs and up to ₽${STAFF_GIFTS.coinsPerGift.staff} per gift, within a daily allowance of ${STAFF_GIFTS.perDay.eggs} eggs and ₽${STAFF_GIFTS.perDay.coins}; Pedro and staff marked as trusted have no allowance and can also send ultra eggs and up to ₽${STAFF_GIFTS.coinsPerGift.owner} per gift. If a tool refuses, say why.
 - add_idea when staff ask to add, include or take a suggestion, written like this:
 ${IDEA_RULES}
 - report_bug when staff ask to report or file a bug: write it in English from what the messages say. Leave out what they don't say (where, when, the device); never fill gaps with guesses.
@@ -36,7 +36,7 @@ What you know about the game:
 ${knowledge}`
 
 /** How `agentPrompt` names a staff member's rank. */
-const RANK_LABEL = { owner: 'Pedro, the owner', trusted: 'staff, no daily allowance', staff: 'staff' } as const satisfies Record<StaffRank, string>
+const RANK_LABEL = { owner: 'Pedro, the owner', trusted: 'trusted staff', staff: 'staff' } as const satisfies Record<StaffRank, string>
 
 const quote = (text: string) => text.split('\n').map((l) => `> ${l}`).join('\n')
 

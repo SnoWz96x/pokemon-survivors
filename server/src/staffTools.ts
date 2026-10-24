@@ -72,7 +72,7 @@ export const staffActions = (deps: StaffDeps, turn: StaffTurn) => ({
     const sent = await deps.desk.send(turn.staff, parsed, gift, day, `${turn.ref}:${n}`)
     if (!sent.ok) {
       const left = sent.error === 'eggs' || sent.error === 'coins' ? allowanceLeft(turn.staff.rank, await deps.desk.sentToday(turn.staff.discordId, day)) : null
-      return { text: giftRefusalText(sent.error, gift, left) }
+      return { text: giftRefusalText(sent.error, gift, left, turn.staff.rank) }
     }
     const receipt = giftReceipt(gift, sent.to, sent.sent)
     if (sent.sent) await deps.log(giftLogMessage({ staffId: turn.staff.discordId, gift, to: sent.to, link: turn.link })).catch((err) => console.error('discord gift log failed', err))

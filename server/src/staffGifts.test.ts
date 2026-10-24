@@ -4,11 +4,12 @@ import { giftRefusal, parseStaffGift, STAFF_GIFTS, staffRankOf, tally } from './
 describe('giftRefusal', () => {
   const none = { eggs: 0, coins: 0 }
 
-  it('lets staff send common and rare eggs, the owner an ultra one too', () => {
+  it('lets staff send common and rare eggs, the owner and the trusted an ultra one too', () => {
     expect(giftRefusal('staff', { kind: 'egg', tier: 'rare' }, none)).toBeNull()
     expect(giftRefusal('staff', { kind: 'egg', tier: 'ultra' }, none)).toBe('tier')
     expect(giftRefusal('staff', { kind: 'egg', tier: 'kecleonShiny' }, none)).toBe('tier')
     expect(giftRefusal('owner', { kind: 'egg', tier: 'ultra' }, none)).toBeNull()
+    expect(giftRefusal('trusted', { kind: 'egg', tier: 'ultra' }, none)).toBeNull()
   })
 
   it('holds staff to the daily allowance, never the owner or the trusted', () => {
@@ -18,7 +19,6 @@ describe('giftRefusal', () => {
     expect(giftRefusal('staff', { kind: 'coins', amount: 101 }, spent)).toBe('coins')
     expect(giftRefusal('owner', { kind: 'egg', tier: 'common' }, { eggs: 99, coins: 99_999 })).toBeNull()
     expect(giftRefusal('trusted', { kind: 'egg', tier: 'common' }, { eggs: 99, coins: 99_999 })).toBeNull()
-    expect(giftRefusal('trusted', { kind: 'egg', tier: 'ultra' }, none)).toBe('tier')
     expect(giftRefusal('trusted', { kind: 'coins', amount: STAFF_GIFTS.coinsPerGift.trusted + 1 }, none)).toBe('amount')
     expect(staffRankOf(STAFF_GIFTS.trusted[0])).toBe('trusted')
     expect(staffRankOf('1')).toBe('staff')

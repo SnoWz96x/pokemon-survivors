@@ -10,7 +10,7 @@ import type { Suggestion } from '../../src/game/suggestions'
 import { en } from '../../src/i18n/en'
 import type { ChangelogUpdate } from '../../src/site/changelog'
 import type { PlayerProfile } from './staffDesk'
-import { STAFF_GIFTS, type GiftRefusal, type SentToday, type StaffGift } from './staffGifts'
+import { STAFF_GIFTS, type GiftRefusal, type SentToday, type StaffGift, type StaffRank } from './staffGifts'
 import type { Review } from './suggestions'
 
 /**
@@ -263,8 +263,8 @@ export const playerName = (p: Pick<PlayerProfile, 'handle' | 'name' | 'discordId
 export const giftReceipt = (gift: StaffGift, to: PlayerProfile, sent: boolean) =>
   sent ? `🎁 Sent ${giftLabel(gift)} to ${playerName(to)}: it waits in their gift box in the game.` : `🎁 ${giftLabel(gift)} for ${playerName(to)} went out from this message already.`
 
-/** Why a staff gift didn't go (`left`: what's left of today's allowance, null for the owner). */
-export const giftRefusalText = (why: GiftRefusal | 'unknown' | 'who' | 'kind', gift: StaffGift | null, left: SentToday | null) => {
+/** Why a staff gift didn't go (`left`: what's left of today's allowance, null for the owner and the trusted; `rank`: the sender's, for the ₽ cap). */
+export const giftRefusalText = (why: GiftRefusal | 'unknown' | 'who' | 'kind', gift: StaffGift | null, left: SentToday | null, rank: StaffRank = 'staff') => {
   const allowance = left ? ` Left for you today: ${left.eggs} egg${left.eggs === 1 ? '' : 's'} and ₽${left.coins.toLocaleString('en-US')}.` : ''
   switch (why) {
     case 'who':
@@ -276,7 +276,7 @@ export const giftRefusalText = (why: GiftRefusal | 'unknown' | 'who' | 'kind', g
     case 'tier':
       return `${gift ? giftLabel(gift) : 'That egg'} is past what staff can send (${STAFF_GIFTS.tiers.staff.map((t) => en.eggs.tiers[t]).join(' or ')}).`
     case 'amount':
-      return `One gift carries ₽1 to ₽${STAFF_GIFTS.coinsPerGift.staff.toLocaleString('en-US')}.`
+      return `One gift carries ₽1 to ₽${STAFF_GIFTS.coinsPerGift[rank].toLocaleString('en-US')}.`
     case 'eggs':
     case 'coins':
       return `That's past your daily allowance (it resets at midnight, Brasília time).${allowance}`

@@ -6,16 +6,16 @@ import type { GiftContent } from '../../src/game/gifts'
  * pure rules: eggs and ₽ only, never shinies, titles or styles. The server's
  * owner sends any egg with no daily cap. A Dev or Moderator gets a daily
  * allowance per Brasília day, unless they're in `trusted`: then they send
- * what staff can, as much as they like. Tune the numbers here.
+ * what the owner can. Tune the numbers here.
  */
 export const STAFF_GIFTS = {
   /** The egg tiers each rank may send. */
-  tiers: { owner: ['common', 'rare', 'ultra'], trusted: ['common', 'rare'], staff: ['common', 'rare'] },
+  tiers: { owner: ['common', 'rare', 'ultra'], trusted: ['common', 'rare', 'ultra'], staff: ['common', 'rare'] },
   /** A staff member's allowance per Brasília day (the owner and the trusted have none). */
   perDay: { eggs: 5, coins: 5000 },
   /** The most ₽ one gift carries, per rank: a typo never sends a fortune. */
-  coinsPerGift: { owner: 50_000, trusted: 2000, staff: 2000 },
-  /** Discord ids of the Devs and Moderators with no daily allowance: LauKhaos. */
+  coinsPerGift: { owner: 50_000, trusted: 50_000, staff: 2000 },
+  /** Discord ids of the Devs and Moderators who send gifts as the owner does: LauKhaos. */
   trusted: ['363965628140224515'],
 } as const satisfies {
   tiers: Record<StaffRank, readonly EggTier[]>
@@ -24,7 +24,7 @@ export const STAFF_GIFTS = {
   trusted: readonly string[]
 }
 
-/** The guild's owner, a Dev or Moderator with no daily allowance (`STAFF_GIFTS.trusted`), or any other Dev or Moderator. */
+/** The guild's owner, a Dev or Moderator who sends gifts as the owner does (`STAFF_GIFTS.trusted`), or any other Dev or Moderator. */
 export type StaffRank = 'owner' | 'trusted' | 'staff'
 
 /** The rank of a Dev or Moderator. */
