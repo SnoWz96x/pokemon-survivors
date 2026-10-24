@@ -827,6 +827,7 @@ export const es: Messages = {
       intro: (until) => `Puesto de Duskull · Noche de Brujas · hasta el ${until}`,
       egg: (steps) => `Eclosiona en ${steps} pasos: fantasmas que ningún otro huevo trae.`,
       even: (names, pct) => `${names}: ${pct}% cada uno`,
+      hatched: (n, total) => `Nacidos: ${n}/${total}`,
       odds: (list, shiny) => `${list}. Shiny 1 de cada ${shiny}.`,
       duplicate: (coins) => `Repetido: ${coins}.`,
       stock: 'Solo en la Noche de Brujas (vuelve el año que viene). Llévate todos los que quepan en la incubadora.',

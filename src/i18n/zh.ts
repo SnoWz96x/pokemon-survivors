@@ -826,6 +826,7 @@ export const zh: Messages = {
       intro: (until) => `Duskull的攤位 · 女巫之夜 · 到${until}為止`,
       egg: (steps) => `走${steps}步孵化：會孵出其他蛋孵不出的幽靈。`,
       even: (names, pct) => `${names}：各${pct}%`,
+      hatched: (n, total) => `已孵出 ${n}/${total}`,
       odds: (list, shiny) => `${list}。異色機率1/${shiny}。`,
       duplicate: (coins) => `重複時：${coins}。`,
       stock: '只在女巫之夜販售（明年再見）。孵化器放得下多少就能買多少。',
