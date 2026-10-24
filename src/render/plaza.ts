@@ -1514,28 +1514,24 @@ const markerCard = lazy(() => {
 const MARKER_INSET = 16
 
 /**
- * Whether any of the plaza reaches `MARKER_INSET` px into the `w`×`h` view:
- * a piece's box, or the floor's ellipse itself (not its box, whose corners
- * hold only grass).
+ * Whether a piece of the plaza (the building, a prop, a visitor, a festival
+ * piece) reaches `MARKER_INSET` px into the `w`×`h` view. The floor doesn't
+ * count: a caravan or a stall widens it into the corner of home's view, where
+ * a few cobblestones (often under the lobby's buttons) don't say where the shop is.
  */
 const plazaInView = (plaza: Plaza, layout: Layout, camX: number, camY: number, w: number, h: number) => {
   const left = camX + MARKER_INSET - plaza.x
   const top = camY + MARKER_INSET - plaza.y
   const right = camX + w - MARKER_INSET - plaza.x
   const bottom = camY + h - MARKER_INSET - plaza.y
-  if (layout.pieces.some((b) => b.right > left && b.left < right && b.bottom > top && b.top < bottom)) return true
-  // The view's point nearest the floor's middle is inside the ellipse when they meet.
-  const c = layout.cobbles
-  const dx = (clamp(c.x, left, right) - c.x) / c.rx
-  const dy = (clamp(c.y, top, bottom) - c.y) / c.ry
-  return dx * dx + dy * dy < 1
+  return layout.pieces.some((b) => b.right > left && b.left < right && b.bottom > top && b.top < bottom)
 }
 
 /**
  * A card with Kecleon's head and an arrow at the edge of the view, pointing
- * at the shop while no part of the plaza (its cobblestones, the building, a
- * visitor, the festival's pieces) is on screen. It remembers where it was
- * drawn (`plaza.marker`) so a tap on it can lead there.
+ * at the shop while no piece of the plaza (the building, a visitor, the
+ * festival's pieces) is on screen. It remembers where it was drawn
+ * (`plaza.marker`) so a tap on it can lead there.
  */
 export const drawPlazaMarker = (ctx: CanvasRenderingContext2D, plaza: Plaza, camX: number, camY: number, w: number, h: number, time: number, show: boolean) => {
   plaza.marker.shown = false
