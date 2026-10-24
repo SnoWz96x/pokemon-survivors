@@ -56,6 +56,13 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
             fr: 'Chaque œuf coûte 6 000 ₽ ou 1 000 bonbons. Dépenser des bonbons ne vide pas le bocal : ses prix comptent toujours tout ce que tu as récolté.',
             zh: '每顆蛋 ₽6,000 或 1,000 顆糖果。花掉糖果不會清空糖果罐：獎勵仍會計算你收集過的所有糖果。',
           },
+          {
+            pt: 'Os doces que sobram para gastar aparecem ao lado do ₽ na barraca, no card da Noite das Bruxas (depois que o pote dá todos os prêmios) e na tela do evento.',
+            en: 'The candies you have left to spend show next to your ₽ at the stall, on the Halloween Night card (once the jar has paid every prize) and on the event screen.',
+            es: 'Los dulces que te quedan para gastar aparecen junto a los ₽ en el puesto, en la tarjeta de la Noche de Brujas (cuando el frasco ya dio todos los premios) y en la pantalla del evento.',
+            fr: 'Les bonbons qu’il te reste à dépenser s’affichent à côté de tes ₽ au stand, sur la carte de la Nuit des Sorcières (une fois que le bocal a donné tous ses prix) et sur l’écran de l’événement.',
+            zh: '剩下可花用的糖果會顯示在攤位的₽旁邊、女巫之夜卡片上（糖果罐的獎勵全部領完後）以及活動畫面中。',
+          },
         ],
       },
       {

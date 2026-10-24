@@ -1132,6 +1132,8 @@ export const pt = {
     howEgg: 'Na praça, o *Duskull* vende o *Ovo Assombrado* por ₽ ou por *doces*',
     jarCount: (n: string) => `Pote de doces: *${n}*`,
     jarNext: (n: string) => `mais ${n} para o próximo prêmio`,
+    /** The candies left to spend at Duskull's stall (the jar keeps counting every one for its prizes). */
+    toSpend: (n: string) => `*${n}* doces para gastar na barraca do Duskull`,
     received: 'recebido',
     inGiftBox: 'no Presente!',
     forJoining: 'por participar',
