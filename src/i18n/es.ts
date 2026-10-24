@@ -960,6 +960,7 @@ export const es: Messages = {
     howEgg: 'En la plaza, *Duskull* vende el *Huevo Embrujado* por ₽ o por *dulces*',
     jarCount: (n) => `Frasco de dulces: *${n}*`,
     jarNext: (n) => `${n} más para el próximo premio`,
+    toSpend: (n) => `*${n}* dulces para gastar en el puesto de Duskull`,
     received: 'recibido',
     inGiftBox: '¡en Regalo!',
     forJoining: 'por participar',

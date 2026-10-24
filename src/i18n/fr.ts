@@ -959,6 +959,7 @@ export const fr: Messages = {
     howEgg: 'Sur la place, *Duskull* vend l’*Œuf Hanté* contre des ₽ ou des *bonbons*',
     jarCount: (n) => `Bocal à bonbons : *${n}*`,
     jarNext: (n) => `Encore ${n} pour le prochain prix`,
+    toSpend: (n) => `*${n}* bonbons à dépenser au stand de Duskull`,
     received: 'reçu',
     inGiftBox: 'dans la boîte à cadeaux !',
     forJoining: 'pour ta participation',

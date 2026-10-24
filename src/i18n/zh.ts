@@ -959,6 +959,7 @@ export const zh: Messages = {
     howEgg: '在廣場上，*Duskull* 用₽或*糖果*販售*鬧鬼蛋*',
     jarCount: (n) => `糖果罐：*${n}*`,
     jarNext: (n) => `再${n}顆就能拿到下一個獎勵`,
+    toSpend: (n) => `可在 Duskull 的攤位花用 *${n}* 顆糖果`,
     received: '已領取',
     inGiftBox: '在禮物箱！',
     forJoining: '參加獎',

@@ -960,6 +960,7 @@ export const en: Messages = {
     howEgg: 'At the plaza, *Duskull* sells the *Haunted Egg* for ₽ or *candies*',
     jarCount: (n) => `Candy jar: *${n}*`,
     jarNext: (n) => `${n} more for the next prize`,
+    toSpend: (n) => `*${n}* candies to spend at Duskull's stall`,
     received: 'received',
     inGiftBox: 'in Gift box!',
     forJoining: 'for joining in',

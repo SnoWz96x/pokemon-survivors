@@ -47,6 +47,7 @@ import { equipStyle, ownsStyle } from '../game/style'
 import { festivalDay } from '../festival'
 import { festivalAnnounced } from '../game/festival'
 import { coinIcon, eggIcon, incubatorIcon } from '../render/art'
+import { treatIcon } from '../render/halloweenArt'
 import { portraitUrl } from '../render/sprites'
 import { styleThumb } from '../render/card'
 import { frameIcon, wallpaperUrl } from '../render/cosmetics'
@@ -1066,6 +1067,8 @@ type Shelf = {
   countdown?: boolean
   /** The Treino's Refund button. */
   refund?: boolean
+  /** Beside the ₽ in the header, the Noite das Bruxas candies left to spend (Duskull's stall takes them). */
+  candies?: boolean
   hello?: () => DialogueLine
 }
 
@@ -1118,6 +1121,7 @@ const SHELVES: readonly Shelf[] = [
     },
     intro: () => t().shop.stall.intro(formatDay(STALLS[stallSelling() ?? 'halloween'].to)),
     hello: () => stallHello(),
+    candies: true,
   },
   {
     id: 'bag',
@@ -1314,6 +1318,8 @@ export const shop = (root: HTMLElement, input: Input, opts: { close: () => void;
     let capsFor: PlayableId = save.partner
 
     const wallet = h('span')
+    const candyCount = h('span')
+    const candyWallet = h('span', { class: 'shop-wallet candies' }, img(treatIcon()), candyCount)
     const tabs = SHELVES.map((s) => h('button', { class: 'shop-tab', type: 'button', role: 'tab' }, sh.tabs[s.id]))
     const announced = opts.festival ? festivalAnnounced(festivalDay()) : null
     const festivalTab = h('button', { class: 'shop-tab festival-tab', type: 'button' }, img(festivalIcon(announced?.id ?? 'lanternas')), t().festival.shopButton)
@@ -1335,7 +1341,7 @@ export const shop = (root: HTMLElement, input: Input, opts: { close: () => void;
     const sheet = h(
       'section',
       { class: 'shop-sheet box', 'aria-label': sh.title },
-      h('header', { class: 'shop-head' }, back, h('h2', { class: 'shop-title' }, sh.title), h('span', { class: 'shop-wallet' }, img(coinIcon(0)), wallet)),
+      h('header', { class: 'shop-head' }, back, h('h2', { class: 'shop-title' }, sh.title), candyWallet, h('span', { class: 'shop-wallet' }, img(coinIcon(0)), wallet)),
       h('nav', { class: 'shop-tabs', role: 'tablist' }, ...tabs, festivalTab),
       items,
       h('div', { class: 'shop-desc' }, descIcon, h('div', { class: 'shop-desc-body' }, descTitle, descText), h('div', { class: 'shop-desc-buttons' }, wishBtn, buy)),
@@ -1350,6 +1356,9 @@ export const shop = (root: HTMLElement, input: Input, opts: { close: () => void;
 
     const refresh = () => {
       setText(wallet, formatPokeDollars(save.wallet))
+      setText(candyCount, formatNumber(candiesLeft(save.halloween)))
+      candyWallet.classList.toggle('hidden', !shelf.candies)
+      candyWallet.setAttribute('aria-label', t().halloween.toSpend(formatNumber(candiesLeft(save.halloween))).replaceAll('*', ''))
       setText(intro, shelf.intro(save))
       setText(clock, shelf.countdown ? sh.turnsIn(countdown()) : '')
       for (const c of cards) c.refresh(save)
