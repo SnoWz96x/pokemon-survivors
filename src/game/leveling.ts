@@ -172,6 +172,22 @@ export const openPrizeLevelUp = (g: Game, source: PrizeSource, shinyFirst = fals
 }
 
 /**
+ * A prize the whole team earned (a field mission, an Alpha's gem): everyone
+ * gets the prize level-up. In co-op a player on a screen of their own takes it
+ * as a regular level-up once free (`openPendingPicks`), so their screen isn't
+ * replaced; one who left gets none.
+ */
+export const openTeamPrize = (g: Game, source: PrizeSource, shinyFirst = false) => {
+  const actor = g.player
+  for (const p of g.players) {
+    g.player = p
+    if (g.coop !== null && p.phase !== 'playing') p.pendingLevelUps += p.gone ? 0 : 1
+    else if (!p.gone) openPrizeLevelUp(g, source, shinyFirst)
+  }
+  g.player = actor
+}
+
+/**
  * Ready move evolutions come first, then ready duo fusions, then weighted sampling without replacement,
  * then each card's rarity (one roll per card, in order, so replays agree).
  * Falls back to a healing berry when maxed out.

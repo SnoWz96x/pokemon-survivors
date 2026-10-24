@@ -3,6 +3,7 @@ import { COOP } from '../data/coop'
 import { RIFT } from '../data/rifts'
 import { PLAYABLE } from '../data/hatchlings'
 import { hurtPlayer } from './combat'
+import { alphaDown } from './alphas'
 import { awayHold, coopPayout, coopStats, playerDexLog } from './coop'
 import { spawnEnemy } from './enemies'
 import { createCoopGame, createGame, step, type CoopLoadout } from './game'
@@ -194,6 +195,22 @@ describe('co-op picks', () => {
     expect(g.time).toBeGreaterThan(time + 0.9)
     run(g, COOP.pick.time)
     expect([b.phase, b.curses.held]).toEqual(['playing', []])
+  })
+
+  it('an Alpha drops one prize for the team: whoever takes it opens the rare level-up for everyone', () => {
+    const g = team(3)
+    calm(g)
+    const [a, b, c] = players(g) as [Player, Player, Player]
+    b.x = a.x + 600
+    c.x = a.x - 600
+    alphaDown(g, spawnEnemy(g, 'rattata', a.x + 10, a.y))
+    const prizes = g.pickups.filter((k) => k.kind === 'alphaPrize')
+    expect(prizes.map((k) => k.owner)).toEqual([undefined])
+    // Its EXP burst would open a level-up of its own first.
+    g.pickups.splice(0, g.pickups.length, ...prizes)
+    run(g, 1)
+    expect(g.pickups.some((k) => k.kind === 'alphaPrize')).toBe(false)
+    expect(g.players.map((p) => [p.phase, p.prize])).toEqual([['levelup', 'alpha'], ['levelup', 'alpha'], ['levelup', 'alpha']])
   })
 })
 
