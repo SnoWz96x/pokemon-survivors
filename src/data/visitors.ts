@@ -91,7 +91,8 @@ export const STALLS = {
   /**
    * Noite das Bruxas: Duskull sells the Haunted Egg, the only way to its four
    * ghosts (`HATCHLINGS` with `egg: 'haunted'`), for ₽ or for candies (a run
-   * brings about 200), as many as the incubator takes. It's back next year.
+   * brings about 200, but the keenest players banked tens of thousands), as
+   * many as the incubator takes. It's back next year.
    */
   halloween: {
     from: HALLOWEEN.from,
@@ -99,7 +100,7 @@ export const STALLS = {
     dex: 355,
     name: 'Duskull',
     art: 'stall-duskull',
-    goods: { hauntedEgg: { egg: 'haunted', price: 6_000, pay: 'coins' }, hauntedEggCandies: { egg: 'haunted', price: 150, pay: 'candies' } },
+    goods: { hauntedEgg: { egg: 'haunted', price: 6_000, pay: 'coins' }, hauntedEggCandies: { egg: 'haunted', price: 1_000, pay: 'candies' } },
   },
   /** Christmas: Delibird Presentes (a talk for now, no shop). */
   christmas: { from: '2026-12-15', to: '2026-12-31', dex: 225, name: 'Delibird', art: 'stall-delibird', goods: {} },
