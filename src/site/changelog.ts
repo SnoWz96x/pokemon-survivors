@@ -86,6 +86,31 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
           },
         ],
       },
+      {
+        title: { pt: 'Avisos na partida', en: 'Run alerts', es: 'Avisos en partida', fr: 'Alertes en partie' },
+        notes: [
+          {
+            pt: 'Em Ajustes > Jogo, escolha quais avisos aparecem durante a partida. Só importantes mantém chefes chegando, fendas, perigos e eventos que pedem ação (Meowth, o Tutor, missões, a Mega pronta) e esconde drops, berries, shinies avistados e afins. Nenhum esconde todos.',
+            en: 'In Settings > Game, pick which alerts show during a run. Important only keeps incoming bosses, rifts, dangers and events that need you (Meowth, the Move Tutor, missions, a Mega ready) and hides drops, berries, shinies spotted and the like. None hides them all.',
+            es: 'En Ajustes > Juego, elige qué avisos aparecen durante la partida. Solo importantes mantiene los jefes que llegan, las grietas, los peligros y los eventos que piden acción (Meowth, el Tutor, misiones, la Mega lista) y oculta drops, bayas, shinies avistados y similares. Ninguno los oculta todos.',
+          },
+          {
+            pt: 'No celular em pé, os avisos ficaram mais compactos, no máximo dois por vez logo abaixo do HUD, e os de shiny ganharam uma caixa dourada. Pedidos de jogadores no Discord.',
+            en: 'On a phone held upright, alerts are more compact, at most two at a time right under the HUD, and shiny ones got a gold box. Requested by players on Discord.',
+            es: 'En el celular en vertical, los avisos son más compactos, como máximo dos a la vez justo debajo del HUD, y los de shiny tienen una caja dorada. Pedidos de jugadores en Discord.',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Dano por golpe na pausa', en: 'Damage by move in the pause menu', es: 'Daño por ataque en la pausa' },
+        notes: [
+          {
+            pt: 'A tela de pausa mostra o dano total da partida e o de cada golpe, em ordem, com o DPS médio de cada um (dano dividido pelo tempo jogado até agora).',
+            en: 'The pause screen shows the run’s total damage and each move’s, in order, with each one’s average DPS (damage divided by the time played so far).',
+            es: 'La pantalla de pausa muestra el daño total de la partida y el de cada ataque, en orden, con el DPS promedio de cada uno (daño dividido por el tiempo jugado hasta ahora).',
+          },
+        ],
+      },
     ],
   },
   {

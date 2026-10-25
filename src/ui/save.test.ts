@@ -29,6 +29,11 @@ describe('parseSettings', () => {
     expect(parseSettings(JSON.stringify({ flashes: false })).flashes).toBe('normal')
   })
 
+  it('reads the run toasts level, all unless it says important or none', () => {
+    expect(parseSettings(JSON.stringify({ runToasts: 'important' })).runToasts).toBe('important')
+    expect(parseSettings(JSON.stringify({ runToasts: 'few' })).runToasts).toBe('all')
+  })
+
   it('reads the mini map mode, square unless it says round or off', () => {
     expect(parseSettings(JSON.stringify({ minimap: 'round' })).minimap).toBe('round')
     expect(parseSettings(JSON.stringify({ minimap: 'off' })).minimap).toBe('off')

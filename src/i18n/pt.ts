@@ -431,6 +431,10 @@ export const pt = {
     cards: 'Cartas',
     cardsHint: 'Cartas de upgrade pegas para este status',
     noItems: 'Nenhum item ainda',
+    damageTitle: 'Dano por golpe',
+    damageTotal: (total: string, dps: string) => `Total: ${total} · ${dps} DPS`,
+    damageNote: (time: string) => `DPS = dano ÷ tempo jogado (${time})`,
+    damageEmpty: 'Nenhum dano ainda',
     typeDamage: 'Dano',
     stats: {
       maxHp: 'Vida máx.',
@@ -488,6 +492,8 @@ export const pt = {
     screenShake: 'Tremor de tela',
     flashes: 'Clarões',
     flashModes: { normal: 'Normais', reduced: 'Reduzidos' },
+    runToasts: 'Avisos na partida',
+    runToastModes: { all: 'Todos', important: 'Só importantes', none: 'Nenhum' },
     /** The HUD's mini map (`render/minimap.ts`): its shape, or off. */
     minimap: 'Mini mapa',
     minimapModes: { square: 'Quadrado', round: 'Redondo', off: 'OFF' },
