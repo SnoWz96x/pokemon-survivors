@@ -1393,6 +1393,8 @@ export const pt = {
     vote: 'Votação',
     code: 'Tenho um código',
     codeShort: 'Código',
+    /** The Hall's Patreon link: a linked Patreon's charges count as donations to the account. */
+    patreon: { link: 'Vincular Patreon', unlink: '✓ Patreon · desvincular', linked: 'Patreon vinculado! Cada cobrança conta como doação para esta conta.', unlinked: 'Patreon desvinculado.', failed: 'Não deu para vincular o Patreon. Tente de novo.' },
     show: (on: boolean): string => (on ? 'Selo e nome: visíveis' : 'Selo e nome: ocultos'),
     shown: (on: boolean): string => (on ? 'Visível' : 'Oculto'),
     back: 'Voltar',

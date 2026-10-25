@@ -166,6 +166,7 @@ import { starterSelect } from './ui/starterSelect'
 import { invitesScreen } from './ui/invites'
 import { titleScreen, type LobbyFocus, type Meadow, type ShopTrip } from './ui/title'
 import { creditsLine, supportersScreen } from './ui/supporters'
+import { patreonReturn } from './supporters'
 import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, readRunToasts, runToast, tickToasts, toast, type ToastTone } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
@@ -2727,6 +2728,13 @@ const showIdeasLink = () =>
     }),
   )
 
+/** Back from Patreon (`?patreon=linked|failed`): the Hall da Fama opens over the lobby and says how the link went. */
+const showPatreonReturn = (linked: boolean) => {
+  history.replaceState(null, '', location.pathname)
+  setScreen(supportersScreen(ui, input, { play: (id) => void startRun(id), onClose: () => showTitle({ focus: 'hall' }) }))
+  later(() => toast(ui, linked ? t().supporters.patreon.linked : t().supporters.patreon.failed, 5000))
+}
+
 /**
  * Right after the first sign in on a device (no handle yet), the title gives
  * way to the profile editor, so the player picks how they show up on the ranking.
@@ -2864,6 +2872,7 @@ const boot = () => {
   if (shared) showSharedProfile(shared)
   else if (rankingEnabled && new URLSearchParams(location.search).has(IDEAS_PARAM)) showIdeasLink()
   else if (new URLSearchParams(location.search).has(SHOP_PARAM)) showTitle({ shop: 'shop', instant: true })
+  else if (patreonReturn()) showPatreonReturn(patreonReturn() === 'linked')
   // Back from signing in, the player already pressed start before leaving: straight to the menu.
   else showTitle({ intro: !backFromSignIn() })
   askAboutCrash()

@@ -4,7 +4,7 @@ import { parseHandle } from '../../src/game/ranking'
 
 /**
  * Payment webhooks, as pure functions: checking that an event really came
- * from Stripe or AbacatePay, and reading the paid donation out of it.
+ * from Stripe, AbacatePay or Patreon, and reading the paid donation out of it.
  */
 
 /** A paid donation, as a webhook tells it. `handle`: the account it's for, when the donor gave one. */
@@ -94,3 +94,54 @@ export const abacateDonation = (event: unknown): PaidDonation | null => {
   if (typeof amount !== 'number') return null
   return { provider: 'abacatepay', ref: c.externalId.slice(ABACATE_REF.length), amount, currency: 'brl', handle: null }
 }
+
+/**
+ * Whether `signature` (`X-Patreon-Signature`) signs `body`: an HMAC-MD5 of the
+ * raw body with the webhook's secret, hex (Patreon's docs, "Webhooks").
+ */
+export const verifyPatreon = (body: string, signature: string | undefined, secret: string) =>
+  signature !== undefined && sameText(signature.toLowerCase(), createHmac('md5', secret).update(body).digest('hex'))
+
+/**
+ * A patron's paid charge, as a Patreon member event tells it. `ref` is
+ * `patreon:<member id>:<charge date>`, the same however many events repeat it.
+ * `patron`: their Patreon user id, the one a game account links. `lifetime`:
+ * all they ever paid the campaign (null when the payload leaves it out);
+ * `entitled`: what their pledge covers this period. Cents of `currency`.
+ */
+export type PatreonCharge = { ref: string; member: string; patron: string; lifetime: number | null; entitled: number; currency: string }
+
+/** Patreon's ids (members are uuids, users numbers): nothing else goes into a ref. */
+const PATREON_ID = /^[A-Za-z0-9-]{1,64}$/
+
+const cents = (v: unknown) => (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : null)
+
+/**
+ * The charge a Patreon webhook (`X-Patreon-Event`) tells of, or null: any
+ * `members:` event whose member's last charge is `Paid`. The currency is the
+ * campaign's when the payload includes it, else `fallbackCurrency`.
+ */
+export const patreonCharge = (event: string | undefined, body: unknown, fallbackCurrency: string): PatreonCharge | null => {
+  if (!event?.startsWith('members:') || !isRecord(body) || !isRecord(body.data)) return null
+  const m = body.data
+  if (m.type !== 'member' || typeof m.id !== 'string' || !PATREON_ID.test(m.id) || !isRecord(m.attributes)) return null
+  const a = m.attributes
+  const date = typeof a.last_charge_date === 'string' ? new Date(a.last_charge_date) : null
+  if (a.last_charge_status !== 'Paid' || !date || Number.isNaN(date.getTime())) return null
+  const user = isRecord(m.relationships) && isRecord(m.relationships.user) && isRecord(m.relationships.user.data) ? m.relationships.user.data.id : null
+  if (typeof user !== 'string' || !PATREON_ID.test(user)) return null
+  const lifetime = cents(a.campaign_lifetime_support_cents) ?? cents(a.lifetime_support_cents)
+  const entitled = cents(a.currently_entitled_amount_cents) ?? 0
+  const campaign: unknown = Array.isArray(body.included) ? body.included.find((r: unknown) => isRecord(r) && r.type === 'campaign') : undefined
+  const currency = isRecord(campaign) && isRecord(campaign.attributes) && typeof campaign.attributes.currency === 'string' ? campaign.attributes.currency : fallbackCurrency
+  return { ref: `patreon:${m.id}:${date.toISOString()}`, member: m.id, patron: user, lifetime, entitled, currency: currency.toLowerCase() }
+}
+
+/**
+ * What a charge paid, given what the member's earlier charges already
+ * recorded (`prior`, cents): a member carries no per-charge amount, so it's
+ * how far their lifetime total grew since (an upgrade's prorated charge or a
+ * yearly pledge come out right), or the pledge's amount when the payload has
+ * no lifetime total.
+ */
+export const patreonAmount = (c: PatreonCharge, prior: number) => (c.lifetime === null ? c.entitled : Math.max(0, c.lifetime - prior))

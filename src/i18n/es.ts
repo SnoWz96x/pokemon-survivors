@@ -1190,6 +1190,7 @@ export const es: Messages = {
     vote: 'Votación',
     code: 'Tengo un código',
     codeShort: 'Código',
+    patreon: { link: 'Vincular Patreon', unlink: '✓ Patreon · desvincular', linked: '¡Patreon vinculado! Cada cobro cuenta como donación para esta cuenta.', unlinked: 'Patreon desvinculado.', failed: 'No se pudo vincular Patreon. Inténtalo de nuevo.' },
     show: (on) => (on ? 'Sello y nombre: visibles' : 'Sello y nombre: ocultos'),
     shown: (on) => (on ? 'Visible' : 'Oculto'),
     back: 'Volver',

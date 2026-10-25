@@ -21,6 +21,7 @@ import { abacatePay } from './donations'
 import { friendStore } from './friends'
 import { giftStore } from './gifts'
 import { moderationStore } from './moderation'
+import { patreonOAuth } from './patreon'
 import { rankingStore } from './ranking'
 import { staffDesk } from './staffDesk'
 import { supporterStore } from './supporters'
@@ -83,7 +84,14 @@ const app = createApp({
   bugReports,
   admin: adminStore(sql, clerk, env.adminEmails),
   moderation: moderationStore(sql),
-  webhooks: { stripeSecret: env.stripeWebhookSecret, stripePaymentLink: env.stripePaymentLink, abacatePaySecret: env.abacatePayWebhookSecret },
+  patreon: env.patreon ? patreonOAuth(env.patreon) : null,
+  webhooks: {
+    stripeSecret: env.stripeWebhookSecret,
+    stripePaymentLink: env.stripePaymentLink,
+    abacatePaySecret: env.abacatePayWebhookSecret,
+    patreonSecret: env.patreonWebhookSecret,
+    patreonCurrency: env.patreonCurrency,
+  },
   allowedOrigin: env.allowedOrigin,
   ping: () => sql`select 1`.then(() => true, () => false),
   report: errors.report,

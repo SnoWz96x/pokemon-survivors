@@ -1190,6 +1190,7 @@ export const en: Messages = {
     vote: 'Poll',
     code: 'I have a code',
     codeShort: 'Code',
+    patreon: { link: 'Link Patreon', unlink: '✓ Patreon · unlink', linked: 'Patreon linked! Each charge counts as a donation to this account.', unlinked: 'Patreon unlinked.', failed: "Couldn't link Patreon. Try again." },
     show: (on) => (on ? 'Badge and name: shown' : 'Badge and name: hidden'),
     shown: (on) => (on ? 'Shown' : 'Hidden'),
     back: 'Back',

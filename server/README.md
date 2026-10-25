@@ -38,7 +38,11 @@ The merge rules are not here: `mergeSaves` and `applyPush` live in `src/game/syn
 | `POST /donations/redeem` | Body `{ code }`: credits a donation's code to the player. `{ tier }`; 404 unknown code, 409 already used |
 | `POST /webhooks/stripe` | Stripe's `checkout.session.completed` and `async_payment_succeeded`, signed with `STRIPE_WEBHOOK_SECRET`. 401 bad signature, 503 without the secret |
 | `POST /webhooks/abacatepay` | AbacatePay's `checkout.completed`, signed the Standard Webhooks way (`webhook-id`, `webhook-timestamp`, `webhook-signature`, with the `whsec_` secret in `ABACATEPAY_WEBHOOK_SECRET`). A webhook made before 01/10/2026 sends `?webhookSecret=` and `X-Webhook-Signature` instead, also accepted. 401 bad signature, 503 without the secret |
-| `GET /me/supporter`, `PUT /me/supporter` | The player's tier, since when, whether they show it and their vote (`SupporterStatus`). `PUT` with `{ public }` shows or hides the badge and name |
+| `POST /webhooks/patreon` | Patreon's `members:*` events (`X-Patreon-Event`), signed with `PATREON_WEBHOOK_SECRET` (`X-Patreon-Signature`, HMAC-MD5 of the body, hex). A member whose last charge is `Paid` becomes a donation (see [Patreon](#patreon)). 401 bad signature, 503 without the secret |
+| `GET /patreon/link` | `?page=` the game's path to come back to. `{ url }`: Patreon's authorize URL for the player, with a signed `state` good for 15 minutes. 503 without the Patreon client |
+| `GET /patreon/callback` | Where Patreon sends the player back (`PATREON_REDIRECT_URI`): links their Patreon user id to the account in the `state`, credits their waiting charges and redirects to the game with `?patreon=linked` (or `failed`). Public, the `state` says who |
+| `DELETE /patreon/link` | Forgets the player's Patreon. `{ unlinked: true }`; what it already credited stays. 503 without the Patreon client |
+| `GET /me/supporter`, `PUT /me/supporter` | The player's tier, since when, whether they show it, their vote and whether they linked a Patreon (`SupporterStatus`; `patreon` null without the Patreon client). `PUT` with `{ public }` shows or hides the badge and name |
 | `GET /supporters` | `{ supporters }`: the wall, supporters who show themselves and have a handle, oldest first (500 at most). Each `WallEntry` has `handle`, `name`, `tier`, `since` (first donation) and, for the Hall da Fama, `title` (equipped, or null) and `pokemon` (`{ id, shiny }` from the synced save, `hallPokemon`: a shiny picked with a ticket, else the companion, else the partner; null before any sync). The game reads both as null from an API without them |
 | `GET /poll`, `PUT /poll` | `{ id, votes }`, the supporters' poll (`POLL` in `src/data/supporters.ts`). `PUT` with `{ choice }` votes (or changes the vote); 403 for anyone who isn't a supporter |
 | `GET /suggestions` | `?sort=top\|new\|done`. `{ suggestions }`: a tab of the idea board (100 at most), open ideas by score or newest first, or the shipped ones; each `Suggestion` (`src/game/suggestions.ts`) has the asker's `vote` and whether it's theirs (`mine`) |
@@ -54,7 +58,7 @@ The merge rules are not here: `mergeSaves` and `applyPush` live in `src/game/syn
 | `POST /admin/moderation` | Body `{ userId, action, run?, reason? }` (`parseModeration`): `remove` (the run leaves the boards), `reset` (wipes the save, see [Resetting a save](#resetting-a-save)), `ban` (a reason is required), `unban` or `dismiss`. Resolves the reports it answers. `{ resolved }`, 404 for an unknown player or run |
 | `PUT /admin/suggestions/:id` | Body `{ status }`: `done` (shipped, stamps `done_at`), `open` again, or `hidden` (off the board). `{ status }`, 404 for an unknown idea |
 
-`/save`, `/me`, `/runs` (and its chunks), `/follows`, `/players`, `/friends`, `/followers`, `/presence`, `/coop-invites`, `/gifts`, `/referral`, `/donations/redeem`, `/me/supporter`, `PUT /poll`, `POST /suggestions`, `PUT /suggestions/:id/vote`, `POST /reports` and `/admin` need `Authorization: Bearer <Clerk session token>`. `/boards`, `/challenge`, `/profiles`, `GET /suggestions` and `POST /bug-reports` are public and read the token when there is one (`friends=1` needs it). CORS allows `https://www.pokemonsurvivors.com`, `https://pokemonsurvivors.com`, any `http://localhost` port and whatever `CORS_ORIGINS` adds.
+`/save`, `/me`, `/runs` (and its chunks), `/follows`, `/players`, `/friends`, `/followers`, `/presence`, `/coop-invites`, `/gifts`, `/referral`, `/donations/redeem`, `/patreon/link`, `/me/supporter`, `PUT /poll`, `POST /suggestions`, `PUT /suggestions/:id/vote`, `POST /reports` and `/admin` need `Authorization: Bearer <Clerk session token>`. `/boards`, `/challenge`, `/profiles`, `GET /suggestions` and `POST /bug-reports` are public and read the token when there is one (`friends=1` needs it). CORS allows `https://www.pokemonsurvivors.com`, `https://pokemonsurvivors.com`, any `http://localhost` port and whatever `CORS_ORIGINS` adds.
 
 ### Ranked runs
 
@@ -151,7 +155,21 @@ Donating with an account brings a cosmetic thank-you, sent as Mystery Gifts (`sr
 - A donation is tied to an account by its handle: the support page sends it to `POST /donations` (AbacatePay, whose checkout gets `externalId` `pokemon-survivors-donation:<ref>`) or puts it in the Stripe Payment Link as `client_reference_id`. Both come back to the page with `?thanks=<ref>` (Stripe's redirect, set in its dashboard, uses `{CHECKOUT_SESSION_ID}`).
 - The webhooks (`src/webhooks.ts`) say it's paid. `src/supporters.ts` records it once (`donations.ref` is unique, so retries change nothing) and credits it: its points (`donationPoints`: one per centavo, five per US cent) join `users.supporter_points`, and each tier the total reaches sends its gifts once (`TIER_GIFTS`, `key` `support:<tier>:<i>`): any donation brings the Supporter title and frame and a shiny of one's choice; 5,000 points (R$ 50 or US$ 10) the gold background and wallpaper.
 - A paid donation without an account gets a code (`PS-XXXX-XXXX`) that the thank-you page shows; any signed-in player can redeem it once (`POST /donations/redeem`).
+- Patreon is one more source, at parity with the others: see [Patreon](#patreon).
 - Boards and profiles show the badge (`supporter`) unless the player hides it (`users.supporter_public`); the same flag keeps them off the wall and the victory's credits. The supporters' poll keeps one vote per player per poll (`poll_votes`).
+
+### Patreon
+
+A patron's monthly charges count as donations for the game account that linked their Patreon (`src/patreon.ts`, `patreonCharge` in `src/webhooks.ts`). Nothing about tiers: a charge is points like any donation.
+
+- **Linking.** Patreon isn't a Clerk provider, so the API does the OAuth (authorization code, scope `identity`): the Hall da Fama's "Link Patreon" asks `GET /patreon/link` for the authorize URL, Patreon sends the player to `GET /patreon/callback`, which trades the code once, reads `GET /api/oauth2/v2/identity` and keeps only the Patreon user id (`users.patreon_id`, one game account per Patreon account: the latest to link it keeps it). No token is stored.
+- **Charges.** The campaign's webhook (`POST /webhooks/patreon`) sends every member event; one whose `last_charge_status` is `Paid` is a charge with ref `patreon:<member id>:<last_charge_date>`, so every event that repeats it (`members:update`, `members:pledge:update`…) and every retry is the same row. A member resource has no per-charge amount: `currently_entitled_amount_cents` is what the pledge covers, not what was charged (an upgrade's prorated charge, a yearly pledge). So a charge counts what the member's `campaign_lifetime_support_cents` grew past the charges already recorded for that member (`patreonAmount`), one member at a time (an advisory lock), and falls back to the entitled amount when the payload has no lifetime total. The currency is the campaign's when the payload includes it, else `PATREON_CURRENCY`.
+- **Unlinked patrons.** A charge of a patron nobody linked yet is recorded with `donations.patreon_id` and no account (and no code). Linking credits those waiting charges through the same `credit`, so tier gifts land once.
+- **Setup** (Pedro, once the page is live):
+  1. At [patreon.com/portal/registration/register-clients](https://www.patreon.com/portal/registration/register-clients), create a client (API version 2) with the redirect URI `https://api.pokemonsurvivors.com/patreon/callback`. Its Client ID and Client Secret go to `PATREON_CLIENT_ID` and `PATREON_CLIENT_SECRET`, the URI to `PATREON_REDIRECT_URI`.
+  2. At [patreon.com/portal/registration/register-webhooks](https://www.patreon.com/portal/registration/register-webhooks), add a webhook to `https://api.pokemonsurvivors.com/webhooks/patreon` with the triggers `members:create`, `members:update`, `members:pledge:create` and `members:pledge:update` (the deletes do no harm either). Its secret goes to `PATREON_WEBHOOK_SECRET`.
+  3. If the campaign isn't in US dollars, set `PATREON_CURRENCY` (`brl` counts one point per centavo, anything else as dollars).
+  4. Redeploy `api`. "Send test" in the webhook page should log a 200.
 
 ### Festival da Praça
 
@@ -248,6 +266,9 @@ The player's device still holds the edited save. Its next push comes on top of a
 | `ABACATEPAY_WEBHOOK_SECRET` | Optional. The AbacatePay webhook's secret: `whsec_` plus base64 (`echo "whsec_$(openssl rand -base64 32)"`), the same one typed in its dashboard. Without it the webhook answers 503 |
 | `STRIPE_WEBHOOK_SECRET` | Optional. The Stripe webhook endpoint's signing secret (`whsec_…`). Without it the webhook answers 503 |
 | `STRIPE_PAYMENT_LINK` | Optional. The donation Payment Link's id (`plink_…`): set, the webhook ignores other Checkout Sessions of the account |
+| `PATREON_CLIENT_ID`, `PATREON_CLIENT_SECRET`, `PATREON_REDIRECT_URI` | Optional. The Patreon OAuth client and its redirect URI (the API's `/patreon/callback`), for linking a Patreon. Without all three the `/patreon` routes answer 503 and the game hides the button |
+| `PATREON_WEBHOOK_SECRET` | Optional. The Patreon webhook's secret. Without it `POST /webhooks/patreon` answers 503 |
+| `PATREON_CURRENCY` | Optional. The campaign's currency, for a webhook whose payload doesn't say. Default `usd` |
 | `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID` | Optional. The community Discord bot's token and the server's id. Without both there's no bot |
 | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | Optional. OpenRouter, for the staff's bot in the Discord (tags, `/ask`, `/idea`). The model (it must support tool calls) defaults to `anthropic/claude-haiku-5.5`. Without the key, tagging the bot does nothing and `/ask` and `/idea` say so; `/bug`, `/player` and `/gift` still work |
 | `POSTHOG_KEY` | Optional. The game's PostHog project token (`phc_…`, the same as the client's `VITE_POSTHOG_KEY`): 500s, uncaught exceptions and rejections go to its error tracking (`src/errors.ts`), tied to the player's id when the request had one. Without it errors only go to the log |
@@ -277,6 +298,7 @@ Migrations are plain SQL files in `migrations/`, run in name order at boot (each
 - `users.supporter_points`, `supporter_since`, `supporter_public`: a supporter's total, since when, and whether they show it. `poll_votes`: the supporters' poll.
 - `suggestions`: the idea board (`status` `open`, `done` or `hidden`, `score` recounted from the votes on every vote, `done_at`). `suggestion_votes`: one vote per player per idea (1 or -1; taking it back deletes the row).
 - `users.discord_id`, `discord_name`: the Discord account a player linked (one game account per Discord account).
+- `users.patreon_id`: the Patreon user id a player linked (one game account per Patreon account). `donations.patreon_id`: the patron a Patreon charge came from, so a charge with no account yet is credited when they link.
 - `presence`: each signed-in player's last heartbeat (`activity`, `room`, `seen_at`). `coop_invites`: one co-op invite per sender and friend (`room`, `expires_at`, `dismissed_at`). `users.appear_offline`: friends see the player offline. `users_handle_prefix` serves the `/players` prefix search.
 - `bug_reports`: each bug report (`user_id`, null for a guest; `text`; `tech`, the `BugTech` JSON or null; `thread_id`, the forum thread once posted).
 - `users.save_reset_revision`, `save_resets`: the revision a reset stored (see [Resetting a save](#resetting-a-save)), and what each reset wiped.
@@ -332,6 +354,7 @@ New versions roll out with no downtime:
 | `DATABASE_URL` | Dokploy (`api`) | Supabase transaction pooler: `postgresql://postgres.rkctmaklefamxfleiqwe:…@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require` |
 | `CLERK_SECRET_KEY` | Dokploy (`api`) | Production instance secret key |
 | `ABACATEPAY_API_KEY` | Dokploy (`api`) | AbacatePay production key, with `CHECKOUT:CREATE`, `PRODUCT:CREATE` and `PRODUCT:READ` |
+| `PATREON_CLIENT_ID`, `PATREON_CLIENT_SECRET`, `PATREON_REDIRECT_URI`, `PATREON_WEBHOOK_SECRET` | Dokploy (`api`) | The Patreon client, `https://api.pokemonsurvivors.com/patreon/callback` and the webhook's secret (see [Patreon](#patreon); unset until the page is live) |
 | `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID` | Dokploy (`api`) | The "Pokémon Survivors" bot's token and the community server's id |
 | `OPENROUTER_API_KEY` | Dokploy (`api`) | OpenRouter key for the Discord idea intake (optional) |
 | `POSTHOG_KEY` | Dokploy (`api`) | PostHog (US cloud) project token, public |

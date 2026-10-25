@@ -7,7 +7,7 @@ import { parseSaveData } from '../../src/game/meta'
 import { hallPokemon } from '../../src/game/trainer'
 import type { Sql } from './db'
 import { sendGift } from './gifts'
-import type { PaidDonation } from './webhooks'
+import { patreonAmount, type PaidDonation, type PatreonCharge } from './webhooks'
 
 /** Names on the wall at most. */
 const WALL_SIZE = 500
@@ -17,7 +17,9 @@ const WALL_SIZE = 500
  * (`credit`): its points join the account's total, and each tier the total
  * reaches sends its thank-you as Mystery Gifts (`TIER_GIFTS`, `key`
  * `support:<tier>:<i>`, so nothing lands twice). A paid donation with no
- * account gets a code instead, which an account redeems later.
+ * account gets a code instead, which an account redeems later. A Patreon
+ * charge of a patron who hasn't linked their Patreon yet gets no code: it
+ * waits for them (`donations.patreon_id`) and is credited when they link.
  *
  * `onTierUp` hears of an account whose tier went up, once the transaction
  * committed (the Discord bot updates its role).
@@ -28,11 +30,11 @@ export const supporterStore = (sql: Sql, hooks: { onTierUp?: (userId: string) =>
    * The account whose tier went up, if any.
    */
   const credit = async (tx: TransactionSql, id: string): Promise<string | null> => {
-    const [d] = await tx<{ user_id: string | null; points: number; paid: boolean; credited: boolean; code: string | null }[]>`
-      select user_id, points, paid_at is not null as paid, credited_at is not null as credited, code from donations where id = ${id} for update`
+    const [d] = await tx<{ provider: string; user_id: string | null; points: number; paid: boolean; credited: boolean; code: string | null }[]>`
+      select provider, user_id, points, paid_at is not null as paid, credited_at is not null as credited, code from donations where id = ${id} for update`
     if (!d?.paid || d.credited) return null
     if (!d.user_id) {
-      if (!d.code) await tx`update donations set code = ${newCode((b) => randomFillSync(b))} where id = ${id}`
+      if (!d.code && d.provider !== 'patreon') await tx`update donations set code = ${newCode((b) => randomFillSync(b))} where id = ${id}`
       return null
     }
     const [user] = await tx<{ points: number }[]>`select supporter_points as points from users where id = ${d.user_id} for update`
@@ -76,6 +78,57 @@ export const supporterStore = (sql: Sql, hooks: { onTierUp?: (userId: string) =>
       tierUp(raised)
     },
 
+    /**
+     * A Patreon webhook said a patron's charge is paid: records it once (by
+     * its ref, however many events repeat it), for the account that linked
+     * the patron or waiting for one, and credits it. A member's charges go one
+     * at a time, since each one's amount is what their lifetime total grew
+     * past the others (`patreonAmount`); a charge that adds nothing records nothing.
+     */
+    patreonCharge: async (c: PatreonCharge) => {
+      const raised = await sql.begin(async (tx) => {
+        await tx`select pg_advisory_xact_lock(hashtext(${`patreon:${c.member}`}))`
+        const [known] = await tx<{ id: string }[]>`select id from donations where ref = ${c.ref}`
+        if (known) return null
+        const [prior] = await tx<{ cents: number }[]>`
+          select coalesce(sum(amount), 0)::int as cents from donations where provider = 'patreon' and ref like ${`patreon:${c.member}:%`}`
+        const amount = patreonAmount(c, prior?.cents ?? 0)
+        if (amount <= 0) return null
+        const [row] = await tx<{ id: string }[]>`
+          insert into donations (provider, ref, patreon_id, user_id, amount, currency, points, paid_at)
+          values ('patreon', ${c.ref}, ${c.patron}, (select id from users where patreon_id = ${c.patron}), ${amount}, ${c.currency}, ${donationPoints(amount, c.currency)}, now())
+          on conflict (ref) do nothing
+          returning id`
+        return row ? await credit(tx, row.id) : null
+      })
+      tierUp(raised)
+    },
+
+    /**
+     * Links the Patreon user `patronId` to `userId` (one game account per
+     * Patreon account: whoever links it last keeps it) and credits the
+     * patron's charges that were waiting for an account.
+     */
+    linkPatreon: async (userId: string, patronId: string) => {
+      const raised = await sql.begin(async (tx) => {
+        await tx`insert into users (id) values (${userId}) on conflict (id) do nothing`
+        await tx`update users set patreon_id = null where patreon_id = ${patronId} and id <> ${userId}`
+        await tx`update users set patreon_id = ${patronId} where id = ${userId}`
+        const waiting = await tx<{ id: string }[]>`
+          update donations set user_id = ${userId} where provider = 'patreon' and patreon_id = ${patronId} and user_id is null returning id`
+        let up = false
+        for (const d of waiting) up = (await credit(tx, d.id)) !== null || up
+        if (waiting.length > 0) console.log(`patreon ${patronId} linked to ${userId}: ${waiting.length} waiting charges`)
+        return up ? userId : null
+      })
+      tierUp(raised)
+    },
+
+    /** Forgets the player's Patreon: later charges wait for whoever links it next. What it already credited stays. */
+    unlinkPatreon: async (userId: string) => {
+      await sql`update users set patreon_id = null where id = ${userId}`
+    },
+
     /** What the thank-you page shows for `ref`, or null before any webhook (Stripe's row comes with it). */
     status: async (ref: string): Promise<DonationStatus | null> => {
       const [row] = await sql<{ paid: boolean; handle: string | null; code: string | null; redeemed: boolean }[]>`
@@ -103,14 +156,14 @@ export const supporterStore = (sql: Sql, hooks: { onTierUp?: (userId: string) =>
       return { ok: true, tier: out.tier }
     },
 
-    /** The player's own standing, with their vote in the current poll. */
+    /** The player's own standing, with their vote in the current poll and whether they linked a Patreon. */
     mine: async (userId: string): Promise<SupporterStatus> => {
-      const [row] = await sql<{ points: number; since: Date | null; public: boolean; vote: string | null }[]>`
-        select supporter_points as points, supporter_since as since, supporter_public as public,
+      const [row] = await sql<{ points: number; since: Date | null; public: boolean; vote: string | null; patreon: boolean }[]>`
+        select supporter_points as points, supporter_since as since, supporter_public as public, patreon_id is not null as patreon,
           (select choice from poll_votes where poll = ${POLL.id} and user_id = ${userId}) as vote
         from users where id = ${userId}`
       const vote = POLL_OPTION_IDS.find((id) => id === row?.vote) ?? null
-      return { tier: supporterTier(row?.points ?? 0), since: row?.since?.toISOString() ?? null, public: row?.public ?? true, vote }
+      return { tier: supporterTier(row?.points ?? 0), since: row?.since?.toISOString() ?? null, public: row?.public ?? true, vote, patreon: row?.patreon ?? false }
     },
 
     /** Shows or hides the player's badge and name on the wall and the credits. */

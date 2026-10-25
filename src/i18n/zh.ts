@@ -1188,6 +1188,7 @@ export const zh: Messages = {
     vote: '投票',
     code: '我有兌換碼',
     codeShort: '兌換碼',
+    patreon: { link: '連結 Patreon', unlink: '✓ Patreon · 解除連結', linked: 'Patreon 已連結！每次扣款都會算作這個帳號的贊助。', unlinked: '已解除 Patreon 連結。', failed: '無法連結 Patreon，請再試一次。' },
     show: (on) => (on ? '徽章與名稱：顯示' : '徽章與名稱：隱藏'),
     shown: (on) => (on ? '顯示' : '隱藏'),
     back: '返回',

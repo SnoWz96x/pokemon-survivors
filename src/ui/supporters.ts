@@ -16,7 +16,7 @@ import { eggIcon, giftIcon, heartIcon, medalIcon, pokeballIcon, sparkleIcon, sup
 import { pumpkinHeartIcon } from '../render/halloweenArt'
 import { cryUrl, drawPokemon, hasShiny, loadSpecies, portraitUrl, type SpeciesSprites } from '../render/sprites'
 import { ROUTES } from '../site/routes'
-import { fetchPoll, fetchSupporterStatus, fetchWall, redeemCode, setSupporterPublic, vote } from '../supporters'
+import { fetchPoll, fetchSupporterStatus, fetchWall, linkPatreon, redeemCode, setSupporterPublic, unlinkPatreon, vote } from '../supporters'
 import { h, later, rich } from './dom'
 import { hatchScene } from './incubator'
 import { profileEditor, profileScreen, supporterBadgeIcon } from './profile'
@@ -29,7 +29,8 @@ import { toast } from './toasts'
  * Apoiadores: what donating brings, the way to the support page, and what a
  * supporter can do with it (pick their shiny, a companion, vote, show their
  * badge). Rewards need an account: the support page takes the player's
- * handle, and a code redeems a donation made without one.
+ * handle, a code redeems a donation made without one, and a linked Patreon
+ * counts its charges as donations.
  */
 
 type Action = { label: string; run: () => void }
@@ -528,13 +529,15 @@ export type SupportersActions = {
  * in a new tab, with the player's handle). A supporter's perks become their
  * actions there: pick their shiny (one per ticket), the companion, the poll,
  * a code, show or hide themselves; anyone else gets the poll, a code and
- * sign in as links. Wide screens put the call to action in a column on the
+ * sign in as links. Signed in, both get Link Patreon (or Unlink) while the API has it. Wide screens put the call to action in a column on the
  * right; phones in a footer. `open: 'pick'` goes straight to the shiny picker
  * while a ticket waits (the lobby's Hall card sparkles then).
  */
 export const supportersScreen = (root: HTMLElement, input: Input, actions: SupportersActions, open: 'pick' | null = null): Screen => {
   const el = h('div', { class: 'screen shell hall-screen', style: `--sparkle:url(${sparkleIcon()})` })
   let nav: ReturnType<typeof spatialNav> | null = null
+  /** How many buttons `nav` walks. */
+  let navCount = 0
   let sub: Screen | null = null
   /** The account's standing: undefined while it loads, null when the API can't say. */
   let status: SupporterStatus | null | undefined
@@ -617,13 +620,30 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
           { icon: eggIcon('friend'), label: m.perks.companion },
           { icon: giftIcon(), label: m.perks.vote },
         ]
+    // Only once the API said it has Patreon (`patreon` not null), for the account it answered about.
+    const patreon: Action[] =
+      signedIn && status && status.patreon !== null
+        ? [
+            status.patreon
+              ? {
+                  label: m.patreon.unlink,
+                  run: async () => {
+                    if (!(await unlinkPatreon())) return toast(root, m.offline, 2200)
+                    toast(root, m.patreon.unlinked, 2200)
+                    loadStatus()
+                  },
+                }
+              : { label: m.patreon.link, run: async () => void ((await linkPatreon()) || toast(root, m.offline, 2200)) },
+          ]
+        : []
     const links: Action[] = tier
-      ? []
+      ? patreon
       : [
           ...(accountsEnabled && s.kind === 'guest' ? [{ label: m.signIn, run: () => void signIn() }] : []),
           ...(signedIn && s.handle === null ? [{ label: m.createProfile, run: () => openSub((back) => profileEditor(root, input, () => back())) }] : []),
           { label: m.vote, run: poll },
           ...(signedIn ? [{ label: m.code, run: code }] : []),
+          ...patreon,
         ]
     const tileEls = tiles.map(tileEl)
     const linkEls = links.map((a) => h('button', { class: 'hall-link', type: 'button' }, a.label))
@@ -688,7 +708,9 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
     const body = hall()
     const call = cta()
     const all = [...body.buttons, ...call.buttons]
-    const at = nav?.index
+    // The highlight stays put on a rebuild, unless buttons came or went (the Patreon link once the standing loads).
+    const at = all.length === navCount ? nav?.index : undefined
+    navCount = all.length
     nav?.off()
     // The highlight starts on "Apoiar", or on the shiny while a ticket waits.
     const start = call.buttons.findIndex((b) => b.el.classList.contains('glow'))

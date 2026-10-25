@@ -1188,6 +1188,7 @@ export const fr: Messages = {
     vote: 'Sondage',
     code: 'J’ai un code',
     codeShort: 'Code',
+    patreon: { link: 'Lier Patreon', unlink: '✓ Patreon · délier', linked: 'Patreon lié ! Chaque prélèvement compte comme un don pour ce compte.', unlinked: 'Patreon délié.', failed: 'Impossible de lier Patreon. Réessaie.' },
     show: (on) => (on ? 'Badge et nom : affichés' : 'Badge et nom : masqués'),
     shown: (on) => (on ? 'Affiché' : 'Masqué'),
     back: 'Retour',

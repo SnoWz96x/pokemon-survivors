@@ -5,7 +5,7 @@ import { parseHidden, parsePoll, parseSupporterStatus, parseWall, type Poll, typ
 
 /**
  * The supporters' side of the API (`server/`): the player's own standing,
- * redeeming a donation's code, the wall and the poll. Like `ranking.ts`,
+ * redeeming a donation's code, linking a Patreon, the wall and the poll. Like `ranking.ts`,
  * every call fails soft (null), so the screens just say they're out of reach.
  */
 
@@ -31,6 +31,27 @@ export const redeemCode = async (code: string): Promise<Redeemed> => {
   if (status === 404) return { ok: false, reason: 'unknown' }
   if (status === 409) return { ok: false, reason: 'used' }
   return { ok: false, reason: 'offline' }
+}
+
+/**
+ * "Link Patreon": leaves for Patreon's approval page, which comes back to
+ * this page with `?patreon=linked` (or `failed`). False when the API
+ * wouldn't give the way there.
+ */
+export const linkPatreon = async (): Promise<boolean> => {
+  const { status, body } = await apiCall(`/patreon/link?page=${encodeURIComponent(location.pathname)}`, { auth: true })
+  if (status !== 200 || !isRecord(body) || typeof body.url !== 'string') return false
+  location.assign(body.url)
+  return true
+}
+
+/** Forgets the player's Patreon. Whether it went through. */
+export const unlinkPatreon = async () => (await apiCall('/patreon/link', { method: 'DELETE', auth: true })).status === 200
+
+/** `?patreon=` on the way back from Patreon: how the link went, or null when the page didn't come from there. */
+export const patreonReturn = (): 'linked' | 'failed' | null => {
+  const v = new URLSearchParams(location.search).get('patreon')
+  return v === 'linked' || v === 'failed' ? v : null
 }
 
 let wall: Promise<Wall | null> | null = null

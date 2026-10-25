@@ -118,8 +118,11 @@ export const parseCompanion = (v: unknown): Companion | null =>
 /** `GET /donations/:ref`, for the thank-you page: paid yet, the account it went to, or the code to redeem (null once redeemed). */
 export type DonationStatus = { paid: boolean; handle: string | null; code: string | null; redeemed: boolean }
 
-/** `GET /me/supporter`: the player's tier (null before donating), since when, whether they show it, and their vote. */
-export type SupporterStatus = { tier: SupporterTier | null; since: string | null; public: boolean; vote: PollOptionId | null }
+/**
+ * `GET /me/supporter`: the player's tier (null before donating), since when, whether they show it, their vote, and
+ * whether they linked a Patreon (null when the API has no Patreon, or is older than it).
+ */
+export type SupporterStatus = { tier: SupporterTier | null; since: string | null; public: boolean; vote: PollOptionId | null; patreon: boolean | null }
 
 /**
  * One name on the wall (`GET /supporters`): since their first donation, with
@@ -141,7 +144,9 @@ const isoOrNull = (v: unknown) => (typeof v === 'string' && !Number.isNaN(Date.p
 
 /** The player's standing from the API, or null when the answer isn't one. */
 export const parseSupporterStatus = (v: unknown): SupporterStatus | null =>
-  isRecord(v) ? { tier: isSupporterTier(v.tier) ? v.tier : null, since: isoOrNull(v.since), public: v.public !== false, vote: isPollOption(v.vote) ? v.vote : null } : null
+  isRecord(v)
+    ? { tier: isSupporterTier(v.tier) ? v.tier : null, since: isoOrNull(v.since), public: v.public !== false, vote: isPollOption(v.vote) ? v.vote : null, patreon: typeof v.patreon === 'boolean' ? v.patreon : null }
+    : null
 
 /** The wall from the API: its valid entries. */
 export const parseWall = (v: unknown): WallEntry[] =>
