@@ -16,7 +16,7 @@ import { parseHandlePrefix, parsePresenceUpdate, parseRoomCode } from '../../src
 import { parseSaveData } from '../../src/game/meta'
 import { outbreakAt } from '../../src/game/outbreak'
 import { isRecord } from '../../src/game/parse'
-import { isBoardPeriod, isPlayable, isRunMode, parseDisplayName, parseHandle, parseRunResult, runMode } from '../../src/game/ranking'
+import { isBoardPeriod, isPlayable, isRunMode, parseDisplayName, parseHandle, parseRunResult } from '../../src/game/ranking'
 import { parseReplay, RULES_VERSION, rulesStanding } from '../../src/game/replay'
 import { parseChunk } from '../../src/game/replayStream'
 import { banGated, parseModeration, parseReport } from '../../src/game/reports'
@@ -151,7 +151,7 @@ const CHUNK_ERRORS = { unknown: 404, replaced: 409, committed: 409, gap: 409, cl
  * - `PUT /runs/:token` (auth) `RunResult & { replay }`: records how it ended and
  *   returns `{ ranks, challenge, listed }` (`ChallengePlace`, null for any other run; `listed`
  *   false when, with `STREAM_ENFORCE` on, it wasn't streamed in time and stays off the boards); the
- *   replay may be re-simulated afterwards (`checks.ts`), and the run may make the player's invite count (`gifts.credit`). A challenge run's replay must
+ *   replay is kept for a re-simulation only when the run is on show (`checkRank`, `checks.ts`), and the run may make the player's invite count (`gifts.credit`). A challenge run's replay must
  *   be its day's challenge.
  *   400 for an implausible result, a missing replay or a replay of another run,
  *   `seed` for a replay of another seed than the token's (`reportProblem`; a token from before the
@@ -338,13 +338,11 @@ export const createApp = ({ store, ranking, friends, gifts, checks, verify, dona
     const finished = await ranking.finishRun(c.var.userId, token, result, replay)
     if (!finished.ok) return c.json({ error: finished.error }, FINISH_ERRORS[finished.error])
     if (verdict === 'grace') console.log(`run ${token}: taken under the previous rules (${replay.rules})`)
-    checks.schedule(token)
+    // Only a run on show (or the sample) kept its replay for a check (`checkRank`).
+    if (finished.kept) checks.schedule(token)
     void gifts.credit(c.var.userId).catch((err) => console.error('invite credit failed', err))
-    const [ranks, challenge] = await Promise.all([
-      ranking.runRanks(c.var.userId, runMode(result.starter), result.difficulty),
-      finished.challenge ? ranking.challengePlace(c.var.userId, finished.challenge, finished.official === true) : null,
-    ])
-    return c.json({ ranks, challenge, listed: finished.listed })
+    const challenge = finished.challenge ? await ranking.challengePlace(c.var.userId, finished.challenge, finished.official === true) : null
+    return c.json({ ranks: finished.ranks, challenge, listed: finished.listed })
   })
 
   app.get('/boards/:difficulty', maybeAuth, async (c) => {
