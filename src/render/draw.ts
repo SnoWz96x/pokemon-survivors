@@ -1,5 +1,5 @@
 import { drawEvoItem } from './evoItemArt'
-import { blitCentered, blitPacked, blitEllipse, blitRing, blitRotated, textSprite } from '../engine/pixelart'
+import { blitCentered, blitPacked, blitEllipse, blitRing, blitRotated, context2d, createCanvas, lazy, textSprite } from '../engine/pixelart'
 import { HAZARD_COLORS } from './hazardColors'
 import { drawCapture } from './capture'
 import { drawNightmareAir, drawNightmareDark, drawNightmareGround, shadeAlpha, SLEEP_TINT } from './darkrai'
@@ -484,7 +484,8 @@ const drawEnemy = (ctx: Ctx, e: Enemy, time: number, t: number, calm: boolean, a
   const hit = e.flash > 0.08
   const tint = traitTint(e) ?? statusTint(e.status, t, e.id) ?? (calm && hit ? HURT_TINT : rage ? RAGE_TINT : clone ? CLONE_TINT : undefined)
   if (look?.alpha === 0) return
-  drawPokemon(ctx, s, anim, e.dir, e.animTime, e.x, y, { flash: Math.max(look?.flash ?? 0, hit && !calm ? 0.85 : 0), tint: look?.tint ?? tint, scale, outline: outlineOf(e, t, calm) ?? (clone ? CLONE_OUTLINE : ringed && e.boss ? bossOutline(e, t, calm) : undefined), alpha: look?.alpha ?? shadeAlpha(e.kind, e.id, t) })
+  const outline = outlineOf(e, t, calm) ?? (clone ? CLONE_OUTLINE : ringed && e.boss ? bossOutline(e, t, calm) : undefined)
+  drawPokemon(ctx, s, anim, e.dir, e.animTime, e.x, y, { flash: Math.max(look?.flash ?? 0, hit && !calm ? 0.85 : 0), tint: look?.tint ?? tint, scale, outline, outlineAlpha: outline === ELITE_OUTLINE ? eliteThrob(e, t) : 1, alpha: look?.alpha ?? shadeAlpha(e.kind, e.id, t) })
   if (e.shiny) drawSparkles(ctx, e.x, y - s.bodyH / 2, Math.max(s.bodyW, s.bodyH), time - e.bornAt, e.id)
   if (rage) drawRageEmbers(ctx, e.x, y - (s.bodyH * scale) / 2, size, t, e.id)
 }
@@ -495,6 +496,12 @@ const RAGE_TINT = { color: '#f83020', amount: 0 }
 /** 0..1 triangle wave at `hz`. */
 const pulse = (t: number, hz: number) => Math.abs(((t * hz) % 2) - 1)
 
+/** An elite's outline: one crimson, throbbing in opacity (`eliteThrob`), so a crowd of them shares its silhouettes. */
+const ELITE_OUTLINE = '#e02838'
+
+/** An elite outline's opacity: a slow throb, each elite on its own beat. */
+const eliteThrob = (e: Enemy, t: number) => (Math.floor(t * 2.5 + e.id * 0.37) % 2 === 0 ? 1 : 0.55)
+
 /**
  * Enraged bosses flicker red and orange fast (steady red when `calm`); elites
  * keep a slow crimson throb so a crowd of them reads at a glance on a phone.
@@ -502,7 +509,7 @@ const pulse = (t: number, hz: number) => Math.abs(((t * hz) % 2) - 1)
 const outlineOf = (e: Enemy, t: number, calm: boolean) => {
   if (e.alpha) return alphaOutline(e, t, calm)
   if (e.fight?.enraged) return calm || Math.floor(t * 8) % 2 === 0 ? '#f83020' : '#f8a020'
-  if (e.elite) return Math.floor(t * 2.5 + e.id * 0.37) % 2 === 0 ? '#e02838' : '#f86858'
+  if (e.elite) return ELITE_OUTLINE
   return undefined
 }
 
@@ -515,19 +522,41 @@ const bossOutline = (e: Enemy, t: number, calm: boolean) => (calm || Math.floor(
 /** Unit steps per `Dir8` (0 Down, 1 DownRight, 2 Right, 3 UpRight, 4 Up, 5 UpLeft, 6 Left, 7 DownLeft). */
 const DIR_STEP: readonly (readonly [number, number])[] = [[0, 1], [1, 1], [1, 0], [1, -1], [0, -1], [-1, -1], [-1, 0], [-1, 1]]
 
+/** Side of one speed-lines cell (`SPEED_LINES`), its middle where the streaks start. */
+const STREAK_CELL = 17
+const STREAK_MID = 8
+
+/**
+ * Every look of a runner's three streaks on one sheet: a row per direction, a
+ * column per flicker step (their lengths cycle through 4), so a crowd of
+ * runners draws one image each instead of a pixel at a time.
+ */
+const SPEED_LINES = lazy(() => {
+  const canvas = createCanvas(STREAK_CELL * 4, STREAK_CELL * 8)
+  const ctx = context2d(canvas)
+  ctx.fillStyle = '#ffffff'
+  DIR_STEP.forEach(([dx, dy], dir) => {
+    for (let step = 0; step < 4; step++) {
+      for (let i = -1; i <= 1; i++) {
+        const len = 3 + ((step + i * 3) & 3) - (i === 0 ? 0 : 1)
+        const ox = step * STREAK_CELL + STREAK_MID - dy * i * 3
+        const oy = dir * STREAK_CELL + STREAK_MID + dx * i * 3
+        for (let k = 0; k < len; k++) ctx.fillRect(ox - dx * k, oy - dy * k, 1, 1)
+      }
+    }
+  })
+  return canvas
+})
+
 /** A runner's three flickering white streaks trailing behind its body (`cy` is mid-body, `w` the body width). */
 const drawSpeedLines = (ctx: Ctx, e: Enemy, cy: number, w: number, t: number) => {
   const [dx, dy] = DIR_STEP[e.dir]!
   const back = Math.round(w / 2) + 1
-  const frame = Math.floor(t * 14)
-  ctx.fillStyle = '#ffffff'
+  const step = (Math.floor(t * 14) + e.id) & 3
+  const x = Math.round(e.x) - dx * back - STREAK_MID
+  const y = Math.round(cy) - dy * back - STREAK_MID
   ctx.globalAlpha = 0.8
-  for (let i = -1; i <= 1; i++) {
-    const len = 3 + ((frame + i * 3 + e.id) & 3) - (i === 0 ? 0 : 1)
-    const ox = Math.round(e.x - dx * back - dy * i * 3)
-    const oy = Math.round(cy - dy * back + dx * i * 3)
-    for (let k = 0; k < len; k++) ctx.fillRect(ox - dx * k, oy - dy * k, 1, 1)
-  }
+  ctx.drawImage(SPEED_LINES(), step * STREAK_CELL, e.dir * STREAK_CELL, STREAK_CELL, STREAK_CELL, x, y, STREAK_CELL, STREAK_CELL)
   ctx.globalAlpha = 1
 }
 
@@ -607,10 +636,12 @@ const drawHpBar = (ctx: Ctx, g: Game) => {
   ctx.fillRect(x, y, Math.ceil(w * ratio), 2)
 }
 
-const drawPickups = (ctx: Ctx, g: Game, t: number) => {
+/** The pickups on the ground in view (`visible`): a long run leaves hundreds of candies and coins behind. */
+const drawPickups = (ctx: Ctx, g: Game, t: number, visible: (x: number, y: number) => boolean) => {
   const candies = PICKUPS.candy()
   const coins = PICKUPS.coins()
   for (const k of g.pickups) {
+    if (!visible(k.x, k.y)) continue
     const bob = k.attracted ? 0 : Math.round(Math.sin(t * 4 + k.id) * 1.2)
     if (!k.attracted) blitEllipse(ctx, 3, 1, 'rgba(16,40,16,0.25)', k.x, k.y + 4)
     if (k.kind === 'consumable') {
@@ -933,7 +964,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   drawRiftFallGround(ctx, g, camX, camY)
   drawTraitGround(ctx, g, visible)
   drawAlphaGround(ctx, g, t, visible)
-  drawPickups(ctx, g, t)
+  drawPickups(ctx, g, t, visible)
   if (g.coop) drawTeamGround(ctx, g, t)
 
   drawables.length = 0

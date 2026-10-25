@@ -168,6 +168,8 @@ export const updateEnemies = (g: Game, dt: number) => {
     for (let i = 0; i < g.players.length; i++) navs[i] = dungeonNav(plan, g.players[i]!.x - cave.x, g.players[i]!.y - cave.y)
   }
   const band = spitBand(g.view)
+  // Knockback fades the same for everyone this tick.
+  const damp = dm.exp(-9 * dt)
 
   for (const e of g.enemies) {
     if (e.dying >= 0) {
@@ -244,7 +246,6 @@ export const updateEnemies = (g: Game, dt: number) => {
 
     e.x += (vx + e.kx) * dt
     e.y += (vy + e.ky) * dt
-    const damp = dm.exp(-9 * dt)
     e.kx *= damp
     e.ky *= damp
     if (e.thrown && dm.sq(e.kx) + dm.sq(e.ky) < THROWN_MIN * THROWN_MIN) e.thrown = null
@@ -263,18 +264,23 @@ export const updateEnemies = (g: Game, dt: number) => {
   }
 
   // Separation: overlapping enemies push each other apart so hordes form rings, not blobs.
-  g.enemies.forEach((e, i) => {
-    if (e.dying >= 0 || isAirborne(e)) return
+  // A pass over the horde as it stood (as `forEach` walks it): a foe added meanwhile waits for the next tick.
+  const horde = g.enemies
+  const count = horde.length
+  for (let i = 0; i < count; i++) {
+    const e = horde[i]
+    if (e === undefined || e.dying >= 0 || isAirborne(e)) continue
     for (const j of query(g.grid, e.x, e.y, e.radius * 2, neighbors)) {
       if (j === i) continue
       const o = g.enemies[j]!
-      if (o.dying >= 0 || isAirborne(o)) continue
       const dx = e.x - o.x
       const dy = e.y - o.y
       const min = (e.radius + o.radius) * 0.8
       const d2 = dx * dx + dy * dy
-      if (d2 < min * min && (e.thrown || e.status.confuse.time > 0)) bodyBlow(g, e, o)
-      if (d2 >= min * min || d2 === 0) continue
+      // Most of a crowded cell is out of reach: that's settled before looking any closer.
+      if (d2 >= min * min || o.dying >= 0 || isAirborne(o)) continue
+      if (e.thrown || e.status.confuse.time > 0) bodyBlow(g, e, o)
+      if (d2 === 0) continue
       const d = Math.sqrt(d2)
       const push = ((min - d) / d) * (o.mass / (e.mass + o.mass)) * 0.5
       e.x += dx * push
@@ -298,7 +304,7 @@ export const updateEnemies = (g: Game, dt: number) => {
       hurtPlayer(g, e.damage * attack, e)
       actAs(g, before)
     }
-  })
+  }
 
   retain(g.enemies, (e) => e.dying < (e.fled ? FLEE_TIME : FAINT_TIME))
 }

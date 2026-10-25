@@ -136,9 +136,19 @@ export const bossOf = (e: BossEvent, trio: TrioId, mythical: Mythical): EnemyId 
 export const nightCandidates = (e: BossEvent): readonly EnemyId[] =>
   'enemy' in e ? ((HALLOWEEN.bosses as Partial<Record<EnemyId, readonly EnemyId[]>>)[e.enemy] ?? []) : []
 
+/** `bossWaveAt` by species, worked out once: the boss system asks it of every foe on every tick. */
+const waveOfBoss = new Map<EnemyId, number | null>()
+
 /** When the wave a boss belongs to arrives (its scheduled event, a night boss's slot included), or null for bosses off the schedule (rifts, Arceus). */
-export const bossWaveAt = (enemy: EnemyId) =>
-  EVENTS.find((e) => e.kind === 'boss' && (bossCandidates(e).includes(enemy) || nightCandidates(e).includes(enemy)))?.at ?? null
+export const bossWaveAt = (enemy: EnemyId) => {
+  let at = waveOfBoss.get(enemy)
+  if (at === undefined) {
+    at = EVENTS.find((e) => e.kind === 'boss' && (bossCandidates(e).includes(enemy) || nightCandidates(e).includes(enemy)))?.at ?? null
+    waveOfBoss.set(enemy, at)
+  }
+  return at
+}
+
 
 /**
  * Each wave boss has until the next one: when a boss of the wave at `at`
