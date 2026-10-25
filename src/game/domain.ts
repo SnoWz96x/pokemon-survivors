@@ -7,6 +7,7 @@ import { ARENAS, isRiftLegend, RIFT, type RiftLegend } from '../data/rifts'
 import { onFloor } from './arenaFloor'
 import { joinAs, offstage } from './bosses'
 import { hurtPlayer, killEnemy } from './combat'
+import { harmBy } from './harm'
 import { DOMAIN_HOOKS } from './domainHooks'
 import { pairFighter, revealPartner, updatePair, type PairState } from './domainPair'
 import {
@@ -203,7 +204,7 @@ const crossingTick = (g: Game, arena: RiftArena, d: DomainState, def: LegendDoma
       p.y -= threat.push * dt
       if (!bite) continue
       const before = actAs(g, p)
-      hurtPlayer(g, p.stats.maxHp * threat.damage, undefined, [], 'hazard')
+      hurtPlayer(g, p.stats.maxHp * threat.damage, undefined, [], 'hazard', harmBy(arena.legend))
       actAs(g, before)
       burst(g, p.x, p.y - 4, { colors: STING[threat.kind], count: 8, speed: 70, ttl: 0.4, gravity: 120 })
     }

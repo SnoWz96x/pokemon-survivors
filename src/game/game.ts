@@ -208,6 +208,7 @@ export const createPlayer = (slot: number, setup: PlayerSetup, lucky: boolean, x
     gone: false,
     revive: 0,
     record: createRecord(),
+    hits: [],
   }
 }
 

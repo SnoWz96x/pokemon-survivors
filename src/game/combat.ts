@@ -3,6 +3,7 @@ import { chance, range } from '../engine/rng'
 import { effectiveness, TYPE_COLORS, type PokeType } from '../data/types'
 import { ENEMY_BERRY_CHANCE } from '../data/consumables'
 import { ENEMIES, type EnemyDef } from '../data/enemies'
+import { harmBy, NO_ONE, noteHit, type HarmBy } from './harm'
 import type { HitKind } from '../data/abilities'
 import { abilityHolds, abilityHurt, abilityImmune, abilityKill, abilityTakes, strikeBonus } from './abilities'
 import { enemyDrop, isRepelled, tryMaxRevive, tryRevive } from './consumables'
@@ -223,8 +224,16 @@ export const armored = (raw: number, armor: number) => Math.max(1, Math.round(ra
  * Damages the player. `from` (a body that touched them) gets shoved back; hazards pass none.
  * `types` is the attack's typing for the weather (a body attacks with its own types), and
  * `hit` what kind of harm it is, for the abilities (`abilityTakes`): a body, a boss's strike, lava…
+ * `by` names who dealt it for the end screen (`Player.hits`; a body names itself); it never changes the outcome.
  */
-export const hurtPlayer = (g: Game, amount: number, from?: Enemy, types: readonly PokeType[] = from?.types ?? [], hit: HitKind = from ? 'body' : 'hazard') => {
+export const hurtPlayer = (
+  g: Game,
+  amount: number,
+  from?: Enemy,
+  types: readonly PokeType[] = from?.types ?? [],
+  hit: HitKind = from ? 'body' : 'hazard',
+  by: HarmBy | null = null,
+) => {
   const p = g.player
   if (p.iframes > 0 || p.hidden || isRepelled(g) || g.phase !== 'playing') return
   // Co-op: fainted, away, gone or mid-evolution players can't be hurt.
@@ -239,6 +248,7 @@ export const hurtPlayer = (g: Game, amount: number, from?: Enemy, types: readonl
   const dmg = armored(taken * mods.enemyDamage * weather * domainHarm(g, from !== undefined) * p.stats.damageTaken, p.stats.armor)
   p.hp -= dmg
   p.record.taken += dmg
+  noteHit(p, by ?? (from ? harmBy(from) : NO_ONE), hit, dmg)
   p.iframes = mods.iframes
   noteHarm(g, dmg)
   p.hurt = 0.3

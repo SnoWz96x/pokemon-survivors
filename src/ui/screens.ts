@@ -41,6 +41,7 @@ import { boundPadHint, glyphText } from './inputLabels'
 import { pressGuard } from './pressGuard'
 import { holdMoveCard, hoverMoveCard, moveCard, withMoveCard } from './moveCard'
 import { localPlayer } from '../game/players'
+import { deathCause } from './deathCause'
 import { teamBuilds } from './teamHud'
 
 export type Screen = {
@@ -896,7 +897,8 @@ const runNews = ({ eggs, news, medals }: ResultsExtras) => {
  * a run that ends in endless mode shows its overtime, rift legendaries and Arceus.
  * The steps walked and eggs found feed the incubator (`extras.eggs`), and
  * `extras.news` adds a one-line Pokédex summary when the run found something new.
- * A victory also links the support page, under the buttons (only then, so it never nags).
+ * A victory also links the support page, under the buttons (only then, so it never nags); a faint
+ * says what landed the last hit (`deathCause`).
  * `onLobby` goes straight home (Trocar Pokémon opens the partner select instead).
  */
 export const results = (
@@ -976,6 +978,7 @@ export const results = (
       extras.badge,
       localPlayer(g).shiny && h('div', { class: 'tag tag-shiny' }, m.shiny(name)),
       reaperDefeats > 0 && h('div', { class: 'tag tag-shiny' }, r.reaperDefeated(reaperDefeats)),
+      g.phase === 'gameover' && deathCause(localPlayer(g)),
       h(
         'div',
         { class: 'result-stats' },

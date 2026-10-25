@@ -9,6 +9,7 @@ import {
 import { RUN_LENGTH, scaling } from '../data/waves'
 import { bossReach, spawnHazard } from './bosses'
 import { bumpDamage } from './combat'
+import { WORLD_HARM } from './harm'
 import { DIFFICULTIES, type Difficulty } from './difficulty'
 import { finaleAlive } from './spawner'
 import { isAirborne } from './traits'
@@ -82,7 +83,7 @@ const paceNow = (g: Game) => {
 }
 
 const spawn = (g: Game, init: Pick<Hazard, 'kind' | 'visual' | 'x' | 'y' | 'r' | 'damage' | 'armAt' | 'disarmAt' | 'ttl'>) =>
-  spawnHazard(g, { ...init, world: true })
+  spawnHazard(g, { ...init, world: true, by: WORLD_HARM })
 
 /** How long a landed strike keeps hurting, as a boss's does. */
 const STRIKE_WINDOW = 0.15

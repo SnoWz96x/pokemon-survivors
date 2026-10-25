@@ -4,6 +4,7 @@ import { ENEMIES, type EnemyDef, type EnemyId } from '../data/enemies'
 import { bossWaveAt, RUN_LENGTH, stageIndexAt } from '../data/waves'
 import { spawnHazard } from './bosses'
 import { hurtPlayer } from './combat'
+import { harmBy } from './harm'
 import { coopScale } from './coop'
 import { COOP } from '../data/coop'
 import type { Difficulty } from './difficulty'
@@ -243,7 +244,7 @@ const recover = (g: Game, e: Enemy, a: AlphaState) => {
   if (!ALPHA_RULES[g.difficulty].shock) return
   spawnHazard(g, {
     kind: 'strike', visual: 'slam', x: e.x, y: e.y, r: ALPHA.shock.radius, damage: e.damage * ALPHA.shock.damage,
-    armAt: ALPHA.shock.delay, disarmAt: ALPHA.shock.delay + 0.15, ttl: ALPHA.shock.delay + 0.45,
+    armAt: ALPHA.shock.delay, disarmAt: ALPHA.shock.delay + 0.15, ttl: ALPHA.shock.delay + 0.45, by: harmBy(e),
   })
   g.events.push({ kind: 'alpha', enemy: e.kind, moment: 'shock' })
 }

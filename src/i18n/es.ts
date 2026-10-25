@@ -595,6 +595,17 @@ export const es: Messages = {
     dexSpecies: (n) => (n === 1 ? '+1 especie nueva' : `+${n} especies nuevas`),
     dexShinies: (n) => (n === 1 ? '1 shiny capturado' : `${n} shinies capturados`),
     support: '¿Te gusta? Apoya el proyecto',
+    cause: {
+      title: 'Golpe final',
+      move: (who, move) => `${move} de ${who}`,
+      kind: (who, kind) => `${who} (${kind})`,
+      alpha: (name) => `${name} Alfa`,
+      world: 'Ataque del mundo',
+      unknown: 'Causa desconocida',
+      damage: (n) => `${n} de daño`,
+      before: (hits) => `Antes: ${hits}`,
+      hits: { body: 'contacto', hazard: 'golpe', shot: 'proyectil', blast: 'explosión', beam: 'rayo', lava: 'lava', trap: 'trampa', zone: 'zona' },
+    },
   },
 
   share: {

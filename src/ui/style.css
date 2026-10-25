@@ -8829,6 +8829,58 @@ button {
   gap: 6px;
 }
 
+/* A faint's cause (`ui/deathCause.ts`): the last hit, how hard, and the hits before it. */
+.death-cause {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 4px 10px;
+  font-family: var(--body);
+  font-size: 19px;
+  line-height: 1.1;
+  text-align: center;
+  background: #fbe8e4;
+  border: 2px solid #e09080;
+  border-radius: 6px;
+}
+
+.death-cause small {
+  flex-basis: 100%;
+  font-size: 15px;
+  color: #8a5048;
+}
+
+.death-cause b {
+  color: var(--ink);
+}
+
+.death-dmg {
+  color: #d83828;
+}
+
+@media (max-width: 600px) {
+  .death-cause {
+    font-size: 16px;
+    padding: 3px 8px;
+  }
+  .death-cause small {
+    font-size: 13px;
+  }
+}
+
+/* A phone on its side: the heading joins the hit's line, so the box takes one line less. */
+@media (max-height: 500px) {
+  .death-cause {
+    font-size: 16px;
+    padding: 2px 8px;
+  }
+  .death-cause small:first-child {
+    flex-basis: auto;
+  }
+}
+
 .news-chip {
   display: inline-flex;
   align-items: center;

@@ -3,6 +3,7 @@ import type { BiomeId } from '../data/biomes'
 import type { PlaceId, WingId } from '../data/places'
 import type { LandmarkId, TreasureLandmark } from '../data/landmarks'
 import type { PokeType } from '../data/types'
+import type { HitKind } from '../data/abilities'
 import type { RiftLegend } from '../data/rifts'
 import type { WaveLegend } from '../data/legendBosses'
 import type { PlayableId } from '../data/hatchlings'
@@ -738,6 +739,23 @@ export const pt = {
     dexShinies: (n: number) => (n === 1 ? '1 shiny capturado' : `${n} shinies capturados`),
     /** Victory screen link to the support page. */
     support: 'Curtiu? Apoie o projeto',
+    /** A faint's cause on the end screen (`ui/deathCause.ts`): the last hit and the ones before it. Pokémon and move names stay in English. */
+    cause: {
+      /** Heading over the hit that fainted the player. */
+      title: 'Golpe final',
+      /** A named attack, e.g. "Judgment de Arceus". */
+      move: (who: string, move: string) => `${move} de ${who}`,
+      /** A kind of hit, e.g. "Gengar Alfa (contato)". */
+      kind: (who: string, kind: string) => `${who} (${kind})`,
+      alpha: (name: string) => `${name} Alfa`,
+      /** The world's own attacks (`game/hazards.ts`). */
+      world: 'Ataque do mundo',
+      unknown: 'Causa desconhecida',
+      damage: (n: string) => `${n} de dano`,
+      /** The hits before the last, e.g. "Antes: Rattata 12 · Lava 30". */
+      before: (hits: string) => `Antes: ${hits}`,
+      hits: { body: 'contato', hazard: 'golpe', shot: 'projétil', blast: 'explosão', beam: 'raio', lava: 'lava', trap: 'armadilha', zone: 'área' } satisfies Record<HitKind, string>,
+    },
   },
 
   /** Share cards (`render/card.ts`): the preview with its buttons, the text that goes along and the card's own labels. */

@@ -594,6 +594,17 @@ export const zh: Messages = {
     dexSpecies: (n) => `+${n}種新寶可夢`,
     dexShinies: (n) => `捕捉了${n}隻異色`,
     support: '玩得開心嗎？贊助這個專案',
+    cause: {
+      title: '致命一擊',
+      move: (who, move) => `${who} 的 ${move}`,
+      kind: (who, kind) => `${who}（${kind}）`,
+      alpha: (name) => `頭目 ${name}`,
+      world: '世界的攻擊',
+      unknown: '原因不明',
+      damage: (n) => `${n} 點傷害`,
+      before: (hits) => `之前：${hits}`,
+      hits: { body: '接觸', hazard: '重擊', shot: '飛彈', blast: '爆炸', beam: '光束', lava: '岩漿', trap: '陷阱', zone: '區域' },
+    },
   },
 
   share: {
