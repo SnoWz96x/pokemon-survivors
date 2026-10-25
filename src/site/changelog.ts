@@ -25,10 +25,10 @@ export type ChangelogUpdate = {
 export const CHANGELOG: readonly ChangelogUpdate[] = [
   {
     date: '2026-10-24',
-    title: { pt: 'Um lobby novo no celular e golpes mais vivos', en: 'A new lobby on phones and livelier moves', es: 'Un lobby nuevo en el celular y ataques con más vida', fr: 'Un nouveau lobby sur mobile et des attaques plus vivantes', zh: '手機上的全新大廳與更生動的招式' },
+    title: { pt: 'Mega Darkrai, um lobby novo no celular e golpes mais vivos', en: 'Mega Darkrai, a new lobby on phones and livelier moves', es: 'Mega Darkrai, un lobby nuevo en el celular y ataques con más vida', fr: 'Méga-Darkrai, un nouveau lobby sur mobile et des attaques plus vivantes', zh: '超級 Darkrai、手機上的全新大廳與更生動的招式' },
     highlights: [
+      { pt: 'Meta da comunidade: juntem 15 milhões de doces na Noite das Bruxas e o Darkrai ganha a Mega Evolução para todo mundo, no Modo Lendário (Nv 28) e na fenda do Pesadelo. Acompanhe a barra na tela do evento.', en: 'Community goal: gather 15 million candies during Halloween Night and Darkrai gets its Mega Evolution for everyone, in Legend Mode (Lv 28) and in the Nightmare rift. Follow the bar on the event screen.', es: 'Meta de la comunidad: junten 15 millones de dulces en la Noche de Brujas y Darkrai obtiene su Megaevolución para todos, en el Modo Legendario (Nv 28) y en la grieta de la Pesadilla. Sigue la barra en la pantalla del evento.', fr: 'Objectif de la communauté : réunissez 15 millions de bonbons pendant la Nuit des Sorcières et Darkrai obtient sa Méga-Évolution pour tout le monde, en Mode Légendaire (Nv 28) et dans la faille du Cauchemar. Suis la barre sur l’écran de l’événement.', zh: '社群目標：在女巫之夜一起收集 1500 萬顆糖果，Darkrai 就會為所有人解鎖超級進化，在傳說模式（Lv 28）和夢魘裂縫中都看得到。在活動畫面追蹤進度條。' },
       { pt: 'No celular em pé, o lobby ficou mais limpo: seu Pokémon parceiro volta para o centro da tela, com o JOGAR logo abaixo.', en: 'On a phone held upright, the lobby is cleaner: your partner Pokémon is back in the middle of the screen, with PLAY right under it.', es: 'En el celular en vertical, el lobby quedó más limpio: tu Pokémon compañero vuelve al centro de la pantalla, con JUGAR justo debajo.', fr: 'Sur un téléphone tenu droit, le lobby est plus clair : ton Pokémon partenaire revient au centre de l’écran, avec JOUER juste en dessous.', zh: '直拿手機時，大廳變得更清爽了：你的夥伴寶可夢回到畫面中央，下方就是開始遊戲。' },
-      { pt: 'O evento, o Surto, o Desafio e as Missões viraram ícones à esquerda; o Presente, o Hall da Fama, Convidar, o Discord e Passear, à direita. Os selos mostram o que está esperando por você.', en: 'The event, the Outbreak, the Challenge and Missions are now icons on the left; the Gift, the Hall of Fame, Invite, Discord and Explore are on the right. Badges show what’s waiting for you.', es: 'El evento, la Horda, el Desafío y las Misiones ahora son íconos a la izquierda; el Regalo, el Salón de la Fama, Invitar, Discord y Pasear, a la derecha. Las insignias muestran lo que te espera.', fr: 'L’événement, l’Essaim, le Défi et les Missions sont maintenant des icônes à gauche ; le Cadeau, le Panthéon, Inviter, Discord et Se promener sont à droite. Les pastilles montrent ce qui t’attend.', zh: '活動、大量出現、挑戰和任務變成左側的圖示；禮物、名人堂、邀請、Discord 和散步在右側。小標記會告訴你有什麼在等你。' },
       { pt: 'Os golpes ganharam animações novas: bolas de fogo e jatos d’água apontam para onde voam, Thunder cai como um raio de verdade e os projéteis estouram ao acertar.', en: 'Moves got new animations: fireballs and water jets point where they fly, Thunder falls like real lightning and shots burst when they hit.', es: 'Los ataques tienen animaciones nuevas: las bolas de fuego y los chorros de agua apuntan hacia donde vuelan, Thunder cae como un rayo de verdad y los proyectiles estallan al acertar.', fr: 'Les attaques ont de nouvelles animations : les boules de feu et les jets d’eau pointent là où ils volent, Thunder tombe comme un vrai éclair et les projectiles éclatent à l’impact.', zh: '招式有了新動畫：火球和水柱會朝飛行方向前進，Thunder 像真正的閃電一樣落下，投射物命中時會爆開。' },
       { pt: 'Partidas longas no modo infinito voltam a contar no ranking, mesmo passando do nível 999 ou se o jogo fechar no meio.', en: 'Long endless runs count on the ranking again, even past level 999 or if the game closes midway.', es: 'Las partidas largas en el modo infinito vuelven a contar en el ranking, aunque pasen del nivel 999 o el juego se cierre a mitad.', fr: 'Les longues parties en mode infini comptent de nouveau au classement, même au-delà du niveau 999 ou si le jeu se ferme en cours de route.', zh: '無盡模式的長時間對局重新計入排行榜，即使超過 999 級或遊戲中途關閉也一樣。' },
       {
@@ -40,6 +40,25 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
       },
     ],
     changes: [
+      {
+        title: { pt: 'Meta da comunidade: Mega Darkrai', en: 'Community goal: Mega Darkrai', es: 'Meta de la comunidad: Mega Darkrai', fr: 'Objectif de la communauté : Méga-Darkrai', zh: '社群目標：超級 Darkrai' },
+        notes: [
+          {
+            pt: 'Todos os doces que os treinadores com conta juntam na Noite das Bruxas enchem um pote só, da comunidade. Com 15 milhões, o Darkrai ganha a Mega Evolução para todo mundo, para sempre. Cada treinador conta até 20 mil doces.',
+            en: 'Every candy trainers with an account gather during Halloween Night fills one jar, the community’s. At 15 million, Darkrai gets its Mega Evolution for everyone, for good. Each trainer counts up to 20,000 candies.',
+            es: 'Todos los dulces que juntan los entrenadores con cuenta en la Noche de Brujas llenan un solo frasco, el de la comunidad. Con 15 millones, Darkrai obtiene su Megaevolución para todos, para siempre. Cada entrenador cuenta hasta 20.000 dulces.',
+            fr: 'Tous les bonbons que les dresseurs avec un compte récoltent pendant la Nuit des Sorcières remplissent un seul bocal, celui de la communauté. À 15 millions, Darkrai obtient sa Méga-Évolution pour tout le monde, pour de bon. Chaque dresseur compte jusqu’à 20 000 bonbons.',
+            zh: '擁有帳號的訓練家在女巫之夜收集的每顆糖果，都會裝進同一個社群糖果罐。達到 1500 萬顆時，Darkrai 將為所有人永久解鎖超級進化。每位訓練家最多計入 20,000 顆糖果。',
+          },
+          {
+            pt: 'Depois de liberada, no Modo Lendário o Darkrai desperta como Mega Darkrai no Nv 28, como o Rayquaza vira Mega Rayquaza, e na fenda do Pesadelo ele vira Mega Darkrai na última fase da batalha. A barra fica na tela da Noite das Bruxas.',
+            en: 'Once unlocked, Darkrai awakens as Mega Darkrai at Lv 28 in Legend Mode, the way Rayquaza becomes Mega Rayquaza, and in the Nightmare rift it goes Mega for the battle’s last phase. The bar is on the Halloween Night screen.',
+            es: 'Una vez desbloqueado, en el Modo Legendario Darkrai despierta como Mega Darkrai en el Nv 28, como Rayquaza se vuelve Mega Rayquaza, y en la grieta de la Pesadilla se vuelve Mega Darkrai en la última fase de la batalla. La barra está en la pantalla de la Noche de Brujas.',
+            fr: 'Une fois débloqué, Darkrai s’éveille en Méga-Darkrai au Nv 28 en Mode Légendaire, comme Rayquaza devient Méga-Rayquaza, et dans la faille du Cauchemar il devient Méga-Darkrai pour la dernière phase du combat. La barre est sur l’écran de la Nuit des Sorcières.',
+            zh: '解鎖之後，在傳說模式中 Darkrai 會在 Lv 28 覺醒為超級 Darkrai，就像 Rayquaza 變成超級 Rayquaza；在夢魘裂縫中，牠會在戰鬥最後階段變成超級 Darkrai。進度條在女巫之夜的畫面上。',
+          },
+        ],
+      },
       {
         title: { pt: 'Ovo Assombrado por doces', en: 'Haunted Eggs for candies', es: 'Huevos Embrujados por dulces', fr: 'Œufs Hantés contre des bonbons', zh: '用糖果買鬧鬼蛋' },
         notes: [

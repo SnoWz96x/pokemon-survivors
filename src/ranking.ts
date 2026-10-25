@@ -359,15 +359,24 @@ const CHECKPOINT_S = 60
 const checkpointDue = (time: number, sent: number, kept: number) => sent >= 0 && time >= Math.max(sent, kept) + CHECKPOINT_S
 
 /**
- * Takes the ticket in hand for a run that begins now (`challenge`: the day of
- * the Desafio do dia it plays) and restarts its clock on the API. Without one
- * (offline, rate limited, Play pressed before it came) the run is unranked
- * and plays a seed and day of the game's own. Null for guests.
+ * How long Play waits on the loading screen for a ticket not in hand yet:
+ * right after the page loads, the ask waits for Clerk and for queued results,
+ * and a Play pressed meanwhile would otherwise lose the whole run's ranking.
  */
-export const startRanked = (challenge: DayKey | null = null): RankedStart | null => {
+const TICKET_WAIT_MS = 4000
+
+/**
+ * Takes the ticket for a run that begins now (`challenge`: the day of the
+ * Desafio do dia it plays) and restarts its clock on the API. Without one in
+ * hand it asks (or joins the ask in flight) and waits up to `TICKET_WAIT_MS`;
+ * still without one (offline, rate limited, a slow network) the run is
+ * unranked and plays a seed and day of the game's own. Null for guests.
+ */
+export const startRanked = async (challenge: DayKey | null = null): Promise<RankedStart | null> => {
   const userId = accountUserId()
   if (!rankingEnabled || !userId) return null
   const kind = kindOf(challenge)
+  if (!fits(held[kind], challenge)) await Promise.race([prefetchRanked(challenge), new Promise((done) => setTimeout(done, TICKET_WAIT_MS))])
   const ticket = held[kind]
   if (!fits(ticket, challenge)) return { seed: null, outbreak: null, halloween: null, ranked: unranked }
   held[kind] = null
