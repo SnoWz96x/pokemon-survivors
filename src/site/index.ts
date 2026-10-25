@@ -1,4 +1,6 @@
+import { TIER_SNAPSHOT } from '../data/tierRuns'
 import { LOCALE_IDS, type Locale } from '../i18n'
+import { CHANGELOG } from './changelog'
 import { changelogPage } from './pages/changelog'
 import { dexPage } from './pages/dexPage'
 import { guidePage } from './pages/guide'
@@ -7,7 +9,7 @@ import { pokedexPage } from './pages/pokedex'
 import { supportPage } from './pages/support'
 import { tierListPage } from './pages/tierList'
 import { dexPages } from './pokedex'
-import { dexPaths, PAGE_IDS, ROUTES, sitemap as routesSitemap, type PageId, type Paths } from './routes'
+import { dexPaths, PAGE_IDS, ROUTE_IDS, ROUTES, sitemap as routesSitemap, type PageId, type Paths, type RouteId } from './routes'
 
 const RENDER: Record<PageId, (locale: Locale) => string> = {
   pokedex: pokedexPage,
@@ -41,5 +43,17 @@ export const SITE_PAGES: readonly SitePage[] = [
   ...dexPages().flatMap((page) => pagesOf(dexPaths(page.slug), (locale) => dexPage(page, locale))),
 ]
 
+/**
+ * `<lastmod>` of the routes whose last change we know: the game and the changelog
+ * change with each update, the tier list with its snapshot. Every other page goes
+ * without one, since a date that moves when the page didn't teaches Google to ignore them all.
+ */
+const LASTMOD: Partial<Record<RouteId, string>> = {
+  play: CHANGELOG[0]?.date,
+  changelog: CHANGELOG[0]?.date,
+  tierList: TIER_SNAPSHOT.date,
+}
+
 /** sitemap.xml: every route and every Pokémon page. */
-export const sitemap = () => routesSitemap(dexPages().map((p) => dexPaths(p.slug)))
+export const sitemap = () =>
+  routesSitemap([...ROUTE_IDS.map((id) => ({ paths: ROUTES[id], lastmod: LASTMOD[id] })), ...dexPages().map((p) => ({ paths: dexPaths(p.slug) }))])
