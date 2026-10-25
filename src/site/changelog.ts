@@ -24,6 +24,36 @@ export type ChangelogUpdate = {
  */
 export const CHANGELOG: readonly ChangelogUpdate[] = [
   {
+    date: '2026-10-25',
+    title: { pt: 'Mini mapa', en: 'Mini map', es: 'Minimapa', fr: 'Mini-carte', zh: '小地圖' },
+    highlights: [
+      { pt: 'Mini mapa no canto da tela: lagos, penhascos, bosques, construções e eventos ao seu redor, com o norte para cima.', en: 'A mini map in the corner of the screen: lakes, cliffs, groves, landmarks and events around you, north up.', es: 'Un minimapa en la esquina de la pantalla: lagos, acantilados, bosques, construcciones y eventos a tu alrededor, con el norte arriba.', fr: 'Une mini-carte dans le coin de l’écran : lacs, falaises, bosquets, constructions et événements autour de toi, nord en haut.', zh: '畫面角落的小地圖：你周圍的湖泊、懸崖、樹林、建築和事件，北方朝上。' },
+      { pt: 'Chefes, Alfas, fendas lendárias e entradas de lugares ficam presos na borda do mapa quando estão longe, apontando o caminho.', en: 'Bosses, Alphas, legendary rifts and place entrances stay pinned to the map’s rim when they’re far, pointing the way.', es: 'Jefes, Alfas, grietas legendarias y entradas de lugares quedan fijos en el borde del mapa cuando están lejos, marcando el camino.', fr: 'Boss, Alphas, failles légendaires et entrées de lieux restent épinglés au bord de la carte quand ils sont loin, pour montrer le chemin.', zh: '頭目、Alpha、傳說裂縫和地點入口在遠處時會固定在地圖邊緣，為你指路。' },
+      { pt: 'Quadrado, redondo ou desligado: escolha em Ajustes → Jogo. Funciona no celular em pé, deitado e no computador.', en: 'Square, round or off: pick it in Settings → Game. It works on phones held either way and on computers.', es: 'Cuadrado, redondo o apagado: elígelo en Ajustes → Juego. Funciona en el celular en vertical, en horizontal y en la computadora.', fr: 'Carrée, ronde ou désactivée : choisis dans Réglages → Jeu. Elle marche sur mobile dans les deux sens et sur ordinateur.', zh: '方形、圓形或關閉：在設定 → 遊戲中選擇。直拿、橫拿手機和電腦上都能用。' },
+    ],
+    changes: [
+      {
+        title: { pt: 'Mini mapa', en: 'Mini map', es: 'Minimapa', fr: 'Mini-carte', zh: '小地圖' },
+        notes: [
+          {
+            pt: 'O mapa mostra o terreno do bioma, a área da tela, os eventos (altares, fontes, baús, Meowth, o Tutor de Golpes, as missões), as construções, as Poké Balls, TMs e Mega Pedras no chão e os seus companheiros de time. A horda selvagem fica de fora.',
+            en: 'The map shows the biome’s terrain, the area on screen, events (altars, fountains, chests, Meowth, the Move Tutor, missions), landmarks, Poké Balls, TMs and Mega Stones on the ground, and your teammates. The wild horde stays off it.',
+            es: 'El mapa muestra el terreno del bioma, el área en pantalla, los eventos (altares, fuentes, cofres, Meowth, el Tutor de Movimientos, las misiones), las construcciones, las Poké Balls, MTs y Megapiedras en el suelo y a tus compañeros de equipo. La horda salvaje queda fuera.',
+            fr: 'La carte montre le terrain du biome, la zone à l’écran, les événements (autels, fontaines, coffres, Meowth, le Maître des capacités, les missions), les constructions, les Poké Balls, CT et Méga-Gemmes au sol et tes coéquipiers. La horde sauvage n’y figure pas.',
+            zh: '地圖會顯示生態區的地形、畫面範圍、事件（祭壇、泉水、寶箱、Meowth、招式教學、任務）、建築、地上的精靈球、招式學習器和超級石，以及你的隊友。野生群體不會顯示。',
+          },
+          {
+            pt: 'Dentro de uma fenda, da caverna ou do cemitério, o mapa mostra o lugar de perto: o chão da arena, os corredores e a escada da caverna, a Pedra Peculiar do cemitério.',
+            en: 'Inside a rift, the cave or the graveyard, the map shows the place up close: the arena’s floor, the cave’s corridors and stairs, the graveyard’s keystone.',
+            es: 'Dentro de una grieta, la cueva o el cementerio, el mapa muestra el lugar de cerca: el suelo de la arena, los pasillos y la escalera de la cueva, la Piedra Espíritu del cementerio.',
+            fr: 'Dans une faille, la grotte ou le cimetière, la carte montre le lieu de près : le sol de l’arène, les couloirs et l’escalier de la grotte, la Clé de Voûte du cimetière.',
+            zh: '在裂縫、洞窟或墓地裡，地圖會近距離顯示該地點：競技場的地面、洞窟的通道和樓梯、墓地的 Odd Keystone。',
+          },
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-10-24',
     title: { pt: 'Mega Darkrai, um lobby novo no celular e golpes mais vivos', en: 'Mega Darkrai, a new lobby on phones and livelier moves', es: 'Mega Darkrai, un lobby nuevo en el celular y ataques con más vida', fr: 'Méga-Darkrai, un nouveau lobby sur mobile et des attaques plus vivantes', zh: '超級 Darkrai、手機上的全新大廳與更生動的招式' },
     highlights: [
