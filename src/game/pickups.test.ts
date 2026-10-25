@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { chooseOffer, createGame } from './game'
-import { dropXp, MAX_XP_PICKUPS, pokeballAsks, updatePickups } from './pickups'
+import { dropXp, LOOT, MAX_XP_PICKUPS, pokeballAsks, updatePickups } from './pickups'
 import type { Game } from './types'
 import * as dm from '../engine/dmath'
 import { setPhase } from './players'
@@ -65,6 +65,24 @@ describe('Exp. Candy cap', () => {
     dropXp(g, 40, 60, 5)
     expect(candies(g)).toContain(flying)
     expect(candies(g)).toHaveLength(MAX_XP_PICKUPS)
+  })
+})
+
+describe('loot left behind', () => {
+  it('goes once it lay out of sight past its age, but not on screen, not young and not a one-of-a-kind find', () => {
+    const g = createGame('charmander', { w: 480, h: 270 }, 1)
+    g.pickups.length = 0
+    const far = { x: g.player.x + 2000, y: g.player.y, vx: 0, vy: 0, attracted: false, age: LOOT.maxAge } as const
+    g.pickups.push(
+      { ...far, id: 1, kind: 'coin', value: 5 },
+      { ...far, id: 2, kind: 'treat' },
+      { ...far, id: 3, kind: 'coin', value: 5, age: LOOT.maxAge - 1 },
+      { ...far, id: 4, kind: 'tm', move: 'iceBeam', source: 'boss' },
+      { ...far, id: 5, kind: 'xp', value: 3 },
+      { ...far, id: 6, kind: 'berry', x: g.player.x + 60 },
+    )
+    updatePickups(g, DT)
+    expect(g.pickups.map((k) => k.id)).toEqual([3, 4, 5, 6])
   })
 })
 

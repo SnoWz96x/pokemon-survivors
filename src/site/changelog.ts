@@ -200,6 +200,13 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
             fr: 'Après 40 minutes en mode sans fin, le jeu devenait plus lourd à chaque minute. La horde coûte maintenant bien moins à dessiner (le contour des élites et les traînées des coureurs) et à déplacer entre rochers et arbres, et les pièces et bonbons laissés loin de l’écran ne sont plus dessinés. La partie reste exactement la même.',
             zh: '無盡模式過了 40 分鐘後，遊戲每分鐘都會更吃力。現在怪群的繪製（菁英的外框與疾行者的拖影）和在岩石樹木間移動都省力許多，留在畫面外遠處的金幣與糖果也不再繪製。對局內容完全不變。',
           },
+          {
+            pt: 'Moedas, doces, Oran Berries, Poké Balls e itens largados no chão somem depois de 2 minutos fora da tela: numa partida longa eles passavam dos milhares e eram o que mais pesava. Exp. Candies, TMs, Mega Pedras, itens de evolução e prêmios de Alfa continuam esperando por você.',
+            en: 'Coins, candies, Oran Berries, Poké Balls and items left on the ground vanish after 2 minutes off screen: in a long run they piled up into the thousands and were the heaviest load of all. Exp. Candies, TMs, Mega Stones, evolution items and Alpha prizes still wait for you.',
+            es: 'Las monedas, dulces, Oran Berries, Poké Balls y objetos que quedan en el suelo desaparecen tras 2 minutos fuera de la pantalla: en una partida larga se juntaban por miles y eran lo que más pesaba. Los Exp. Candies, MTs, Megapiedras, objetos evolutivos y premios de Alfa te siguen esperando.',
+            fr: 'Les pièces, bonbons, Oran Berries, Poké Balls et objets laissés au sol disparaissent après 2 minutes hors de l’écran : dans une longue partie, ils s’entassaient par milliers et pesaient plus que tout le reste. Les Exp. Candy, CT, Méga-Gemmes, objets d’évolution et prix d’Alpha t’attendent toujours.',
+            zh: '留在地上的金幣、糖果、Oran Berry、Poké Ball 和道具，在畫面外超過 2 分鐘就會消失：長時間對局裡它們會累積到上千個，是最拖慢遊戲的原因。經驗糖果、招式學習器、超級石、進化道具和頭目獎勵仍會等著你。',
+          },
         ],
       },
     ],

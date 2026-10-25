@@ -10,13 +10,29 @@ import { grantStone } from './mega'
 import { collectTm } from './tms'
 import { collectCandy } from './halloween'
 import { collectEvoItem } from './evoGate'
-import { inPlay, setPhase } from './players'
+import { inPlay, onAnyScreen, setPhase } from './players'
 import { coopScale } from './coop'
 import { COOP } from '../data/coop'
 import type { Game, Offer, Pickup, Player } from './types'
 import * as dm from '../engine/dmath'
 
 export const MAX_XP_PICKUPS = 260
+
+/**
+ * Loot left lying: past `maxAge` seconds on the ground, off every player's
+ * screen (by `margin` px), it's gone. A long endless run otherwise strews
+ * thousands of coins, candies and berries behind it, each one costing every
+ * tick. Exp. Candies fold into new ones instead (`MAX_XP_PICKUPS`) and the
+ * one-of-a-kind finds stay.
+ */
+export const LOOT = { maxAge: 120, margin: 32 } as const
+
+/** Pickups that never go: Exp. Candies (capped by folding) and the finds a run gets one of. */
+const LASTING: ReadonlySet<Pickup['kind']> = new Set(['xp', 'tm', 'megaStone', 'evoItem', 'alphaPrize'])
+
+/** Whether `k` was left behind for good (`LOOT`): old, not on its way to anyone, out of everyone's sight. */
+export const leftBehind = (g: Game, k: Pickup) => k.age > LOOT.maxAge && !k.attracted && !LASTING.has(k.kind) && !onAnyScreen(g, k.x, k.y, LOOT.margin)
+
 /** Speed (px/s) a pulled pickup heads for the player at, well above any player's speed. */
 const PULL_SPEED = 420
 /** How fast (1/s) a pulled pickup's velocity turns toward the player. */
@@ -210,6 +226,10 @@ export const updatePickups = (g: Game, dt: number) => {
   const rest = dm.exp(-6 * dt)
   for (const k of g.pickups) {
     k.age += dt
+    if (leftBehind(g, k)) {
+      k.age = -1
+      continue
+    }
     const d2 = dm.sq(k.x - p.x) + dm.sq(k.y - (p.y - 6))
     if (choosing && k.kind === 'megaStone') {
       if (d2 < dm.sq(p.radius + 8)) {
@@ -301,6 +321,10 @@ const updateTeamPickups = (g: Game, dt: number) => {
   for (const k of g.pickups) {
     k.age += dt
     if (k.age < 0) continue
+    if (leftBehind(g, k)) {
+      k.age = -1
+      continue
+    }
     if (k.kind === 'megaStone' && stonesFor(g, k.owner) > 1) {
       // A choice of stones isn't pulled: it waits to be touched.
       const q = takerWithin(g, k, touchReach)
