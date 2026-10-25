@@ -18,9 +18,8 @@ import type { DeviceInfo } from './telemetry'
 
 /**
  * Analytics and error reports. Events go to PostHog (product analytics and
- * error tracking, through our `/ingest` proxy) and, while we compare the two,
- * to our self-hosted Umami. PostHog loads after the game is up, so play never
- * waits on it; events and errors from before it loads wait in a short queue.
+ * error tracking, through our `/ingest` proxy). It loads after the game is up,
+ * so play never waits on it; events and errors from before it loads wait in a short queue.
  * Only production domains report (or a device with `ps:analytics` set to `on`, for testing).
  */
 
@@ -198,13 +197,6 @@ type AnalyticsEvents = {
     | { step: 'fail'; at: 'create' | 'join' | 'room' | 'run'; why: string }
 }
 
-declare global {
-  interface Window {
-    /** Umami's tracker, set by the script in the page head. Missing in dev, offline or behind an ad blocker. */
-    umami?: { track: (event: string, data?: Record<string, string | number>) => void }
-  }
-}
-
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY
 const LIVE_HOSTS = ['www.pokemonsurvivors.com', 'www.pokemonsurvivors.com.br']
 /** Errors one page load reports at most: a bug in the game loop throws every frame. */
@@ -230,16 +222,12 @@ const giveUp = () => {
   for (const p of waiting) p.never?.()
 }
 
-/** Umami takes flat data only. */
-const flat = (data: object) => Object.fromEntries(Object.entries(data).filter((e): e is [string, string | number] => typeof e[1] === 'string' || typeof e[1] === 'number'))
-
 /**
  * Sends a custom event. Silently does nothing where analytics don't run. Dev builds log it to the console.
  * `beacon`: the page may be going away (`pagehide`, hidden), so PostHog sends it at once by `sendBeacon`.
  */
 export const track = <E extends keyof AnalyticsEvents>(event: E, data: AnalyticsEvents[E], opts: { beacon?: boolean } = {}) => {
   if (import.meta.env.DEV) console.debug('[analytics]', event, data)
-  window.umami?.track(event, flat(data))
   withPosthog((ph) => ph.capture(event, data, opts.beacon ? { transport: 'sendBeacon', send_instantly: true } : undefined))
 }
 
@@ -248,10 +236,9 @@ const opened = new Set<LobbyFocus>()
 
 /**
  * An entry pressed in the lobby: what players open. A press per event would be a third of
- * PostHog's budget, so Umami (self-hosted) counts each press and PostHog gets the set on the next `run_end`.
+ * PostHog's budget, so the set goes along on the next `run_end`.
  */
 export const lobbyPress = (entry: LobbyFocus) => {
-  window.umami?.track('lobby_press', { entry })
   opened.add(entry)
 }
 

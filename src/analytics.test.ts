@@ -16,7 +16,7 @@ describe('isOwnError', () => {
   })
 
   it('drops errors from other origins and extensions', () => {
-    expect(isOwnError(new Error('x'), 'https://metrics.pedrobarretto.com.br/script.js', origin)).toBe(false)
+    expect(isOwnError(new Error('x'), 'https://cdn.example.com/script.js', origin)).toBe(false)
     expect(isOwnError(new Error('x'), 'safari-web-extension://abc/content.js', origin)).toBe(false)
   })
 

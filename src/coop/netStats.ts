@@ -219,7 +219,7 @@ export const NO_WHERE: NetWhere = { relayColo: null, relayRegion: null, edgeColo
 export type RunnerNet = { underruns: number; heals: number; syncs: number }
 
 /**
- * One run's numbers, flat (PostHog and Umami take them as they are): rates
+ * One run's numbers, flat (PostHog takes them as they are): rates
  * per minute of visible wall time (`wallSec` less `hiddenSec`), times in ms to a tenth.
  */
 export const netSummary = (n: NetStats, now: number, runner: RunnerNet, where: NetWhere) => {

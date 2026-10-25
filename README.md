@@ -212,7 +212,7 @@ src/
   i18n/     every player-facing string: pt.ts (reference), en.ts, es.ts, fr.ts and zh.ts; site/ has the website copy
   site/     static pages rendered at build time from data/: Pokédex, guide, changelog, legal
   account.ts  optional accounts: Clerk loaded on demand, save sync with the API
-  analytics.ts  events and error reports: PostHog (loaded once the game is up, through the /ingest proxy) and Umami; one feature flag at a time (`featureFlag`, the co-op beta)
+  analytics.ts  events and error reports: PostHog (loaded once the game is up, through the /ingest proxy); one feature flag at a time (`featureFlag`, the co-op beta)
   coopShell.ts  co-op's browser glue: the tab's client, the room link (`?sala=`), banking a run once, the beta's gate, dev bots
   ranking.ts  ranked runs (start token, offline queue), boards, profiles and follows through the API
 server/     accounts API (Hono + Postgres, Clerk tokens), deployed with Docker: see server/README.md
