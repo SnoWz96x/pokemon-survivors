@@ -1,6 +1,7 @@
 import { range } from '../engine/rng'
 import { HO_OH_DOMAIN } from '../data/domains/hoOh'
 import { spawnHazard } from './bosses'
+import { harmBy } from './harm'
 import type { DomainHooks } from './domainHooks'
 import { anchorPlayer } from './players'
 import { burst, shakeScreen } from './effects'
@@ -12,6 +13,9 @@ import { burst, shakeScreen } from './effects'
  * HP over the phase's opening. `memo[0]`: seconds until the next beam;
  * `memo[1]`: beams fallen.
  */
+/** Ho-Oh signs its tower's falling fire (`Hazard.by`). */
+const HO_OH = harmBy('hoOh')
+
 export const HO_OH_FALL = {
   /** Seconds between falling beams, and how long their warning lasts. */
   every: 1.9,
@@ -41,10 +45,10 @@ export const HO_OH_HOOKS: DomainHooks = {
     const ahead = d.memo[1] % 2 === 0
     const x = ahead ? p.x + range(g.rng, -60, 60) : p.x + p.vx * HO_OH_FALL.lead
     const y = ahead ? p.y - range(g.rng, 70, 120) : p.y + p.vy * HO_OH_FALL.lead
-    spawnHazard(g, { kind: 'strike', visual: 'fire', x, y, r: 12, damage: 10, armAt: HO_OH_FALL.delay, disarmAt: HO_OH_FALL.delay + 0.15, ttl: HO_OH_FALL.delay + 0.45 })
+    spawnHazard(g, { kind: 'strike', visual: 'fire', x, y, r: 12, damage: 10, armAt: HO_OH_FALL.delay, disarmAt: HO_OH_FALL.delay + 0.15, ttl: HO_OH_FALL.delay + 0.45, by: HO_OH })
     if (fires < HO_OH_FALL.max) {
       const end = HO_OH_FALL.delay + HO_OH_FALL.fire
-      spawnHazard(g, { kind: 'zone', visual: 'fire', x, y, r: 11, damage: 8, armAt: HO_OH_FALL.delay, disarmAt: end - 0.3, ttl: end })
+      spawnHazard(g, { kind: 'zone', visual: 'fire', x, y, r: 11, damage: 8, armAt: HO_OH_FALL.delay, disarmAt: end - 0.3, ttl: end, by: HO_OH })
     }
   },
   phase: (g, _d, boss, phase) => {

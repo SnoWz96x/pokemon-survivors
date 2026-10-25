@@ -595,6 +595,17 @@ export const en: Messages = {
     dexSpecies: (n) => (n === 1 ? '+1 new species' : `+${n} new species`),
     dexShinies: (n) => (n === 1 ? '1 shiny caught' : `${n} shinies caught`),
     support: 'Enjoying it? Support the project',
+    cause: {
+      title: 'Final blow',
+      move: (who, move) => `${who}'s ${move}`,
+      kind: (who, kind) => `${who} (${kind})`,
+      alpha: (name) => `Alpha ${name}`,
+      world: 'World attack',
+      unknown: 'Unknown cause',
+      damage: (n) => `${n} damage`,
+      before: (hits) => `Before: ${hits}`,
+      hits: { body: 'contact', hazard: 'strike', shot: 'shot', blast: 'blast', beam: 'beam', lava: 'lava', trap: 'trap', zone: 'zone' },
+    },
   },
 
   share: {

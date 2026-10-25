@@ -4,6 +4,7 @@ import { query } from '../engine/spatial'
 import { isSummoner, SUMMONS, TRAITS } from '../data/traits'
 import { spawnHazard } from './bosses'
 import { hurtPlayer, killEnemy } from './combat'
+import { harmBy } from './harm'
 import { spawnEnemy } from './enemies'
 import { burst, damageText, shakeScreen } from './effects'
 import { inView } from './queries'
@@ -112,7 +113,7 @@ const explode = (g: Game, e: Enemy) => {
   const before = g.player
   for (const p of g.players) {
     g.player = p
-    if (standing(g, p) && inBlast(e.x, e.y, r, p.x, p.y, p.radius * 0.7)) hurtPlayer(g, dmg, undefined, [], 'blast')
+    if (standing(g, p) && inBlast(e.x, e.y, r, p.x, p.y, p.radius * 0.7)) hurtPlayer(g, dmg, undefined, [], 'blast', harmBy(e))
   }
   g.player = before
   // Self-destruct: it faints without EXP, but whatever the blast takes down drops as usual.
@@ -170,7 +171,7 @@ const beam = (g: Game, e: Enemy, act: Act<'beam'>, dt: number) => {
   const before = g.player
   for (const p of g.players) {
     g.player = p
-    if (standing(g, p) && onBeam(act.ox, act.oy, act.dx, act.dy, b.length, b.width / 2, p.x, p.y - p.radius, p.radius * 0.7)) hurtPlayer(g, e.damage * b.damage, undefined, [], 'beam')
+    if (standing(g, p) && onBeam(act.ox, act.oy, act.dx, act.dy, b.length, b.width / 2, p.x, p.y - p.radius, p.radius * 0.7)) hurtPlayer(g, e.damage * b.damage, undefined, [], 'beam', harmBy(e))
   }
   g.player = before
   if (act.t >= b.fire) {
@@ -248,6 +249,7 @@ const volley = (g: Game, e: Enemy, flavor: SpitFlavor) => {
   const dist = Math.min(dm.hypot(p.x - e.x, p.y - e.y), s.range)
   const damage = e.damage * s.damage * tune.damage * flavor.damage
   const n = volleySize(flavor, tune.volley, g.rng())
+  const by = harmBy(e)
   for (let i = 0; i < n; i++) {
     const a = aim + fanOffset(i, n, flavor.spread)
     const cos = dm.cos(a)
@@ -264,6 +266,7 @@ const volley = (g: Game, e: Enemy, flavor: SpitFlavor) => {
       damage,
       ttl: flight,
       vanishOnHit: true,
+      by,
     })
     if (!flavor.puddle) continue
     const ttl = flight + flavor.puddle.ttl
@@ -277,6 +280,7 @@ const volley = (g: Game, e: Enemy, flavor: SpitFlavor) => {
       armAt: flight,
       disarmAt: ttl - 0.3,
       ttl,
+      by,
     })
   }
   g.events.push({ kind: 'trait', trait: 'spitter', phase: 'fire' })

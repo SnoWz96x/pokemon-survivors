@@ -1,4 +1,5 @@
 import { playSfx } from '../engine/audio'
+import { deathCause } from './deathCause'
 import type { Input } from '../engine/input'
 import { formatTime } from '../engine/math'
 import { ABILITIES } from '../data/abilities'
@@ -349,6 +350,7 @@ const resultsView = (input: Input, g: Game, me: Player, actions: EndActions) => 
       h('span', {}, h('small', {}, m.damage), h('b', {}, compact(stats.total.damage))),
       h('span', {}, h('small', {}, m.revives), h('b', {}, formatNumber(stats.total.revives))),
     ),
+    g.phase === 'gameover' && deathCause(me),
     h('div', { class: `team-grid n${stats.players.length}` }, ...stats.players.map((s, i) => resultCard(g, s, me, awards[i] ? names[awards[i]!] : null, stats.total.damage))),
     h('p', { class: 'team-split' }, h('img', { src: coinIcon(2), alt: '' }), m.split(formatPokeDollars(stats.coins), joined, formatPokeDollars(Math.floor(stats.coins / Math.max(1, joined))))),
     h('div', { class: 'buttons result-buttons' }, again, lobby),
