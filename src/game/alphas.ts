@@ -4,6 +4,7 @@ import { ENEMIES, type EnemyDef, type EnemyId } from '../data/enemies'
 import { bossWaveAt, RUN_LENGTH, stageIndexAt } from '../data/waves'
 import { spawnHazard } from './bosses'
 import { hurtPlayer } from './combat'
+import { harmBy } from './harm'
 import { coopScale } from './coop'
 import { COOP } from '../data/coop'
 import type { Difficulty } from './difficulty'
@@ -173,7 +174,7 @@ export const spawnAlpha = (g: Game, kind: EnemyId, x: number, y: number) => {
   const e = spawnEnemy(g, kind, x, y)
   e.boss = true
   // Co-op: an Alpha takes the bosses' scaling instead of the horde's (exactly 1 solo).
-  e.hp = e.maxHp = Math.round(e.maxHp * alphaHp(g.time) * ALPHA_RULES[g.difficulty].hp * (coopScale(g, COOP.scale.bossHp) / coopScale(g, COOP.scale.hp)))
+  e.hp = e.maxHp = dm.round(e.maxHp * alphaHp(g.time) * ALPHA_RULES[g.difficulty].hp * (coopScale(g, COOP.scale.bossHp) / coopScale(g, COOP.scale.hp)))
   e.damage *= ALPHA_RULES[g.difficulty].damage
   e.mass = ALPHA.mass
   e.radius *= ALPHA.scale
@@ -243,7 +244,7 @@ const recover = (g: Game, e: Enemy, a: AlphaState) => {
   if (!ALPHA_RULES[g.difficulty].shock) return
   spawnHazard(g, {
     kind: 'strike', visual: 'slam', x: e.x, y: e.y, r: ALPHA.shock.radius, damage: e.damage * ALPHA.shock.damage,
-    armAt: ALPHA.shock.delay, disarmAt: ALPHA.shock.delay + 0.15, ttl: ALPHA.shock.delay + 0.45,
+    armAt: ALPHA.shock.delay, disarmAt: ALPHA.shock.delay + 0.15, ttl: ALPHA.shock.delay + 0.45, by: harmBy(e),
   })
   g.events.push({ kind: 'alpha', enemy: e.kind, moment: 'shock' })
 }
@@ -329,7 +330,7 @@ export const updateAlphas = (g: Game, dt: number) => {
  * EXP worth `ALPHA.xpLevels` levels and the prize, and the next one waits at least `ALPHA.gap`.
  */
 export const alphaDown = (g: Game, e: Enemy) => {
-  const xp = Math.round(xpFor(g.player.level) * ALPHA.xpLevels)
+  const xp = dm.round(xpFor(g.player.level) * ALPHA.xpLevels)
   const candies = 6
   for (let i = 0; i < candies; i++) dropXp(g, e.x + range(g.rng, -14, 14), e.y + range(g.rng, -8, 8), Math.ceil(xp / candies))
   // One prize for the whole team: whoever takes it opens it for everyone (`openAlphaPrize`).

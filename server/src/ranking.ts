@@ -32,6 +32,8 @@ import { RULES_VERSION, TICK, type Replay } from '../../src/game/replay'
 import { parseBagItems } from '../../src/game/bag'
 import { boardListed, commitLag, sameSegment, settleReport, STREAM, streamedInTime, type ReplayChunk } from '../../src/game/replayStream'
 import { supporterTier } from '../../src/game/supporters'
+import type { TransactionSql } from 'postgres'
+import { CHECKED, checkRank, rankOnShow, type BoardLine } from './checkRank'
 import type { Sql } from './db'
 import type { TokenRules } from './rulesGrace'
 
@@ -48,8 +50,16 @@ export type FinishError = 'unknown' | 'replaced' | 'mismatch' | 'seed' | 'clock'
 /**
  * A run's end that went in, with its challenge day and whether it's the official attempt (null for any other run).
  * `listed`: whether it's on the public boards (with `STREAM_ENFORCE` on, only runs streamed in time are).
+ * `ranks`: where the player stands on the day, week and total boards of its mode and difficulty (null off them,
+ * and before they pick a handle).
  */
-export type Finished = { ok: true; challenge: DayKey | null; official: boolean | null; listed: boolean }
+export type Finished = { ok: true; challenge: DayKey | null; official: boolean | null; listed: boolean; ranks: RunRanks }
+
+/** A query of the pool, or of a transaction. */
+type Q = Sql | TransactionSql
+
+/** A run's `Standing` (`checkRank.ts`), each line with its board's period, and whether its player has a handle (`named`: only then are they listed). */
+type Placed = { official: boolean; lines: readonly (BoardLine & { period: BoardPeriod })[]; named: boolean }
 
 /**
  * Why a chunk was refused. `unknown`: no such run of the player's still playing (a finished one only takes
@@ -128,20 +138,24 @@ const isUniqueViolation = (err: unknown) => typeof err === 'object' && err !== n
 export const rankingStore = (sql: Sql, { streamEnforce = false }: { streamEnforce?: boolean } = {}) => {
   const touchUser = (userId: string) => sql`insert into users (id) values (${userId}) on conflict (id) do update set seen_at = now()`
 
-  /** Every player's best run on a board, ranked, as a fragment to select from. */
-  const ranked = ({ mode, difficulty, period, starter, friends, viewer }: BoardQuery) => sql`
+  /**
+   * Every player's best run on a board, ranked, as a fragment to select from.
+   * `self` ranks that player too before they pick a handle (where their run
+   * would stand once they do), for the checks.
+   */
+  const ranked = ({ mode, difficulty, period, starter, friends, viewer }: BoardQuery, q: Q = sql, self: string | null = null) => q`
     with best as (
       select distinct on (r.user_id) r.id, r.user_id, r.starter, r.stage, r.branch, r.difficulty, r.survived, r.outcome, r.started_at, r.bag
       from runs r
       where r.finished_at is not null and r.verified is not false and not r.unlisted and r.mode = ${mode} and r.difficulty = ${difficulty}
-        ${period === 'all' ? sql`` : sql`and r.started_at >= (date_trunc(${period}, now() at time zone ${BOARD_TIME_ZONE}) at time zone ${BOARD_TIME_ZONE})`}
-        ${starter ? sql`and r.starter = ${starter}` : sql``}
-        ${friends && viewer ? sql`and (r.user_id = ${viewer} or r.user_id in (select followee_id from follows where follower_id = ${viewer}))` : sql``}
+        ${period === 'all' ? q`` : q`and r.started_at >= (date_trunc(${period}, now() at time zone ${BOARD_TIME_ZONE}) at time zone ${BOARD_TIME_ZONE})`}
+        ${starter ? q`and r.starter = ${starter}` : q``}
+        ${friends && viewer ? q`and (r.user_id = ${viewer} or r.user_id in (select followee_id from follows where follower_id = ${viewer}))` : q``}
       order by r.user_id, r.survived desc, r.started_at
     )
     select b.*, u.handle, u.name, u.supporter_points, u.supporter_public, u.supporter_since, (row_number() over (order by b.survived desc, b.started_at))::int as rank
     from best b join users u on u.id = b.user_id
-    where u.handle is not null and u.banned_at is null`
+    where (u.handle is not null ${self ? q`or u.id = ${self}` : q``}) and u.banned_at is null`
 
   /**
    * A day's challenge board as a fragment: every player's official attempt
@@ -156,9 +170,39 @@ export const rankingStore = (sql: Sql, { streamEnforce = false }: { streamEnforc
     where r.challenge = ${day}::date and r.official and r.finished_at is not null and r.verified is not false and not r.unlisted and u.handle is not null and u.banned_at is null
       ${friends && viewer ? sql`and (r.user_id = ${viewer} or r.user_id in (select followee_id from follows where follower_id = ${viewer}))` : sql``}`
 
-  const rankOf = async (query: BoardQuery, userId: string) => {
-    const [row] = await sql<{ rank: number }[]>`select rank from (${ranked(query)}) board where user_id = ${userId}`
-    return row?.rank ?? null
+  /**
+   * Where the finished run `id` stands (`Standing`): whether it's a challenge's
+   * official attempt, and the player's line on each board it's on (its mode
+   * and difficulty's, and its Pokémon's, for each period), ranked as if they
+   * had a handle. `named`: whether they have one. Null for no such run.
+   */
+  const standingOf = async (q: Q, id: string): Promise<Placed | null> => {
+    const [run] = await q<{ user_id: string; mode: RunMode; starter: PlayableId; difficulty: Difficulty; official: boolean; named: boolean }[]>`
+      select r.user_id, r.mode, r.starter, r.difficulty, r.official is true as official, u.handle is not null as named
+      from runs r join users u on u.id = r.user_id where r.id = ${id} and r.finished_at is not null`
+    if (!run) return null
+    const lines = await Promise.all(
+      BOARD_PERIODS.flatMap((period) =>
+        (['global', 'starter'] as const).map(async (board): Promise<BoardLine & { period: BoardPeriod }> => {
+          const query = { mode: run.mode, difficulty: run.difficulty, period, starter: board === 'starter' ? run.starter : null, friends: false, viewer: null }
+          const [line] = await q<{ rank: number; id: string }[]>`select rank, id from (${ranked(query, q, run.user_id)}) board where user_id = ${run.user_id}`
+          return { period, board, rank: line?.rank ?? null, mine: line?.id === id }
+        }),
+      ),
+    )
+    return { official: run.official, lines, named: run.named }
+  }
+
+  /**
+   * Whether the determinism sample is due: no other run was kept for it in the
+   * last `CHECKED.sampleEvery` seconds. Kept in the database, so it holds
+   * across restarts and instances (two reports at once may both take one).
+   */
+  const sampleDue = async (q: Q, id: string) => {
+    const [row] = await q<{ due: boolean }[]>`
+      select coalesce(max(finished_at) < now() - make_interval(secs => ${CHECKED.sampleEvery}), true) as due
+      from runs where check_rank = ${CHECKED.sampleRank} and id <> ${id}`
+    return row?.due ?? true
   }
 
   /** The handles taken that start with `base`, for `freeHandle`. */
@@ -299,6 +343,11 @@ export const rankingStore = (sql: Sql, { streamEnforce = false }: { streamEnforc
      * (endless mode may go on from it, and a late one counts in `stream_late`); a faint's or a quit's isn't,
      * its tail being capped. Whether the run was streamed in time is stored and logged; with `streamEnforce`
      * a run that wasn't stays off the public boards for good (`unlisted`), and still counts for the player.
+     * Then, on every report, the run's replay is kept for its check only when it's on show or drawn for the
+     * sample (`checkRank`, stored in `check_rank`, where the verifier finds it: `claimCheck`), and dropped
+     * otherwise: off the boards now, it can't climb on later in the same period. The replay is still written
+     * first, since `settleReport` pinned its ticks. A new report frees any claim on the run and its count of
+     * attempts, so the verifier takes the grown run again.
      */
     finishRun: (userId: string, token: string, result: RunResult, replay: Replay): Promise<Finished | { ok: false; error: FinishError }> =>
       sql.begin(async (tx) => {
@@ -357,48 +406,56 @@ export const rankingStore = (sql: Sql, { streamEnforce = false }: { streamEnforc
         await tx`
           update runs set finished_at = now(), starter = ${result.starter}, stage = ${result.stage}, branch = ${result.branch}, difficulty = ${result.difficulty},
             survived = ${result.time}, outcome = ${result.outcome}, level = ${result.level}, kills = ${result.kills}, version = ${result.version},
-            replay = ${tx.json(replay)}, verified = null, checked_at = null, check_ms = null, official = ${official}, bag = ${tx.array([...replay.start.bag])}::text[],
+            replay = ${tx.json(replay)}, verified = null, checked_at = null, check_ms = null, check_claimed_at = null, check_attempts = 0, official = ${official}, bag = ${tx.array([...replay.start.bag])}::text[],
             stream_base = ${settled.pin.ticks}, stream_digest = ${settled.pin.digest}, stream_lag = ${stream.lag}, stream_ok = ${inTime}, unlisted = ${!listed},
             stream_late = stream_late + ${lag !== null && lag > STREAM.lagTolerance ? 1 : 0},
             mode = ${runMode(result.starter)}
             ${fresh ? tx`, stream_at = now()` : tx``}
           where id = ${token}`
         await tx`delete from run_chunks where run_id = ${token} and to_tick <= ${settled.total}`
+        // Decided at the door, on every report (endless mode reports again as it grows): the replay is kept only for a check.
+        const standing = (await standingOf(tx, token))!
+        const rank = checkRank(standing, rankOnShow(standing) === null && (await sampleDue(tx, token)))
+        await tx`update runs set check_rank = ${rank}${rank === null ? tx`, replay = null` : tx``} where id = ${token}`
+        // The result screen's places, on the boards as they list players (with a handle).
+        const placeOn = (period: BoardPeriod) => (standing.named ? (standing.lines.find((l) => l.board === 'global' && l.period === period)?.rank ?? null) : null)
+        const ranks: RunRanks = { day: placeOn('day'), week: placeOn('week'), all: placeOn('all') }
         const late = stream.lag === null ? '-' : `${stream.lag.toFixed(1)} s`
-        console.log(`stream ${token}: ${chunks.length} chunks, tail ${settled.tail} ticks, worst lag ${late}${inTime ? '' : streamEnforce ? ', unlisted' : ', not in time (observing)'}`)
-        return { ok: true, challenge: run.challenge, official, listed } as const
+        const kept = rank === null ? '' : `, replay kept for its check (rank ${rank})`
+        console.log(`stream ${token}: ${chunks.length} chunks, tail ${settled.tail} ticks, worst lag ${late}${inTime ? '' : streamEnforce ? ', unlisted' : ', not in time (observing)'}${kept}`)
+        return { ok: true, challenge: run.challenge, official, listed, ranks } as const
       }),
 
-    /** A finished run waiting for its re-simulation: what it reported, when it started, and its replay. Null when there's nothing to check. */
-    runToCheck: async (id: string) => {
-      const [row] = await sql<{ user_id: string; survived: number; kills: number; level: number; started_at: Date; replay: unknown }[]>`
-        select user_id, survived, kills, level, started_at, replay from runs where id = ${id} and finished_at is not null and replay is not null and verified is null`
-      return row ? { userId: row.user_id, time: row.survived, kills: row.kills, level: row.level, startedAt: row.started_at, replay: row.replay } : null
+    /**
+     * Claims the next finished run waiting for its re-simulation, in check order (`check_rank`: official
+     * attempts, then the best places, then the samples, then runs from before it, oldest first), for
+     * `leaseSeconds`: another verifier skips it until then (`for update skip locked` keeps two from taking
+     * the same one), and a claim whose verifier died runs out. Each claim counts an attempt (`check_attempts`).
+     * Returns what it reported, when it started, its replay, whether it's a determinism sample and which
+     * attempt this is; null when nothing waits.
+     */
+    claimCheck: async (leaseSeconds: number) => {
+      const [row] = await sql<
+        { id: string; survived: number; kills: number; level: number; started_at: Date; replay: unknown; check_rank: number | null; check_attempts: number }[]
+      >`
+        update runs set check_claimed_at = now(), check_attempts = check_attempts + 1
+        where id = (
+          select id from runs
+          where verified is null and replay is not null and finished_at is not null
+            and (check_claimed_at is null or check_claimed_at < now() - make_interval(secs => ${leaseSeconds}))
+          order by check_rank, finished_at
+          limit 1 for update skip locked
+        )
+        returning id, survived, kills, level, started_at, replay, check_rank, check_attempts`
+      return row
+        ? { id: row.id, time: row.survived, kills: row.kills, level: row.level, startedAt: row.started_at, replay: row.replay, sample: row.check_rank === CHECKED.sampleRank, attempt: row.check_attempts }
+        : null
     },
 
-    /**
-     * Whether the run with `id` is on show now: a challenge's official
-     * attempt (it earns a ribbon), or the player's line on a board within the
-     * top `top.global` of its mode and difficulty or the top `top.starter` of its
-     * Pokémon, for the day, the week or all time.
-     */
-    shown: async (id: string, top: { global: number; starter: number }) => {
-      const [run] = await sql<{ user_id: string; mode: RunMode; starter: PlayableId; difficulty: Difficulty; survived: number; official: boolean }[]>`
-        select user_id, mode, starter, difficulty, survived, official is true as official from runs where id = ${id} and finished_at is not null`
-      if (!run) return false
-      if (run.official) return true
-      const boards = BOARD_PERIODS.flatMap((period) => [
-        { query: { mode: run.mode, difficulty: run.difficulty, period, starter: null, friends: false, viewer: null }, size: top.global },
-        { query: { mode: run.mode, difficulty: run.difficulty, period, starter: run.starter, friends: false, viewer: null }, size: top.starter },
-      ])
-      const lines = await Promise.all(
-        boards.map(async ({ query, size }) => {
-          const [line] = await sql<{ rank: number; survived: number }[]>`select rank, survived from (${ranked(query)}) board where user_id = ${run.user_id}`
-          // The player's line is this run when no other run of theirs beat it.
-          return line !== undefined && line.rank <= size && line.survived === run.survived
-        }),
-      )
-      return lines.some(Boolean)
+    /** Whether the run with `id` is on show now (`rankOnShow`): an official attempt, or a line within the top (with its margin) of a board it's on. */
+    shown: async (id: string) => {
+      const standing = await standingOf(sql, id)
+      return standing !== null && rankOnShow(standing) !== null
     },
 
     /**
@@ -413,20 +470,14 @@ export const rankingStore = (sql: Sql, { streamEnforce = false }: { streamEnforc
         where id = ${id} and abs(survived - ${time}) < ${TIME_EPSILON} and verified is null`
     },
 
+    /** Takes back the attempt a claim counted (`claimCheck`), for a check that couldn't start through no fault of the run's (a replay of newer rules than the verifier's). */
+    giveBackAttempt: async (id: string) => {
+      await sql`update runs set check_attempts = greatest(check_attempts - 1, 0) where id = ${id}`
+    },
+
     /** Forgets the replay of a run that won't be checked (not on show, or recorded under older rules): it stays unverified, like a run sent without one. */
     dropReplay: async (id: string) => {
       await sql`update runs set replay = null where id = ${id} and verified is null`
-    },
-
-    /** Runs still waiting for a check, oldest first (after a restart). */
-    uncheckedRuns: async () =>
-      (await sql<{ id: string }[]>`select id from runs where verified is null and replay is not null and finished_at is not null order by finished_at`).map((r) => r.id),
-
-    /** Where the player stands on the day, week and total boards of their run's mode and difficulty. */
-    runRanks: async (userId: string, mode: RunMode, difficulty: Difficulty): Promise<RunRanks> => {
-      const at = (period: BoardPeriod) => rankOf({ mode, difficulty, period, starter: null, friends: false, viewer: null }, userId)
-      const [day, week, all] = await Promise.all([at('day'), at('week'), at('all')])
-      return { day, week, all }
     },
 
     /**

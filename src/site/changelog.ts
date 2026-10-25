@@ -24,6 +24,194 @@ export type ChangelogUpdate = {
  */
 export const CHANGELOG: readonly ChangelogUpdate[] = [
   {
+    date: '2026-10-25',
+    title: { pt: 'Mini mapa, avisos ajustáveis e controles para canhotos', en: 'Mini map, adjustable alerts and left-handed controls', es: 'Minimapa, avisos ajustables y controles para zurdos', fr: 'Mini-carte, alertes réglables et commandes pour gauchers', zh: '小地圖、可調整的提示與左手操作' },
+    highlights: [
+      { pt: 'Mini mapa no canto da tela: lagos, penhascos, bosques, construções e eventos ao seu redor, com o norte para cima.', en: 'A mini map in the corner of the screen: lakes, cliffs, groves, landmarks and events around you, north up.', es: 'Un minimapa en la esquina de la pantalla: lagos, acantilados, bosques, construcciones y eventos a tu alrededor, con el norte arriba.', fr: 'Une mini-carte dans le coin de l’écran : lacs, falaises, bosquets, constructions et événements autour de toi, nord en haut.', zh: '畫面角落的小地圖：你周圍的湖泊、懸崖、樹林、建築和事件，北方朝上。' },
+      { pt: 'Os chefes do mapa ganharam um contorno dourado, fácil de achar no meio da horda, e uma seta dourada na borda da tela quando estão fora dela.', en: 'Bosses on the map now wear a gold outline, easy to spot in the horde, and a gold arrow on the screen’s edge points to them when they’re off screen.', es: 'Los jefes del mapa ahora tienen un contorno dorado, fácil de ver en medio de la horda, y una flecha dorada en el borde de la pantalla cuando están fuera de ella.', fr: 'Les boss de la carte ont maintenant un contour doré, facile à repérer dans la horde, et une flèche dorée au bord de l’écran quand ils sont hors champ.', zh: '地圖上的頭目現在有金色外框，在怪群中一眼就能看到；離開畫面時，邊緣的金色箭頭會指出牠們的位置。' },
+      { pt: 'Novo ajuste "Avisos na partida": Todos, Só importantes (chefes, fendas, perigos e o que pede ação) ou Nenhum.', en: 'New "Run alerts" setting: All, Important only (bosses, rifts, dangers and anything that needs you) or None.', es: 'Nuevo ajuste "Avisos en partida": Todos, Solo importantes (jefes, grietas, peligros y lo que pide acción) o Ninguno.', fr: 'Nouveau réglage « Alertes en partie » : Toutes, Importantes (boss, failles, dangers et ce qui demande une action) ou Aucune.', zh: '新設定「戰鬥中提示」：全部、僅重要（首領、裂縫、危險和需要你行動的事）或關閉。' },
+      { pt: 'No celular, os botões de ataque especial, bote e Mega podem ir para a esquerda, com o joystick fixo à direita: Ajustes → Controles → Lado dos botões.', en: 'On phones, the special attack, lunge and Mega buttons can move to the left, with the fixed joystick on the right: Settings → Controls → Button side.', es: 'En el celular, los botones de ataque especial, embestida y Mega pueden ir a la izquierda, con el joystick fijo a la derecha: Ajustes → Controles → Lado de los botones.', fr: 'Sur mobile, les boutons d’attaque spéciale, de ruée et de Méga peuvent passer à gauche, avec le joystick fixe à droite : Réglages → Commandes → Côté des boutons.', zh: '在手機上，特殊攻擊、突進和超級進化按鈕可以移到左側，固定搖桿則移到右側：設定 → 操作 → 按鈕位置。' },
+      { pt: 'Quando seu Pokémon desmaia, a tela de resultado mostra o golpe final: quem acertou, com qual ataque e quanto dano, e os golpes logo antes.', en: 'When your Pokémon faints, the results screen shows the final blow: who hit you, with which attack and how much damage, plus the hits just before.', es: 'Cuando tu Pokémon se debilita, la pantalla de resultados muestra el golpe final: quién te golpeó, con qué ataque y cuánto daño, y los golpes justo antes.', fr: 'Quand ton Pokémon est K.O., l’écran de résultats montre le coup final : qui t’a touché, avec quelle attaque et combien de dégâts, et les coups juste avant.', zh: '寶可夢倒下時，結算畫面會顯示致命一擊：誰打中了你、用了什麼攻擊、造成多少傷害，以及之前的幾次攻擊。' },
+    ],
+    changes: [
+      {
+        title: { pt: 'Mini mapa', en: 'Mini map', es: 'Minimapa', fr: 'Mini-carte', zh: '小地圖' },
+        notes: [
+          {
+            pt: 'O mapa mostra o terreno do bioma, a área da tela, os eventos (altares, fontes, baús, Meowth, o Tutor de Golpes, as missões), as construções, as Poké Balls, TMs e Mega Pedras no chão e os seus companheiros de time. A horda selvagem fica de fora.',
+            en: 'The map shows the biome’s terrain, the area on screen, events (altars, fountains, chests, Meowth, the Move Tutor, missions), landmarks, Poké Balls, TMs and Mega Stones on the ground, and your teammates. The wild horde stays off it.',
+            es: 'El mapa muestra el terreno del bioma, el área en pantalla, los eventos (altares, fuentes, cofres, Meowth, el Tutor de Movimientos, las misiones), las construcciones, las Poké Balls, MTs y Megapiedras en el suelo y a tus compañeros de equipo. La horda salvaje queda fuera.',
+            fr: 'La carte montre le terrain du biome, la zone à l’écran, les événements (autels, fontaines, coffres, Meowth, le Maître des capacités, les missions), les constructions, les Poké Balls, CT et Méga-Gemmes au sol et tes coéquipiers. La horde sauvage n’y figure pas.',
+            zh: '地圖會顯示生態區的地形、畫面範圍、事件（祭壇、泉水、寶箱、Meowth、招式教學、任務）、建築、地上的精靈球、招式學習器和超級石，以及你的隊友。野生群體不會顯示。',
+          },
+          {
+            pt: 'Dentro de uma fenda, da caverna ou do cemitério, o mapa mostra o lugar de perto: o chão da arena, os corredores e a escada da caverna, a Pedra Peculiar do cemitério.',
+            en: 'Inside a rift, the cave or the graveyard, the map shows the place up close: the arena’s floor, the cave’s corridors and stairs, the graveyard’s keystone.',
+            es: 'Dentro de una grieta, la cueva o el cementerio, el mapa muestra el lugar de cerca: el suelo de la arena, los pasillos y la escalera de la cueva, la Piedra Espíritu del cementerio.',
+            fr: 'Dans une faille, la grotte ou le cimetière, la carte montre le lieu de près : le sol de l’arène, les couloirs et l’escalier de la grotte, la Clé de Voûte du cimetière.',
+            zh: '在裂縫、洞窟或墓地裡，地圖會近距離顯示該地點：競技場的地面、洞窟的通道和樓梯、墓地的 Odd Keystone。',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Correções', en: 'Fixes', es: 'Correcciones', fr: 'Corrections', zh: '修正' },
+        notes: [
+          {
+            pt: 'Quem abria o jogo com a janela em exatamente 1920×1080 (tela cheia num monitor 1080p) via o mapa num quadradinho no canto de cima, no lobby e na partida. Agora ele ocupa a tela toda desde o começo.',
+            en: 'Opening the game in a window of exactly 1920×1080 (fullscreen on a 1080p monitor) showed the map in a small box in the top corner, in the lobby and in runs. It now fills the screen from the start.',
+            es: 'Quien abría el juego con la ventana en exactamente 1920×1080 (pantalla completa en un monitor 1080p) veía el mapa en un cuadrito en la esquina de arriba, en el lobby y en la partida. Ahora ocupa toda la pantalla desde el principio.',
+          },
+          {
+            pt: 'Com o mouse e o teclado juntos, um Enter num botão já clicado contava duas vezes: o Jogar começava duas partidas e a escolha de golpe da primeira ficava congelada na frente; no lobby, duas telas abriam e a de baixo ficava presa atrás. Agora cada aperto conta uma vez.',
+            en: 'With mouse and keyboard together, Enter on a button you had clicked counted twice: Play started two runs and the first one’s move pick stayed frozen on top; in the lobby, two screens opened and the one below got stuck behind. Each press now counts once.',
+            es: 'Con el mouse y el teclado juntos, un Enter en un botón ya clicado contaba dos veces: Jugar empezaba dos partidas y la elección de ataque de la primera se quedaba congelada encima; en el lobby, se abrían dos pantallas y la de abajo quedaba atrapada detrás. Ahora cada pulsación cuenta una vez.',
+          },
+          {
+            pt: 'Magic Guard (Alakazam, Armarouge e lendários) deixava passar as poças de veneno dos cuspidores, as pedras que o mundo espalha pelo chão e as áreas que os chefes deixam no chão, além do custo do Life Orb, da queimadura do Flame Orb e do Bad Dreams do Darkrai. Agora só golpes diretos ferem, como a descrição promete.',
+            en: 'Magic Guard (Alakazam, Armarouge and legendaries) let through spitters’ poison puddles, the rocks the world scatters on the ground and the patches bosses leave behind, plus Life Orb’s cost, Flame Orb’s burn and Darkrai’s Bad Dreams. Now only direct hits hurt, as its description promises.',
+            es: 'Magic Guard (Alakazam, Armarouge y legendarios) dejaba pasar los charcos de veneno de los escupidores, las rocas que el mundo esparce por el suelo y las zonas que dejan los jefes, además del costo del Life Orb, la quemadura del Flame Orb y el Bad Dreams de Darkrai. Ahora solo los golpes directos hieren, como promete su descripción.',
+            fr: 'Magic Guard (Alakazam, Armarouge et légendaires) laissait passer les flaques de poison des cracheurs, les rochers que le monde sème au sol et les zones laissées par les boss, ainsi que le coût du Life Orb, la brûlure du Flame Orb et le Bad Dreams de Darkrai. Désormais, seuls les coups directs blessent, comme le promet sa description.',
+            zh: 'Magic Guard（Alakazam、Armarouge 與傳說寶可夢）之前擋不住吐射者的毒池、世界散落在地上的岩石與頭目留下的區域，也擋不住 Life Orb 的代價、Flame Orb 的灼傷和 Darkrai 的 Bad Dreams。現在只有直接攻擊會造成傷害，正如說明所寫。',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Escolha de parceiro e fim da partida', en: 'Partner select and the end of a run', es: 'Elección de compañero y fin de la partida' },
+        notes: [
+          {
+            pt: 'Aleatório: o novo botão ao lado das abas (ou a tecla R) escolhe ao acaso um Pokémon desbloqueado da aba aberta (Iniciais, Ovos ou Lendários), nunca o que já está selecionado. Ele só seleciona: confira o painel e aperte Começar quando quiser.',
+            en: 'Random: the new button beside the tabs (or the R key) picks an unlocked Pokémon from the open tab (Starters, Eggs or Legendaries) at random, never the one already selected. It only selects: check its panel and press Start when you’re ready.',
+            es: 'Aleatorio: el nuevo botón junto a las pestañas (o la tecla R) elige al azar un Pokémon desbloqueado de la pestaña abierta (Iniciales, Huevos o Legendarios), nunca el que ya está seleccionado. Solo selecciona: revisa su panel y presiona Empezar cuando quieras.',
+          },
+          {
+            pt: 'Tocar num Pokémon só seleciona, mesmo tocando de novo: a partida começa no botão Começar (ou Enter). O escolhido vira seu parceiro na hora, com a cor Normal ou Shiny que você deixou, então Voltar mostra ele no lobby.',
+            en: 'Tapping a Pokémon only selects it, even on a second tap: the run starts from the Start button (or Enter). Your pick becomes your partner right away, in the Normal or Shiny colors you set, so Back shows it in the lobby.',
+            es: 'Tocar un Pokémon solo lo selecciona, aunque lo toques de nuevo: la partida empieza con el botón Empezar (o Enter). El elegido se vuelve tu compañero al instante, con el color Normal o Shiny que dejaste, así que Volver lo muestra en el lobby.',
+          },
+          {
+            pt: 'A tela de resultado ganhou o botão Lobby, ao lado de Tentar de novo e Trocar Pokémon. Os ₽, os ovos e o ranking da partida contam do mesmo jeito.',
+            en: 'The results screen got a Lobby button, next to Try again and Change Pokémon. The run’s ₽, eggs and ranking count just the same.',
+            es: 'La pantalla de resultados tiene un botón Lobby, junto a Reintentar y Cambiar Pokémon. Los ₽, los huevos y el ranking de la partida cuentan igual.',
+          },
+          {
+            pt: 'O golpe final: quando seu Pokémon desmaia, a tela de resultado diz o que te derrubou, com o nome do Pokémon (Alfa, se era um), o ataque quando ele tem nome (os golpes finais dos chefes) ou o tipo de acerto (contato, projétil, raio, explosão, área, lava, armadilha, ataque do mundo) e o dano. Embaixo, os dois golpes que vieram antes. Pedido de jogadores no Discord.',
+            en: 'The final blow: when your Pokémon faints, the results screen says what took you down, with the Pokémon’s name (Alpha, if it was one), the attack when it has a name (bosses’ ultimates) or the kind of hit (contact, shot, beam, blast, zone, lava, trap, world attack) and the damage. Below it, the two hits that came before. Requested by players on Discord.',
+            es: 'El golpe final: cuando tu Pokémon se debilita, la pantalla de resultados dice qué te derribó, con el nombre del Pokémon (Alfa, si lo era), el ataque cuando tiene nombre (los golpes finales de los jefes) o el tipo de golpe (contacto, proyectil, rayo, explosión, zona, lava, trampa, ataque del mundo) y el daño. Debajo, los dos golpes que vinieron antes. Pedido de jugadores en Discord.',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Avisos na partida', en: 'Run alerts', es: 'Avisos en partida', fr: 'Alertes en partie' },
+        notes: [
+          {
+            pt: 'Em Ajustes > Jogo, escolha quais avisos aparecem durante a partida. Só importantes mantém chefes chegando, fendas, perigos e eventos que pedem ação (Meowth, o Tutor, missões, a Mega pronta) e esconde drops, berries, shinies avistados e afins. Nenhum esconde todos.',
+            en: 'In Settings > Game, pick which alerts show during a run. Important only keeps incoming bosses, rifts, dangers and events that need you (Meowth, the Move Tutor, missions, a Mega ready) and hides drops, berries, shinies spotted and the like. None hides them all.',
+            es: 'En Ajustes > Juego, elige qué avisos aparecen durante la partida. Solo importantes mantiene los jefes que llegan, las grietas, los peligros y los eventos que piden acción (Meowth, el Tutor, misiones, la Mega lista) y oculta drops, bayas, shinies avistados y similares. Ninguno los oculta todos.',
+          },
+          {
+            pt: 'No celular em pé, os avisos ficaram mais compactos, no máximo dois por vez logo abaixo do HUD, e os de shiny ganharam uma caixa dourada. Pedidos de jogadores no Discord.',
+            en: 'On a phone held upright, alerts are more compact, at most two at a time right under the HUD, and shiny ones got a gold box. Requested by players on Discord.',
+            es: 'En el celular en vertical, los avisos son más compactos, como máximo dos a la vez justo debajo del HUD, y los de shiny tienen una caja dorada. Pedidos de jugadores en Discord.',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Dano por golpe na pausa', en: 'Damage by move in the pause menu', es: 'Daño por ataque en la pausa' },
+        notes: [
+          {
+            pt: 'A tela de pausa mostra o dano total da partida e o de cada golpe, em ordem, com o DPS médio de cada um (dano dividido pelo tempo jogado até agora).',
+            en: 'The pause screen shows the run’s total damage and each move’s, in order, with each one’s average DPS (damage divided by the time played so far).',
+            es: 'La pantalla de pausa muestra el daño total de la partida y el de cada ataque, en orden, con el DPS promedio de cada uno (daño dividido por el tiempo jugado hasta ahora).',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Botões à esquerda e joystick fixo ajustável', en: 'Buttons on the left and an adjustable fixed joystick', es: 'Botones a la izquierda y joystick fijo ajustable', fr: 'Boutons à gauche et joystick fixe réglable', zh: '按鈕移到左側，固定搖桿可調整' },
+        notes: [
+          {
+            pt: 'Em Ajustes → Controles, o novo “Lado dos botões” espelha a parte de baixo da tela no celular: especial, bote e Mega vão para a esquerda, e o quadro de HP e o joystick fixo para a direita. Pedido de quem joga movendo com a mão direita.',
+            en: 'In Settings → Controls, the new “Button side” mirrors the bottom of the screen on phones: special, lunge and Mega go to the left, the HP box and the fixed joystick to the right. Asked for by players who move with their right hand.',
+            es: 'En Ajustes → Controles, el nuevo “Lado de los botones” refleja la parte de abajo de la pantalla en el celular: especial, embestida y Mega van a la izquierda, y el cuadro de PS y el joystick fijo a la derecha. Lo pidieron quienes se mueven con la mano derecha.',
+            fr: 'Dans Réglages → Commandes, le nouveau « Côté des boutons » inverse le bas de l’écran sur mobile : spéciale, ruée et Méga passent à gauche, l’encadré des PV et le joystick fixe à droite. Demandé par ceux qui se déplacent de la main droite.',
+            zh: '在設定 → 操作中，新的「按鈕位置」會在手機上把畫面下方左右對調：特殊攻擊、突進和超級進化移到左側，HP 框和固定搖桿移到右側。這是用右手移動的玩家提出的建議。',
+          },
+          {
+            pt: 'Com o joystick fixo, “Altura do joystick” e “Distância da borda” tiram ele do canto, em três degraus cada, para celulares de todos os tamanhos.',
+            en: 'With the fixed joystick, “Joystick height” and “Distance from edge” take it out of the corner, three steps each, for phones of every size.',
+            es: 'Con el joystick fijo, “Altura del joystick” y “Distancia del borde” lo sacan de la esquina, en tres pasos cada uno, para celulares de todos los tamaños.',
+            fr: 'Avec le joystick fixe, « Hauteur du joystick » et « Distance du bord » le sortent du coin, en trois crans chacun, pour les téléphones de toutes les tailles.',
+            zh: '使用固定搖桿時，「搖桿高度」和「與邊緣距離」可以把它移出角落，各有三段，適合各種尺寸的手機。',
+          },
+          {
+            pt: 'Os avisos da partida (evento, surto, Mega Stone…) respeitam o espaço da coluna deles: no celular deitado, um de cada vez quando falta altura, em vez de cobrir os botões.',
+            en: 'In-run notices (event, outbreak, Mega Stone…) keep to their column’s room: on a phone held sideways, one at a time when there’s no height to spare, instead of covering the buttons.',
+            es: 'Los avisos de la partida (evento, brote, Mega Stone…) respetan el espacio de su columna: en el celular en horizontal, uno a la vez cuando falta altura, en vez de tapar los botones.',
+            fr: 'Les annonces de la partie (événement, apparition massive, Mega Stone…) restent dans leur colonne : sur un téléphone à l’horizontale, une à la fois quand la hauteur manque, au lieu de couvrir les boutons.',
+            zh: '對局中的提示（活動、大量出現、Mega Stone……）會守在自己的欄位裡：手機橫拿、高度不夠時一次只顯示一則，不再蓋住按鈕。',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Visibilidade na partida', en: 'Visibility in a run', es: 'Visibilidad en la partida', fr: 'Visibilité en partie', zh: '對局中的辨識度' },
+        notes: [
+          {
+            pt: 'Todo chefe que aparece no mapa ganha um contorno dourado, como o vermelho dos Alfas, e uma seta dourada na borda da tela enquanto está fora de vista. Os lendários continuam com a seta vermelha, e um chefe furioso troca o dourado pelo vermelho piscando.',
+            en: 'Every boss that shows up on the map gets a gold outline, like the Alphas’ red one, and a gold arrow on the screen’s edge while it’s out of view. Legendaries keep their red arrow, and an enraged boss swaps the gold for the flickering red.',
+            es: 'Todo jefe que aparece en el mapa recibe un contorno dorado, como el rojo de los Alfa, y una flecha dorada en el borde de la pantalla mientras está fuera de vista. Los legendarios mantienen la flecha roja, y un jefe furioso cambia el dorado por el rojo parpadeante.',
+            fr: 'Chaque boss qui apparaît sur la carte reçoit un contour doré, comme le rouge des Alphas, et une flèche dorée sur le bord de l’écran tant qu’il est hors de vue. Les légendaires gardent leur flèche rouge, et un boss enragé remplace le doré par le rouge clignotant.',
+            zh: '每個出現在地圖上的頭目都會有金色外框，就像頭目寶可夢的紅框一樣，離開畫面時邊緣還會有金色箭頭。傳說寶可夢仍是紅色箭頭，暴怒的頭目則會把金色換成閃爍的紅色。',
+          },
+          {
+            pt: 'Seu Pokémon e a barra de vida são desenhados depois dos golpes, em qualquer opacidade escolhida nos ajustes, e por cima da horda. Atrás de uma árvore ou de um penhasco ele continua atrás, como antes.',
+            en: 'Your Pokémon and its HP bar are drawn after the moves, at whatever opacity you picked in the settings, and over the horde. Behind a tree or a cliff it stays behind, as before.',
+            es: 'Tu Pokémon y su barra de vida se dibujan después de los ataques, con la opacidad que elegiste en los ajustes, y por encima de la horda. Detrás de un árbol o de un acantilado sigue detrás, como antes.',
+            fr: 'Ton Pokémon et sa barre de PV sont dessinés après les attaques, quelle que soit l’opacité choisie dans les réglages, et par-dessus la horde. Derrière un arbre ou une falaise, il reste derrière, comme avant.',
+            zh: '你的寶可夢和 HP 條會在招式之後繪製（不論你在設定中選了多少不透明度），也在怪群之上。站在樹或懸崖後方時仍會被擋住，和以前一樣。',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Menos travadas de impacto', en: 'Less hit-stop', es: 'Menos congelamiento por impacto', fr: 'Moins de gel à l’impact', zh: '減少命中停頓' },
+        notes: [
+          {
+            pt: 'Alguns golpes congelam a tela por um instante para dar peso ao impacto. Agora, depois de um congelamento, os impactos do segundo seguinte só tremem a tela: uma saraivada de punhos do Sky Uppercut congelava até quatro vezes seguidas, e o jogo parecia rodar aos trancos.',
+            en: 'Some moves freeze the screen for an instant to give the impact weight. Now, after one freeze, impacts in the next second only shake the screen: a volley of Sky Uppercut fists used to freeze up to four times in a row, and the game felt choppy.',
+            es: 'Algunos ataques congelan la pantalla un instante para darle peso al impacto. Ahora, después de un congelamiento, los impactos del segundo siguiente solo sacuden la pantalla: una ráfaga de puños de Sky Uppercut congelaba hasta cuatro veces seguidas y el juego se sentía entrecortado.',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Power Herb com o mínimo de 4 s', en: 'Power Herb keeps its 4 s minimum', es: 'Power Herb con el mínimo de 4 s', fr: 'Power Herb garde son minimum de 4 s', zh: 'Power Herb 的 4 秒下限' },
+        notes: [
+          {
+            pt: 'A recarga do especial nunca devia ficar abaixo de 4 s, mas só o primeiro lote de abates respeitava o limite: o seguinte zerava a recarga, e o especial voltava a cada 0,3 s. Agora todo abate conta até o mínimo, e o anel do botão mostra a espera de verdade.',
+            en: 'The special’s cooldown was never meant to go under 4 s, but only the first batch of defeats kept to it: the next one emptied the cooldown, and the special came back every 0.3 s. Now every defeat counts down to the minimum, and the button’s ring shows the real wait.',
+            es: 'La recarga del especial nunca debía bajar de 4 s, pero solo el primer lote de derribos respetaba el límite: el siguiente vaciaba la recarga y el especial volvía cada 0,3 s. Ahora cada derribo cuenta hasta el mínimo y el anillo del botón muestra la espera real.',
+          },
+        ],
+      },
+      {
+        title: { pt: 'Partidas longas mais leves', en: 'Lighter long runs', es: 'Partidas largas más livianas', fr: 'Parties longues plus légères', zh: '長時間對局更流暢' },
+        notes: [
+          {
+            pt: 'Depois dos 40 minutos do modo sem fim o jogo ficava pesado a cada minuto. Agora a horda gasta bem menos para ser desenhada (o contorno dos elites e os rastros dos corredores) e para andar entre rochas e árvores, e as moedas e doces largados longe da tela não são mais desenhados. A partida continua exatamente a mesma.',
+            en: 'Past 40 minutes of endless mode the game got heavier every minute. Now the horde takes far less work to draw (the elites’ outlines and the runners’ streaks) and to walk among rocks and trees, and coins and candies left far off screen aren’t drawn anymore. A run plays exactly the same.',
+            es: 'Pasados los 40 minutos del modo infinito el juego se ponía más pesado cada minuto. Ahora la horda cuesta mucho menos de dibujar (el contorno de los élites y las estelas de los corredores) y de moverse entre rocas y árboles, y las monedas y dulces que quedan lejos de la pantalla ya no se dibujan. La partida sigue exactamente igual.',
+            fr: 'Après 40 minutes en mode sans fin, le jeu devenait plus lourd à chaque minute. La horde coûte maintenant bien moins à dessiner (le contour des élites et les traînées des coureurs) et à déplacer entre rochers et arbres, et les pièces et bonbons laissés loin de l’écran ne sont plus dessinés. La partie reste exactement la même.',
+            zh: '無盡模式過了 40 分鐘後，遊戲每分鐘都會更吃力。現在怪群的繪製（菁英的外框與疾行者的拖影）和在岩石樹木間移動都省力許多，留在畫面外遠處的金幣與糖果也不再繪製。對局內容完全不變。',
+          },
+          {
+            pt: 'Moedas, doces, Oran Berries, Poké Balls e itens largados no chão somem depois de 2 minutos fora da tela: numa partida longa eles passavam dos milhares e eram o que mais pesava. Exp. Candies, TMs, Mega Pedras, itens de evolução e prêmios de Alfa continuam esperando por você.',
+            en: 'Coins, candies, Oran Berries, Poké Balls and items left on the ground vanish after 2 minutes off screen: in a long run they piled up into the thousands and were the heaviest load of all. Exp. Candies, TMs, Mega Stones, evolution items and Alpha prizes still wait for you.',
+            es: 'Las monedas, dulces, Oran Berries, Poké Balls y objetos que quedan en el suelo desaparecen tras 2 minutos fuera de la pantalla: en una partida larga se juntaban por miles y eran lo que más pesaba. Los Exp. Candies, MTs, Megapiedras, objetos evolutivos y premios de Alfa te siguen esperando.',
+            fr: 'Les pièces, bonbons, Oran Berries, Poké Balls et objets laissés au sol disparaissent après 2 minutes hors de l’écran : dans une longue partie, ils s’entassaient par milliers et pesaient plus que tout le reste. Les Exp. Candy, CT, Méga-Gemmes, objets d’évolution et prix d’Alpha t’attendent toujours.',
+            zh: '留在地上的金幣、糖果、Oran Berry、Poké Ball 和道具，在畫面外超過 2 分鐘就會消失：長時間對局裡它們會累積到上千個，是最拖慢遊戲的原因。經驗糖果、招式學習器、超級石、進化道具和頭目獎勵仍會等著你。',
+          },
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-10-24',
     title: { pt: 'Mega Darkrai, um lobby novo no celular e golpes mais vivos', en: 'Mega Darkrai, a new lobby on phones and livelier moves', es: 'Mega Darkrai, un lobby nuevo en el celular y ataques con más vida', fr: 'Méga-Darkrai, un nouveau lobby sur mobile et des attaques plus vivantes', zh: '超級 Darkrai、手機上的全新大廳與更生動的招式' },
     highlights: [

@@ -9,6 +9,7 @@ import {
 import { RUN_LENGTH, scaling } from '../data/waves'
 import { bossReach, spawnHazard } from './bosses'
 import { bumpDamage } from './combat'
+import { WORLD_HARM } from './harm'
 import { DIFFICULTIES, type Difficulty } from './difficulty'
 import { finaleAlive } from './spawner'
 import { isAirborne } from './traits'
@@ -56,7 +57,7 @@ export const hazardDamage = (difficulty: Difficulty, time: number) =>
 export const hazardFlavor = (weather: WeatherId, biome: BiomeId): HazardFlavor => WEATHER_FLAVOR[weather] ?? BIOME_FLAVOR[biome]
 
 /** How many hazards a pattern drops at `time`, ramping with the pace. */
-const countAt = (g: Game, counts: readonly [number, number]) => Math.round(lerp(counts[0], counts[1], rampAt(g.difficulty, g.time)))
+const countAt = (g: Game, counts: readonly [number, number]) => dm.round(lerp(counts[0], counts[1], rampAt(g.difficulty, g.time)))
 
 /**
  * Pace multiplier right now: 0 inside a room (rift arena, place), before the start, during a
@@ -82,7 +83,7 @@ const paceNow = (g: Game) => {
 }
 
 const spawn = (g: Game, init: Pick<Hazard, 'kind' | 'visual' | 'x' | 'y' | 'r' | 'damage' | 'armAt' | 'disarmAt' | 'ttl'>) =>
-  spawnHazard(g, { ...init, world: true })
+  spawnHazard(g, { ...init, world: true, by: WORLD_HARM })
 
 /** How long a landed strike keeps hurting, as a boss's does. */
 const STRIKE_WINDOW = 0.15

@@ -344,9 +344,18 @@ const pack = () => {
   toPack.length = 0
 }
 
-/** The silhouette of the frame at `col`, `row` of `sheet` in `color`, from its page or made now. */
-const overlay = (sheet: Sheet, col: number, row: number, color: string) => {
-  const key = overlayKey(col, row, color)
+/** Prefix of an outline's color key (`overlay`'s `ring`), so a color's ring and its silhouette keep apart. */
+const RING = 'ring:'
+/** The four one-pixel nudges an outline is made of. */
+const NUDGES = [[-1, 0], [1, 0], [0, -1], [0, 1]] as const
+
+/**
+ * The silhouette of the frame at `col`, `row` of `sheet` in `color`, from its page or made now.
+ * `ring`: the frame's 1 px outline instead (the silhouette nudged a pixel each way, the frame
+ * itself drawn over it later), one image where a crowd of elites drew four each.
+ */
+const overlay = (sheet: Sheet, col: number, row: number, color: string, ring = false) => {
+  const key = overlayKey(col, row, ring ? RING + color : color)
   const o = sheet.overlays?.get(key)
   if (o) {
     o.seen = epoch
@@ -360,7 +369,8 @@ const overlay = (sheet: Sheet, col: number, row: number, color: string) => {
   made++
   const loose = createCanvas(fw, fh)
   const ctx = context2d(loose)
-  ctx.drawImage(sheet.img, col * fw, row * fh, fw, fh, 0, 0, fw, fh)
+  if (ring) for (const [x, y] of NUDGES) ctx.drawImage(sheet.img, col * fw, row * fh, fw, fh, x, y, fw, fh)
+  else ctx.drawImage(sheet.img, col * fw, row * fh, fw, fh, 0, 0, fw, fh)
   ctx.globalCompositeOperation = 'source-in'
   ctx.fillStyle = color
   ctx.fillRect(0, 0, fw, fh)
@@ -862,6 +872,8 @@ export type DrawOpts = {
   tint?: { color: string; amount: number }
   /** A hard 1 px outline in this color around the silhouette (elites, enraged bosses). */
   outline?: string
+  /** The outline's own 0..1 opacity: a throb in one color keeps a crowd to one silhouette per frame. */
+  outlineAlpha?: number
 }
 
 /** The hit flash's color. */
@@ -897,11 +909,14 @@ export const drawPokemon = (
   const { fw, fh } = sheet
   try {
     if (opts.outline) {
-      const edge = overlay(sheet, frame, dir, opts.outline)
-      blit(ctx, edge, fw, fh, dx - 1, dy, dw, dh)
-      blit(ctx, edge, fw, fh, dx + 1, dy, dw, dh)
-      blit(ctx, edge, fw, fh, dx, dy - 1, dw, dh)
-      blit(ctx, edge, fw, fh, dx, dy + 1, dw, dh)
+      ctx.globalAlpha = alpha * (opts.outlineAlpha ?? 1)
+      if (k === 1) blit(ctx, overlay(sheet, frame, dir, opts.outline, true), fw, fh, dx, dy, dw, dh)
+      else {
+        // Scaled (bosses, Alphas), the outline stays one screen pixel wide: the silhouette nudged each way.
+        const edge = overlay(sheet, frame, dir, opts.outline)
+        for (const [x, y] of NUDGES) blit(ctx, edge, fw, fh, dx + x, dy + y, dw, dh)
+      }
+      ctx.globalAlpha = alpha
     }
     if (flash < 1) ctx.drawImage(sheet.img, frame * fw, dir * fh, fw, fh, dx, dy, dw, dh)
     const tint = opts.tint

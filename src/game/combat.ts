@@ -3,6 +3,7 @@ import { chance, range } from '../engine/rng'
 import { effectiveness, TYPE_COLORS, type PokeType } from '../data/types'
 import { ENEMY_BERRY_CHANCE } from '../data/consumables'
 import { ENEMIES, type EnemyDef } from '../data/enemies'
+import { harmBy, NO_ONE, noteHit, type HarmBy } from './harm'
 import type { HitKind } from '../data/abilities'
 import { abilityHolds, abilityHurt, abilityImmune, abilityKill, abilityTakes, strikeBonus } from './abilities'
 import { enemyDrop, isRepelled, tryMaxRevive, tryRevive } from './consumables'
@@ -42,7 +43,7 @@ export const damageEnemy = (g: Game, e: Enemy, attack: Attack) => {
   const eff = attack.sure ? Math.max(1, effectiveness(attack.type, e.types)) : effectiveness(attack.type, e.types)
   // Conditional bonuses (Hex), a mark and a freeze multiply the hit; without them it's exactly ×1.
   const base = attack.damage * (bonusMult(attack.bonus, e) * hitTakenMult(e.status) * phaseTaken(e))
-  const raw = Math.max(1, Math.round(base * eff * playerWeatherBoost(g, attack.type) * strikeBonus(g, e) * range(g.rng, 0.9, 1.1)))
+  const raw = Math.max(1, dm.round(base * eff * playerWeatherBoost(g, attack.type) * strikeBonus(g, e) * range(g.rng, 0.9, 1.1)))
   // A Bronzong ward soaks the hit first, unless the move or the ability (Infiltrator) goes through wards.
   const dmg = attack.sure || attack.ignoreWards || abilityImmune(g, 'wards') ? raw : absorb(e.trait, raw)
   // Mimikyu's Disguise takes the first big hit whole.
@@ -113,7 +114,7 @@ export const drainHeal = (g: Game, damage: number, fraction: number) => {
  * one bumping a neighbor): flash, white number, a hit sound, kill credit to `move`.
  */
 export const bumpDamage = (g: Game, e: Enemy, amount: number, move: DamageSource | null) => {
-  const dmg = Math.max(1, Math.round(amount))
+  const dmg = Math.max(1, dm.round(amount))
   e.hp -= dmg
   e.flash = 0.16
   if (move) g.player.damageByMove[move] = (g.player.damageByMove[move] ?? 0) + dmg
@@ -139,7 +140,7 @@ const spreadSeed = (g: Game, e: Enemy) => {
 
 /** Damage-over-time tick: no knockback or hit sound, number in the status color. */
 export const dotDamage = (g: Game, e: Enemy, amount: number, move: DamageSource | null, kind: StatusKind) => {
-  const dmg = Math.max(1, Math.round(amount))
+  const dmg = Math.max(1, dm.round(amount))
   e.hp -= dmg
   if (move) g.player.damageByMove[move] = (g.player.damageByMove[move] ?? 0) + dmg
   damageText(g, e, dmg, STATUS_RULES[kind].color)
@@ -217,14 +218,22 @@ export const killEnemy = (g: Game, e: Enemy, source?: DamageSource | null) => {
 export const ARMOR_CAP = 0.5
 
 /** A `raw` hit on the player after `armor`: each point takes 1 off (a negative one adds 1), up to `ARMOR_CAP` of the hit. At least 1. */
-export const armored = (raw: number, armor: number) => Math.max(1, Math.round(raw - Math.min(armor, raw * ARMOR_CAP)))
+export const armored = (raw: number, armor: number) => Math.max(1, dm.round(raw - Math.min(armor, raw * ARMOR_CAP)))
 
 /**
  * Damages the player. `from` (a body that touched them) gets shoved back; hazards pass none.
  * `types` is the attack's typing for the weather (a body attacks with its own types), and
  * `hit` what kind of harm it is, for the abilities (`abilityTakes`): a body, a boss's strike, lava…
+ * `by` names who dealt it for the end screen (`Player.hits`; a body names itself); it never changes the outcome.
  */
-export const hurtPlayer = (g: Game, amount: number, from?: Enemy, types: readonly PokeType[] = from?.types ?? [], hit: HitKind = from ? 'body' : 'hazard') => {
+export const hurtPlayer = (
+  g: Game,
+  amount: number,
+  from?: Enemy,
+  types: readonly PokeType[] = from?.types ?? [],
+  hit: HitKind = from ? 'body' : 'hazard',
+  by: HarmBy | null = null,
+) => {
   const p = g.player
   if (p.iframes > 0 || p.hidden || isRepelled(g) || g.phase !== 'playing') return
   // Co-op: fainted, away, gone or mid-evolution players can't be hurt.
@@ -239,6 +248,7 @@ export const hurtPlayer = (g: Game, amount: number, from?: Enemy, types: readonl
   const dmg = armored(taken * mods.enemyDamage * weather * domainHarm(g, from !== undefined) * p.stats.damageTaken, p.stats.armor)
   p.hp -= dmg
   p.record.taken += dmg
+  noteHit(p, by ?? (from ? harmBy(from) : NO_ONE), hit, dmg)
   p.iframes = mods.iframes
   noteHarm(g, dmg)
   p.hurt = 0.3

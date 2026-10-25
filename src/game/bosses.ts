@@ -10,8 +10,10 @@ import {
   pooledShare, shouldEnrage, statusStops, telegraph, tickStance, ultimateDue, ultimateLength, waitsOnUltimate, type BossBlast, type BossFight,
 } from './bossFight'
 import { ENEMIES } from '../data/enemies'
+import { harmBy } from './harm'
 import { hurtPlayer } from './combat'
 import { abilityImmune } from './abilities'
+import type { HitKind } from '../data/abilities'
 import { burst, shakeScreen } from './effects'
 import { blastHorde, spawnEnemy } from './enemies'
 import { makeElite, makeRunner } from './horde'
@@ -28,17 +30,26 @@ type HazardInit = Pick<Hazard, 'kind' | 'visual' | 'x' | 'y' | 'r' | 'damage' | 
 
 /** Adds an enemy hazard (boss attacks, the horde's spit, an Alpha's shockwave). */
 export const spawnHazard = (g: Game, init: HazardInit) => {
-  g.hazards.push({ id: g.nextId++, vx: 0, vy: 0, age: 0, armAt: 0, disarmAt: Infinity, vanishOnHit: false, leaper: -1, world: false, angle: 0, len: 0, spin: 0, pull: 0, pullReach: 0, cover: 0, phantom: 0, sleep: 0, ...init })
+  g.hazards.push({ id: g.nextId++, vx: 0, vy: 0, age: 0, armAt: 0, disarmAt: Infinity, vanishOnHit: false, leaper: -1, world: false, angle: 0, len: 0, spin: 0, pull: 0, pullReach: 0, cover: 0, phantom: 0, sleep: 0, by: null, ...init })
 }
 
 /** How long a strike keeps hurting after it lands. */
 const STRIKE_WINDOW = 0.15
 
-/** A boss's attack at player `p`; what a `sleep` pattern throws puts the player it hits to sleep (Dark Void). */
-const fire = (g: Game, boss: Enemy, written: BossPattern, fight: BossFight | null, p: Player) => {
+/**
+ * A boss's attack at player `p`; what a `sleep` pattern throws puts the player it hits to sleep (Dark Void).
+ * What it throws is signed with the boss (and `move`, an ultimate's name) for the end screen (`Hazard.by`).
+ */
+const fire = (g: Game, boss: Enemy, written: BossPattern, fight: BossFight | null, p: Player, move: string | null = null) => {
   const from = g.hazards.length
   launch(g, boss, written, fight, p)
-  if (written.sleep) for (let i = from; i < g.hazards.length; i++) g.hazards[i]!.sleep = written.sleep
+  const by = harmBy(boss, move)
+  for (let i = from; i < g.hazards.length; i++) {
+    const h = g.hazards[i]!
+    h.by = by
+    if (written.sleep) h.sleep = written.sleep
+  }
+  if (written.kind === 'blast' && fight?.blast) fight.blast.by = by
 }
 
 /** Launches a boss's attack at player `p`, pressed by its fight's difficulty (`attackCount`, `telegraph`); a rift legendary in the old arena passes no fight. */
@@ -189,7 +200,7 @@ const launch = (g: Game, boss: Enemy, written: BossPattern, fight: BossFight | n
         for (const q of g.players) if (q !== p && standing(g, q) && inBlastReach(g, q, boss.x, boss.y)) spots.push(...shelters(g, pattern.spots ?? 3, q))
       }
       const radius = pattern.radius ?? (pattern.safe === 'spots' ? SHELTER.radius : 90)
-      fight.blast = { left: windup, total: windup, x: boss.x, y: boss.y, damage: pattern.damage, safe: pattern.safe, radius, visual: pattern.visual, spots, sleep: pattern.sleep ?? 0 }
+      fight.blast = { left: windup, total: windup, x: boss.x, y: boss.y, damage: pattern.damage, safe: pattern.safe, radius, visual: pattern.visual, spots, sleep: pattern.sleep ?? 0, by: null }
       return
     }
     case 'cage': {
@@ -276,7 +287,7 @@ const raiseGuard = (g: Game, boss: Enemy, pattern: Extract<BossPattern, { kind: 
     const x = fight.home.x + dm.cos(a) * pattern.radius
     const y = fight.home.y + dm.sin(a) * pattern.radius * 0.8
     const keeper = spawnEnemy(g, pattern.enemies[i % pattern.enemies.length]!, x, y, { kind: 'raid', mission: -1, x, y, aggro: 0 })
-    keeper.hp = keeper.maxHp = Math.round(keeper.maxHp * pattern.hp)
+    keeper.hp = keeper.maxHp = dm.round(keeper.maxHp * pattern.hp)
     keeper.xp = 0
     fight.guards.push(keeper.id)
     burst(g, x, y - 6, { colors: ['#ffffff', '#f8b070', '#c8e0f8'], count: 18, speed: 90, ttl: 0.45 })
@@ -545,7 +556,7 @@ const updateMotion = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
         m.y += ((p.y - m.y) / d) * step
       }
     } else if (m.lock > 0) {
-      spawnHazard(g, { kind: 'strike', visual: m.visual, x: m.x, y: m.y, r: m.radius, damage: m.damage, armAt: m.lock, disarmAt: m.lock + STRIKE_WINDOW, ttl: m.lock + 0.45, leaper: boss.id })
+      spawnHazard(g, { kind: 'strike', visual: m.visual, x: m.x, y: m.y, r: m.radius, damage: m.damage, armAt: m.lock, disarmAt: m.lock + STRIKE_WINDOW, ttl: m.lock + 0.45, leaper: boss.id, by: harmBy(boss) })
       m.lock = 0
     }
   }
@@ -585,7 +596,7 @@ const updateBlast = (g: Game, boss: Enemy, fight: BossFight, dt: number) => {
     if (!standing(g, p) || (g.coop !== null && !inBlastReach(g, p, b.x, b.y)) || blastSpares(g, b, p)) continue
     const before = actAs(g, p)
     const hp = p.hp
-    hurtPlayer(g, b.damage, undefined, HAZARD_TYPES[b.visual], 'hazard')
+    hurtPlayer(g, b.damage, undefined, HAZARD_TYPES[b.visual], 'hazard', b.by)
     if (b.sleep > 0 && p.hp < hp) sleepPlayer(g, p, b.sleep)
     actAs(g, before)
   }
@@ -621,7 +632,7 @@ const enterPhase = (g: Game, e: Enemy, fight: BossFight, next: number) => {
   fight.blast = null
   fight.timeStop = null
   // Reborn (`BossPhase.rebirth`): it comes back from its last HP with a share of it.
-  if (phase.rebirth !== undefined) e.hp = Math.round(e.maxHp * phase.rebirth)
+  if (phase.rebirth !== undefined) e.hp = dm.round(e.maxHp * phase.rebirth)
   e.cooldowns = phase.patterns.map((pt) => pt.every * (phase.open ?? 0.5) + fight.shift)
   // The last phase's attacks go with it.
   retain(g.hazards, (h) => h.world)
@@ -649,7 +660,7 @@ const updateUltimate = (g: Game, e: Enemy, fight: BossFight, dt: number, p: Play
   }
   const u = fight.ult
   u.t += dt
-  while (u.step < ultimate.steps.length && ultimate.steps[u.step]!.at <= u.t) fire(g, e, ultimate.steps[u.step++]!.pattern, fight, p)
+  while (u.step < ultimate.steps.length && ultimate.steps[u.step]!.at <= u.t) fire(g, e, ultimate.steps[u.step++]!.pattern, fight, p, ultimate.move)
   if (u.t < ultimateLength(ultimate.steps)) return true
   fight.ult = null
   fight.ultLeft = ultimate.every
@@ -835,6 +846,9 @@ export const beamDistance = (h: Pick<Hazard, 'x' | 'y' | 'angle' | 'len'>, x: nu
   return dm.hypot(x - (h.x + dx * along), y - (h.y + dy * along))
 }
 
+/** What kind of harm a hazard deals, for the abilities (`abilityTakes`): a shot, a lingering patch (Magic Guard's), else a strike. */
+export const hazardHit = (h: Pick<Hazard, 'kind'>): HitKind => (h.kind === 'shot' ? 'shot' : h.kind === 'zone' ? 'zone' : 'hazard')
+
 /** Whether an armed hazard touches the acting player (`p`); Air Lock keeps the world's attacks (the weather's and the biome's) off them. */
 const hazardHits = (g: Game, h: Hazard, p: Player) => {
   if (h.world && abilityImmune(g, 'weather')) return false
@@ -884,7 +898,7 @@ export const updateHazards = (g: Game, tick: number) => {
 
     const impact = IMPACT[h.visual]
     if (impact && h.kind === 'strike' && before < h.armAt && h.age >= h.armAt) {
-      burst(g, h.x, h.y, { colors: impact.colors, count: Math.round(h.r * 0.8), speed: h.r * 5, ttl: 0.4 })
+      burst(g, h.x, h.y, { colors: impact.colors, count: dm.round(h.r * 0.8), speed: h.r * 5, ttl: 0.4 })
       shakeScreen(g, 2, h)
       g.events.push({ kind: impact.event })
     }
@@ -899,7 +913,7 @@ export const updateHazards = (g: Game, tick: number) => {
       const before = actAs(g, p)
       const hit = hazardHits(g, h, p)
       const hp = p.hp
-      if (hit) hurtPlayer(g, h.damage, undefined, HAZARD_TYPES[h.visual], h.kind === 'shot' ? 'shot' : 'hazard')
+      if (hit) hurtPlayer(g, h.damage, undefined, HAZARD_TYPES[h.visual], hazardHit(h), h.by)
       // Dark Void puts to sleep only what it really hit (not through i-frames, a guard or a burrow).
       if (hit && h.sleep > 0 && p.hp < hp) sleepPlayer(g, p, h.sleep)
       actAs(g, before)

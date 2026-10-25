@@ -9,7 +9,21 @@ const required = (name: string) => {
   return value
 }
 
-/** Server config, read once at boot. Throws when a required variable is missing. */
+/**
+ * What this process runs (`ROLE`): the API (the default: routes, the Discord bot,
+ * migrations and periodic jobs), or `checks`, the verifier alone (`verifier.ts`).
+ */
+export const serverRole = (): 'api' | 'checks' => ((process.env.ROLE ?? '').trim().toLowerCase() === 'checks' ? 'checks' : 'api')
+
+/** The verifier's config (`ROLE=checks`): only the database. Throws without `DATABASE_URL`. */
+export const loadChecksEnv = () => ({
+  port: Number(process.env.PORT ?? 3000),
+  databaseUrl: required('DATABASE_URL'),
+  /** `CHECKS=off` pauses the re-simulation of ranked runs (`checks.ts`): runs stay pending, replays kept, until a start without it. */
+  checksPaused: (process.env.CHECKS ?? '').trim().toLowerCase() === 'off',
+})
+
+/** The API's config, read once at boot. Throws when a required variable is missing. */
 export const loadEnv = () => {
   const origins = [...ORIGINS, ...(process.env.CORS_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean)]
   return {

@@ -3,6 +3,7 @@ import type { BiomeId } from '../data/biomes'
 import type { PlaceId, WingId } from '../data/places'
 import type { LandmarkId, TreasureLandmark } from '../data/landmarks'
 import type { PokeType } from '../data/types'
+import type { HitKind } from '../data/abilities'
 import type { RiftLegend } from '../data/rifts'
 import type { WaveLegend } from '../data/legendBosses'
 import type { PlayableId } from '../data/hatchlings'
@@ -198,6 +199,9 @@ export const pt = {
     tabs: { status: 'STATUS', moves: 'GOLPES', mega: 'MEGA' },
     start: 'Começar',
     startWith: (name: string) => `Começar com ${name}`,
+    /** Random: the roster's button (tabs row) and its tooltip. It only selects; Start still starts. */
+    random: 'ALEATÓRIO',
+    randomHint: 'Escolher um Pokémon desbloqueado ao acaso',
     close: 'Fechar',
     /** The details sheet's moves tab, stage by stage: what it starts with, then what each evolution unlocks. */
     learnStart: 'No início',
@@ -428,6 +432,10 @@ export const pt = {
     cards: 'Cartas',
     cardsHint: 'Cartas de upgrade pegas para este status',
     noItems: 'Nenhum item ainda',
+    damageTitle: 'Dano por golpe',
+    damageTotal: (total: string, dps: string) => `Total: ${total} · ${dps} DPS`,
+    damageNote: (time: string) => `DPS = dano ÷ tempo jogado (${time})`,
+    damageEmpty: 'Nenhum dano ainda',
     typeDamage: 'Dano',
     stats: {
       maxHp: 'Vida máx.',
@@ -485,6 +493,11 @@ export const pt = {
     screenShake: 'Tremor de tela',
     flashes: 'Clarões',
     flashModes: { normal: 'Normais', reduced: 'Reduzidos' },
+    runToasts: 'Avisos na partida',
+    runToastModes: { all: 'Todos', important: 'Só importantes', none: 'Nenhum' },
+    /** The HUD's mini map (`render/minimap.ts`): its shape, or off. */
+    minimap: 'Mini mapa',
+    minimapModes: { square: 'Quadrado', round: 'Redondo', off: 'OFF' },
     /** How opaque your moves draw (and, in co-op, your teammates'): `render/attackLayers.ts`. */
     attackOpacity: 'Opacidade dos golpes',
     teamAttackOpacity: 'Opacidade do time',
@@ -494,6 +507,14 @@ export const pt = {
     safeMode: 'Modo leve',
     joystick: 'Joystick',
     joystickModes: { floating: 'Segue o dedo', fixed: 'Fixo' },
+    /** Touch only: the side of the special, lunge and Mega buttons (the fixed stick takes the other one). */
+    buttonSide: 'Lado dos botões',
+    buttonSides: { right: 'Direita', left: 'Esquerda' },
+    /** Fixed stick only: how high it sits and how far from the side edge. */
+    stickHeight: 'Altura do joystick',
+    stickHeights: { low: 'Baixa', mid: 'Média', high: 'Alta' },
+    stickEdge: 'Distância da borda',
+    stickEdges: { near: 'Perto', mid: 'Média', far: 'Longe' },
     on: 'ON',
     off: 'OFF',
     tabs: { sound: 'SOM', game: 'JOGO', controls: 'CONTROLES', about: 'SOBRE' },
@@ -711,11 +732,30 @@ export const pt = {
     earnings: (coins: string, bonus: string) => `Moedas ${coins} · Bônus ${bonus}`,
     retry: 'Tentar de novo',
     change: 'Trocar Pokémon',
+    /** Straight back to the lobby, the run banked like the other buttons. */
+    lobby: 'Lobby',
     /** End-of-run Pokédex news, e.g. "+3 espécies novas · 1 shiny capturado". */
     dexSpecies: (n: number) => (n === 1 ? '+1 espécie nova' : `+${n} espécies novas`),
     dexShinies: (n: number) => (n === 1 ? '1 shiny capturado' : `${n} shinies capturados`),
     /** Victory screen link to the support page. */
     support: 'Curtiu? Apoie o projeto',
+    /** A faint's cause on the end screen (`ui/deathCause.ts`): the last hit and the ones before it. Pokémon and move names stay in English. */
+    cause: {
+      /** Heading over the hit that fainted the player. */
+      title: 'Golpe final',
+      /** A named attack, e.g. "Judgment de Arceus". */
+      move: (who: string, move: string) => `${move} de ${who}`,
+      /** A kind of hit, e.g. "Gengar Alfa (contato)". */
+      kind: (who: string, kind: string) => `${who} (${kind})`,
+      alpha: (name: string) => `${name} Alfa`,
+      /** The world's own attacks (`game/hazards.ts`). */
+      world: 'Ataque do mundo',
+      unknown: 'Causa desconhecida',
+      damage: (n: string) => `${n} de dano`,
+      /** The hits before the last, e.g. "Antes: Rattata 12 · Lava 30". */
+      before: (hits: string) => `Antes: ${hits}`,
+      hits: { body: 'contato', hazard: 'golpe', shot: 'projétil', blast: 'explosão', beam: 'raio', lava: 'lava', trap: 'armadilha', zone: 'área' } satisfies Record<HitKind, string>,
+    },
   },
 
   /** Share cards (`render/card.ts`): the preview with its buttons, the text that goes along and the card's own labels. */
@@ -1749,7 +1789,7 @@ export const pt = {
     lightningRod: 'Ataques Elétricos te curam em vez de ferir, e golpes Elétricos +15%.',
     bulletproof: 'Projéteis de chefes e explosões causam 60% menos dano.',
     levitate: 'Você flutua: lava, armadilhas, água e gelo não te afetam.',
-    magicGuard: 'Só golpes diretos te ferem: nada de lava, armadilhas, explosões ou desgaste do clima.',
+    magicGuard: 'Só golpes diretos te ferem: nada de lava, armadilhas, explosões, poças no chão, desgaste do clima ou mordidas de itens amaldiçoados.',
     magicBounce: 'A cada 12 s bloqueia um golpe e o devolve em dobro a quem encostou.',
     illusion: 'A cada 10 s bloqueia um golpe por completo.',
     damp: 'Explosões não te ferem, e golpes de Água +10%.',

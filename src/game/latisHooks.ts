@@ -1,6 +1,7 @@
 import { range } from '../engine/rng'
 import { ENEMIES } from '../data/enemies'
 import { spawnHazard } from './bosses'
+import { harmBy } from './harm'
 import type { DomainHooks } from './domainHooks'
 import { anchorPlayer } from './players'
 import type { Game } from './types'
@@ -29,7 +30,7 @@ const mirage = (g: Game, latios: boolean, ahead: number) => {
   spawnHazard(g, { kind: 'beam', visual, x, y, r: MIRAGE.width / 2, damage: 0, angle: a, len, armAt: MIRAGE.windup, disarmAt: MIRAGE.windup, ttl: MIRAGE.windup })
   spawnHazard(g, {
     kind: 'shot', visual, x, y, vx: dm.cos(a) * MIRAGE.speed, vy: dm.sin(a) * MIRAGE.speed, r: MIRAGE.width / 2,
-    damage: MIRAGE.damage, armAt: MIRAGE.windup, ttl: MIRAGE.windup + len / MIRAGE.speed, phantom: ENEMIES[latios ? 'latios' : 'latias'].dex,
+    damage: MIRAGE.damage, armAt: MIRAGE.windup, ttl: MIRAGE.windup + len / MIRAGE.speed, phantom: ENEMIES[latios ? 'latios' : 'latias'].dex, by: harmBy(latios ? 'latios' : 'latias'),
   })
 }
 

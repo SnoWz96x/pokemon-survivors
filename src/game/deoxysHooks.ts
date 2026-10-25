@@ -1,5 +1,6 @@
 import { range } from '../engine/rng'
 import { spawnHazard } from './bosses'
+import { harmBy } from './harm'
 import type { DomainHooks } from './domainHooks'
 import { anchorPlayer } from './players'
 
@@ -9,6 +10,9 @@ import { anchorPlayer } from './players'
  * big one on their path.
  */
 const SHOWER = { every: 1.05, delay: 1.3, radius: 13, damage: 12, bigEvery: 5, bigRadius: 26, bigDamage: 20 } as const
+
+/** Deoxys signs its meteor shower (`Hazard.by`). */
+const DEOXYS = harmBy('deoxys')
 
 export const DEOXYS_HOOKS: DomainHooks = {
   crossing: (g, d, dt) => {
@@ -20,6 +24,6 @@ export const DEOXYS_HOOKS: DomainHooks = {
     const x = big ? p.x + p.vx * SHOWER.delay : p.x + range(g.rng, -90, 90)
     const y = big ? p.y + p.vy * SHOWER.delay : p.y + range(g.rng, -130, 30)
     const r = big ? SHOWER.bigRadius : SHOWER.radius
-    spawnHazard(g, { kind: 'strike', visual: 'rock', x, y, r, damage: big ? SHOWER.bigDamage : SHOWER.damage, armAt: SHOWER.delay, disarmAt: SHOWER.delay + 0.15, ttl: SHOWER.delay + 0.45 })
+    spawnHazard(g, { kind: 'strike', visual: 'rock', x, y, r, damage: big ? SHOWER.bigDamage : SHOWER.damage, armAt: SHOWER.delay, disarmAt: SHOWER.delay + 0.15, ttl: SHOWER.delay + 0.45, by: DEOXYS })
   },
 }

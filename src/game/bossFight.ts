@@ -4,6 +4,7 @@ import {
   type BlastSafe, type BossPattern, type BossPhase, type BossStance, type HazardVisual,
 } from '../data/bosses'
 import type { EnemyId } from '../data/enemies'
+import type { HarmBy } from './harm'
 import { bossWaveAt } from '../data/waves'
 import { DIFFICULTY_IDS, type Difficulty } from './difficulty'
 import * as dm from '../engine/dmath'
@@ -27,7 +28,11 @@ export type BossMotion =
  * of one of its `spots`).
  */
 /** A charging blast; `sleep`: seconds of sleep it puts whoever it hits into (Dark Void), 0 for the rest. */
-export type BossBlast = { left: number; total: number; x: number; y: number; damage: number; safe: BlastSafe; radius: number; visual: HazardVisual; spots: readonly { x: number; y: number }[]; sleep: number }
+export type BossBlast = {
+  left: number; total: number; x: number; y: number; damage: number; safe: BlastSafe; radius: number; visual: HazardVisual; spots: readonly { x: number; y: number }[]; sleep: number
+  /** Who charged it, for the end screen (`fire` signs it). */
+  by: HarmBy | null
+}
 
 /** A time stop (`timeStop` pattern): `wait` s until it takes hold, then the player's shots hold still for `left` of `total` s. */
 export type TimeStop = { wait: number; left: number; total: number }
@@ -189,7 +194,7 @@ export const attackWait = (p: BossPattern, fight: BossFight | null) => {
 }
 
 /** How many projectiles or circles a pattern fires in this fight: a single one stays single, several grow with the difficulty. */
-export const attackCount = (count: number, fight: BossFight | null) => (fight && count > 1 ? Math.round(count * BOSS_DIFFICULTY[fight.difficulty].more) : count)
+export const attackCount = (count: number, fight: BossFight | null) => (fight && count > 1 ? dm.round(count * BOSS_DIFFICULTY[fight.difficulty].more) : count)
 
 /** A warning's length in this fight: shortened by the difficulty, never under `MIN_TELEGRAPH` (nor lengthened when written shorter). */
 export const telegraph = (seconds: number, fight: BossFight | null) =>

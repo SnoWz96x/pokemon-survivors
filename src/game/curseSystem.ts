@@ -1,9 +1,11 @@
 import type { CurseId } from '../data/curses'
+import { abilityImmune } from './abilities'
 import { chestCurse, CURSE, curseDrain } from './curses'
 import { burst, floatText, shakeScreen } from './effects'
 import { recomputeStats } from './leveling'
 import { setPhase } from './players'
 import type { Game } from './types'
+import * as dm from '../engine/dmath'
 
 /** Purple of everything cursed: the frame, the sparks, the HP it takes. */
 export const CURSE_COLORS = ['#a050e0', '#e0b0ff', '#401060'] as const
@@ -34,14 +36,15 @@ export const decideCurse = (g: Game, id: CurseId, take: boolean) => {
   g.events.push({ kind: 'curse', id, moment: take ? 'taken' : 'left' })
 }
 
-/** A cursed item takes `share` of max HP: a purple number over the player, never fainting them. */
+/** A cursed item takes `share` of max HP: a purple number over the player, never fainting them. Magic Guard (`drain`) spares them. */
 const bite = (g: Game, id: CurseId, share: number) => {
+  if (abilityImmune(g, 'drain')) return
   const p = g.player
   const before = p.hp
   p.hp = curseDrain(p.hp, p.stats.maxHp, share)
   const lost = before - p.hp
   if (lost <= 0) return
-  if (lost >= 1) floatText(g, p.x + 6, p.y - 26, String(Math.round(lost)), CURSE_COLORS[1], true)
+  if (lost >= 1) floatText(g, p.x + 6, p.y - 26, String(dm.round(lost)), CURSE_COLORS[1], true)
   g.events.push({ kind: 'curse', id, moment: 'recoil' })
 }
 

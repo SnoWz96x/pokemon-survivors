@@ -58,6 +58,7 @@ import type { AlphaClock, AlphaState } from './alphas'
 import type { LegendForm, LegendId } from '../data/legends'
 import type { LegendState } from './legend'
 import type { CoopState } from './coop'
+import type { Harm, HarmBy } from './harm'
 
 export type OwnedMove = {
   id: MoveId
@@ -216,6 +217,8 @@ export type Player = {
   revive: number
   /** What this player did this run, for the end screen and their missions (`coop.ts`). */
   record: PlayerRecord
+  /** The last hits this player took, oldest first (`noteHit`): the end screen's cause of the faint. Bookkeeping: the simulation never reads it. */
+  hits: Harm[]
 }
 
 /** One player's run stats (damage dealt is `damageByMove`). `tally` counts their own faints only in co-op. */
@@ -529,6 +532,8 @@ export type Hazard = {
   phantom: number
   /** Dark Void: seconds of sleep a hit puts the player into (`sleepPlayer`), or 0. */
   sleep: number
+  /** Who threw it, for the end screen's cause of a faint (`Harm`); null for the world's own (`world`). */
+  by: HarmBy | null
 }
 
 export type Pickup = {
@@ -806,6 +811,8 @@ export type Game = {
   shake: number
   /** Seconds the simulation stays frozen for impact (hit-stop). Solo only: in co-op it counts down without freezing. */
   hitstop: number
+  /** World seconds left in which a new hitstop is dropped (`HITSTOP_REST`): back-to-back impacts freeze once. */
+  hitstopRest: number
   kills: number
   /** Poké Dollars collected this run (already multiplied by greed). */
   coins: number

@@ -7,6 +7,7 @@ import { ARENAS, isRiftLegend, RIFT, type RiftLegend } from '../data/rifts'
 import { onFloor } from './arenaFloor'
 import { joinAs, offstage } from './bosses'
 import { hurtPlayer, killEnemy } from './combat'
+import { harmBy } from './harm'
 import { DOMAIN_HOOKS } from './domainHooks'
 import { pairFighter, revealPartner, updatePair, type PairState } from './domainPair'
 import {
@@ -203,7 +204,7 @@ const crossingTick = (g: Game, arena: RiftArena, d: DomainState, def: LegendDoma
       p.y -= threat.push * dt
       if (!bite) continue
       const before = actAs(g, p)
-      hurtPlayer(g, p.stats.maxHp * threat.damage, undefined, [], 'hazard')
+      hurtPlayer(g, p.stats.maxHp * threat.damage, undefined, [], 'hazard', harmBy(arena.legend))
       actAs(g, before)
       burst(g, p.x, p.y - 4, { colors: STING[threat.kind], count: 8, speed: 70, ttl: 0.4, gravity: 120 })
     }
@@ -245,7 +246,7 @@ const reveal = (g: Game, arena: RiftArena, d: DomainState, def: LegendDomain) =>
   const boss = spawnEnemy(g, d.legend, at.x, at.y)
   const scale = riftScale(g.time)
   // The difficulty presses a legendary with its patterns (pace, telegraphs, damage) and with `DOMAIN_PRESS`.
-  boss.hp = boss.maxHp = Math.round(ENEMIES[d.legend].hp * scale.hp * def.hp * DOMAIN_PRESS[g.difficulty].hp)
+  boss.hp = boss.maxHp = dm.round(ENEMIES[d.legend].hp * scale.hp * def.hp * DOMAIN_PRESS[g.difficulty].hp)
   boss.damage *= scale.damage * (def.touch ?? 1)
   boss.xp = riftLoot(g.time, arena.shiny).xp
   boss.shiny = arena.shiny

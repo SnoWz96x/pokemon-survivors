@@ -10,13 +10,29 @@ import { grantStone } from './mega'
 import { collectTm } from './tms'
 import { collectCandy } from './halloween'
 import { collectEvoItem } from './evoGate'
-import { inPlay, setPhase } from './players'
+import { inPlay, onAnyScreen, setPhase } from './players'
 import { coopScale } from './coop'
 import { COOP } from '../data/coop'
 import type { Game, Offer, Pickup, Player } from './types'
 import * as dm from '../engine/dmath'
 
 export const MAX_XP_PICKUPS = 260
+
+/**
+ * Loot left lying: past `maxAge` seconds on the ground, off every player's
+ * screen (by `margin` px), it's gone. A long endless run otherwise strews
+ * thousands of coins, candies and berries behind it, each one costing every
+ * tick. Exp. Candies fold into new ones instead (`MAX_XP_PICKUPS`) and the
+ * one-of-a-kind finds stay.
+ */
+export const LOOT = { maxAge: 120, margin: 32 } as const
+
+/** Pickups that never go: Exp. Candies (capped by folding) and the finds a run gets one of. */
+const LASTING: ReadonlySet<Pickup['kind']> = new Set(['xp', 'tm', 'megaStone', 'evoItem', 'alphaPrize'])
+
+/** Whether `k` was left behind for good (`LOOT`): old, not on its way to anyone, out of everyone's sight. */
+export const leftBehind = (g: Game, k: Pickup) => k.age > LOOT.maxAge && !k.attracted && !LASTING.has(k.kind) && !onAnyScreen(g, k.x, k.y, LOOT.margin)
+
 /** Speed (px/s) a pulled pickup heads for the player at, well above any player's speed. */
 const PULL_SPEED = 420
 /** How fast (1/s) a pulled pickup's velocity turns toward the player. */
@@ -126,14 +142,14 @@ const collect = (g: Game, pickup: Pickup) => {
       break
     case 'coin': {
       // Co-op ₽ are worth a bit more: the team's total is split at the end (`coopPayout`).
-      const amount = Math.round(pickup.value * p.stats.greed * coopScale(g, COOP.scale.coins))
+      const amount = dm.round(pickup.value * p.stats.greed * coopScale(g, COOP.scale.coins))
       g.coins += amount
       floatText(g, p.x, p.y - 30, `₽${amount}`, '#f8d030')
       g.events.push({ kind: 'coin' })
       break
     }
     case 'berry': {
-      const heal = Math.round(healPlayer(g, p.stats.maxHp * 0.3))
+      const heal = dm.round(healPlayer(g, p.stats.maxHp * 0.3))
       floatText(g, p.x, p.y - 30, `+${heal}`, '#58e858')
       burst(g, p.x, p.y - 10, { colors: ['#58e858', '#c8f8c8'], count: 12, speed: 60, ttl: 0.5, gravity: -40 })
       g.events.push({ kind: 'heal' })
@@ -205,8 +221,15 @@ export const updatePickups = (g: Game, dt: number) => {
   const p = g.player
   const magnet2 = dm.sq(p.stats.magnet)
   const choosing = megaStones(g) > 1
+  // The same for every pickup this tick: a long run leaves hundreds on the ground.
+  const steer = 1 - dm.exp(-PULL_STEER * dt)
+  const rest = dm.exp(-6 * dt)
   for (const k of g.pickups) {
     k.age += dt
+    if (leftBehind(g, k)) {
+      k.age = -1
+      continue
+    }
     const d2 = dm.sq(k.x - p.x) + dm.sq(k.y - (p.y - 6))
     if (choosing && k.kind === 'megaStone') {
       if (d2 < dm.sq(p.radius + 8)) {
@@ -226,12 +249,11 @@ export const updatePickups = (g: Game, dt: number) => {
       // Steer the velocity toward the player rather than adding a pull to it: a
       // pull keeps the sideways speed, and a candy could orbit the player forever.
       const d = dirTo(k.x, k.y, p.x, p.y - 6)
-      const steer = 1 - dm.exp(-PULL_STEER * dt)
       k.vx += (d.x * PULL_SPEED - k.vx) * steer
       k.vy += (d.y * PULL_SPEED - k.vy) * steer
     } else {
-      k.vx *= dm.exp(-6 * dt)
-      k.vy *= dm.exp(-6 * dt)
+      k.vx *= rest
+      k.vy *= rest
     }
     k.x += k.vx * dt
     k.y += k.vy * dt
@@ -294,9 +316,15 @@ const nearestTaker = (g: Game, k: Pickup) => {
  */
 const updateTeamPickups = (g: Game, dt: number) => {
   const actor = g.player
+  const steer = 1 - dm.exp(-PULL_STEER * dt)
+  const rest = dm.exp(-6 * dt)
   for (const k of g.pickups) {
     k.age += dt
     if (k.age < 0) continue
+    if (leftBehind(g, k)) {
+      k.age = -1
+      continue
+    }
     if (k.kind === 'megaStone' && stonesFor(g, k.owner) > 1) {
       // A choice of stones isn't pulled: it waits to be touched.
       const q = takerWithin(g, k, touchReach)
@@ -323,12 +351,11 @@ const updateTeamPickups = (g: Game, dt: number) => {
     }
     if (k.attracted && p) {
       const d = dirTo(k.x, k.y, p.x, p.y - 6)
-      const steer = 1 - dm.exp(-PULL_STEER * dt)
       k.vx += (d.x * PULL_SPEED - k.vx) * steer
       k.vy += (d.y * PULL_SPEED - k.vy) * steer
     } else {
-      k.vx *= dm.exp(-6 * dt)
-      k.vy *= dm.exp(-6 * dt)
+      k.vx *= rest
+      k.vy *= rest
     }
     k.x += k.vx * dt
     k.y += k.vy * dt
