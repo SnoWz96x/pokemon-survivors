@@ -18,7 +18,11 @@ const SITE_ENTRY = '/src/site/index.ts'
 const sitePages = (): Plugin => {
   let site: Site | null = null
   let root = process.cwd()
-  const pageFor = (id: string) => site?.SITE_PAGES.find((p) => resolve(root, p.file) === id)
+  /** Every document the site renders: its pages and the 404. */
+  const documents = (of: Site) => [...of.SITE_PAGES, of.NOT_FOUND_PAGE]
+  /** The build's documents by absolute file, looked up on every module Vite resolves. */
+  let pages = new Map<string, ReturnType<typeof documents>[number]>()
+  const pageFor = (id: string) => pages.get(id)
   return {
     name: 'site-pages',
     enforce: 'pre',
@@ -26,7 +30,10 @@ const sitePages = (): Plugin => {
       if (command !== 'build') return
       root = resolve(config.root ?? process.cwd())
       site = (await runnerImport<Site>(SITE_ENTRY, { configFile: false, root })).module
-      return { build: { rolldownOptions: { input: Object.fromEntries(site.SITE_PAGES.map((p) => [p.path.slice(1, -1).replace(/\//g, '-'), p.file])) } } }
+      pages = new Map(documents(site).map((p) => [resolve(root, p.file), p]))
+      // Entry names from the output file: `en/guide/index.html` → `en-guide`, `404.html` → `404`.
+      const name = (file: string) => file.replace(/(\/?index)?\.html$/, '').replace(/\//g, '-')
+      return { build: { rolldownOptions: { input: Object.fromEntries(documents(site).map((p) => [name(p.file), p.file])) } } }
     },
     resolveId(id) {
       const file = resolve(root, id.replace(/^\//, ''))
@@ -47,8 +54,14 @@ const sitePages = (): Plugin => {
           return res.end(dev.sitemap())
         }
         // Like Vercel's `trailingSlash: true`: /guia → /guia/
-        const page = dev.SITE_PAGES.find((p) => p.path === path || p.path === `${path}/`)
-        if (!page) return next()
+        const page = documents(dev).find((p) => p.path === path || p.path === `${path}/`)
+        if (!page) {
+          if (!missing(path, req.headers.accept)) return next()
+          // Like Vercel: a page that doesn't exist gets the 404 page, with its status.
+          res.statusCode = 404
+          res.setHeader('Content-Type', 'text/html')
+          return res.end(await server.transformIndexHtml(path, dev.NOT_FOUND_PAGE.render(), req.originalUrl))
+        }
         if (page.path !== path) {
           res.statusCode = 308
           res.setHeader('Location', page.path)
@@ -58,6 +71,24 @@ const sitePages = (): Plugin => {
         res.end(await server.transformIndexHtml(path, page.render(), req.originalUrl))
       })
     },
+  }
+}
+
+/**
+ * Whether a dev request is a page navigation Vercel would answer with the 404:
+ * HTML, not Vite's own paths or a file (an extension), and no game page on disk.
+ */
+const missing = (path: string, accept: string | undefined) =>
+  (accept ?? '').includes('text/html') &&
+  !/^\/(@|src\/|node_modules\/|ingest|__)/.test(path) &&
+  !/\.[a-z0-9]+$/i.test(path) &&
+  !statSafe(resolve(import.meta.dirname, `.${path.endsWith('/') ? path : `${path}/`}index.html`))
+
+const statSafe = (file: string) => {
+  try {
+    return statSync(file).isFile()
+  } catch {
+    return false
   }
 }
 

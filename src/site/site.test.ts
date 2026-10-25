@@ -22,6 +22,10 @@ describe('site pages', () => {
     for (const page of SITE_PAGES) expect(xml).toContain(`<loc>${absolute(page.path)}</loc>`)
   })
 
+  it('date the changelog in the sitemap with its newest update', () => {
+    expect(sitemap()).toContain(`<loc>${absolute(ROUTES.changelog.en)}</loc>\n    <lastmod>${CHANGELOG[0]?.date}</lastmod>`)
+  })
+
   it('give every playable family and every legend a page of its own (the festival ones once revealed), under its own path', () => {
     const pages = dexPages()
     expect(pages.filter((p) => p.kind === 'legend')).toHaveLength(LEGEND_IDS.length - FESTIVAL_LEGENDS.length)

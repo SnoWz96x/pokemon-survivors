@@ -78,16 +78,15 @@ const head = ({ id, locale, title, description, schema = [], css, sub }: PageMet
   </head>`
 }
 
-const header = (meta: PageMeta) => {
-  const { id, locale } = meta
+/** The site's header: brand, nav (`current` marked as the page shown) and the language switch to `paths`. */
+export const header = (locale: Locale, paths: Paths, current: RouteId | null) => {
   const m = SITE_MESSAGES[locale]
-  const paths = pathsOf(meta)
   return html`<a class="skip" href="#content">${m.skip}</a>
   <header class="site-header">
     <a class="brand" href="${ROUTES.play[locale]}"><img src="/assets/pokemon/4/portrait.png" width="40" height="40" alt="" /><span>Pokémon<br />Survivors</span></a>
     <nav class="site-nav" aria-label="${m.nav.label}">
       ${NAV.map(
-        (r) => html`<a href="${ROUTES[r][locale]}" class="${r === 'play' ? 'nav-play' : ''}"${r === id && !meta.sub ? html` aria-current="page"` : ''}>${m.nav[r]}</a>`,
+        (r) => html`<a href="${ROUTES[r][locale]}" class="${r === 'play' ? 'nav-play' : ''}"${r === current ? html` aria-current="page"` : ''}>${m.nav[r]}</a>`,
       )}
     </nav>
     <nav class="lang" aria-label="${m.nav.language}">
@@ -99,7 +98,8 @@ const header = (meta: PageMeta) => {
   </header>`
 }
 
-const footer = (locale: Locale) => {
+/** The site's footer: the disclaimer and the legal, credits, source, social and support links. */
+export const footer = (locale: Locale) => {
   const m = SITE_MESSAGES[locale]
   return html`<footer class="site-footer">
     <p>${m.footer.disclaimer}</p>
@@ -120,7 +120,7 @@ export const layout = (meta: PageMeta, main: Html) => {
 <html lang="${m.lang.tag}">
   ${head(meta).__html}
   <body>
-  ${header(meta).__html}
+  ${header(meta.locale, pathsOf(meta), meta.sub ? null : meta.id).__html}
   <main id="content" class="site-main">
 ${main.__html}
   </main>
