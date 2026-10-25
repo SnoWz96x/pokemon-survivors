@@ -40,8 +40,9 @@ export const FESTIVALS = [
       { pot: 30_000_000, reward: { kind: 'style', style: { slot: 'frame', id: 'lantern' } }, stage: 2 },
       { pot: 60_000_000, reward: { kind: 'bag', item: 'lure', count: 3 }, stage: 2 },
       { pot: 100_000_000, reward: { kind: 'egg', tier: 'kecleon' }, stage: 3 },
-      // The stretch goal.
       { pot: 150_000_000, reward: { kind: 'shinyHatch', family: 'togepi' }, stage: 4 },
+      // The last prize: Cresselia, the moon over the lanterns, for the Legend mode (`FESTIVAL_LEGENDS`).
+      { pot: 200_000_000, reward: { kind: 'legend', legend: 'cresselia' }, stage: 4 },
     ],
   },
 ] as const satisfies readonly FestivalDef[]

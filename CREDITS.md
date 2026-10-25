@@ -1220,6 +1220,7 @@ CHUNSOFT are original *Pokémon Mystery Dungeon* sprites. This file is generated
 | 491 | Darkrai | [CHUNSOFT](https://www.spike-chunsoft.com/), baronessfaron | [CHUNSOFT](https://www.spike-chunsoft.com/), baronessfaron |
 | 491 | Darkrai (shiny) | Chi, baronessfaron | Prismatic, Emboarger, baronessfaron |
 | 488 | Cresselia | [CHUNSOFT](https://www.spike-chunsoft.com/), baronessfaron | [CHUNSOFT](https://www.spike-chunsoft.com/), baronessfaron, [Emmuffin](https://twitter.com/Ernmuffin) |
+| 488 | Cresselia (shiny) | El_Pangoro_Parse | El_Pangoro_Parse, baronessfaron, [Emmuffin](https://twitter.com/Ernmuffin) |
 | 493 | Arceus | baronessfaron, JFain | baronessfaron |
 | 493 | Arceus (shiny) | baronessfaron | baronessfaron |
 | 442 | Spiritomb | [CHUNSOFT](https://www.spike-chunsoft.com/) | [CHUNSOFT](https://www.spike-chunsoft.com/), baronessfaron |
