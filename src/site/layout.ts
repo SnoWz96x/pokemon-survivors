@@ -75,7 +75,6 @@ const head = ({ id, locale, title, description, schema = [], css, sub }: PageMet
     <script type="application/ld+json">${jsonLd({ '@context': 'https://schema.org', '@graph': graph })}</script>
     <script type="module" src="/src/site/client.ts"></script>
     <script defer vite-ignore src="/_vercel/insights/script.js"></script>
-    <script defer vite-ignore src="https://metrics.pedrobarretto.com.br/script.js" data-website-id="61e8c0cb-d733-4e52-a994-5098d48c7b02" data-domains="www.pokemonsurvivors.com,www.pokemonsurvivors.com.br"></script>
   </head>`
 }
 

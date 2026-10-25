@@ -105,9 +105,8 @@
         ]
       }
     </script>
-    <!-- Cookieless analytics: Vercel Web Analytics (page views) and our self-hosted Umami (page views, UTMs and game events). PostHog (game events and error reports) loads from src/analytics.ts. All only count production domains. -->
+    <!-- Cookieless analytics: Vercel Web Analytics (page views). PostHog (game events and error reports) loads from src/analytics.ts. Both only count production domains. -->
     <script defer vite-ignore src="/_vercel/insights/script.js"></script>
-    <script defer vite-ignore src="https://metrics.pedrobarretto.com.br/script.js" data-website-id="61e8c0cb-d733-4e52-a994-5098d48c7b02" data-domains="www.pokemonsurvivors.com,www.pokemonsurvivors.com.br"></script>
   </head>
   <body>
     <canvas id="game" aria-label="Pokémon Survivors"></canvas>
