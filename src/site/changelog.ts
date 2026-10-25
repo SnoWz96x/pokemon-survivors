@@ -185,6 +185,18 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
           },
         ],
       },
+      {
+        title: { pt: 'Partidas longas mais leves', en: 'Lighter long runs', es: 'Partidas largas más livianas', fr: 'Parties longues plus légères', zh: '長時間對局更流暢' },
+        notes: [
+          {
+            pt: 'Depois dos 40 minutos do modo sem fim o jogo ficava pesado a cada minuto. Agora a horda gasta bem menos para ser desenhada (o contorno dos elites e os rastros dos corredores) e para andar entre rochas e árvores, e as moedas e doces largados longe da tela não são mais desenhados. A partida continua exatamente a mesma.',
+            en: 'Past 40 minutes of endless mode the game got heavier every minute. Now the horde takes far less work to draw (the elites’ outlines and the runners’ streaks) and to walk among rocks and trees, and coins and candies left far off screen aren’t drawn anymore. A run plays exactly the same.',
+            es: 'Pasados los 40 minutos del modo infinito el juego se ponía más pesado cada minuto. Ahora la horda cuesta mucho menos de dibujar (el contorno de los élites y las estelas de los corredores) y de moverse entre rocas y árboles, y las monedas y dulces que quedan lejos de la pantalla ya no se dibujan. La partida sigue exactamente igual.',
+            fr: 'Après 40 minutes en mode sans fin, le jeu devenait plus lourd à chaque minute. La horde coûte maintenant bien moins à dessiner (le contour des élites et les traînées des coureurs) et à déplacer entre rochers et arbres, et les pièces et bonbons laissés loin de l’écran ne sont plus dessinés. La partie reste exactement la même.',
+            zh: '無盡模式過了 40 分鐘後，遊戲每分鐘都會更吃力。現在怪群的繪製（菁英的外框與疾行者的拖影）和在岩石樹木間移動都省力許多，留在畫面外遠處的金幣與糖果也不再繪製。對局內容完全不變。',
+          },
+        ],
+      },
     ],
   },
   {

@@ -323,13 +323,52 @@ const settlePlayer = (g: Game, p: Pos & { radius: number }) => {
   p.y = spot.y
 }
 
-/** Pushes a circle out of every solid near it. Returns the last ellipse it hit, or null. */
+/**
+ * Each feature's solids' boxes (x0, y0, x1, y1 per solid, in its order: the
+ * union of its feet), worked out once per feature: features never change once
+ * built. A cache beside the state, not in it, like the cells themselves.
+ */
+const solidBoxes = new WeakMap<Feature, Float64Array>()
+
+const boxesOf = (f: Feature) => {
+  let boxes = solidBoxes.get(f)
+  if (boxes) return boxes
+  boxes = new Float64Array(f.solids.length * 4)
+  for (let i = 0; i < f.solids.length; i++) {
+    let x0 = Infinity
+    let y0 = Infinity
+    let x1 = -Infinity
+    let y1 = -Infinity
+    for (const e of f.solids[i]!.foot) {
+      x0 = Math.min(x0, e.x - e.rx)
+      y0 = Math.min(y0, e.y - e.ry)
+      x1 = Math.max(x1, e.x + e.rx)
+      y1 = Math.max(y1, e.y + e.ry)
+    }
+    boxes.set([x0, y0, x1, y1], i * 4)
+  }
+  solidBoxes.set(f, boxes)
+  return boxes
+}
+
+/**
+ * Pushes a circle out of every solid near it. Returns the last ellipse it hit, or null.
+ * A solid whose box the circle is clear of by a pixel can't push it (no ellipse of it
+ * would), so its ellipses go untested: the same pushes, in the same order, for a crowd.
+ */
 const block = (g: Game, o: Pos, r: number) => {
   let hit: Ellipse | null = null
-  // Two passes: leaving one lobe of a mountain can land in the next.
-  for (let pass = 0; pass < 2; pass++) {
+  const reach = r + 1
+  // Two passes: leaving one lobe of a mountain can land in the next. A first pass that
+  // pushed nothing left the circle where it was, so a second would push nothing either.
+  for (let pass = 0; pass < 2 && (pass === 0 || hit !== null); pass++) {
     for (const f of featuresNear(g, o.x, o.y, r)) {
-      for (const s of f.solids) for (const e of s.foot) if (pushOut(o, r, e)) hit = e
+      const boxes = boxesOf(f)
+      for (let i = 0; i < f.solids.length; i++) {
+        const b = i * 4
+        if (o.x < boxes[b]! - reach || o.y < boxes[b + 1]! - reach || o.x > boxes[b + 2]! + reach || o.y > boxes[b + 3]! + reach) continue
+        for (const e of f.solids[i]!.foot) if (pushOut(o, r, e)) hit = e
+      }
     }
   }
   return hit

@@ -205,6 +205,9 @@ export const updatePickups = (g: Game, dt: number) => {
   const p = g.player
   const magnet2 = dm.sq(p.stats.magnet)
   const choosing = megaStones(g) > 1
+  // The same for every pickup this tick: a long run leaves hundreds on the ground.
+  const steer = 1 - dm.exp(-PULL_STEER * dt)
+  const rest = dm.exp(-6 * dt)
   for (const k of g.pickups) {
     k.age += dt
     const d2 = dm.sq(k.x - p.x) + dm.sq(k.y - (p.y - 6))
@@ -226,12 +229,11 @@ export const updatePickups = (g: Game, dt: number) => {
       // Steer the velocity toward the player rather than adding a pull to it: a
       // pull keeps the sideways speed, and a candy could orbit the player forever.
       const d = dirTo(k.x, k.y, p.x, p.y - 6)
-      const steer = 1 - dm.exp(-PULL_STEER * dt)
       k.vx += (d.x * PULL_SPEED - k.vx) * steer
       k.vy += (d.y * PULL_SPEED - k.vy) * steer
     } else {
-      k.vx *= dm.exp(-6 * dt)
-      k.vy *= dm.exp(-6 * dt)
+      k.vx *= rest
+      k.vy *= rest
     }
     k.x += k.vx * dt
     k.y += k.vy * dt
@@ -294,6 +296,8 @@ const nearestTaker = (g: Game, k: Pickup) => {
  */
 const updateTeamPickups = (g: Game, dt: number) => {
   const actor = g.player
+  const steer = 1 - dm.exp(-PULL_STEER * dt)
+  const rest = dm.exp(-6 * dt)
   for (const k of g.pickups) {
     k.age += dt
     if (k.age < 0) continue
@@ -323,12 +327,11 @@ const updateTeamPickups = (g: Game, dt: number) => {
     }
     if (k.attracted && p) {
       const d = dirTo(k.x, k.y, p.x, p.y - 6)
-      const steer = 1 - dm.exp(-PULL_STEER * dt)
       k.vx += (d.x * PULL_SPEED - k.vx) * steer
       k.vy += (d.y * PULL_SPEED - k.vy) * steer
     } else {
-      k.vx *= dm.exp(-6 * dt)
-      k.vy *= dm.exp(-6 * dt)
+      k.vx *= rest
+      k.vy *= rest
     }
     k.x += k.vx * dt
     k.y += k.vy * dt

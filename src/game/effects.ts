@@ -107,10 +107,16 @@ export const damageText = (g: Game, e: Enemy, amount: number, color: string, ban
 }
 
 export const updateEffects = (g: Game, dt: number) => {
+  // Bursts share a few drags: each one's damping is worked out once a tick, not once a particle.
+  let drag = NaN
+  let damp = 1
   for (const p of g.particles) {
     p.life += dt
     p.vy += p.gravity * dt
-    const damp = dm.exp(-p.drag * dt)
+    if (p.drag !== drag) {
+      drag = p.drag
+      damp = dm.exp(-drag * dt)
+    }
     p.vx *= damp
     p.vy *= damp
     p.x += p.vx * dt
@@ -118,10 +124,11 @@ export const updateEffects = (g: Game, dt: number) => {
   }
   retain(g.particles, (p) => p.life < p.ttl)
 
+  const rise = dm.exp(-5 * dt)
   for (const t of g.texts) {
     t.life += dt
     t.y += t.vy * dt
-    t.vy *= dm.exp(-5 * dt)
+    t.vy *= rise
   }
   retain(g.texts, (t) => t.life < 0.7)
 

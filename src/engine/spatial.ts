@@ -12,9 +12,13 @@ export const createGrid = (cell: number): Grid => ({ cell, cells: new Map(), use
  */
 const key = (cx: number, cy: number) => ((cx & 0x7fff) << 15) | (cy & 0x7fff)
 
+/** Buckets kept past a clear: the cells a long run walked through would pile up for good. */
+const KEEP_CELLS = 4096
+
 export const clearGrid = (grid: Grid) => {
   for (const bucket of grid.used) bucket.length = 0
   grid.used.length = 0
+  if (grid.cells.size > KEEP_CELLS) grid.cells.clear()
 }
 
 export const insert = (grid: Grid, index: number, x: number, y: number) => {
