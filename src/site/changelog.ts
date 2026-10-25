@@ -111,6 +111,32 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
           },
         ],
       },
+      {
+        title: { pt: 'Botões à esquerda e joystick fixo ajustável', en: 'Buttons on the left and an adjustable fixed joystick', es: 'Botones a la izquierda y joystick fijo ajustable', fr: 'Boutons à gauche et joystick fixe réglable', zh: '按鈕移到左側，固定搖桿可調整' },
+        notes: [
+          {
+            pt: 'Em Ajustes → Controles, o novo “Lado dos botões” espelha a parte de baixo da tela no celular: especial, bote e Mega vão para a esquerda, e o quadro de HP e o joystick fixo para a direita. Pedido de quem joga movendo com a mão direita.',
+            en: 'In Settings → Controls, the new “Button side” mirrors the bottom of the screen on phones: special, lunge and Mega go to the left, the HP box and the fixed joystick to the right. Asked for by players who move with their right hand.',
+            es: 'En Ajustes → Controles, el nuevo “Lado de los botones” refleja la parte de abajo de la pantalla en el celular: especial, embestida y Mega van a la izquierda, y el cuadro de PS y el joystick fijo a la derecha. Lo pidieron quienes se mueven con la mano derecha.',
+            fr: 'Dans Réglages → Commandes, le nouveau « Côté des boutons » inverse le bas de l’écran sur mobile : spéciale, ruée et Méga passent à gauche, l’encadré des PV et le joystick fixe à droite. Demandé par ceux qui se déplacent de la main droite.',
+            zh: '在設定 → 操作中，新的「按鈕位置」會在手機上把畫面下方左右對調：特殊攻擊、突進和超級進化移到左側，HP 框和固定搖桿移到右側。這是用右手移動的玩家提出的建議。',
+          },
+          {
+            pt: 'Com o joystick fixo, “Altura do joystick” e “Distância da borda” tiram ele do canto, em três degraus cada, para celulares de todos os tamanhos.',
+            en: 'With the fixed joystick, “Joystick height” and “Distance from edge” take it out of the corner, three steps each, for phones of every size.',
+            es: 'Con el joystick fijo, “Altura del joystick” y “Distancia del borde” lo sacan de la esquina, en tres pasos cada uno, para celulares de todos los tamaños.',
+            fr: 'Avec le joystick fixe, « Hauteur du joystick » et « Distance du bord » le sortent du coin, en trois crans chacun, pour les téléphones de toutes les tailles.',
+            zh: '使用固定搖桿時，「搖桿高度」和「與邊緣距離」可以把它移出角落，各有三段，適合各種尺寸的手機。',
+          },
+          {
+            pt: 'Os avisos da partida (evento, surto, Mega Stone…) respeitam o espaço da coluna deles: no celular deitado, um de cada vez quando falta altura, em vez de cobrir os botões.',
+            en: 'In-run notices (event, outbreak, Mega Stone…) keep to their column’s room: on a phone held sideways, one at a time when there’s no height to spare, instead of covering the buttons.',
+            es: 'Los avisos de la partida (evento, brote, Mega Stone…) respetan el espacio de su columna: en el celular en horizontal, uno a la vez cuando falta altura, en vez de tapar los botones.',
+            fr: 'Les annonces de la partie (événement, apparition massive, Mega Stone…) restent dans leur colonne : sur un téléphone à l’horizontale, une à la fois quand la hauteur manque, au lieu de couvrir les boutons.',
+            zh: '對局中的提示（活動、大量出現、Mega Stone……）會守在自己的欄位裡：手機橫拿、高度不夠時一次只顯示一則，不再蓋住按鈕。',
+          },
+        ],
+      },
     ],
   },
   {

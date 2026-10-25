@@ -9,7 +9,7 @@ import { isHalloweenDay } from '../game/halloween'
 import { depositEggs, type Egg } from '../game/eggs'
 import { parseSave, recordHatch, recordRun, type Save } from '../game/meta'
 import type { RunSummary } from '../game/tally'
-import { STICK_MODES, type StickMode } from '../engine/input'
+import { BUTTON_SIDES, STICK_EDGES, STICK_HEIGHTS, STICK_MODES, type ButtonSide, type StickEdge, type StickHeight, type StickMode } from '../engine/input'
 import { DAMAGE_NUMBERS, type DamageNumbers } from '../render/damageNumbers'
 import { FLASH_MODES, type Flashes } from '../render/flashes'
 import { RUN_TOASTS, type RunToasts } from './toastQueue'
@@ -186,6 +186,11 @@ export type Settings = {
   controls: Bindings
   /** Touch joystick: follows the thumb (the default) or waits in the bottom-left corner. */
   joystick: StickMode
+  /** Touch: the side of the action buttons (special, lunge, Mega); the fixed stick and the status box take the other one. */
+  buttonSide: ButtonSide
+  /** Touch: where the fixed stick sits, in a few steps up from the bottom and in from the side edge. */
+  stickHeight: StickHeight
+  stickEdge: StickEdge
   /** Menus and HUD size (`ui/uiScale.ts`). Per device, like the controls. */
   uiScale: UiScale
   /** The HUD's mini map (`render/minimap.ts`): square, round or off. */
@@ -204,6 +209,9 @@ export const DEFAULT_SETTINGS: Settings = {
   runToasts: 'all',
   controls: DEFAULT_BINDINGS,
   joystick: 'floating',
+  buttonSide: 'right',
+  stickHeight: 'low',
+  stickEdge: 'near',
   uiScale: 'auto',
   minimap: 'square',
 }
@@ -238,6 +246,9 @@ export const parseSettings = (raw: string | null, defaults = DEFAULT_SETTINGS): 
     runToasts: RUN_TOASTS.find((m) => m === data.runToasts) ?? defaults.runToasts,
     controls: parseBindings(data.controls),
     joystick: STICK_MODES.find((m) => m === data.joystick) ?? defaults.joystick,
+    buttonSide: BUTTON_SIDES.find((m) => m === data.buttonSide) ?? defaults.buttonSide,
+    stickHeight: STICK_HEIGHTS.find((m) => m === data.stickHeight) ?? defaults.stickHeight,
+    stickEdge: STICK_EDGES.find((m) => m === data.stickEdge) ?? defaults.stickEdge,
     uiScale: UI_SCALES.find((s) => s === data.uiScale) ?? defaults.uiScale,
     minimap: MINIMAP_MODES.find((m) => m === data.minimap) ?? defaults.minimap,
   }
