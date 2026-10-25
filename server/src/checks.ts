@@ -1,5 +1,4 @@
 import { Worker } from 'node:worker_threads'
-import { BOARD_SIZE } from '../../src/game/ranking'
 import { parseReplay, RULES_VERSION, rulesStanding } from '../../src/game/replay'
 import { sameTime, type RankingStore } from './ranking'
 import { FROZEN_RULES, judge, type Job, type Judged } from './sims'
@@ -49,19 +48,11 @@ const inlineRunner = (): Runner => (job) =>
   })
 
 /**
- * Which runs get re-simulated. Runs are trusted: one counts on the boards as
- * soon as it's reported, and only a failed check takes it off. So only the
- * runs on show are checked (`RankingStore.shown`: a challenge's official
- * attempt, a line in the top `top.global` of a difficulty's board or the
- * top `top.starter` of a Pokémon's), plus a `sample` of the rest, which
- * keeps an eye on the simulation's determinism. Every other run's replay is
- * dropped unchecked.
- */
-export const CHECKED = { top: { global: BOARD_SIZE, starter: 3 }, sample: 0.05 } as const
-
-/**
- * Re-simulation of ranked runs, one at a time, after the API has answered,
- * for the runs worth it (`CHECKED`). A run is verified when its replay ends
+ * Re-simulation of ranked runs, one at a time, after the API has answered.
+ * Only runs on show (or drawn for the determinism sample) keep their replay
+ * when they report (`checkRank`), so only those are queued; when its turn
+ * comes, a run that fell off the boards since (past `CHECKED.top`) loses its
+ * replay unchecked, unless it's a sample. A run is verified when its replay ends
  * on the same time, faints and level it reported, even if it ends on an open
  * level-up (the log notes it), and then shows the branch its replay took,
  * whatever the game said; otherwise it's marked failed and
@@ -76,8 +67,9 @@ export const CHECKED = { top: { global: BOARD_SIZE, starter: 3 }, sample: 0.05 }
  * unverified, like a run from a game that sent none (so does a replay its
  * simulator can't read); a newer one waits for this server to be updated
  * (a deploy restarts it, and `resume` picks it up).
- * `schedule` queues a run (again, if it grew in endless mode); `resume`
- * queues whatever was pending when the server last stopped. `paused`
+ * `schedule` queues a run that kept its replay (again, if it grew in endless
+ * mode); `resume` queues whatever was pending when the server last stopped,
+ * in check order (`check_rank`). `paused`
  * (`CHECKS=off`) queues nothing: runs stay pending, replays kept, for the
  * next start without it.
  */
@@ -94,8 +86,8 @@ export const createChecks = (ranking: RankingStore, { paused = false } = {}) => 
       try {
         const reported = await ranking.runToCheck(id)
         if (!reported) continue
-        // Whether it's on show is judged when its turn comes, against the boards as they are then.
-        if (Math.random() >= CHECKED.sample && !(await ranking.shown(id, CHECKED.top))) {
+        // Whether it's still on show is judged when its turn comes, against the boards as they are then.
+        if (!reported.sample && !(await ranking.shown(id))) {
           await ranking.dropReplay(id)
           continue
         }
