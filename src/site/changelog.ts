@@ -25,15 +25,62 @@ export type ChangelogUpdate = {
 export const CHANGELOG: readonly ChangelogUpdate[] = [
   {
     date: '2026-10-25',
-    title: { pt: 'Mini mapa, avisos ajustáveis e controles para canhotos', en: 'Mini map, adjustable alerts and left-handed controls', es: 'Minimapa, avisos ajustables y controles para zurdos', fr: 'Mini-carte, alertes réglables et commandes pour gauchers', zh: '小地圖、可調整的提示與左手操作' },
+    title: { pt: 'Co-op online, mini mapa e controles para canhotos', en: 'Online co-op, mini map and left-handed controls', es: 'Co-op en línea, minimapa y controles para zurdos', fr: 'Coop en ligne, mini-carte et commandes pour gauchers', zh: '線上合作、小地圖與左手操作' },
     highlights: [
+      { pt: 'O co-op chegou para todo mundo: até 4 treinadores na mesma partida, cada um com o seu Pokémon. É só tocar em Co-op no lobby.', en: 'Co-op is here for everyone: up to 4 trainers in the same run, each with their own Pokémon. Just tap Co-op in the lobby.', es: 'El co-op llegó para todos: hasta 4 entrenadores en la misma partida, cada uno con su Pokémon. Solo toca Co-op en el lobby.', fr: 'La coop arrive pour tout le monde : jusqu’à 4 dresseurs dans la même partie, chacun avec son Pokémon. Touche simplement Coop dans le lobby.', zh: '合作模式向所有人開放：最多 4 位訓練家同場對局，每人帶著自己的寶可夢。在大廳點選「合作模式」即可。' },
+      { pt: 'Chame a turma pelo link da sala, pelo código de 5 letras ou pela sua lista de Amigos, que mostra quem está online.', en: 'Bring your friends with the room link, the 5-character code or your Friends list, which shows who’s online.', es: 'Invita a tus amigos con el enlace de la sala, el código de 5 caracteres o tu lista de Amigos, que muestra quién está en línea.', fr: 'Invite tes amis avec le lien du salon, le code à 5 caractères ou ta liste d’amis, qui montre qui est en ligne.', zh: '用房間連結、5 碼房間代碼或好友名單邀請朋友，名單會顯示誰在線上。' },
       { pt: 'Mini mapa no canto da tela: lagos, penhascos, bosques, construções e eventos ao seu redor, com o norte para cima.', en: 'A mini map in the corner of the screen: lakes, cliffs, groves, landmarks and events around you, north up.', es: 'Un minimapa en la esquina de la pantalla: lagos, acantilados, bosques, construcciones y eventos a tu alrededor, con el norte arriba.', fr: 'Une mini-carte dans le coin de l’écran : lacs, falaises, bosquets, constructions et événements autour de toi, nord en haut.', zh: '畫面角落的小地圖：你周圍的湖泊、懸崖、樹林、建築和事件，北方朝上。' },
       { pt: 'Os chefes do mapa ganharam um contorno dourado, fácil de achar no meio da horda, e uma seta dourada na borda da tela quando estão fora dela.', en: 'Bosses on the map now wear a gold outline, easy to spot in the horde, and a gold arrow on the screen’s edge points to them when they’re off screen.', es: 'Los jefes del mapa ahora tienen un contorno dorado, fácil de ver en medio de la horda, y una flecha dorada en el borde de la pantalla cuando están fuera de ella.', fr: 'Les boss de la carte ont maintenant un contour doré, facile à repérer dans la horde, et une flèche dorée au bord de l’écran quand ils sont hors champ.', zh: '地圖上的頭目現在有金色外框，在怪群中一眼就能看到；離開畫面時，邊緣的金色箭頭會指出牠們的位置。' },
-      { pt: 'Novo ajuste "Avisos na partida": Todos, Só importantes (chefes, fendas, perigos e o que pede ação) ou Nenhum.', en: 'New "Run alerts" setting: All, Important only (bosses, rifts, dangers and anything that needs you) or None.', es: 'Nuevo ajuste "Avisos en partida": Todos, Solo importantes (jefes, grietas, peligros y lo que pide acción) o Ninguno.', fr: 'Nouveau réglage « Alertes en partie » : Toutes, Importantes (boss, failles, dangers et ce qui demande une action) ou Aucune.', zh: '新設定「戰鬥中提示」：全部、僅重要（首領、裂縫、危險和需要你行動的事）或關閉。' },
       { pt: 'No celular, os botões de ataque especial, bote e Mega podem ir para a esquerda, com o joystick fixo à direita: Ajustes → Controles → Lado dos botões.', en: 'On phones, the special attack, lunge and Mega buttons can move to the left, with the fixed joystick on the right: Settings → Controls → Button side.', es: 'En el celular, los botones de ataque especial, embestida y Mega pueden ir a la izquierda, con el joystick fijo a la derecha: Ajustes → Controles → Lado de los botones.', fr: 'Sur mobile, les boutons d’attaque spéciale, de ruée et de Méga peuvent passer à gauche, avec le joystick fixe à droite : Réglages → Commandes → Côté des boutons.', zh: '在手機上，特殊攻擊、突進和超級進化按鈕可以移到左側，固定搖桿則移到右側：設定 → 操作 → 按鈕位置。' },
-      { pt: 'Quando seu Pokémon desmaia, a tela de resultado mostra o golpe final: quem acertou, com qual ataque e quanto dano, e os golpes logo antes.', en: 'When your Pokémon faints, the results screen shows the final blow: who hit you, with which attack and how much damage, plus the hits just before.', es: 'Cuando tu Pokémon se debilita, la pantalla de resultados muestra el golpe final: quién te golpeó, con qué ataque y cuánto daño, y los golpes justo antes.', fr: 'Quand ton Pokémon est K.O., l’écran de résultats montre le coup final : qui t’a touché, avec quelle attaque et combien de dégâts, et les coups juste avant.', zh: '寶可夢倒下時，結算畫面會顯示致命一擊：誰打中了你、用了什麼攻擊、造成多少傷害，以及之前的幾次攻擊。' },
     ],
     changes: [
+      {
+        title: { pt: 'Co-op online', en: 'Online co-op', es: 'Co-op en línea', fr: 'Coop en ligne', zh: '線上合作' },
+        notes: [
+          {
+            pt: 'No lobby, Co-op → Criar sala. Compartilhe o link ou o código, cada um escolhe o seu Pokémon e fica pronto, e o anfitrião escolhe a dificuldade e começa. Um link de sala leva direto para ela.',
+            en: 'In the lobby, Co-op → Create room. Share the link or the code, everyone picks their Pokémon and gets ready, and the host picks the difficulty and starts. A room link takes you straight in.',
+            es: 'En el lobby, Co-op → Crear sala. Comparte el enlace o el código, cada uno elige su Pokémon y se pone listo, y el anfitrión elige la dificultad y empieza. Un enlace de sala te lleva directo.',
+            fr: 'Dans le lobby, Coop → Créer un salon. Partage le lien ou le code, chacun choisit son Pokémon et se met prêt, puis l’hôte choisit la difficulté et lance la partie. Un lien de salon t’y emmène directement.',
+            zh: '在大廳選擇「合作模式」→「建立房間」。分享連結或代碼，每個人選好寶可夢並準備，房主選擇難度後開始。點房間連結就能直接加入。',
+          },
+          {
+            pt: 'Para jogar junto é preciso uma conta com um @nome: é ele que a equipe vê.',
+            en: 'Playing together needs an account with a @name: it’s what your team sees.',
+            es: 'Para jugar juntos necesitas una cuenta con un @nombre: es lo que ve tu equipo.',
+            fr: 'Pour jouer ensemble, il faut un compte avec un @nom : c’est ce que voit ton équipe.',
+            zh: '一起玩需要一個有 @名稱 的帳號，隊友看到的就是它。',
+          },
+          {
+            pt: 'Na partida, todo mundo sobe de nível junto e escolhe ao mesmo tempo. A horda, os chefes e o ₽ crescem com o número de jogadores, e cada um ganha os próprios TMs, Poké Balls, prêmios de Alfa e Mega Pedras. A partida termina quando ninguém mais consegue continuar.',
+            en: 'In a run, everyone levels up together and picks at the same time. The horde, bosses and ₽ grow with the number of players, and each player gets their own TMs, Poké Balls, Alpha prizes and Mega Stones. The run ends when nobody can carry on.',
+            es: 'En la partida, todos suben de nivel juntos y eligen al mismo tiempo. La horda, los jefes y los ₽ crecen con el número de jugadores, y cada uno recibe sus propias MT, Poké Balls, premios de Alfa y Megapiedras. La partida termina cuando nadie más puede seguir.',
+            fr: 'En partie, tout le monde monte de niveau ensemble et choisit en même temps. La horde, les boss et les ₽ grandissent avec le nombre de joueurs, et chacun reçoit ses propres CT, Poké Balls, prix d’Alpha et Méga-Gemmes. La partie se termine quand plus personne ne peut continuer.',
+            zh: '對局中，全隊一起升級、同時選擇。獸群、頭目和 ₽ 會隨玩家人數增加，每位玩家都會拿到自己的招式學習器、精靈球、頭目獎勵和超級石。沒有人能繼續時，對局才會結束。',
+          },
+          {
+            pt: 'A EXP é da equipe e o ₽ é dividido entre todos. Quem desmaia vira uma Poké Ball até um amigo chegar perto para reanimar.',
+            en: 'EXP is shared by the team and the ₽ is split among everyone. Whoever faints becomes a Poké Ball until a friend comes close to revive them.',
+            es: 'La EXP es del equipo y los ₽ se reparten entre todos. Quien se debilita se vuelve una Poké Ball hasta que un amigo se acerque a reanimarlo.',
+            fr: 'L’EXP est partagée par l’équipe et les ₽ sont partagés entre tous. Celui qui est K.O. devient une Poké Ball jusqu’à ce qu’un ami s’approche pour le ranimer.',
+            zh: '經驗值由全隊共享，₽ 由所有人平分。倒下的人會變成精靈球，等隊友靠近就能復活。',
+          },
+          {
+            pt: 'Em Amigos, adicione pelo @nome, veja quem está online, numa sala ou jogando, e convide direto para a sua sala. Se a conexão cair, o jogo reconecta e você volta de onde parou.',
+            en: 'In Friends, add people by @name, see who’s online, in a room or playing, and invite them straight to your room. If your connection drops, the game reconnects and you pick up where you left off.',
+            es: 'En Amigos, agrega gente por @nombre, mira quién está en línea, en una sala o jugando, e invítalos directo a tu sala. Si se cae la conexión, el juego se reconecta y vuelves donde estabas.',
+            fr: 'Dans Amis, ajoute des joueurs par @nom, vois qui est en ligne, dans un salon ou en partie, et invite-les directement dans ton salon. Si la connexion coupe, le jeu se reconnecte et tu reprends là où tu en étais.',
+            zh: '在「好友」中用 @名稱 加好友，查看誰在線上、在房間裡或正在遊戲，並直接邀請他們進你的房間。連線中斷時，遊戲會自動重連，讓你從中斷處繼續。',
+          },
+          {
+            pt: 'Por enquanto ficam só nas partidas solo: a caverna, o cemitério e o céu, as construções do mapa, os domínios das fendas (os lendários lutam na arena antiga), o Modo Lendário, a Mochila e os TMs e itens da loja, o Surto do dia, a Noite das Bruxas, o Desafio do dia e o ranking.',
+            en: 'For now these stay in solo runs: the cave, the graveyard and the sky, the map’s landmarks, rift domains (legendaries fight in the old arena), Legend Mode, the Bag and the shop’s TMs and items, the daily Outbreak, Halloween Night, the Daily Challenge and the ranking.',
+            es: 'Por ahora se quedan en las partidas en solitario: la cueva, el cementerio y el cielo, las construcciones del mapa, los dominios de las grietas (los legendarios pelean en la arena antigua), el Modo Legendario, la Mochila y las MT y objetos de la tienda, la Horda del día, la Noche de Brujas, el Desafío del día y el ranking.',
+            fr: 'Pour l’instant, restent en solo : la grotte, le cimetière et le ciel, les constructions de la carte, les domaines des failles (les légendaires combattent dans l’ancienne arène), le Mode Légendaire, le Sac et les CT et objets de la boutique, l’Apparition massive du jour, la Nuit des Sorcières, le Défi du jour et le classement.',
+            zh: '目前以下內容仍只在單人對局中：洞窟、墓地和天空、地圖建築、裂縫領域（傳說寶可夢在舊競技場戰鬥）、傳說模式、背包與商店的招式學習器和道具、今日大量出現、女巫之夜、每日挑戰和排行榜。',
+          },
+        ],
+      },
       {
         title: { pt: 'Mini mapa', en: 'Mini map', es: 'Minimapa', fr: 'Mini-carte', zh: '小地圖' },
         notes: [
