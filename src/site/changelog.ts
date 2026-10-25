@@ -137,6 +137,25 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
           },
         ],
       },
+      {
+        title: { pt: 'Visibilidade na partida', en: 'Visibility in a run', es: 'Visibilidad en la partida', fr: 'Visibilité en partie', zh: '對局中的辨識度' },
+        notes: [
+          {
+            pt: 'Todo chefe que aparece no mapa ganha um contorno dourado, como o vermelho dos Alfas, e uma seta dourada na borda da tela enquanto está fora de vista. Os lendários continuam com a seta vermelha, e um chefe furioso troca o dourado pelo vermelho piscando.',
+            en: 'Every boss that shows up on the map gets a gold outline, like the Alphas’ red one, and a gold arrow on the screen’s edge while it’s out of view. Legendaries keep their red arrow, and an enraged boss swaps the gold for the flickering red.',
+            es: 'Todo jefe que aparece en el mapa recibe un contorno dorado, como el rojo de los Alfa, y una flecha dorada en el borde de la pantalla mientras está fuera de vista. Los legendarios mantienen la flecha roja, y un jefe furioso cambia el dorado por el rojo parpadeante.',
+            fr: 'Chaque boss qui apparaît sur la carte reçoit un contour doré, comme le rouge des Alphas, et une flèche dorée sur le bord de l’écran tant qu’il est hors de vue. Les légendaires gardent leur flèche rouge, et un boss enragé remplace le doré par le rouge clignotant.',
+            zh: '每個出現在地圖上的頭目都會有金色外框，就像頭目寶可夢的紅框一樣，離開畫面時邊緣還會有金色箭頭。傳說寶可夢仍是紅色箭頭，暴怒的頭目則會把金色換成閃爍的紅色。',
+          },
+          {
+            pt: 'Seu Pokémon e a barra de vida são desenhados depois dos golpes, em qualquer opacidade escolhida nos ajustes, e por cima da horda. Atrás de uma árvore ou de um penhasco ele continua atrás, como antes.',
+            en: 'Your Pokémon and its HP bar are drawn after the moves, at whatever opacity you picked in the settings, and over the horde. Behind a tree or a cliff it stays behind, as before.',
+            es: 'Tu Pokémon y su barra de vida se dibujan después de los ataques, con la opacidad que elegiste en los ajustes, y por encima de la horda. Detrás de un árbol o de un acantilado sigue detrás, como antes.',
+            fr: 'Ton Pokémon et sa barre de PV sont dessinés après les attaques, quelle que soit l’opacité choisie dans les réglages, et par-dessus la horde. Derrière un arbre ou une falaise, il reste derrière, comme avant.',
+            zh: '你的寶可夢和 HP 條會在招式之後繪製（不論你在設定中選了多少不透明度），也在怪群之上。站在樹或懸崖後方時仍會被擋住，和以前一樣。',
+          },
+        ],
+      },
     ],
   },
   {
