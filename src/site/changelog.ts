@@ -51,6 +51,21 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
           },
         ],
       },
+      {
+        title: { pt: 'Correções', en: 'Fixes', es: 'Correcciones', fr: 'Corrections', zh: '修正' },
+        notes: [
+          {
+            pt: 'Quem abria o jogo com a janela em exatamente 1920×1080 (tela cheia num monitor 1080p) via o mapa num quadradinho no canto de cima, no lobby e na partida. Agora ele ocupa a tela toda desde o começo.',
+            en: 'Opening the game in a window of exactly 1920×1080 (fullscreen on a 1080p monitor) showed the map in a small box in the top corner, in the lobby and in runs. It now fills the screen from the start.',
+            es: 'Quien abría el juego con la ventana en exactamente 1920×1080 (pantalla completa en un monitor 1080p) veía el mapa en un cuadrito en la esquina de arriba, en el lobby y en la partida. Ahora ocupa toda la pantalla desde el principio.',
+          },
+          {
+            pt: 'Com o mouse e o teclado juntos, um Enter num botão já clicado contava duas vezes: o Jogar começava duas partidas e a escolha de golpe da primeira ficava congelada na frente; no lobby, duas telas abriam e a de baixo ficava presa atrás. Agora cada aperto conta uma vez.',
+            en: 'With mouse and keyboard together, Enter on a button you had clicked counted twice: Play started two runs and the first one’s move pick stayed frozen on top; in the lobby, two screens opened and the one below got stuck behind. Each press now counts once.',
+            es: 'Con el mouse y el teclado juntos, un Enter en un botón ya clicado contaba dos veces: Jugar empezaba dos partidas y la elección de ataque de la primera se quedaba congelada encima; en el lobby, se abrían dos pantallas y la de abajo quedaba atrapada detrás. Ahora cada pulsación cuenta una vez.',
+          },
+        ],
+      },
     ],
   },
   {
