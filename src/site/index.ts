@@ -5,6 +5,7 @@ import { changelogPage } from './pages/changelog'
 import { dexPage } from './pages/dexPage'
 import { guidePage } from './pages/guide'
 import { legalPage } from './pages/legal'
+import { notFoundPage } from './pages/notFound'
 import { pokedexPage } from './pages/pokedex'
 import { supportPage } from './pages/support'
 import { tierListPage } from './pages/tierList'
@@ -42,6 +43,12 @@ export const SITE_PAGES: readonly SitePage[] = [
   ...PAGE_IDS.flatMap((id) => pagesOf(ROUTES[id], RENDER[id])),
   ...dexPages().flatMap((page) => pagesOf(dexPaths(page.slug), (locale) => dexPage(page, locale))),
 ]
+
+/**
+ * The 404 page: `404.html` at the root, which Vercel serves (status 404) for any
+ * path that doesn't exist. Not a route: no hreflang, not in the sitemap, never indexed.
+ */
+export const NOT_FOUND_PAGE = { path: '/404.html', file: '404.html', render: notFoundPage } as const
 
 /**
  * `<lastmod>` of the routes whose last change we know: the game and the changelog

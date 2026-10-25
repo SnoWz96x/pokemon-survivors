@@ -256,6 +256,18 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
           },
         ],
       },
+      {
+        title: { pt: 'Página não encontrada', en: 'Page not found', es: 'Página no encontrada', fr: 'Page introuvable', zh: '找不到頁面' },
+        notes: [
+          {
+            pt: 'Um link quebrado ou um endereço digitado errado agora leva à Rota 404: um mini jogo em que você foge dos Zubat até uma placa de saída (o jogo, a Pokédex ou o guia), e a página sugere o que você procurava, como Charmander para /pokedex/charmandr. Procurando um Pokémon, você anda pela rota com ele.',
+            en: 'A broken link or a mistyped address now lands on Route 404: a mini game where you dodge Zubat on your way to an exit sign (the game, the Pokédex or the guide), and the page suggests what you were after, like Charmander for /pokedex/charmandr. Looking for a Pokémon? You walk the route as it.',
+            es: 'Un enlace roto o una dirección mal escrita ahora te lleva a la Ruta 404: un minijuego en el que esquivas Zubat hasta un letrero de salida (el juego, la Pokédex o la guía), y la página sugiere lo que buscabas, como Charmander para /pokedex/charmandr. Si buscabas un Pokémon, recorres la ruta con él.',
+            fr: 'Un lien cassé ou une adresse mal tapée mène maintenant à la Route 404 : un mini-jeu où tu esquives des Zubat jusqu’à un panneau de sortie (le jeu, le Pokédex ou le guide), et la page propose ce que tu cherchais, comme Charmander pour /pokedex/charmandr. Tu cherchais un Pokémon ? Tu parcours la route avec lui.',
+            zh: '失效的連結或打錯的網址現在會來到 404 號道路：一個小遊戲，你要躲開 Zubat 走到出口路牌（遊戲、寶可夢圖鑑或攻略），頁面也會猜出你要找的內容，例如 /pokedex/charmandr 會建議 Charmander。如果你在找某隻寶可夢，就會用牠走這條道路。',
+          },
+        ],
+      },
     ],
   },
   {

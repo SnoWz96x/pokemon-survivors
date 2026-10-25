@@ -1,6 +1,7 @@
 /**
  * Progressive enhancement for the static site pages. The HTML is complete
  * without it; this only adds the Pokédex filters, the cards' shiny toggles and tap-to-walk,
+ * the 404 page's suggestion and mini game (`notFoundClient.ts`, loaded only there),
  * the donation form (with the account's @, the thank-you's code and the
  * supporters' wall), and remembers the language for the game. It must never
  * import game code (plain data like `data/donations` is fine), so the game and
@@ -134,6 +135,9 @@ for (const card of document.querySelectorAll<HTMLElement>('.dex-card')) {
 
 const form = document.querySelector<HTMLFormElement>('#dex-filters')
 if (form) pokedex(form)
+
+// The 404 page: its client (the "did you mean" and the Rota 404 mini game) loads only there.
+if (document.getElementById('nf-index')) void import('./notFoundClient')
 
 /** The accounts API, which opens AbacatePay checkouts (`POST /donations`) and knows the handles and supporters. */
 const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '')

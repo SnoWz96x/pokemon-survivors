@@ -966,6 +966,24 @@ export const sitePt = {
     issues: 'Abrir uma issue no GitHub',
     source: 'Ver o código-fonte',
   },
+  notFound: {
+    title: 'Página não encontrada · Pokémon Survivors',
+    eyebrow: 'ERRO 404 · ROTA 404',
+    h1: 'Você se perdeu na Rota 404.',
+    lead: 'Esta página não existe, mas os Zubat sim. Ande até uma placa para sair.',
+    url: 'Endereço procurado:',
+    mean: { before: 'Você quis dizer ', after: '?' },
+    hint: 'Setas ou WASD para andar. No celular, toque e arraste. Os ataques saem sozinhos.',
+    game: 'Mini jogo: ande pela Rota 404 até uma placa',
+    start: 'Ande para começar',
+    go: 'Ir para',
+    over: '{name} desmaiou na Rota 404.',
+    time: 'Tempo',
+    ko: 'Nocautes',
+    best: 'Recorde',
+    retry: 'Tentar de novo',
+    notes: { play: 'Uma partida de verdade', pokedex: 'Todos os Pokémon do jogo', guide: 'Como jogar' },
+  },
 }
 
 export type SiteMessages = typeof sitePt
