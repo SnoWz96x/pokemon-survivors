@@ -67,6 +67,10 @@ export const FESTIVAL = {
   heldWallet: 20_000_000,
   /** Donors on the plaque. */
   top: 10,
-  /** Days before a festival opens that the shop already shows it (its sheet counts down). */
-  announceDays: 7,
+  /**
+   * Days before a festival opens that the shop already shows it (its sheet
+   * counts down) and the fountain stands. One, so a festival right after
+   * another event doesn't share the screen with it.
+   */
+  announceDays: 1,
 } as const

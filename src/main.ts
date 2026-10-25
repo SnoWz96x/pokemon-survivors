@@ -425,7 +425,7 @@ const isPlazaStage = (n: unknown): n is PlazaStage => n === 0 || n === 1 || n ==
 /**
  * The Festival da Praça on the plaza, from the pot the festival already
  * fetched (`festivalView`; stage 0 while none is known): the fountain from the
- * week before a festival (`festivalAnnounced`), the plaque and the Lantern Festival by the pot's stage while it runs.
+ * day before a festival (`festivalAnnounced`), the plaque and the Lantern Festival by the pot's stage while it runs.
  */
 const plazaFestival = (): PlazaFestival => {
   if (devPlazaStage !== null) return { fountain: true, stage: devPlazaStage, running: true }

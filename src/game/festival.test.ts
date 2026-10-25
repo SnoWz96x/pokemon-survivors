@@ -42,9 +42,9 @@ describe('festival calendar', () => {
     expect(latestFestival('2026-11-20')?.id).toBe('lanternas')
   })
 
-  it('announces a festival in the shop a week before it opens, and while it runs', () => {
-    expect(festivalAnnounced('2026-10-26')).toBeNull()
-    expect(festivalAnnounced('2026-10-27')?.id).toBe('lanternas')
+  it('announces a festival in the shop the day before it opens, and while it runs', () => {
+    expect(festivalAnnounced('2026-11-01')).toBeNull()
+    expect(festivalAnnounced('2026-11-02')?.id).toBe('lanternas')
     expect(festivalAnnounced('2026-11-16')?.id).toBe('lanternas')
     expect(festivalAnnounced('2026-11-17')).toBeNull()
   })
@@ -105,8 +105,8 @@ describe('Cresselia, the last prize', () => {
     expect(keepGiven(opened, gameGiftsApplied(opened, { pots: { lanternas: 199_999_999 }, given: {} })).legends.cresselia).toBeUndefined()
   })
 
-  it('stays hidden until the festival is announced, a week before it opens', () => {
-    expect(['2026-10-26', '2026-10-27', '2026-11-20'].map((day) => legendShown('cresselia', day))).toEqual([false, true, true])
+  it('stays hidden until the festival is announced, the day before it opens', () => {
+    expect(['2026-11-01', '2026-11-02', '2026-11-20'].map((day) => legendShown('cresselia', day))).toEqual([false, true, true])
     expect(legendShown('darkrai', '2026-10-01')).toBe(true)
   })
 })
