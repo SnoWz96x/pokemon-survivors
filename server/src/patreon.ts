@@ -7,8 +7,9 @@ import { isRecord } from '../../src/game/parse'
  * game Patreon's authorize URL with a `state` that names the player and the
  * page to come back to, signed and short-lived; Patreon sends the player to
  * `GET /patreon/callback`, which trades the code for a token once, asks who
- * they are and keeps only their Patreon user id. Charges come in by webhook
- * (`patreonCharge` in `webhooks.ts`), never through the player's token.
+ * they are and keeps only their Patreon user id. Pledges and charges come in
+ * by webhook (`patreonMember`, `patreonCharge` in `webhooks.ts`), never
+ * through the player's token.
  */
 
 export type PatreonConfig = { clientId: string; clientSecret: string; redirectUri: string }

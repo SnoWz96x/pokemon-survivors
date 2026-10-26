@@ -1,7 +1,8 @@
 import { DONATION } from '../../data/donations'
+import { PATREON_URL } from '../../data/supporters'
 import type { Locale } from '../../i18n'
 import { SITE_MESSAGES } from '../../i18n/site'
-import { html } from '../html'
+import { html, raw } from '../html'
 import { layout } from '../layout'
 import { STRIPE_DONATION_URL } from '../routes'
 
@@ -12,7 +13,7 @@ import { STRIPE_DONATION_URL } from '../routes'
  * Portuguese lists Brazil first; `client.ts` reorders by the device's time zone
  * and wires the form. Above them, the @ of the account that gets the rewards
  * (filled from the game's `?u=` or this browser's account); under them, what
- * donors get and the supporters' wall. Both checkouts come back with
+ * donors get, the monthly tiers on Patreon (`PATREON_URL`) and the supporters' wall. Both checkouts come back with
  * `?thanks=<ref>`, and the page says where the rewards went, or shows the code.
  */
 export const supportPage = (locale: Locale) => {
@@ -51,6 +52,14 @@ export const supportPage = (locale: Locale) => {
       <ul>${s.perks.items.map((item) => html`<li>${item}</li>`)}</ul>
       <p class="note">${s.perks.note}</p>
     </section>`
+  // The tiers' lines carry their own <b> (our copy, never a player's).
+  const monthly = html`<section class="box donate-perks donate-monthly" id="donate-monthly" aria-labelledby="donate-monthly-title">
+      <h2 id="donate-monthly-title">${s.monthly.title}</h2>
+      <p>${s.monthly.lead}</p>
+      <ul>${s.monthly.tiers.map((tier) => html`<li>${raw(tier)}</li>`)}</ul>
+      <p><a class="btn-play" href="${PATREON_URL}" target="_blank" rel="noopener">${s.monthly.cta}</a></p>
+      <p class="note">${s.monthly.note}</p>
+    </section>`
   const wall = html`<section class="box donate-wall" id="donate-wall" aria-labelledby="donate-wall-title" data-empty="${s.wall.empty}" hidden>
       <h2 id="donate-wall-title">${s.wall.title}</h2>
       <ul class="donate-wall-names"></ul>
@@ -68,6 +77,7 @@ export const supportPage = (locale: Locale) => {
       ${locale === 'pt' ? [br, intl] : [intl, br]}
     </div>
     ${perks}
+    ${monthly}
     ${wall}
   </div>`
   return layout({ id: 'support', locale, title: s.title, description: s.description }, main)

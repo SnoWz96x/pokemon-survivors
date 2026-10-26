@@ -165,7 +165,7 @@ export const pt = {
     createProfile: 'Criar perfil',
     viewProfile: 'Ver perfil público',
     share: 'Compartilhar cartão',
-    supporterSince: (gold: boolean, date: string) => `${gold ? 'Apoiador(a) Ouro' : 'Apoiador(a)'} desde ${date}`,
+    supporterSince: (tier: SupporterTier, date: string): string => `${{ supporter: 'Apoiador(a)', gold: 'Apoiador(a) Ouro', diamond: 'Apoiador(a) Diamante' }[tier]} desde ${date}`,
     missions: 'Missões e conquistas',
     join: 'Criar conta / Entrar',
     signOut: 'Sair da conta',
@@ -1193,7 +1193,7 @@ export const pt = {
     treat: '*Doce!* A abóbora estava cheia de doces.',
     trick: (name: string) => `*Travessura!* Uma roda de ${name} apareceu!`,
     candies: 'Doces',
-    supporterBadge: (tier: SupporterTier): string => (tier === 'gold' ? 'Apoiador(a) Ouro · Noite das Bruxas 2026' : 'Apoiador(a) · Noite das Bruxas 2026'),
+    supporterBadge: (tier: SupporterTier): string => `${{ supporter: 'Apoiador(a)', gold: 'Apoiador(a) Ouro', diamond: 'Apoiador(a) Diamante' }[tier]} · Noite das Bruxas 2026`,
     perk: 'Abóbora',
     perkTitle: (date: string) => `Apoie até ${date}: seu coração vira esta abóbora para sempre, e o Pumpkaboo passa a te acompanhar`,
     supportYes: 'Obrigado por apoiar! Seu selo virou uma *abóbora* no ranking, no perfil e no Hall da Fama, para sempre. E o *Pumpkaboo*, só de apoiadores, te acompanha soltando brilhos de doce (*shiny* para quem é Ouro).',
@@ -1349,7 +1349,7 @@ export const pt = {
     welcome: (from: string | null) => (from ? `Por entrar com o convite de @${from}` : 'Por entrar com um convite'),
     friends: (n: number) => (n === 1 ? 'Por trazer seu primeiro amigo' : `Por trazer ${n} amigos`),
     shinyPick: 'Um *shiny à sua escolha*! Escolha agora ou depois, no Hall da Fama.',
-    support: (tier: SupporterTier): string => (tier === 'gold' ? 'Por chegar a Apoiador(a) Ouro ♥' : 'Por apoiar o projeto ♥'),
+    support: (tier: SupporterTier): string => ({ supporter: 'Por apoiar o projeto ♥', gold: 'Por chegar a Apoiador(a) Ouro ♥', diamond: 'Por chegar a Apoiador(a) Diamante ♥' })[tier],
     staff: (from: string | null) => (from ? `Um presente de @${from}, que faz o jogo ♥` : 'Um presente de quem faz o jogo ♥'),
     discord: 'Por entrar no nosso Discord ♥',
     halloween: 'Do pote de doces da Noite das Bruxas',
@@ -1360,6 +1360,7 @@ export const pt = {
     bag: (n: number, item: string) => `*${n}× ${item}* foram para a Mochila.`,
     festival: (festival: string, pot: string) => `A praça juntou ${pot} no ${festival}. Obrigado a todos os mecenas!`,
     patron: (festival: string) => `Por ser Mecenas do ${festival} ♥`,
+    og: 'Por apoiar o jogo desde o começo ♥',
   },
 
   /**
@@ -1370,12 +1371,12 @@ export const pt = {
     title: 'HALL DA FAMA',
     lead: 'Quem mantém o jogo vivo. Obrigado! ♥',
     perks: { title: 'Título', frame: 'Moldura', shiny: 'Shiny', companion: 'Companheiro', vote: 'Voto' },
-    gold: '*Ouro* (R$ 50 ou US$ 10 somados): fundo, papel de parede e selo dourados',
+    gold: '*Ouro* e *Diamante*: apoio mensal no Patreon (US$ 10 e US$ 20 por mês)',
     legends: 'LENDAS',
-    goldFrom: 'R$ 50+',
+    goldFrom: 'Ouro e Diamante',
     fans: (n: number) => `APOIADORES · ${n}`,
     firstLegend: 'Seja a primeira Lenda',
-    you: (tier: SupporterTier): string => (tier === 'gold' ? 'Você é Apoiador(a) Ouro' : 'Você é Apoiador(a)'),
+    you: (tier: SupporterTier): string => ({ supporter: 'Você é Apoiador(a)', gold: 'Você é Apoiador(a) Ouro', diamond: 'Você é Apoiador(a) Diamante' })[tier],
     join: 'Entre para o Hall',
     yours: 'Seu apoio',
     cosmetic: 'Todo apoio é cosmético: nada de pay-to-win.',
@@ -1384,7 +1385,7 @@ export const pt = {
     none: 'Doe pela página de apoio com seu @: as recompensas chegam como Presente Misterioso.',
     loading: 'Carregando…',
     offline: 'Sem conexão com o servidor agora.',
-    since: (tier: SupporterTier, date: string) => (tier === 'gold' ? `Você é *Apoiador(a) Ouro* desde ${date}. Muito obrigado! ♥` : `Você é *Apoiador(a)* desde ${date}. Obrigado! ♥`),
+    since: (tier: SupporterTier, date: string): string => `Você é *${{ supporter: 'Apoiador(a)', gold: 'Apoiador(a) Ouro', diamond: 'Apoiador(a) Diamante' }[tier]}* desde ${date}. ${tier === 'supporter' ? 'Obrigado!' : 'Muito obrigado!'} ♥`,
     donate: 'APOIAR',
     signIn: 'Entrar',
     createProfile: 'Criar perfil',
@@ -1393,8 +1394,14 @@ export const pt = {
     vote: 'Votação',
     code: 'Tenho um código',
     codeShort: 'Código',
-    /** The Hall's Patreon link: a linked Patreon's charges count as donations to the account. */
-    patreon: { link: 'Vincular Patreon', unlink: '✓ Patreon · desvincular', linked: 'Patreon vinculado! Cada cobrança conta como doação para esta conta.', unlinked: 'Patreon desvinculado.', failed: 'Não deu para vincular o Patreon. Tente de novo.' },
+    /** The Hall's OG Supporters: who supported before the Patreon tiers, there for good. */
+    og: { badge: 'Apoiador(a) OG', button: (n: number): string => `OG · ${n}`, title: 'APOIADORES OG', intro: 'Quem apoiou o jogo antes do Patreon. No Hall para sempre. Obrigado! ♥' },
+    /** The companion picker's section of captured legends, Diamond only. */
+    companionLegends: 'Lendários (Diamante)',
+    /** Diamond's monthly poll on a new ultra-rare Pokémon (`DIAMOND_POLL`), shown only to Diamond. */
+    diamondPoll: { tile: 'Diamante', title: 'ULTRARRARO DO MÊS', intro: 'Só quem é Diamante vota: qual Pokémon ultrarraro entra no jogo. Dá para mudar o voto quando quiser.', voteOnly: 'Só Apoiadores Diamante votam.' },
+    /** The Hall's Patreon link: a linked Patreon's pledge sets the account's tier. */
+    patreon: { link: 'Vincular Patreon', unlink: '✓ Patreon · desvincular', linked: 'Patreon vinculado! Seu nível segue o seu apoio mensal.', unlinked: 'Patreon desvinculado.', failed: 'Não deu para vincular o Patreon. Tente de novo.' },
     show: (on: boolean): string => (on ? 'Selo e nome: visíveis' : 'Selo e nome: ocultos'),
     shown: (on: boolean): string => (on ? 'Visível' : 'Oculto'),
     back: 'Voltar',
@@ -1442,7 +1449,7 @@ export const pt = {
 
     credits: 'Obrigado aos treinadores que mantêm o jogo no ar',
     banner: 'Seu shiny te espera!',
-    badge: (tier: SupporterTier): string => (tier === 'gold' ? 'Apoiador(a) Ouro' : 'Apoiador(a)'),
+    badge: (tier: SupporterTier): string => ({ supporter: 'Apoiador(a)', gold: 'Apoiador(a) Ouro', diamond: 'Apoiador(a) Diamante' })[tier],
     profileSince: (date: string) => `Apoiador(a) desde ${date}`,
   },
 
@@ -2241,7 +2248,7 @@ export const pt = {
     titleTag: 'TÍTULO',
     equipped: 'EM USO',
     /** Titles that come as a Mystery Gift, with how they were earned. */
-    giftTitles: { ambassador: 'Trouxe 3 amigos para o jogo', supporter: 'Apoiou o projeto com uma doação', pumpkinKing: 'Encheu o pote de doces da Noite das Bruxas', exorcist: 'Venceu todos os chefes da Caça aos Fantasmas', vipCustomer: 'Juntou 30 carimbos no cartão fidelidade do Kecleon', tycoon: 'Transformou a loja do Kecleon em Loja de Departamento', patron: 'Doou ₽50.000 ou mais num Festival da Praça' } satisfies Record<GiftTitleId, string>,
+    giftTitles: { ambassador: 'Trouxe 3 amigos para o jogo', supporter: 'Apoiou o projeto com uma doação', pumpkinKing: 'Encheu o pote de doces da Noite das Bruxas', exorcist: 'Venceu todos os chefes da Caça aos Fantasmas', vipCustomer: 'Juntou 30 carimbos no cartão fidelidade do Kecleon', tycoon: 'Transformou a loja do Kecleon em Loja de Departamento', patron: 'Doou ₽50.000 ou mais num Festival da Praça', ogSupporter: 'Apoiou o jogo antes do Patreon' } satisfies Record<GiftTitleId, string>,
     newMedals: 'Novas medalhas',
     names: {
       firstRun: 'Primeiros passos',
@@ -2331,6 +2338,7 @@ export const pt = {
       vipCustomer: 'Freguês VIP',
       tycoon: 'Magnata',
       patron: 'Mecenas',
+      ogSupporter: 'Apoiador(a) OG',
     } satisfies Record<TitleId, string>,
     goals: {
       runs: (n: string) => (n === '1' ? 'Jogue uma partida' : `Jogue ${n} partidas`),

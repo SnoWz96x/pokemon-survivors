@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { ABACATE_REF, abacateDonation, ABACATEPAY_PUBLIC_KEY, patreonAmount, patreonCharge, stripeDonation, verifyAbacate, verifyPatreon, verifyStandard, verifyStripe } from './webhooks'
+import { ABACATE_REF, abacateDonation, ABACATEPAY_PUBLIC_KEY, patreonAmount, patreonCharge, patreonMember, stripeDonation, verifyAbacate, verifyPatreon, verifyStandard, verifyStripe } from './webhooks'
 
 const SECRET = 'whsec_test'
 
@@ -126,5 +126,21 @@ describe('Patreon webhooks', () => {
     expect(patreonAmount(charge, 0)).toBe(1500)
     expect(patreonAmount(charge, 1500)).toBe(0)
     expect(patreonAmount({ ...charge, lifetime: null }, 1000)).toBe(500)
+  })
+
+  it("reads the patron's tier from the pledge they keep active, never from what they paid in all", () => {
+    expect(patreonMember('members:pledge:create', member({ patron_status: 'active_patron' }))).toEqual({ patron: '9876543', tier: 'supporter' })
+    // Months of US$ 5 add up in the lifetime total, the tier stays.
+    expect(patreonMember('members:update', member({ patron_status: 'active_patron', campaign_lifetime_support_cents: 9000 }))?.tier).toBe('supporter')
+    expect(patreonMember('members:pledge:update', member({ patron_status: 'active_patron', currently_entitled_amount_cents: 1000 }))?.tier).toBe('gold')
+    expect(patreonMember('members:pledge:update', member({ patron_status: 'active_patron', currently_entitled_amount_cents: 2500 }))?.tier).toBe('diamond')
+  })
+
+  it('drops the tier once the pledge is declined, cancelled or the member is gone', () => {
+    expect(patreonMember('members:update', member({ patron_status: 'declined_patron' }))?.tier).toBeNull()
+    expect(patreonMember('members:update', member({ patron_status: 'former_patron' }))?.tier).toBeNull()
+    expect(patreonMember('members:pledge:delete', member({ patron_status: 'active_patron' }))?.tier).toBeNull()
+    expect(patreonMember('members:delete', member({ patron_status: 'active_patron' }))?.tier).toBeNull()
+    expect(patreonMember('posts:publish', member({ patron_status: 'active_patron' }))).toBeNull()
   })
 })

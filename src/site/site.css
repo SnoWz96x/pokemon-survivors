@@ -1191,6 +1191,10 @@ html:not(.js) #donate-account {
   color: #a87808;
 }
 
+.donate-wall-names li.diamond {
+  color: #2870c0;
+}
+
 /* ---------- Tier list ---------- */
 
 /* Classic tier colours, shared by the board's labels and the chips (table, Pokémon pages). */

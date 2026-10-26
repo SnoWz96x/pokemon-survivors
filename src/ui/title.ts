@@ -12,7 +12,7 @@ import { DISCORD_GIFT } from '../game/gifts'
 import { nextMilestone } from '../game/referral'
 import { dayKey, missionStatus } from '../game/missions'
 import { pendingPicks, playsShiny } from '../game/shinyPicks'
-import { supporterCount, type WallEntry } from '../game/supporters'
+import { supporterCount, tierRank, type WallEntry } from '../game/supporters'
 import { formatNumber, locale, t } from '../i18n'
 import { bulbIcon, coinIcon, coopIcon, discordIcon, eggIcon, giftIcon, heartIcon, medalIcon, newsIcon, pawIcon, pokeballIcon, ribbonIcon, socialIcon, sparkleIcon, supporterIcon, surveyIcon } from '../render/art'
 import { logoScale, titleLogo } from '../render/logo'
@@ -449,8 +449,8 @@ const exploreButton = () => {
 
 /* ---------------- Hall da Fama ---------------- */
 
-/** Who the Hall card shows first: gold before supporters, then who came first. */
-const byStanding = (a: WallEntry, b: WallEntry) => (a.tier === b.tier ? a.since.localeCompare(b.since) : a.tier === 'gold' ? -1 : 1)
+/** Who the Hall card shows first: Diamond, then Gold, then supporters, then who came first. */
+const byStanding = (a: WallEntry, b: WallEntry) => tierRank(b.tier) - tierRank(a.tier) || a.since.localeCompare(b.since)
 
 /**
  * A supporter's round face, ringed in their tier's color: the portrait of
