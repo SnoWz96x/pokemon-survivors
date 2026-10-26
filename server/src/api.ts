@@ -69,6 +69,11 @@ if (env.discord) {
   })
 }
 
+const supporters = supporterStore(sql, { onTierChange: (userId) => void discord.syncRoles(userId) })
+// The OG Supporters' title and Discord role, for the OGs who don't have them yet (safe on every boot and instance).
+void supporters.ogGifts().catch((err) => console.error('og gifts failed', err))
+void discord.settleOg().catch((err) => console.error('discord OG roles failed', err))
+
 const app = createApp({
   store: saveStore(sql),
   ranking,
@@ -76,7 +81,7 @@ const app = createApp({
   gifts,
   verify: clerkVerifier(env),
   donate: env.abacatePayKey ? abacatePay(env.abacatePayKey) : null,
-  supporters: supporterStore(sql, { onTierChange: (userId) => void discord.syncRoles(userId) }),
+  supporters,
   festival: festivalStore(sql),
   candyGoal: candyGoalStore(sql),
   discord,

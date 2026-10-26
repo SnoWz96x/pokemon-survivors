@@ -88,6 +88,23 @@ export const TIER_GIFTS: Readonly<Record<SupporterTier, readonly GiftContent[]>>
   diamond: [],
 }
 
+/**
+ * The OG Supporters' own thank-you: their title, sent once to every account
+ * with an OG tier under `key` (the API's boot backfill, `ogGifts`), so it
+ * never lands twice.
+ */
+export const OG_GIFT = { content: { kind: 'title', title: 'ogSupporter' }, key: 'og:title' } as const satisfies { content: GiftContent; key: string }
+
+/**
+ * The badges a player wears by their name (boards, profiles): their tier's
+ * heart and, for an OG, the OG plate beside it. None while they hide them
+ * (`shown` false, `users.supporter_public`).
+ */
+export const badgesOf = (s: Standing, shown: boolean): { supporter: SupporterTier | null; og: boolean } => {
+  const supporter = shown ? effectiveTier(s) : null
+  return { supporter, og: supporter !== null && s.og !== null }
+}
+
 /** Tiers going from `before` to `after` reaches, lowest first (a new Gold patron reaches Supporter and Gold). */
 export const tiersReached = (before: SupporterTier | null, after: SupporterTier | null): SupporterTier[] =>
   SUPPORTER_TIERS.filter((tier) => tierRank(tier) > tierRank(before) && tierRank(tier) <= tierRank(after))

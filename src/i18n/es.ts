@@ -1161,6 +1161,7 @@ export const es: Messages = {
     bag: (n, item) => `*${n}× ${item}* fueron a tu Mochila.`,
     festival: (festival, pot) => `La plaza juntó ${pot} en el ${festival}. ¡Gracias a todos los mecenas!`,
     patron: (festival) => `Por ser Mecenas del ${festival} ♥`,
+    og: 'Por apoyar el juego desde el principio ♥',
   },
 
   supporters: {
@@ -1190,7 +1191,7 @@ export const es: Messages = {
     vote: 'Votación',
     code: 'Tengo un código',
     codeShort: 'Código',
-    og: { tag: 'OG', button: (n) => `OG · ${n}`, title: 'PATROCINADORES OG', intro: 'Quienes apoyaron el juego antes de Patreon. En el Hall para siempre. ¡Gracias! ♥' },
+    og: { badge: 'Patrocinador(a) OG', button: (n) => `OG · ${n}`, title: 'PATROCINADORES OG', intro: 'Quienes apoyaron el juego antes de Patreon. En el Hall para siempre. ¡Gracias! ♥' },
     companionLegends: 'Legendarios (Diamante)',
     diamondPoll: { tile: 'Diamante', title: 'ULTRARRARO DEL MES', intro: 'Solo Diamante vota: qué Pokémon ultrarraro entra al juego. Puedes cambiar tu voto cuando quieras.', voteOnly: 'Solo votan los Patrocinadores Diamante.' },
     patreon: { link: 'Vincular Patreon', unlink: '✓ Patreon · desvincular', linked: '¡Patreon vinculado! Tu nivel sigue tu apoyo mensual.', unlinked: 'Patreon desvinculado.', failed: 'No se pudo vincular Patreon. Inténtalo de nuevo.' },
@@ -1997,7 +1998,7 @@ export const es: Messages = {
     noTitle: 'ninguno',
     titleTag: 'TÍTULO',
     equipped: 'EN USO',
-    giftTitles: { ambassador: 'Ha traído 3 amigos al juego', supporter: 'Apoyó el proyecto con una donación', pumpkinKing: 'Llenó el frasco de dulces de la Noche de Brujas', exorcist: 'Venció a todos los jefes de la Cacería de Fantasmas', vipCustomer: 'Juntó 30 sellos en la tarjeta de cliente de Kecleon', tycoon: 'Convirtió la tienda de Kecleon en Gran Almacén', patron: 'Donó ₽50.000 o más en un Festival de la Plaza' },
+    giftTitles: { ambassador: 'Ha traído 3 amigos al juego', supporter: 'Apoyó el proyecto con una donación', pumpkinKing: 'Llenó el frasco de dulces de la Noche de Brujas', exorcist: 'Venció a todos los jefes de la Cacería de Fantasmas', vipCustomer: 'Juntó 30 sellos en la tarjeta de cliente de Kecleon', tycoon: 'Convirtió la tienda de Kecleon en Gran Almacén', patron: 'Donó ₽50.000 o más en un Festival de la Plaza', ogSupporter: 'Apoyó el juego antes de Patreon' },
     newMedals: 'Nuevas medallas',
     names: {
       firstRun: 'Primeros pasos',
@@ -2087,6 +2088,7 @@ export const es: Messages = {
       vipCustomer: 'Cliente VIP',
       tycoon: 'Magnate',
       patron: 'Mecenas',
+      ogSupporter: 'Patrocinador(a) OG',
     },
     goals: {
       runs: (n) => (n === '1' ? 'Juega una partida' : `Juega ${n} partidas`),

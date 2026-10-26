@@ -7689,6 +7689,12 @@ button {
   height: 10px;
 }
 
+.trainer-chip-sub img.og,
+.trainer-title img.og {
+  width: 16.5px;
+  height: 16.5px;
+}
+
 .trainer-chip-sub.join {
   font-family: var(--title);
   font-size: 8px;
@@ -11219,6 +11225,22 @@ a.btn.dex-site {
   height: 16px;
 }
 
+/* The OG plate after the heart, as tall as it: 11 px of art at 1.5× (whole pixels on 2× screens) or 2×. */
+.og-badge,
+.rank-row .og-badge {
+  width: 16.5px;
+  height: 16.5px;
+  margin-left: 2px;
+  vertical-align: -3px;
+}
+
+.profile-name .og-badge {
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  vertical-align: -5px;
+}
+
 .profile-supporter {
   font-size: 16px;
   color: #c04890;
@@ -11346,6 +11368,11 @@ a.btn.dex-site {
   width: 20px;
   height: 20px;
   flex: none;
+}
+
+.hall-you img.og {
+  width: 22px;
+  height: 22px;
 }
 
 .hall-you span {
@@ -12091,20 +12118,13 @@ button.hall-tile:hover {
   height: 28px;
 }
 
-/* "OG": the game's first supporters, on their card and chip. */
+/* The OG plate: the game's first supporters, on their card and chip. */
 .hall-og-tag {
   position: absolute;
-  top: 6px;
-  left: 6px;
-  padding: 2px 4px;
-  font-family: var(--title);
-  font-size: 7px;
-  font-style: normal;
-  line-height: 1.2;
-  color: #4a3008;
-  background: #f8d030;
-  border: 1px solid #4a3008;
-  border-radius: 3px;
+  top: 2px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
   pointer-events: none;
 }
 
@@ -12116,9 +12136,9 @@ button.hall-tile:hover {
   border-color: #f8d030;
 }
 
-/* On a Lenda's card the tag hangs at the top, under the light, clear of the sparkles. */
+/* On a Lenda's card the plate hangs at the top, under the light, clear of the sparkles. */
 .legend-card .hall-og-tag {
-  top: 10px;
+  top: 4px;
   left: 50%;
   transform: translateX(-50%);
 }
@@ -12154,8 +12174,8 @@ button.hall-tile:hover {
 }
 
 .hall-og img {
-  width: 14px;
-  height: 14px;
+  width: 22px;
+  height: 22px;
 }
 
 .hall-og.selected,
@@ -12164,7 +12184,7 @@ button.hall-tile:hover {
   outline-offset: 2px;
 }
 
-/* The OG list: wider than a picker so names fit; every chip there is an OG, so no tag. */
+/* The OG list: wider than a picker so names fit; every chip there is an OG, so no plate. */
 .dialog.og-list {
   width: min(760px, 94 * var(--vw));
 }

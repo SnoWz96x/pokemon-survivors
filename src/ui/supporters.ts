@@ -12,14 +12,14 @@ import { brasiliaDay } from '../game/day'
 import { pumpkinOfferOpen } from '../game/halloween'
 import { formatDay, LOCALES, locale, t } from '../i18n'
 import { context2d } from '../engine/pixelart'
-import { eggIcon, giftIcon, heartIcon, medalIcon, pokeballIcon, sparkleIcon, supporterIcon } from '../render/art'
+import { eggIcon, giftIcon, heartIcon, medalIcon, ogIcon, pokeballIcon, sparkleIcon, supporterIcon } from '../render/art'
 import { pumpkinHeartIcon } from '../render/halloweenArt'
 import { cryUrl, drawPokemon, hasShiny, loadSpecies, portraitUrl, type SpeciesSprites } from '../render/sprites'
 import { ROUTES } from '../site/routes'
-import { fetchPoll, fetchSupporterStatus, fetchWall, knownTier, linkPatreon, redeemCode, setSupporterPublic, unlinkPatreon, vote } from '../supporters'
+import { fetchPoll, fetchSupporterStatus, fetchWall, knownOg, knownTier, linkPatreon, redeemCode, setSupporterPublic, unlinkPatreon, vote } from '../supporters'
 import { h, later, rich } from './dom'
 import { hatchScene } from './incubator'
-import { profileEditor, profileScreen, supporterBadgeIcon } from './profile'
+import { ogBadge, profileEditor, profileScreen, supporterBadgeIcon } from './profile'
 import { loadSave, today, updateSave } from './save'
 import { hint, menu, type Screen } from './screens'
 import { actionBar, backButton, shellBody, topBar } from './shell'
@@ -455,7 +455,7 @@ export const hallPortrait = (face: Face) => {
  * A Lenda (Gold or Diamond): their Pokémon idling on a pedestal under a
  * spotlight, name, @handle and equipped title; Diamond's card, pedestal and
  * light are ice-blue, with the faceted heart in a corner, and an OG wears its
- * tag. A Poké Ball wobbles on the pedestal while the sheets download (and
+ * plate (`ogIcon`). A Poké Ball wobbles on the pedestal while the sheets download (and
  * rests there if they never come); then `draw` animates the sprite on the
  * frame's tick.
  */
@@ -476,7 +476,7 @@ const legendCard = (e: WallEntry) => {
     { class: `legend-card ${e.tier}`, type: 'button', 'aria-label': `${e.name} @${e.handle}` },
     h('span', { class: 'legend-beam', 'aria-hidden': 'true' }),
     e.tier === 'diamond' && h('img', { class: 'legend-gem', src: supporterIcon('diamond'), alt: t().supporters.badge('diamond') }),
-    e.og && h('i', { class: 'hall-og-tag' }, t().supporters.og.tag),
+    e.og && ogBadge('hall-og-tag'),
     h('img', { class: 'legend-spark one', src: sparkleIcon(), alt: '' }),
     h('img', { class: 'legend-spark two', src: sparkleIcon(), alt: '' }),
     h('span', { class: 'legend-stage' }, ball, h('span', { class: 'legend-pedestal' })),
@@ -494,7 +494,7 @@ const legendCard = (e: WallEntry) => {
   return { el, draw }
 }
 
-/** A supporter's chip: avatar, name, @handle, ♥ and the OG tag (phones keep the avatar, name and tag). */
+/** A supporter's chip: avatar, name, @handle, ♥ and the OG plate (phones keep the avatar, name and plate). */
 const fanChip = (e: WallEntry) => {
   const face = hallFace(e.pokemon)
   return h(
@@ -503,7 +503,7 @@ const fanChip = (e: WallEntry) => {
     h('span', { class: 'fan-avatar' }, face ? hallPortrait(face) : h('img', { src: pokeballIcon(), class: 'ball', alt: '' })),
     h('span', { class: 'fan-who' }, h('b', {}, e.name), h('small', {}, `@${e.handle}`)),
     h('img', { class: 'fan-heart', src: supporterBadgeIcon(e.tier, e.since), alt: '' }),
-    e.og && h('i', { class: 'hall-og-tag' }, t().supporters.og.tag),
+    e.og && ogBadge('hall-og-tag'),
   )
 }
 
@@ -748,7 +748,7 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
     )
     const fans = split.supporters.map((e) => ({ e, el: fanChip(e) }))
     const og = split.og
-    const ogButton = og.length > 0 ? h('button', { class: 'hall-og', type: 'button', title: m.og.title }, h('img', { src: supporterIcon('gold'), alt: '' }), h('span', {}, m.og.button(og.length))) : null
+    const ogButton = og.length > 0 ? h('button', { class: 'hall-og', type: 'button', title: m.og.title }, h('img', { src: ogIcon(), alt: '' }), h('span', {}, m.og.button(og.length))) : null
     const off = wall.hidden
     const hidden = SUPPORTER_TIERS.reduce((n, tier) => n + off[tier], 0)
     sections.push(
@@ -783,7 +783,15 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
     // The highlight starts on "Apoiar", or on the shiny while a ticket waits.
     const start = call.buttons.findIndex((b) => b.el.classList.contains('glow'))
     nav = spatialNav(input, all.map((b) => b.el), (i) => (playSfx('select'), later(all[i]!.run)), at ?? body.buttons.length + (start >= 0 ? start : call.buttons.length - 1))
-    const you = tier && h('span', { class: `shell-chip hall-you ${tier}`, title: m.you(tier) }, h('img', { src: supporterBadgeIcon(tier, status?.since), alt: '' }), h('span', {}, m.you(tier)))
+    const you =
+      tier &&
+      h(
+        'span',
+        { class: `shell-chip hall-you ${tier}`, title: m.you(tier) },
+        h('img', { src: supporterBadgeIcon(tier, status?.since), alt: '' }),
+        (status ? status.og : knownOg()) && ogBadge('og'),
+        h('span', {}, m.you(tier)),
+      )
     el.replaceChildren(topBar({ left: backButton(close), title: m.title, right: [you] }), shellBody(...body.sections), call.el)
   }
 

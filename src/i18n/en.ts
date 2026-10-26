@@ -1161,6 +1161,7 @@ export const en: Messages = {
     bag: (n, item) => `*${n}× ${item}* went into your Bag.`,
     festival: (festival, pot) => `The plaza raised ${pot} in the ${festival}. Thanks to every patron!`,
     patron: (festival) => `For being a Patron of the ${festival} ♥`,
+    og: 'For supporting the game from the very start ♥',
   },
 
   supporters: {
@@ -1190,7 +1191,7 @@ export const en: Messages = {
     vote: 'Poll',
     code: 'I have a code',
     codeShort: 'Code',
-    og: { tag: 'OG', button: (n) => `OG · ${n}`, title: 'OG SUPPORTERS', intro: 'The ones who supported the game before Patreon. On the Hall forever. Thank you! ♥' },
+    og: { badge: 'OG Supporter', button: (n) => `OG · ${n}`, title: 'OG SUPPORTERS', intro: 'The ones who supported the game before Patreon. On the Hall forever. Thank you! ♥' },
     companionLegends: 'Legendaries (Diamond)',
     diamondPoll: { tile: 'Diamond', title: 'ULTRA-RARE OF THE MONTH', intro: 'Only Diamond supporters vote: which ultra-rare Pokémon joins the game. You can change your vote any time.', voteOnly: 'Only Diamond Supporters vote.' },
     patreon: { link: 'Link Patreon', unlink: '✓ Patreon · unlink', linked: 'Patreon linked! Your tier follows your monthly support.', unlinked: 'Patreon unlinked.', failed: "Couldn't link Patreon. Try again." },
@@ -1996,7 +1997,7 @@ export const en: Messages = {
     noTitle: 'none',
     titleTag: 'TITLE',
     equipped: 'SHOWN',
-    giftTitles: { ambassador: 'Brought 3 friends to the game', supporter: 'Supported the project with a donation', pumpkinKing: 'Filled the Halloween Night candy jar', exorcist: 'Beat every Ghost Hunt boss', vipCustomer: "Collected 30 stamps on Kecleon's loyalty card", tycoon: "Grew Kecleon's shop into a Department Store", patron: 'Gave ₽50,000 or more to a Plaza Festival' },
+    giftTitles: { ambassador: 'Brought 3 friends to the game', supporter: 'Supported the project with a donation', pumpkinKing: 'Filled the Halloween Night candy jar', exorcist: 'Beat every Ghost Hunt boss', vipCustomer: "Collected 30 stamps on Kecleon's loyalty card", tycoon: "Grew Kecleon's shop into a Department Store", patron: 'Gave ₽50,000 or more to a Plaza Festival', ogSupporter: 'Supported the game before Patreon' },
     newMedals: 'New medals',
     names: {
       firstRun: 'First steps',
@@ -2086,6 +2087,7 @@ export const en: Messages = {
       vipCustomer: 'VIP Customer',
       tycoon: 'Tycoon',
       patron: 'Patron',
+      ogSupporter: 'OG Supporter',
     },
     goals: {
       runs: (n) => (n === '1' ? 'Play a run' : `Play ${n} runs`),

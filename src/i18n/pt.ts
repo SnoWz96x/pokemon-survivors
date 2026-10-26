@@ -1360,6 +1360,7 @@ export const pt = {
     bag: (n: number, item: string) => `*${n}× ${item}* foram para a Mochila.`,
     festival: (festival: string, pot: string) => `A praça juntou ${pot} no ${festival}. Obrigado a todos os mecenas!`,
     patron: (festival: string) => `Por ser Mecenas do ${festival} ♥`,
+    og: 'Por apoiar o jogo desde o começo ♥',
   },
 
   /**
@@ -1394,7 +1395,7 @@ export const pt = {
     code: 'Tenho um código',
     codeShort: 'Código',
     /** The Hall's OG Supporters: who supported before the Patreon tiers, there for good. */
-    og: { tag: 'OG', button: (n: number): string => `OG · ${n}`, title: 'APOIADORES OG', intro: 'Quem apoiou o jogo antes do Patreon. No Hall para sempre. Obrigado! ♥' },
+    og: { badge: 'Apoiador(a) OG', button: (n: number): string => `OG · ${n}`, title: 'APOIADORES OG', intro: 'Quem apoiou o jogo antes do Patreon. No Hall para sempre. Obrigado! ♥' },
     /** The companion picker's section of captured legends, Diamond only. */
     companionLegends: 'Lendários (Diamante)',
     /** Diamond's monthly poll on a new ultra-rare Pokémon (`DIAMOND_POLL`), shown only to Diamond. */
@@ -2247,7 +2248,7 @@ export const pt = {
     titleTag: 'TÍTULO',
     equipped: 'EM USO',
     /** Titles that come as a Mystery Gift, with how they were earned. */
-    giftTitles: { ambassador: 'Trouxe 3 amigos para o jogo', supporter: 'Apoiou o projeto com uma doação', pumpkinKing: 'Encheu o pote de doces da Noite das Bruxas', exorcist: 'Venceu todos os chefes da Caça aos Fantasmas', vipCustomer: 'Juntou 30 carimbos no cartão fidelidade do Kecleon', tycoon: 'Transformou a loja do Kecleon em Loja de Departamento', patron: 'Doou ₽50.000 ou mais num Festival da Praça' } satisfies Record<GiftTitleId, string>,
+    giftTitles: { ambassador: 'Trouxe 3 amigos para o jogo', supporter: 'Apoiou o projeto com uma doação', pumpkinKing: 'Encheu o pote de doces da Noite das Bruxas', exorcist: 'Venceu todos os chefes da Caça aos Fantasmas', vipCustomer: 'Juntou 30 carimbos no cartão fidelidade do Kecleon', tycoon: 'Transformou a loja do Kecleon em Loja de Departamento', patron: 'Doou ₽50.000 ou mais num Festival da Praça', ogSupporter: 'Apoiou o jogo antes do Patreon' } satisfies Record<GiftTitleId, string>,
     newMedals: 'Novas medalhas',
     names: {
       firstRun: 'Primeiros passos',
@@ -2337,6 +2338,7 @@ export const pt = {
       vipCustomer: 'Freguês VIP',
       tycoon: 'Magnata',
       patron: 'Mecenas',
+      ogSupporter: 'Apoiador(a) OG',
     } satisfies Record<TitleId, string>,
     goals: {
       runs: (n: string) => (n === '1' ? 'Jogue uma partida' : `Jogue ${n} partidas`),

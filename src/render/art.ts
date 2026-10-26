@@ -1002,6 +1002,12 @@ export const supporterIcon = (tier: SupporterTier) =>
     : tier === 'gold'
       ? toIconUrl('heart:gold', () => art(HEART, { 1: '#c88a10', 2: '#f8d030', 3: '#fffbe0' }, '#4a3008'))
       : heartIcon()
+
+/** The OG plate: "OG" in gold on a purple tag. 1 its edge, 2 the plate, 3 the letters, 4 their shaded foot. */
+const OG_PLATE = ['.111111111.', '12332223331', '13223232221', '13223232331', '13223232231', '12442224421', '.111111111.']
+
+/** The OG Supporters' badge (`badgesOf`), worn beside the tier's heart. 11 px wide: shown at 1.5× or 2× its size, like the hearts beside it. */
+export const ogIcon = () => toIconUrl('og', () => art(OG_PLATE, { 1: '#201030', 2: '#6038a8', 3: '#ffe070', 4: '#e8a020' }))
 export const sparkleIcon = () => toIconUrl('sparkle', () => outlined(SPARKLE()[2]!, '#584010'))
 
 /** PlayStation's face buttons in their colors, the size of a Press Start 2P letter: the pixel fonts have no ✕ ○ □ △ (see `ui/inputLabels.ts`). */

@@ -1159,6 +1159,7 @@ export const zh: Messages = {
     bag: (n, item) => `*${n}× ${item}*已放進你的背包。`,
     festival: (festival, pot) => `廣場在${festival}中募得了 ${pot}。感謝每一位贊助人！`,
     patron: (festival) => `感謝你成為${festival}的贊助人 ♥`,
+    og: '感謝你從一開始就支持遊戲 ♥',
   },
 
   supporters: {
@@ -1188,7 +1189,7 @@ export const zh: Messages = {
     vote: '投票',
     code: '我有兌換碼',
     codeShort: '兌換碼',
-    og: { tag: 'OG', button: (n) => `OG · ${n}`, title: 'OG 贊助者', intro: '在 Patreon 之前就贊助遊戲的人。永遠留在名人堂。謝謝你！♥' },
+    og: { badge: 'OG 贊助者', button: (n) => `OG · ${n}`, title: 'OG 贊助者', intro: '在 Patreon 之前就贊助遊戲的人。永遠留在名人堂。謝謝你！♥' },
     companionLegends: '傳說寶可夢（鑽石級）',
     diamondPoll: { tile: '鑽石', title: '本月超稀有', intro: '只有鑽石級可以投票：決定哪隻超稀有寶可夢加入遊戲。隨時都能改票。', voteOnly: '只有鑽石贊助者可以投票。' },
     patreon: { link: '連結 Patreon', unlink: '✓ Patreon · 解除連結', linked: 'Patreon 已連結！你的等級會跟著每月贊助變動。', unlinked: '已解除 Patreon 連結。', failed: '無法連結 Patreon，請再試一次。' },
@@ -1994,7 +1995,7 @@ export const zh: Messages = {
     noTitle: '無',
     titleTag: '稱號',
     equipped: '展示中',
-    giftTitles: { ambassador: '邀請了3位好友加入遊戲', supporter: '透過贊助支持本專案', pumpkinKing: '裝滿了女巫之夜的糖果罐', exorcist: '擊敗了所有捉鬼行動的首領', vipCustomer: '在 Kecleon 集點卡上集滿30個印章', tycoon: '把 Kecleon 的商店經營成百貨公司', patron: '在廣場祭典中捐出 ₽50,000 以上' },
+    giftTitles: { ambassador: '邀請了3位好友加入遊戲', supporter: '透過贊助支持本專案', pumpkinKing: '裝滿了女巫之夜的糖果罐', exorcist: '擊敗了所有捉鬼行動的首領', vipCustomer: '在 Kecleon 集點卡上集滿30個印章', tycoon: '把 Kecleon 的商店經營成百貨公司', patron: '在廣場祭典中捐出 ₽50,000 以上', ogSupporter: '在 Patreon 之前就贊助了遊戲' },
     newMedals: '新獎牌',
     names: {
       firstRun: '第一步',
@@ -2084,6 +2085,7 @@ export const zh: Messages = {
       vipCustomer: 'VIP顧客',
       tycoon: '大亨',
       patron: '贊助人',
+      ogSupporter: 'OG 贊助者',
     },
     goals: {
       runs: (n) => `玩 ${n} 局`,

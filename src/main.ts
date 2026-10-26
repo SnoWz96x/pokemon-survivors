@@ -110,7 +110,7 @@ import { parseReplay, recordEvent, recordStep, resimulate, RULES_VERSION, rulesS
 import { gameSpecial } from './game/special'
 import { unlockShinyStarter } from './game/shinyStarters'
 import { playsShiny } from './game/shinyPicks'
-import { canWalkWith, companionForm, SUPPORTER_TIERS, TIER_GIFTS, type CompanionId, type SupporterTier } from './game/supporters'
+import { canWalkWith, companionForm, OG_GIFT, SUPPORTER_TIERS, TIER_GIFTS, type CompanionId, type SupporterTier } from './game/supporters'
 import { createCompanion, stepCompanion, type CompanionView } from './render/companion'
 import { MOVES } from './game/moves'
 import type { Game, GameEvent, Offer, Phase, Player } from './game/types'
@@ -3066,15 +3066,17 @@ const devGifts = {
    * Puts a supporter's thank-you in the gift box as Mystery Gifts in one sync, as if the account reached `tier`:
    * `supporter` brings the title, the frame and a shiny ticket; `gold` every tier up to gold (a first Gold pledge);
    * `diamond` the same, Diamond having no gift of its own. It also stands the device at `tier` as if the API said so
-   * (`knownTier`: the badge, the companion, Diamond's legends and poll), until the API next answers.
+   * (`knownTier`: the badge, the companion, Diamond's legends and poll), until the API next answers. `og` makes it an
+   * OG Supporter too: the OG plate beside the heart (`knownOg`) and the OG title's gift (`OG_GIFT`).
    */
-  supporter: (tier: SupporterTier = 'supporter') => {
-    stageSupporterStatus(tier)
-    return stageGifts(
-      SUPPORTER_TIERS.slice(0, SUPPORTER_TIERS.indexOf(tier) + 1).flatMap((t) =>
+  supporter: (tier: SupporterTier = 'supporter', og = false) => {
+    stageSupporterStatus(tier, og)
+    return stageGifts([
+      ...SUPPORTER_TIERS.slice(0, SUPPORTER_TIERS.indexOf(tier) + 1).flatMap((t) =>
         TIER_GIFTS[t].map((content, i) => ({ id: `dev-support-${t}-${i}-${Date.now()}`, content, reason: { kind: 'support', tier: t } as const })),
       ),
-    )
+      ...(og ? [{ id: `dev-og-${Date.now()}`, content: OG_GIFT.content, reason: { kind: 'og' } as const }] : []),
+    ])
   },
   /** Takes `id` along as the companion (`shiny` if owned so; a gift-only one like `pumpkaboo` must be owned); no argument walks alone. Shows from the next run. */
   companion: (id?: CompanionId, shiny = false) => updateSave((s) => ({ ...s, companion: id ? { id, shiny } : null })),

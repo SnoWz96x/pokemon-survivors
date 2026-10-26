@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SUPPORTER } from '../data/supporters'
 import { EMPTY_SAVE, type Save } from './meta'
-import { canWalkWith, donationPoints, effectiveTier, hallOf, hallTier, newCode, NO_STANDING, ogTier, parseCode, parseHidden, parseWall, pledgeTier, supporterCount, tiersReached } from './supporters'
+import { badgesOf, canWalkWith, donationPoints, effectiveTier, hallOf, hallTier, newCode, NO_STANDING, ogTier, parseCode, parseHidden, parseWall, pledgeTier, supporterCount, tiersReached } from './supporters'
 
 describe('supporter tiers', () => {
   it('counts reais and dollars on one scale', () => {
@@ -53,6 +53,14 @@ describe('supporter tiers', () => {
     // OGs and one-time donors stay as they are.
     expect(hallTier({ ...NO_STANDING, points: 100, og: 'supporter' })).toBe('supporter')
     expect(hallTier({ ...NO_STANDING, points: 100 })).toBe('supporter')
+  })
+
+  it("shows an OG's plate beside whatever tier they have now, and nothing while hidden", () => {
+    expect(badgesOf({ ...NO_STANDING, points: 100, og: 'supporter', patreon: 'diamond' }, true)).toEqual({ supporter: 'diamond', og: true })
+    expect(badgesOf({ ...NO_STANDING, points: 6000, og: 'gold' }, true)).toEqual({ supporter: 'gold', og: true })
+    expect(badgesOf({ ...NO_STANDING, patreon: 'gold' }, true)).toEqual({ supporter: 'gold', og: false })
+    expect(badgesOf({ ...NO_STANDING, points: 100, og: 'supporter' }, false)).toEqual({ supporter: null, og: false })
+    expect(badgesOf(NO_STANDING, true)).toEqual({ supporter: null, og: false })
   })
 
   it('reaches each tier once, several at once for a first pledge', () => {

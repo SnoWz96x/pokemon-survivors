@@ -35,6 +35,8 @@ export type PlayerProfile = {
   seen: string
   banned: { at: string; reason: string | null } | null
   supporter: SupporterTier | null
+  /** An OG supporter (`users.og_tier`). */
+  og: boolean
   /** Finished runs per difficulty: how many, wins and the longest survived (seconds). */
   runs: { difficulty: string; runs: number; wins: number; best: number }[]
 }
@@ -74,6 +76,7 @@ export const staffDesk = (sql: Sql) => {
       seen: u.seen_at.toISOString(),
       banned: u.banned_at ? { at: u.banned_at.toISOString(), reason: u.banned_reason } : null,
       supporter: tierOfRow(u),
+      og: u.og_tier !== null,
       runs,
     }
   }

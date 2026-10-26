@@ -5,7 +5,7 @@ import { isRecord } from '../../src/game/parse'
 import type { Sql } from './db'
 import { idsByName, restClient, type DiscordConfig } from './discord'
 import { sendGift } from './gifts'
-import { tierOfRow, type StandingRow } from './supporters'
+import { standingOf, tierOfRow, type StandingRow } from './supporters'
 
 /**
  * A game account linked to Discord. The player connects Discord to their
@@ -15,20 +15,25 @@ import { tierOfRow, type StandingRow } from './supporters'
  * and gives them their supporter role. Once they're in, the account gets
  * its thank-you (`DISCORD_GIFT`, key `discord`: once per account, however
  * often they relink). A donation or a pledge that changes a linked player's
- * tier, up or down, updates the role (`syncRoles`). Linking never grants Trainer: that one is earned
- * in #introductions (`discord.ts`).
+ * tier, up or down, updates the role (`syncRoles`). An OG supporter also
+ * wears the OG role, for good (`settleOg` on boot gives it to the OGs already
+ * linked). Linking never grants Trainer: that one is earned in #introductions (`discord.ts`).
  */
 
 /** The server's supporter roles, by name (`scripts/discord/setup.mjs`). */
 export const SUPPORTER_ROLES = { supporter: 'Supporter', gold: 'Gold Supporter', diamond: 'Diamond Supporter' } as const satisfies Record<SupporterTier, string>
 
+/** The OG supporters' role (`users.og_tier`), beside their tier's. */
+export const OG_ROLE = 'OG Supporter'
+
 /**
  * The roles a tier adds and removes: its own, never the others (one heart on
- * the member list). No tier removes all three: a pledge that ended takes its
- * role back (only `syncRoles` passes null, when the tier went down).
+ * the member list), and the OG role for an OG. No tier removes all three: a
+ * pledge that ended takes its role back (only `syncRoles` passes null, when
+ * the tier went down). The OG role is never removed.
  */
-export const supporterRoleChanges = (tier: SupporterTier | null): { add: string[]; remove: string[] } => ({
-  add: tier ? [SUPPORTER_ROLES[tier]] : [],
+export const supporterRoleChanges = (tier: SupporterTier | null, og: boolean): { add: string[]; remove: string[] } => ({
+  add: [...(tier ? [SUPPORTER_ROLES[tier]] : []), ...(og ? [OG_ROLE] : [])],
   remove: SUPPORTER_TIERS.filter((t) => t !== tier).map((t) => SUPPORTER_ROLES[t]),
 })
 
@@ -68,10 +73,10 @@ export const discordLink = (sql: Sql, clerk: ClerkClient, bot: DiscordConfig | n
     return roles.get(name) ?? null
   }
 
-  /** Puts the member's supporter role in line with `tier`. Throws when Discord does (a member who left: 404). */
-  const applyRoles = async (discordId: string, tier: SupporterTier | null) => {
+  /** Puts the member's supporter roles in line with `tier` and `og`. Throws when Discord does (a member who left: 404). */
+  const applyRoles = async (discordId: string, tier: SupporterTier | null, og: boolean) => {
     if (!call) return
-    const { add, remove } = supporterRoleChanges(tier)
+    const { add, remove } = supporterRoleChanges(tier, og)
     for (const name of add) {
       const id = await roleId(name)
       if (id) await call('PUT', `${guild}/members/${discordId}/roles/${id}`)
@@ -82,9 +87,10 @@ export const discordLink = (sql: Sql, clerk: ClerkClient, bot: DiscordConfig | n
     }
   }
 
-  const tierOf = async (userId: string) => {
+  /** The account's tier and whether it's an OG. */
+  const rolesOf = async (userId: string) => {
     const [row] = await sql<StandingRow[]>`select supporter_points, og_tier, patreon_tier, patreon_best from users where id = ${userId}`
-    return row ? tierOfRow(row) : null
+    return row ? { tier: tierOfRow(row), og: standingOf(row).og !== null } : { tier: null, og: false }
   }
 
   /** The Discord OAuth token Clerk keeps for the player (`identify guilds.join`), or null. */
@@ -128,8 +134,8 @@ export const discordLink = (sql: Sql, clerk: ClerkClient, bot: DiscordConfig | n
         if (joined) {
           await thank(userId)
           // Only adds: a role a moderator gave someone who has no tier stays.
-          const tier = await tierOf(userId)
-          if (tier) await applyRoles(account.id, tier)
+          const { tier, og } = await rolesOf(userId)
+          if (tier) await applyRoles(account.id, tier, og)
         }
       } catch (err) {
         console.error(`discord join failed for ${userId}`, err)
@@ -154,6 +160,23 @@ export const discordLink = (sql: Sql, clerk: ClerkClient, bot: DiscordConfig | n
       if (due.length > 0) console.log(`discord gifts settled for ${due.length} linked players`)
     },
 
+    /**
+     * On boot: gives the OG role to every linked OG (they linked before it
+     * existed). Adding a role a member has is a no-op for Discord, so each
+     * boot may run it; it waits until `setup.mjs` created the role. Someone
+     * who left (404) gets it at their next link.
+     */
+    settleOg: async () => {
+      const role = await roleId(OG_ROLE)
+      if (!call || !role) return
+      const linked = await sql<{ discord_id: string }[]>`select discord_id from users where og_tier is not null and discord_id is not null`
+      let given = 0
+      for (const row of linked) {
+        if (await call('PUT', `${guild}/members/${row.discord_id}/roles/${role}`).then(() => true, () => false)) given++
+      }
+      if (linked.length > 0) console.log(`discord OG role settled for ${given} of ${linked.length} linked OGs`)
+    },
+
     /** Forgets the player's Discord account (they unlinked it). They stay in the server with their roles. */
     unlink: async (userId: string) => {
       await sql`update users set discord_id = null, discord_name = null where id = ${userId}`
@@ -165,7 +188,7 @@ export const discordLink = (sql: Sql, clerk: ClerkClient, bot: DiscordConfig | n
       try {
         const [row] = await sql<(StandingRow & { discord_id: string | null })[]>`
           select discord_id, supporter_points, og_tier, patreon_tier, patreon_best from users where id = ${userId}`
-        if (row?.discord_id) await applyRoles(row.discord_id, tierOfRow(row))
+        if (row?.discord_id) await applyRoles(row.discord_id, tierOfRow(row), row.og_tier !== null)
       } catch (err) {
         console.error(`discord roles failed for ${userId}`, err)
       }

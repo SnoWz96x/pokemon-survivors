@@ -43,6 +43,9 @@ export const knownTier = (save: Save): SupporterTier | null => {
   return status ? status.tier : savedSupporterTier(save)
 }
 
+/** Whether the API last said this account is an OG Supporter (its plate beside the heart). Only the API knows. */
+export const knownOg = () => knownStatus()?.og ?? false
+
 /** The signed-in player's standing (kept for `knownTier`), or null (guest, offline). */
 export const fetchSupporterStatus = async (): Promise<SupporterStatus | null> => {
   const { status, body } = await apiCall('/me/supporter', { auth: true })
@@ -51,9 +54,9 @@ export const fetchSupporterStatus = async (): Promise<SupporterStatus | null> =>
   return parsed
 }
 
-/** Dev: stands the device at `tier` as if the API said so (`ps.supporter`). */
-export const stageSupporterStatus = (tier: SupporterTier) =>
-  storeStatus({ tier, since: new Date().toISOString(), public: true, og: false, vote: null, diamondVote: null, patreon: null })
+/** Dev: stands the device at `tier` (an OG for `og`) as if the API said so (`ps.supporter`). */
+export const stageSupporterStatus = (tier: SupporterTier, og = false) =>
+  storeStatus({ tier, since: new Date().toISOString(), public: true, og, vote: null, diamondVote: null, patreon: null })
 
 let asked: string | null = null
 

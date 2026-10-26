@@ -1,7 +1,7 @@
 import { randomFillSync } from 'node:crypto'
 import type { TransactionSql } from 'postgres'
 import { POLLS, pollOptionIds, type PollKind, type PollOption } from '../../src/data/supporters'
-import { atLeast, donationPoints, effectiveTier, hallTier, highestTier, newCode, parseTier, TIER_GIFTS, tiersReached } from '../../src/game/supporters'
+import { atLeast, donationPoints, effectiveTier, hallTier, highestTier, newCode, OG_GIFT, parseTier, TIER_GIFTS, tiersReached } from '../../src/game/supporters'
 import type { DonationStatus, HiddenSupporters, Poll, Standing, SupporterStatus, SupporterTier, WallEntry } from '../../src/game/supporters'
 import { parseSaveData } from '../../src/game/meta'
 import { hallPokemon } from '../../src/game/trainer'
@@ -30,8 +30,9 @@ export const tierOfRow = (r: StandingRow) => effectiveTier(standingOf(r))
  * added up. Whenever the account's tier (`effectiveTier`) rises, each tier it
  * reaches sends its thank-you as Mystery Gifts (`TIER_GIFTS`, `key`
  * `support:<tier>:<i>`, so nothing lands twice, however often a pledge comes
- * and goes). A paid donation with no account gets a code instead, which an
- * account redeems later.
+ * and goes). Every OG account gets the OG Supporter title once too
+ * (`OG_GIFT`, `ogGifts` on boot). A paid donation with no account gets a code
+ * instead, which an account redeems later.
  *
  * `onTierChange` hears of an account whose tier went up or down, once the
  * transaction committed (the Discord bot updates its role).
@@ -230,6 +231,22 @@ export const supporterStore = (sql: Sql, hooks: { onTierChange?: (userId: string
         diamondVote: pollOptionIds('diamond').find((id) => id === row?.diamond_vote) ?? null,
         patreon: row?.patreon ?? false,
       }
+    },
+
+    /**
+     * On boot: sends the OG Supporter title (`OG_GIFT`) to every OG account
+     * that hasn't got it. Its key keeps it to one per account, so every boot,
+     * and two instances side by side, may run it. How many it sent.
+     */
+    ogGifts: async () => {
+      const due = await sql<{ id: string }[]>`
+        select id from users u where og_tier is not null and not exists (select 1 from gifts g where g.user_id = u.id and g.key = ${OG_GIFT.key})`
+      if (due.length === 0) return 0
+      await sql.begin(async (tx) => {
+        for (const u of due) await sendGift(tx, u.id, OG_GIFT.content, { kind: 'og' }, OG_GIFT.key)
+      })
+      console.log(`og title sent to ${due.length} OG supporters`)
+      return due.length
     },
 
     /** Shows or hides the player's badge and name on the wall and the credits. */

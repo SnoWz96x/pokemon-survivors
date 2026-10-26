@@ -7,9 +7,9 @@ import { RIBBON_TIERS, ribbonCounts } from '../game/ribbons'
 import type { SupporterTier } from '../game/supporters'
 import { trainerAvatar } from '../game/trainer'
 import { formatNumber, LOCALES, locale, t } from '../i18n'
-import { discordIcon, medalIcon, pokeballIcon, ribbonIcon, supporterIcon } from '../render/art'
+import { discordIcon, medalIcon, ogIcon, pokeballIcon, ribbonIcon, supporterIcon } from '../render/art'
 import { portraitUrl } from '../render/sprites'
-import { fetchSupporterStatus, knownTier } from '../supporters'
+import { fetchSupporterStatus, knownOg, knownTier } from '../supporters'
 import { adminScreen } from './admin'
 import { discordScreen } from './discord'
 import { h, later } from './dom'
@@ -34,12 +34,18 @@ const avatar = (s: AccountState, size: 'small' | 'big') => {
   return h('span', { class: `trainer-avatar ${size}${ring}`, 'aria-hidden': 'true' }, signedIn ? h('img', { src: portraitUrl(face.dex, face.shiny), alt: '' }) : h('img', { class: 'ball', src: pokeballIcon(), alt: '' }))
 }
 
-/** The equipped title, with the supporter's heart before it, or null. */
+/** The equipped title, with the supporter's heart (and an OG's plate) before it, or null. */
 const titleLine = (cls: string) => {
   const save = loadSave()
   if (!save.title) return null
   const tier = knownTier(save)
-  return h('span', { class: cls }, tier && h('img', { src: supporterIcon(tier), alt: '' }), h('span', {}, t().achievements.titles[save.title]))
+  return h(
+    'span',
+    { class: cls },
+    tier && h('img', { src: supporterIcon(tier), alt: '' }),
+    tier && knownOg() && h('img', { class: 'og', src: ogIcon(), alt: t().supporters.og.badge }),
+    h('span', {}, t().achievements.titles[save.title]),
+  )
 }
 
 /**
