@@ -9207,6 +9207,24 @@ button {
   border-radius: 3px;
 }
 
+/* An egg the egg pity makes sure to bring a new family: its NEW! tag in the other corner. */
+.egg-new {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 2px 3px;
+  font-family: var(--title);
+  font-size: 7px;
+  font-style: normal;
+  color: #fff;
+  background: #30a050;
+  border-radius: 3px;
+}
+
+.incubator-pity {
+  font-size: 16px;
+}
+
 @media (max-width: 520px) {
   .egg-slots.slots-5 {
     grid-template-columns: repeat(3, minmax(0, 1fr));

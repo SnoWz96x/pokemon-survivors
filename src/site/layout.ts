@@ -82,7 +82,6 @@ const head = ({ id, locale, title, description, schema = [], css, sub }: PageMet
     ${css && html`<style>${raw(css)}</style>`}
     <script type="application/ld+json">${jsonLd({ '@context': 'https://schema.org', '@graph': graph })}</script>
     <script type="module" src="/src/site/client.ts"></script>
-    <script defer vite-ignore src="/_vercel/insights/script.js"></script>
   </head>`
 }
 
