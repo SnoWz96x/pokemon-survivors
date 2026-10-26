@@ -1701,6 +1701,11 @@ export const es: Messages = {
       already: 'Este huevo ya está en una Incubadora Rápida: avanza el doble hasta eclosionar.',
       none: (price) => `Sin Incubadora Rápida. La tienda de Kecleon las vende por ${price} (pestaña *Incubadora*).`,
     },
+    pity: {
+      rule: (n) => `Garantía: después de ${n} huevos del mismo tipo sin Pokémon nuevo, el siguiente trae uno.`,
+      count: (egg, n, max) => (n >= max ? `${egg}: *¡nuevo garantizado!*` : `${egg} ${n}/${max}`),
+      hatched: (n) => `Garantía de huevo: después de ${n} sin novedad, ¡este salió nuevo!`,
+    },
     hatching: '¿Eh? ¡El huevo se está moviendo!',
     hatched: (name) => `¡Salió un *${name}*!`,
     hatchedShiny: (name) => `¡Salió un *${name}* _shiny_!`,
