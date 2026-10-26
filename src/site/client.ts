@@ -259,14 +259,14 @@ const supportersWall = async (section: HTMLElement) => {
   const body = await api('/supporters')
   if (!list || !isObject(body) || !Array.isArray(body.supporters)) return
   const names = body.supporters.flatMap((e: unknown) =>
-    isObject(e) && typeof e.name === 'string' && typeof e.handle === 'string' ? [{ name: e.name, handle: e.handle, gold: e.tier === 'gold' }] : [],
+    isObject(e) && typeof e.name === 'string' && typeof e.handle === 'string' ? [{ name: e.name, handle: e.handle, tier: e.tier === 'gold' || e.tier === 'diamond' ? e.tier : null }] : [],
   )
   list.replaceChildren(
     ...names.map((n) => {
       const li = document.createElement('li')
-      li.textContent = `${n.gold ? '★' : '♥'} ${n.name}`
+      li.textContent = `${n.tier === 'diamond' ? '◆' : n.tier === 'gold' ? '★' : '♥'} ${n.name}`
       li.title = `@${n.handle}`
-      if (n.gold) li.classList.add('gold')
+      if (n.tier) li.classList.add(n.tier)
       return li
     }),
   )

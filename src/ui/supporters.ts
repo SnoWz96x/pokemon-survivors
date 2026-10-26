@@ -3,23 +3,23 @@ import { playCry, playSfx } from '../engine/audio'
 import type { Input } from '../engine/input'
 import { HATCHLINGS, isHatchling, PLAYABLE, PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
 import { HALLOWEEN } from '../data/halloween'
-import { POLL, SUPPORTER, type PollOptionId } from '../data/supporters'
+import { LEGEND_IDS } from '../data/legends'
+import { pollOptions, SUPPORTER, type PollKind, type PollOption } from '../data/supporters'
 import { pendingPicks, pickShiny, shinyChoices } from '../game/shinyPicks'
-import { canWalkWith, companionForm, hallOf, isSupporter, parseCode, supporterCount, walksShiny, type Companion, type CompanionId, type SupporterStatus, type Wall, type WallEntry } from '../game/supporters'
+import { canWalkWith, companionForm, hallOf, isSupporter, parseCode, SUPPORTER_TIERS, supporterCount, walksShiny, type Companion, type CompanionId, type SupporterStatus, type SupporterTier, type Wall, type WallEntry } from '../game/supporters'
 import { isSpecialCompanion, SPECIAL_COMPANION_IDS } from '../data/companions'
-import { savedSupporterTier } from '../game/trainer'
 import { brasiliaDay } from '../game/day'
 import { pumpkinOfferOpen } from '../game/halloween'
 import { formatDay, LOCALES, locale, t } from '../i18n'
 import { context2d } from '../engine/pixelart'
-import { eggIcon, giftIcon, heartIcon, medalIcon, pokeballIcon, sparkleIcon, supporterIcon } from '../render/art'
+import { eggIcon, giftIcon, heartIcon, medalIcon, ogIcon, pokeballIcon, sparkleIcon, supporterIcon } from '../render/art'
 import { pumpkinHeartIcon } from '../render/halloweenArt'
 import { cryUrl, drawPokemon, hasShiny, loadSpecies, portraitUrl, type SpeciesSprites } from '../render/sprites'
 import { ROUTES } from '../site/routes'
-import { fetchPoll, fetchSupporterStatus, fetchWall, redeemCode, setSupporterPublic, vote } from '../supporters'
+import { fetchPoll, fetchSupporterStatus, fetchWall, knownOg, knownTier, linkPatreon, redeemCode, setSupporterPublic, unlinkPatreon, vote } from '../supporters'
 import { h, later, rich } from './dom'
 import { hatchScene } from './incubator'
-import { profileEditor, profileScreen, supporterBadgeIcon } from './profile'
+import { ogBadge, profileEditor, profileScreen, supporterBadgeIcon } from './profile'
 import { loadSave, today, updateSave } from './save'
 import { hint, menu, type Screen } from './screens'
 import { actionBar, backButton, shellBody, topBar } from './shell'
@@ -29,7 +29,8 @@ import { toast } from './toasts'
  * Apoiadores: what donating brings, the way to the support page, and what a
  * supporter can do with it (pick their shiny, a companion, vote, show their
  * badge). Rewards need an account: the support page takes the player's
- * handle, and a code redeems a donation made without one.
+ * handle, a code redeems a donation made without one, and a linked Patreon
+ * sets the tier by its monthly pledge (Gold and Diamond come only from it).
  */
 
 type Action = { label: string; run: () => void }
@@ -234,11 +235,16 @@ const shinyPicker = (root: HTMLElement, input: Input, actions: { play: (id: Play
   return { el: o.el, tick: (time) => sub?.tick?.(time), dispose: () => (sub?.dispose(), o.dispose()), dim: 0.5 }
 }
 
-/** Whether the companion picked may walk shiny (a shiny owned, or Pumpkaboo for a Gold supporter: `walksShiny`). */
-const companionShiny = (save: ReturnType<typeof loadSave>, id: CompanionId | null) => id !== null && walksShiny(save, id)
+/** Whether the companion picked may walk shiny (a shiny owned, or Pumpkaboo for Gold and up: `walksShiny`). */
+const companionShiny = (save: ReturnType<typeof loadSave>, id: CompanionId | null, tier: SupporterTier | null) => id !== null && walksShiny(save, id, tier)
 
-/** The companion: any Pokémon the save can play (shiny if owned so), the gift-only ones it got first (Pumpkaboo shiny for Gold), or none. */
-const companionPicker = (root: HTMLElement, input: Input, back: Back): Screen => {
+/**
+ * The companion: any Pokémon the save can play (shiny if owned so), the
+ * gift-only ones it got first (Pumpkaboo shiny for Gold), or none; and for
+ * Diamond, a section of the legends the save captured (shiny if caught so).
+ * `tier` is the account's (`knownTier`).
+ */
+const companionPicker = (root: HTMLElement, input: Input, tier: SupporterTier | null, back: Back): Screen => {
   const m = t().supporters
   const o = overlay(root, input, back)
   const now = loadSave().companion
@@ -247,13 +253,16 @@ const companionPicker = (root: HTMLElement, input: Input, back: Back): Screen =>
 
   const draw = (initial?: number) => {
     const save = loadSave()
-    const ids: CompanionId[] = [...SPECIAL_COMPANION_IDS, ...PLAYABLE_IDS].filter((id) => canWalkWith(save, { id, shiny: false }))
-    const cells = [null, ...ids].map((id) => {
+    const walks = (id: CompanionId) => canWalkWith(save, { id, shiny: false }, tier)
+    const cellOf = (id: CompanionId | null) => {
       const el = cellButton({ id, shiny: id !== null && id === picked && shiny })
       el.classList.toggle('picked', id === picked)
       return { cell: { id, shiny: false }, el }
-    })
-    const canShiny = companionShiny(save, picked)
+    }
+    const regular = [null, ...[...SPECIAL_COMPANION_IDS, ...PLAYABLE_IDS].filter(walks)].map(cellOf)
+    const legends = LEGEND_IDS.filter(walks).map(cellOf)
+    const cells = [...regular, ...legends]
+    const canShiny = companionShiny(save, picked, tier)
     const footer: Action[] = [
       ...(canShiny ? [{ label: m.companionShiny(shiny), run: () => ((shiny = !shiny), draw(cells.length)) }] : []),
       {
@@ -271,11 +280,14 @@ const companionPicker = (root: HTMLElement, input: Input, back: Back): Screen =>
     const { box, nav } = pickerDialog(input, {
       title: m.companionTitle,
       intro: m.companionIntro,
-      sections: [{ label: '', cells }],
+      sections: [
+        { label: '', cells: regular },
+        { label: m.companionLegends, cells: legends },
+      ],
       footer,
       pick: (c) => {
         picked = c.id
-        shiny = companionShiny(loadSave(), picked) && shiny
+        shiny = companionShiny(loadSave(), picked, tier) && shiny
         draw(cells.length)
       },
       initial: initial ?? Math.max(0, cells.findIndex((c) => c.cell.id === picked)),
@@ -288,26 +300,33 @@ const companionPicker = (root: HTMLElement, input: Input, back: Back): Screen =>
   return { el: o.el, dispose: o.dispose, dim: 0.5 }
 }
 
-/** The poll: each option's votes; a supporter taps one to vote (and may change it). */
-const pollScreen = (root: HTMLElement, input: Input, mine: SupporterStatus | null, back: Back): Screen => {
+/**
+ * A poll: each option's votes; whoever may vote taps one (and may change it).
+ * `supporters` is the next egg family's, any supporter's; `diamond` Diamond's
+ * monthly ultra-rare (`DIAMOND_POLL`).
+ */
+const pollScreen = <K extends PollKind>(root: HTMLElement, input: Input, kind: K, mine: SupporterStatus | null, back: Back): Screen => {
   const m = t().supporters
   const o = overlay(root, input, back)
-  let choice: PollOptionId | null = mine?.vote ?? null
-  const canVote = Boolean(mine?.tier)
+  const options = pollOptions(kind)
+  const words = kind === 'diamond' ? { title: m.diamondPoll.title, intro: m.diamondPoll.intro, voteOnly: m.diamondPoll.voteOnly } : { title: m.pollTitle, intro: m.pollIntro, voteOnly: m.voteOnly }
+  const voted: PollOption<PollKind> | null = (kind === 'diamond' ? mine?.diamondVote : mine?.vote) ?? null
+  let choice = options.find((p) => p.id === voted)?.id ?? null
+  const canVote = mine?.tier === 'diamond' || (kind === 'supporters' && Boolean(mine?.tier))
 
   const frame = (body: Node[], rows: { el: HTMLElement; run: () => void }[]) => {
     const backButton = h('button', { class: 'btn' }, m.back)
     const all = [...rows, { el: backButton, run: o.close }]
-    const nav = menu(input, all.map((r) => r.el), (i) => (playSfx('select'), later(all[i]!.run)), { initial: Math.max(0, POLL.options.findIndex((p) => p.id === choice)) })
+    const nav = menu(input, all.map((r) => r.el), (i) => (playSfx('select'), later(all[i]!.run)), { initial: Math.max(0, options.findIndex((p) => p.id === choice)) })
     o.setNav(nav.off)
     o.el.replaceChildren(
-      h('div', { class: 'dialog box pop supporters' }, h('div', { class: 'dialog-title' }, m.pollTitle), h('p', { class: 'account-line' }, m.pollIntro), ...body, h('div', { class: 'buttons' }, backButton), hint(m.hintKeys, m.hintTouch)),
+      h('div', { class: `dialog box pop supporters${kind === 'diamond' ? ' diamond' : ''}` }, h('div', { class: 'dialog-title' }, words.title), h('p', { class: 'account-line' }, words.intro), ...body, h('div', { class: 'buttons' }, backButton), hint(m.hintKeys, m.hintTouch)),
     )
   }
 
-  const show = (votes: Record<PollOptionId, number> | null) => {
-    const total = votes ? Math.max(1, POLL.options.reduce((sum, p) => sum + votes[p.id], 0)) : 1
-    const rows = POLL.options.map((p) => {
+  const show = (votes: Record<PollOption<K>, number> | null) => {
+    const total = votes ? Math.max(1, options.reduce((sum, p) => sum + votes[p.id], 0)) : 1
+    const rows = options.map((p) => {
       const n = votes?.[p.id] ?? 0
       const el = h(
         'button',
@@ -321,7 +340,7 @@ const pollScreen = (root: HTMLElement, input: Input, mine: SupporterStatus | nul
         el,
         run: async () => {
           if (!canVote) return
-          const next = await vote(p.id)
+          const next = await vote(kind, p.id)
           if (!next || next === 'denied') return toast(root, m.offline, 2200)
           choice = p.id
           playSfx('unlock')
@@ -330,11 +349,11 @@ const pollScreen = (root: HTMLElement, input: Input, mine: SupporterStatus | nul
         },
       }
     })
-    frame([...(canVote ? [] : [h('p', { class: 'account-line account-note' }, m.voteOnly)]), h('div', { class: 'poll-rows' }, ...rows.map((r) => r.el))], canVote ? rows : [])
+    frame([...(canVote ? [] : [h('p', { class: 'account-line account-note' }, words.voteOnly)]), h('div', { class: 'poll-rows' }, ...rows.map((r) => r.el))], canVote ? rows : [])
   }
 
   show(null)
-  void fetchPoll().then((p) => o.el.isConnected && (p ? show(p.votes) : toast(root, m.offline, 2200)))
+  void fetchPoll(kind).then((p) => o.el.isConnected && (p ? show(p.votes) : toast(root, m.offline, 2200)))
   return { el: o.el, dispose: o.dispose, dim: 0.5 }
 }
 
@@ -433,10 +452,12 @@ export const hallPortrait = (face: Face) => {
 }
 
 /**
- * A Lenda (gold tier): their Pokémon idling on a gold pedestal under a
- * spotlight, name, @handle and equipped title. A Poké Ball wobbles on the
- * pedestal while the sheets download (and rests there if they never come);
- * then `draw` animates the sprite on the frame's tick.
+ * A Lenda (Gold or Diamond): their Pokémon idling on a pedestal under a
+ * spotlight, name, @handle and equipped title; Diamond's card, pedestal and
+ * light are ice-blue, with the faceted heart in a corner, and an OG wears its
+ * plate (`ogIcon`). A Poké Ball wobbles on the pedestal while the sheets download (and
+ * rests there if they never come); then `draw` animates the sprite on the
+ * frame's tick.
  */
 const legendCard = (e: WallEntry) => {
   const face = hallFace(e.pokemon)
@@ -452,14 +473,16 @@ const legendCard = (e: WallEntry) => {
       )
   const el = h(
     'button',
-    { class: 'legend-card', type: 'button', 'aria-label': `${e.name} @${e.handle}` },
+    { class: `legend-card ${e.tier}`, type: 'button', 'aria-label': `${e.name} @${e.handle}` },
     h('span', { class: 'legend-beam', 'aria-hidden': 'true' }),
+    e.tier === 'diamond' && h('img', { class: 'legend-gem', src: supporterIcon('diamond'), alt: t().supporters.badge('diamond') }),
+    e.og && ogBadge('hall-og-tag'),
     h('img', { class: 'legend-spark one', src: sparkleIcon(), alt: '' }),
     h('img', { class: 'legend-spark two', src: sparkleIcon(), alt: '' }),
     h('span', { class: 'legend-stage' }, ball, h('span', { class: 'legend-pedestal' })),
     h('b', { class: 'legend-name' }, e.name),
     h('small', { class: 'legend-handle' }, `@${e.handle}`),
-    e.title && h('em', { class: 'legend-title' }, t().achievements.titles[e.title]),
+    e.title && h('em', { class: 'legend-card-title' }, t().achievements.titles[e.title]),
   )
   const draw = (time: number) => {
     if (!sprites) return
@@ -471,15 +494,16 @@ const legendCard = (e: WallEntry) => {
   return { el, draw }
 }
 
-/** A supporter's chip: avatar, name, @handle and ♥ (phones keep the avatar and name). */
+/** A supporter's chip: avatar, name, @handle, ♥ and the OG plate (phones keep the avatar, name and plate). */
 const fanChip = (e: WallEntry) => {
   const face = hallFace(e.pokemon)
   return h(
     'button',
-    { class: 'fan-chip', type: 'button', 'aria-label': `${e.name} @${e.handle}` },
+    { class: `fan-chip ${e.tier}`, type: 'button', 'aria-label': `${e.name} @${e.handle}` },
     h('span', { class: 'fan-avatar' }, face ? hallPortrait(face) : h('img', { src: pokeballIcon(), class: 'ball', alt: '' })),
     h('span', { class: 'fan-who' }, h('b', {}, e.name), h('small', {}, `@${e.handle}`)),
     h('img', { class: 'fan-heart', src: supporterBadgeIcon(e.tier, e.since), alt: '' }),
+    e.og && ogBadge('hall-og-tag'),
   )
 }
 
@@ -503,6 +527,37 @@ const legendStrip = (cards: HTMLElement[]) => {
   return [strip, cards.length > 1 ? h('div', { class: 'hall-dots', 'aria-hidden': 'true' }, ...dots) : null]
 }
 
+/**
+ * The OG Supporters: everyone who supported the game before the Patreon
+ * tiers (the wall's `og`), in the order they came, as chips in a scrolling
+ * grid (Gold ones ringed in gold). A tap opens their profile (`open`).
+ */
+const ogScreen = (root: HTMLElement, input: Input, entries: readonly WallEntry[], open: (handle: string) => void, back: Back): Screen => {
+  const m = t().supporters
+  const o = overlay(root, input, back)
+  const chips = entries.map((e) => ({ e, el: fanChip(e) }))
+  const backButton = h('button', { class: 'btn' }, m.back)
+  const items = [...chips.map((c) => c.el), backButton]
+  const nav = spatialNav(input, items, (i) => {
+    playSfx('select')
+    const chip = chips[i]
+    later(chip ? () => (o.dispose(), open(chip.e.handle)) : o.close)
+  })
+  o.setNav(nav.off)
+  o.el.replaceChildren(
+    h(
+      'div',
+      { class: 'dialog box pop supporters picker og-list' },
+      h('div', { class: 'dialog-title' }, m.og.title),
+      h('p', { class: 'account-line' }, m.og.intro),
+      h('div', { class: 'pick-scroll' }, h('div', { class: 'fan-grid' }, ...chips.map((c) => c.el))),
+      h('div', { class: 'buttons' }, backButton),
+      hint(m.gridHintKeys, m.hintTouch),
+    ),
+  )
+  return { el: o.el, dispose: o.dispose, dim: 0.5 }
+}
+
 /** One perk of the call to action: an icon over a short label. A `run` makes it a button (a supporter's actions). */
 type Tile = { icon: string; label: string; title?: string; run?: () => void; glow?: boolean }
 
@@ -522,19 +577,22 @@ export type SupportersActions = {
 
 /**
  * The Hall da Fama (the lobby's Hall card, the Trainer Card's supporter
- * row): the Lendas (gold) on
- * pedestals, the other supporters as chips (a tap opens their profile), and
+ * row): the Lendas (Diamond, then Gold) on
+ * pedestals, the other supporters as chips (a tap opens their profile), the
+ * OG Supporters behind their button, and
  * the call to action with the cosmetic perks and "Apoiar" (the support page
  * in a new tab, with the player's handle). A supporter's perks become their
- * actions there: pick their shiny (one per ticket), the companion, the poll,
+ * actions there: pick their shiny (one per ticket), the companion, the poll (and Diamond's),
  * a code, show or hide themselves; anyone else gets the poll, a code and
- * sign in as links. Wide screens put the call to action in a column on the
+ * sign in as links. Signed in, both get Link Patreon (or Unlink) while the API has it. Wide screens put the call to action in a column on the
  * right; phones in a footer. `open: 'pick'` goes straight to the shiny picker
  * while a ticket waits (the lobby's Hall card sparkles then).
  */
 export const supportersScreen = (root: HTMLElement, input: Input, actions: SupportersActions, open: 'pick' | null = null): Screen => {
   const el = h('div', { class: 'screen shell hall-screen', style: `--sparkle:url(${sparkleIcon()})` })
   let nav: ReturnType<typeof spatialNav> | null = null
+  /** How many buttons `nav` walks. */
+  let navCount = 0
   let sub: Screen | null = null
   /** The account's standing: undefined while it loads, null when the API can't say. */
   let status: SupporterStatus | null | undefined
@@ -568,7 +626,7 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
   const picker = () => openSub((back) => shinyPicker(root, input, { play: (id) => (dispose(), actions.play(id)) }, back))
 
   /** The tier the top bar's chip shows: the API's word once it came, the save's until then. */
-  const myTier = () => (accountState().kind !== 'signedIn' ? null : status === undefined || status === null ? savedSupporterTier(loadSave()) : status.tier)
+  const myTier = () => (accountState().kind !== 'signedIn' ? null : status === undefined || status === null ? knownTier(loadSave()) : status.tier)
 
   /** The account's line in the call to action, for anyone who isn't a supporter yet. */
   const standing = (): string | null => {
@@ -589,13 +647,14 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
     const signedIn = s.kind === 'signedIn'
     const tier = myTier()
     const pending = pendingPicks(save).length
-    const poll = () => openSub((back) => pollScreen(root, input, status ?? null, back))
+    const poll = () => openSub((back) => pollScreen(root, input, 'supporters', status ?? null, back))
     const code = () => openSub((back) => codeScreen(root, input, loadStatus, back))
     const tiles: Tile[] = tier
       ? [
           ...(pending > 0 ? [{ icon: sparkleIcon(), label: m.perks.shiny, title: m.pick(pending), run: picker, glow: true }] : []),
-          ...(isSupporter(save) ? [{ icon: eggIcon('friend'), label: m.perks.companion, title: m.companion, run: () => openSub((back) => companionPicker(root, input, back)) }] : []),
+          { icon: eggIcon('friend'), label: m.perks.companion, title: m.companion, run: () => openSub((back) => companionPicker(root, input, tier, back)) },
           { icon: giftIcon(), label: m.perks.vote, title: m.vote, run: poll },
+          ...(tier === 'diamond' ? [{ icon: supporterIcon('diamond'), label: m.diamondPoll.tile, title: m.diamondPoll.title, run: () => openSub((back) => pollScreen(root, input, 'diamond', status ?? null, back)) }] : []),
           { icon: pokeballIcon(), label: m.codeShort, title: m.code, run: code },
           {
             icon: heartIcon(),
@@ -617,13 +676,30 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
           { icon: eggIcon('friend'), label: m.perks.companion },
           { icon: giftIcon(), label: m.perks.vote },
         ]
+    // Only once the API said it has Patreon (`patreon` not null), for the account it answered about.
+    const patreon: Action[] =
+      signedIn && status && status.patreon !== null
+        ? [
+            status.patreon
+              ? {
+                  label: m.patreon.unlink,
+                  run: async () => {
+                    if (!(await unlinkPatreon())) return toast(root, m.offline, 2200)
+                    toast(root, m.patreon.unlinked, 2200)
+                    loadStatus()
+                  },
+                }
+              : { label: m.patreon.link, run: async () => void ((await linkPatreon()) || toast(root, m.offline, 2200)) },
+          ]
+        : []
     const links: Action[] = tier
-      ? []
+      ? patreon
       : [
           ...(accountsEnabled && s.kind === 'guest' ? [{ label: m.signIn, run: () => void signIn() }] : []),
           ...(signedIn && s.handle === null ? [{ label: m.createProfile, run: () => openSub((back) => profileEditor(root, input, () => back())) }] : []),
           { label: m.vote, run: poll },
           ...(signedIn ? [{ label: m.code, run: code }] : []),
+          ...patreon,
         ]
     const tileEls = tiles.map(tileEl)
     const linkEls = links.map((a) => h('button', { class: 'hall-link', type: 'button' }, a.label))
@@ -648,7 +724,11 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
     return { el, buttons }
   }
 
-  /** The Lendas and the supporters, or why they aren't here. Returns the sections and their buttons in order. */
+  /**
+   * The Lendas (Diamond, then Gold) and the supporters, with the way to the
+   * OG Supporters by the supporters' label, or why they aren't here. Returns
+   * the sections and their buttons in order.
+   */
   const hall = () => {
     const m = t().supporters
     const sections: Node[] = [h('p', { class: 'hall-lead' }, m.lead)]
@@ -667,17 +747,25 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
       ),
     )
     const fans = split.supporters.map((e) => ({ e, el: fanChip(e) }))
+    const og = split.og
+    const ogButton = og.length > 0 ? h('button', { class: 'hall-og', type: 'button', title: m.og.title }, h('img', { src: ogIcon(), alt: '' }), h('span', {}, m.og.button(og.length))) : null
+    const off = wall.hidden
+    const hidden = SUPPORTER_TIERS.reduce((n, tier) => n + off[tier], 0)
     sections.push(
       h(
         'section',
         { class: 'hall-fans' },
-        h('h3', { class: 'hall-label pink' }, m.fans(split.supporters.length + wall.hidden.supporter)),
+        h('div', { class: 'hall-head' }, h('h3', { class: 'hall-label pink' }, m.fans(split.supporters.length + wall.hidden.supporter)), ogButton),
         fans.length > 0 ? h('div', { class: 'fan-grid' }, ...fans.map((f) => f.el)) : h('p', { class: 'hall-note' }, m.wallEmpty),
         // Supporters who chose to stay off the wall still count: the Hall says so, without naming them.
-        ...(wall.hidden.supporter + wall.hidden.gold > 0 ? [h('p', { class: 'hall-note' }, m.offWall(supporterCount(wall)))] : []),
+        ...(hidden > 0 ? [h('p', { class: 'hall-note' }, m.offWall(supporterCount(wall)))] : []),
       ),
     )
-    buttons.push(...split.legends.map((e, i) => ({ el: legends[i]!.el, run: () => profile(e.handle) })), ...fans.map((f) => ({ el: f.el, run: () => profile(f.e.handle) })))
+    buttons.push(
+      ...split.legends.map((e, i) => ({ el: legends[i]!.el, run: () => profile(e.handle) })),
+      ...(ogButton ? [{ el: ogButton, run: () => openSub((back) => ogScreen(root, input, og, profile, back)) }] : []),
+      ...fans.map((f) => ({ el: f.el, run: () => profile(f.e.handle) })),
+    )
     return { sections, buttons }
   }
 
@@ -688,12 +776,22 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
     const body = hall()
     const call = cta()
     const all = [...body.buttons, ...call.buttons]
-    const at = nav?.index
+    // The highlight stays put on a rebuild, unless buttons came or went (the Patreon link once the standing loads).
+    const at = all.length === navCount ? nav?.index : undefined
+    navCount = all.length
     nav?.off()
     // The highlight starts on "Apoiar", or on the shiny while a ticket waits.
     const start = call.buttons.findIndex((b) => b.el.classList.contains('glow'))
     nav = spatialNav(input, all.map((b) => b.el), (i) => (playSfx('select'), later(all[i]!.run)), at ?? body.buttons.length + (start >= 0 ? start : call.buttons.length - 1))
-    const you = tier && h('span', { class: `shell-chip hall-you ${tier}`, title: m.you(tier) }, h('img', { src: supporterBadgeIcon(tier, status?.since), alt: '' }), h('span', {}, m.you(tier)))
+    const you =
+      tier &&
+      h(
+        'span',
+        { class: `shell-chip hall-you ${tier}`, title: m.you(tier) },
+        h('img', { src: supporterBadgeIcon(tier, status?.since), alt: '' }),
+        (status ? status.og : knownOg()) && ogBadge('og'),
+        h('span', {}, m.you(tier)),
+      )
     el.replaceChildren(topBar({ left: backButton(close), title: m.title, right: [you] }), shellBody(...body.sections), call.el)
   }
 

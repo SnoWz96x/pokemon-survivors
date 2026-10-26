@@ -56,7 +56,8 @@ export type GiftKind = GiftContent['kind']
  * Discord with the account linked (`DISCORD_GIFT`), the Noite das Bruxas
  * candy jar and Caça aos Fantasmas, supporting the game on the Noite das Bruxas,
  * the Kecleon Shop's loyalty card and Department Store, or a Festival da
- * Praça's pot reaching a milestone or making the player a Mecenas.
+ * Praça's pot reaching a milestone or making the player a Mecenas, or
+ * being an OG Supporter.
  */
 export type GiftReason =
   | { kind: 'welcome'; from: string | null }
@@ -78,6 +79,8 @@ export type GiftReason =
   | { kind: 'festival'; festival: FestivalId; pot: number }
   /** Donating `FESTIVAL.patron` ₽ or more within a festival (`game/festival.ts`): made by the game too. */
   | { kind: 'patron'; festival: FestivalId }
+  /** Having supported the game before Patreon (`OG_GIFT` in `game/supporters.ts`). */
+  | { kind: 'og' }
 
 export type Gift = { id: string; content: GiftContent; reason: GiftReason | null }
 
@@ -161,6 +164,7 @@ const parseReason = (v: unknown): GiftReason | null => {
   if (v.kind === 'tycoon') return { kind: 'tycoon' }
   if (v.kind === 'festival' && isOneOf(v.festival, FESTIVAL_IDS)) return { kind: 'festival', festival: v.festival, pot: wholeNumber(v.pot) }
   if (v.kind === 'patron' && isOneOf(v.festival, FESTIVAL_IDS)) return { kind: 'patron', festival: v.festival }
+  if (v.kind === 'og') return { kind: 'og' }
   return null
 }
 

@@ -866,9 +866,21 @@ export const sitePt = {
         'Um companheiro que te segue nas partidas.',
         'O nome no mural abaixo e nos agradecimentos da vitória.',
         'Voto no próximo Pokémon dos ovos.',
-        'Ouro, com R$ 50 ou US$ 10 somados: fundo de cartão, papel de parede da Caixa do PC e selo dourados.',
+        'Ouro e Diamante agora são mensais, no Patreon (veja abaixo): doações avulsas não somam para Ouro.',
       ],
       note: 'Tudo cosmético: nada muda uma partida nem o ranking. As recompensas precisam de uma conta no jogo (entrar com Google é grátis).',
+    },
+    /** The Patreon tiers, by the pledge kept active (`PATREON_TIERS`). */
+    monthly: {
+      title: 'Apoio mensal no Patreon',
+      lead: 'Quer apoiar todo mês? No Patreon, seu nível segue o valor que você mantém ativo. Depois, vincule o Patreon à sua conta no Hall da Fama do jogo.',
+      tiers: [
+        '<b>Apoiador(a), US$ 5/mês:</b> tudo o que quem doa ganha, o cargo Supporter e o canal exclusivo no Discord, e o Hall da Fama enquanto o apoio durar.',
+        '<b>Ouro, US$ 10/mês:</b> tudo de Apoiador(a), selo e cargo Ouro, fundo e papel de parede dourados, e o Hall da Fama para sempre.',
+        '<b>Diamante, US$ 20/mês:</b> tudo de Ouro, selo e cargo Diamante, um lendário que você capturou como companheiro (shiny se capturado shiny), voto mensal num novo Pokémon ultrarraro e decoração de diamante no Hall da Fama.',
+      ],
+      cta: 'Apoiar no Patreon',
+      note: 'Quem doou antes do Patreon é Apoiador(a) OG: mantém tudo o que tem, para sempre, com uma seção só sua no Hall da Fama.',
     },
     wall: { title: 'Mural de apoiadores', empty: 'Ainda ninguém por aqui. Seu nome pode ser o primeiro!' },
     pick: 'Escolha como pagar',

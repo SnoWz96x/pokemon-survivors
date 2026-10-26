@@ -44,6 +44,18 @@ export const loadEnv = () => {
     /** Optional: the donation Payment Link's id (`plink_…`); set, other Checkout Sessions of the account are ignored. */
     stripePaymentLink: process.env.STRIPE_PAYMENT_LINK || null,
     /**
+     * Optional: the Patreon OAuth client (patreon.com/portal) and its redirect URI (the API's `/patreon/callback`),
+     * for linking a Patreon account (`src/patreon.ts`). Without all three the `/patreon` routes answer 503 and the game hides the button.
+     */
+    patreon:
+      process.env.PATREON_CLIENT_ID && process.env.PATREON_CLIENT_SECRET && process.env.PATREON_REDIRECT_URI
+        ? { clientId: process.env.PATREON_CLIENT_ID, clientSecret: process.env.PATREON_CLIENT_SECRET, redirectUri: process.env.PATREON_REDIRECT_URI }
+        : null,
+    /** Optional: the Patreon webhook's secret. Without it `POST /webhooks/patreon` answers 503. */
+    patreonWebhookSecret: process.env.PATREON_WEBHOOK_SECRET || undefined,
+    /** The Patreon campaign's currency, for a webhook whose payload doesn't say (`PATREON_CURRENCY`, default `usd`). */
+    patreonCurrency: (process.env.PATREON_CURRENCY || 'usd').trim().toLowerCase(),
+    /**
      * Optional: the community Discord's bot (`src/discord.ts`), its token and the server's id. Without both
      * there's no bot: no introduction gate, patch notes or daily posts.
      */

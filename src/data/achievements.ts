@@ -120,9 +120,10 @@ export type MedalTitleId = { [K in AchievementId]: (typeof ACHIEVEMENTS)[K] exte
  * the Ambassador's for bringing friends (`game/referral.ts`), the Supporter's for donating (`game/supporters.ts`),
  * the Pumpkin King's for filling the Noite das Bruxas candy jar and the Exorcist's for its Caça aos Fantasmas (`game/halloween.ts`),
  * the VIP Customer's for 30 loyalty stamps and the Tycoon's for the Department Store (`game/loyalty.ts`),
- * the Patron's (Mecenas) for donating to a Festival da Praça (`game/festival.ts`).
+ * the Patron's (Mecenas) for donating to a Festival da Praça (`game/festival.ts`),
+ * the OG Supporter's for supporting the game before Patreon (`OG_GIFT` in `game/supporters.ts`).
  */
-export const GIFT_TITLES = ['ambassador', 'supporter', 'pumpkinKing', 'exorcist', 'vipCustomer', 'tycoon', 'patron'] as const
+export const GIFT_TITLES = ['ambassador', 'supporter', 'pumpkinKing', 'exorcist', 'vipCustomer', 'tycoon', 'patron', 'ogSupporter'] as const
 
 export type GiftTitleId = (typeof GIFT_TITLES)[number]
 

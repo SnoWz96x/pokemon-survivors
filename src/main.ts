@@ -110,7 +110,7 @@ import { parseReplay, recordEvent, recordStep, resimulate, RULES_VERSION, rulesS
 import { gameSpecial } from './game/special'
 import { unlockShinyStarter } from './game/shinyStarters'
 import { playsShiny } from './game/shinyPicks'
-import { canWalkWith, companionForm, isSupporter, SUPPORTER_TIERS, TIER_GIFTS, type CompanionId, type SupporterTier } from './game/supporters'
+import { canWalkWith, companionForm, OG_GIFT, SUPPORTER_TIERS, TIER_GIFTS, type CompanionId, type SupporterTier } from './game/supporters'
 import { createCompanion, stepCompanion, type CompanionView } from './render/companion'
 import { MOVES } from './game/moves'
 import type { Game, GameEvent, Offer, Phase, Player } from './game/types'
@@ -166,6 +166,7 @@ import { starterSelect } from './ui/starterSelect'
 import { invitesScreen } from './ui/invites'
 import { titleScreen, type LobbyFocus, type Meadow, type ShopTrip } from './ui/title'
 import { creditsLine, supportersScreen } from './ui/supporters'
+import { knownTier, patreonReturn, stageSupporterStatus, watchSupporterStatus } from './supporters'
 import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, readRunToasts, runToast, tickToasts, toast, type ToastTone } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
@@ -617,11 +618,11 @@ const showMenu = (initial: PlayableId = loadSave().partner) => {
   setScreen(select)
 }
 
-/** The save's companion for a run starting now, if it's a supporter's and still allowed (its sprites start loading). */
+/** The save's companion for a run starting now, if the account's tier still allows it (`knownTier`; its sprites start loading). */
 const runCompanion = (at: Vec): CompanionView | null => {
   const save = loadSave()
   const c = save.companion
-  if (!c || !isSupporter(save) || !canWalkWith(save, c)) return null
+  if (!c || !canWalkWith(save, c, knownTier(save))) return null
   const { dex, sparkles } = companionForm(c.id)
   void (c.shiny ? preloadShinies([dex]) : loadSpecies(dex)).catch(() => {})
   return createCompanion(dex, c.shiny, at, sparkles ?? null)
@@ -949,7 +950,7 @@ const lobbySprites = (): Variant[] => {
   const outbreak = ENEMIES[outbreakToday()].dex
   return [
     { dex: PLAYABLE[save.partner].line[0].dex, shiny: playsShiny(save, save.partner) },
-    ...(c && isSupporter(save) && canWalkWith(save, c) ? [{ dex: companionForm(c.id).dex, shiny: c.shiny }] : []),
+    ...(c && canWalkWith(save, c, knownTier(save)) ? [{ dex: companionForm(c.id).dex, shiny: c.shiny }] : []),
     { dex: outbreak, shiny: false },
     { dex: outbreak, shiny: true },
   ]
@@ -2732,6 +2733,13 @@ const showIdeasLink = () =>
     }),
   )
 
+/** Back from Patreon (`?patreon=linked|failed`): the Hall da Fama opens over the lobby and says how the link went. */
+const showPatreonReturn = (linked: boolean) => {
+  history.replaceState(null, '', location.pathname)
+  setScreen(supportersScreen(ui, input, { play: (id) => void startRun(id), onClose: () => showTitle({ focus: 'hall' }) }))
+  later(() => toast(ui, linked ? t().supporters.patreon.linked : t().supporters.patreon.failed, 5000))
+}
+
 /**
  * Right after the first sign in on a device (no handle yet), the title gives
  * way to the profile editor, so the player picks how they show up on the ranking.
@@ -2869,6 +2877,7 @@ const boot = () => {
   if (shared) showSharedProfile(shared)
   else if (rankingEnabled && new URLSearchParams(location.search).has(IDEAS_PARAM)) showIdeasLink()
   else if (new URLSearchParams(location.search).has(SHOP_PARAM)) showTitle({ shop: 'shop', instant: true })
+  else if (patreonReturn()) showPatreonReturn(patreonReturn() === 'linked')
   // Back from signing in, the player already pressed start before leaving: straight to the menu.
   else showTitle({ intro: !backFromSignIn() })
   askAboutCrash()
@@ -2878,6 +2887,8 @@ const boot = () => {
   syncSprites()
   setInterval(syncSprites, SPRITE_SYNC)
   promptProfile()
+  // The account's supporter tier, asked once signed in, so the companion and the badges follow a pledge that changed.
+  watchSupporterStatus()
   // Coming back to the game syncs again, but not mid-run: a run syncs when it ends.
   startAccount(() => run === null)
   // The Festival da Praça's pot, in the background (its gifts join the gift box).
@@ -3051,15 +3062,21 @@ const devGifts = {
   /** Puts the thank-you for joining the Discord (`DISCORD_GIFT`) in the gift box, as if linking brought it. */
   discordGift: () => stageGifts([{ id: `dev-discord-${Date.now()}`, content: DISCORD_GIFT, reason: { kind: 'discord' } }]),
   /**
-   * Puts a supporter's thank-you in the gift box as Mystery Gifts in one sync, as if a donation was credited: `supporter`
-   * brings the title, the frame and a shiny ticket; `gold` every tier up to gold (a first donation of R$ 50).
+   * Puts a supporter's thank-you in the gift box as Mystery Gifts in one sync, as if the account reached `tier`:
+   * `supporter` brings the title, the frame and a shiny ticket; `gold` every tier up to gold (a first Gold pledge);
+   * `diamond` the same, Diamond having no gift of its own. It also stands the device at `tier` as if the API said so
+   * (`knownTier`: the badge, the companion, Diamond's legends and poll), until the API next answers. `og` makes it an
+   * OG Supporter too: the OG plate beside the heart (`knownOg`) and the OG title's gift (`OG_GIFT`).
    */
-  supporter: (tier: SupporterTier = 'supporter') =>
-    stageGifts(
-      SUPPORTER_TIERS.slice(0, SUPPORTER_TIERS.indexOf(tier) + 1).flatMap((t) =>
+  supporter: (tier: SupporterTier = 'supporter', og = false) => {
+    stageSupporterStatus(tier, og)
+    return stageGifts([
+      ...SUPPORTER_TIERS.slice(0, SUPPORTER_TIERS.indexOf(tier) + 1).flatMap((t) =>
         TIER_GIFTS[t].map((content, i) => ({ id: `dev-support-${t}-${i}-${Date.now()}`, content, reason: { kind: 'support', tier: t } as const })),
       ),
-    ),
+      ...(og ? [{ id: `dev-og-${Date.now()}`, content: OG_GIFT.content, reason: { kind: 'og' } as const }] : []),
+    ])
+  },
   /** Takes `id` along as the companion (`shiny` if owned so; a gift-only one like `pumpkaboo` must be owned); no argument walks alone. Shows from the next run. */
   companion: (id?: CompanionId, shiny = false) => updateSave((s) => ({ ...s, companion: id ? { id, shiny } : null })),
   /** Lands as a guest invited by `handle` (shown as `name`): the title shows the invite banner. */

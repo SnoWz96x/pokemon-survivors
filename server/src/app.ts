@@ -7,7 +7,7 @@ import { parseAdminGift, parseAdminQuery } from '../../src/game/admin'
 import { parseBugReport } from '../../src/game/bugReport'
 import { challengeOpen } from '../../src/game/challenge'
 import { parseDonation } from '../../src/data/donations'
-import { isPollOption } from '../../src/data/supporters'
+import { isPollOptionOf, type PollKind } from '../../src/data/supporters'
 import { isDayKey } from '../../src/game/day'
 import { parseDonationAmount } from '../../src/game/festival'
 import { isDifficulty } from '../../src/game/difficulty'
@@ -34,11 +34,12 @@ import type { DonateError, FestivalStore } from './festival'
 import type { FriendStore } from './friends'
 import type { GiftStore } from './gifts'
 import type { ModerationStore } from './moderation'
+import type { PatreonOAuth } from './patreon'
 import type { RankingStore } from './ranking'
 import { rulesVerdict } from './rulesGrace'
 import type { SupporterStore } from './supporters'
 import { SUGGESTION_ID, type SuggestionStore } from './suggestions'
-import { abacateDonation, ABACATE_REF, stripeDonation, verifyAbacate, verifyStandard, verifyStripe } from './webhooks'
+import { abacateDonation, ABACATE_REF, patreonCharge, patreonMember, stripeDonation, verifyAbacate, verifyPatreon, verifyStandard, verifyStripe } from './webhooks'
 
 export type AppDeps = {
   store: SaveStore
@@ -64,8 +65,10 @@ export type AppDeps = {
   admin: Pick<AdminStore, 'isAdmin' | 'search' | 'send' | 'recent'>
   /** Reports and bans: the write gate asks who is banned, players report, the admin acts. */
   moderation: Pick<ModerationStore, 'banned' | 'report' | 'open' | 'act'>
-  /** Webhook secrets: Stripe's signing secret and Payment Link, AbacatePay's URL secret. Unset ones answer 503. */
-  webhooks: { stripeSecret?: string; stripePaymentLink: string | null; abacatePaySecret?: string }
+  /** Linking a Patreon account (its OAuth client), null when the server has none. */
+  patreon: Pick<PatreonOAuth, 'linkUrl' | 'readState' | 'patronOf'> | null
+  /** Webhook secrets: Stripe's signing secret and Payment Link, AbacatePay's URL secret, Patreon's secret and campaign currency. Unset ones answer 503. */
+  webhooks: { stripeSecret?: string; stripePaymentLink: string | null; abacatePaySecret?: string; patreonSecret?: string; patreonCurrency: string }
   allowedOrigin: (origin: string) => boolean
   /** Whether the database answers, for `/health`. */
   ping: () => Promise<boolean>
@@ -190,9 +193,17 @@ const CHUNK_ERRORS = { unknown: 404, replaced: 409, committed: 409, gap: 409, cl
  * - `POST /webhooks/stripe`, `POST /webhooks/abacatepay`: the payment providers say a donation is paid
  *   (signed: `webhooks.ts`; AbacatePay's the Standard Webhooks way, or with `?webhookSecret=` for an
  *   older webhook). 401 for a bad signature, 503 without the secret.
- * - `GET /me/supporter` (auth): `SupporterStatus`. `PUT /me/supporter` (auth) `{ public }`: shows or hides the badge and name.
+ * - `POST /webhooks/patreon`: a patron's `members:` event (signed with the webhook's secret: `verifyPatreon`): their
+ *   tier from the active pledge (`patreonMember`), applied to the account that linked them (or kept until one does),
+ *   and a paid charge recorded as history. 401 for a bad signature, 503 without the secret.
+ * - `GET /patreon/link?page=` (auth): `{ url }`, Patreon's authorize URL for the player, coming back to `page` on the
+ *   game's origin. `GET /patreon/callback` (Patreon sends the player there) links the account, gives it the patron's tier
+ *   and files their waiting charges, then redirects to the game with `?patreon=linked` (or `failed`). `DELETE /patreon/link` (auth):
+ *   forgets it, `{ unlinked: true }`. 503 without the Patreon client.
+ * - `GET /me/supporter` (auth): `SupporterStatus` (`patreon` null when the server has no Patreon client). `PUT /me/supporter` (auth) `{ public }`: shows or hides the badge and name.
  * - `GET /supporters`: `{ supporters, hidden }`, the wall (`WallEntry[]`, with each one's title and Hall da Fama Pokémon) and how many supporters per tier stay off it.
- * - `GET /poll`: `Poll`. `PUT /poll` (auth) `{ choice }`: a supporter's vote, 403 for anyone else.
+ * - `GET /poll`: `Poll`. `PUT /poll` (auth) `{ choice }`: a supporter's vote, 403 for anyone else. `GET /poll/diamond`,
+ *   `PUT /poll/diamond`: Diamond's monthly poll (`DIAMOND_POLL`), the same way; 403 for anyone under Diamond.
  * - `GET /suggestions?sort=board|top|new|done`: `{ suggestions }` (`Suggestion[]`), the idea board's columns (`board`,
  *   with the asker's own ideas waiting for review) or an earlier build's tab, with the asker's votes.
  * - `POST /suggestions` (auth) `{ title, body }`: posts an idea (`parseSuggestionDraft`), 201 `{ suggestion }`, `pending`
@@ -234,7 +245,7 @@ const CHUNK_ERRORS = { unknown: 404, replaced: 409, committed: 409, gap: 409, cl
  *   `GET /admin/festival`: `{ donations }` (`HeldDonation[]`), the festival donations held for review.
  *   `POST /admin/festival/:id/approve` (it counts in the pot) or `/void` (it never counts; its ₽ stays spent): `{ ok }`, 404 for an unknown or already settled one.
  */
-export const createApp = ({ store, ranking, friends, gifts, verify, donate, supporters, festival, candyGoal, suggestions, bugReports, discord, admin, moderation, webhooks, allowedOrigin, ping, report }: AppDeps) => {
+export const createApp = ({ store, ranking, friends, gifts, verify, donate, supporters, festival, candyGoal, suggestions, bugReports, discord, admin, moderation, patreon, webhooks, allowedOrigin, ping, report }: AppDeps) => {
   // `userId` is set by `auth` or `maybeAuth` on the routes that ask who's calling; `onError` reports it.
   const app = new Hono<MaybeAuth>()
 
@@ -504,6 +515,49 @@ export const createApp = ({ store, ranking, friends, gifts, verify, donate, supp
     return c.json({ received: true })
   })
 
+  app.post('/webhooks/patreon', hookBody, async (c) => {
+    if (!webhooks.patreonSecret) return c.json({ error: 'webhook off' }, 503)
+    const raw = await c.req.text()
+    if (!verifyPatreon(raw, c.req.header('X-Patreon-Signature'), webhooks.patreonSecret)) return c.json({ error: 'bad signature' }, 401)
+    const event = c.req.header('X-Patreon-Event')
+    const body: unknown = JSON.parse(raw)
+    const member = patreonMember(event, body)
+    if (member) await supporters.patreonPledge(member)
+    const charge = patreonCharge(event, body, webhooks.patreonCurrency)
+    if (charge) await supporters.patreonCharge(charge)
+    return c.json({ received: true })
+  })
+
+  app.get('/patreon/link', auth, (c) => {
+    if (!patreon) return c.json({ error: 'patreon is off' }, 503)
+    const origin = c.req.header('Origin')
+    const page = c.req.query('page')
+    const back = `${origin && allowedOrigin(origin) ? origin : SITE}${page && SITE_PATH.test(page) ? page : '/'}`
+    return c.json({ url: patreon.linkUrl(c.var.userId, back, Date.now() / 1000) })
+  })
+
+  // Patreon sends the player here, approved (`code`) or not (`error`); either way they go back to the game.
+  app.get('/patreon/callback', async (c) => {
+    if (!patreon) return c.json({ error: 'patreon is off' }, 503)
+    const link = patreon.readState(c.req.query('state'), Date.now() / 1000)
+    const code = c.req.query('code')
+    const back = (outcome: 'linked' | 'failed') => c.redirect(`${link?.back ?? SITE}?patreon=${outcome}`)
+    if (!link || !code) return back('failed')
+    try {
+      await supporters.linkPatreon(link.userId, await patreon.patronOf(code))
+      return back('linked')
+    } catch (err) {
+      console.error(`patreon link failed for ${link.userId}`, err)
+      return back('failed')
+    }
+  })
+
+  app.delete('/patreon/link', auth, async (c) => {
+    if (!patreon) return c.json({ error: 'patreon is off' }, 503)
+    await supporters.unlinkPatreon(c.var.userId)
+    return c.json({ unlinked: true })
+  })
+
   app.post('/discord/link', auth, async (c) => {
     const linked = await discord.link(c.var.userId).catch((err: unknown) => (console.error('discord link failed', err), null))
     if (!linked) return c.json({ error: 'clerk unavailable' }, 503)
@@ -516,13 +570,19 @@ export const createApp = ({ store, ranking, friends, gifts, verify, donate, supp
     return c.json({ unlinked: true })
   })
 
-  app.get('/me/supporter', auth, async (c) => c.json(await supporters.mine(c.var.userId)))
+  /** The player's standing; whether they linked a Patreon only while the server has the Patreon client. */
+  const mine = async (userId: string) => {
+    const s = await supporters.mine(userId)
+    return { ...s, patreon: patreon ? s.patreon : null }
+  }
+
+  app.get('/me/supporter', auth, async (c) => c.json(await mine(c.var.userId)))
 
   app.put('/me/supporter', auth, smallBody, async (c) => {
     const body = await json(c)
     if (!isRecord(body) || typeof body.public !== 'boolean') return c.json({ error: 'expected { public }' }, 400)
     await supporters.setPublic(c.var.userId, body.public)
-    return c.json(await supporters.mine(c.var.userId))
+    return c.json(await mine(c.var.userId))
   })
 
   app.get('/supporters', async (c) => {
@@ -531,15 +591,19 @@ export const createApp = ({ store, ranking, friends, gifts, verify, donate, supp
     return c.json({ supporters: wall, hidden })
   })
 
-  app.get('/poll', async (c) => c.json(await supporters.poll()))
-
-  app.put('/poll', auth, smallBody, async (c) => {
-    const body = await json(c)
-    const choice = isRecord(body) && isPollOption(body.choice) ? body.choice : null
-    if (!choice) return c.json({ error: 'expected { choice }' }, 400)
-    if (!(await supporters.vote(c.var.userId, choice))) return c.json({ error: 'supporters only' }, 403)
-    return c.json(await supporters.poll())
-  })
+  /** A poll's routes over `POLLS[kind]`: the supporters' at `/poll`, Diamond's at `/poll/diamond`. */
+  const pollRoutes = <K extends PollKind>(path: string, kind: K) => {
+    app.get(path, async (c) => c.json(await supporters.poll(kind)))
+    app.put(path, auth, smallBody, async (c) => {
+      const body = await json(c)
+      const choice = isRecord(body) && isPollOptionOf(kind, body.choice) ? body.choice : null
+      if (!choice) return c.json({ error: 'expected { choice }' }, 400)
+      if (!(await supporters.vote(c.var.userId, kind, choice))) return c.json({ error: kind === 'diamond' ? 'diamond supporters only' : 'supporters only' }, 403)
+      return c.json(await supporters.poll(kind))
+    })
+  }
+  pollRoutes('/poll', 'supporters')
+  pollRoutes('/poll/diamond', 'diamond')
 
   app.get('/festival', maybeAuth, async (c) => {
     if (!c.var.userId) c.header('Cache-Control', 'public, max-age=30')
