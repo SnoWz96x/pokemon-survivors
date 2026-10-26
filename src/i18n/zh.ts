@@ -1387,6 +1387,8 @@ export const zh: Messages = {
     boss: (name) => `野生的*${name}*出現了！`,
     bossFled: (name) => `野生的*${name}*逃走了！`,    shiny: (name) => `異色的*${name}*出現了！`,
     shinyPlayer: (name) => `好運！你的*${name}*是異色！現在已在選擇畫面_解鎖_。`,
+    shinyPlayerHeld: (name, minutes) => `好運！你的*${name}*是異色！撐到${minutes}:00就能在選擇畫面_解鎖_。`,
+    shinyUnlocked: (name) => `異色*${name}*已在選擇畫面_解鎖_！`,
     caught: (name) => `異色*${name}*是你的了！已登錄到_寶可夢圖鑑_。`,
     evolving: (name) => `咦？${name} 要進化了！`,
     evolved: (from, to) => `恭喜！${from} 進化成了 ${to}！`,

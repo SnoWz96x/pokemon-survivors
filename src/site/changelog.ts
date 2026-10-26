@@ -47,6 +47,12 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
           { pt: 'As doações avulsas na página Apoie continuam: elas tornam você Apoiador(a) para sempre. O Ouro agora vem só pelo Patreon (US$ 10 por mês).', en: 'One-time donations on the Support page are still there: they make you a Supporter for good. Gold now comes only from Patreon (US$ 10 a month).', es: 'Las donaciones únicas en la página Apoya siguen: te convierten en Patrocinador(a) para siempre. Oro ahora solo llega por Patreon (US$ 10 al mes).', fr: 'Les dons ponctuels sur la page Soutenir sont toujours là : ils font de toi un Soutien pour toujours. Or ne s’obtient plus que par Patreon (10 US$ par mois).', zh: '支持頁面的單次捐款依然保留：會讓你永久成為贊助者。金級現在只能透過 Patreon（每月 10 美元）取得。' },
         ],
       },
+      {
+        title: { pt: 'Shiny da sorte', en: 'Lucky shinies', es: 'Shiny de la suerte', fr: 'Chromatiques chanceux', zh: '幸運異色' },
+        notes: [
+          { pt: 'O shiny 1 em 64 ao começar uma partida continua liberando os iniciais na hora. Para os Pokémon dos ovos e os lendários, ele só fica liberado na seleção depois de sobreviver até 5:00: reiniciar a partida até sair shiny não vale mais, e esses shinies seguem vindo dos ovos, da loja e das capturas.', en: 'The 1 in 64 shiny at the start of a run still unlocks starters right away. For Pokémon from eggs and legendaries, it only unlocks on the select screen once you survive until 5:00: restarting until it rolls shiny no longer works, and those shinies keep coming from eggs, the shop and captures.', es: 'El shiny 1 en 64 al empezar una partida sigue desbloqueando a los iniciales al instante. Para los Pokémon de huevos y los legendarios, solo se desbloquea en la selección después de sobrevivir hasta las 5:00: reiniciar la partida hasta que salga shiny ya no sirve, y esos shinies siguen viniendo de los huevos, la tienda y las capturas.', fr: 'Le chromatique à 1 sur 64 en début de partie débloque toujours les starters tout de suite. Pour les Pokémon des œufs et les légendaires, il ne se débloque sur l’écran de sélection qu’après avoir survécu jusqu’à 5:00 : relancer la partie jusqu’à tomber dessus ne marche plus, et ces chromatiques viennent toujours des œufs, de la boutique et des captures.', zh: '開局時 1/64 的異色仍會立即解鎖御三家。蛋裡孵出的寶可夢和傳說寶可夢則要撐到 5:00 才會在選擇畫面解鎖：反覆重開直到出現異色已經行不通，這些異色依然來自孵蛋、商店和捕獲。' },
+        ],
+      },
     ],
   },
   {

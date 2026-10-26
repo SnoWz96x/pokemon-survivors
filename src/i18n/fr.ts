@@ -1387,6 +1387,8 @@ export const fr: Messages = {
     boss: (name) => `Un *${name}* sauvage apparaît !`,
     bossFled: (name) => `Le *${name}* sauvage s’est enfui !`,    shiny: (name) => `Un *${name}* chromatique apparaît !`,
     shinyPlayer: (name) => `Quelle chance ! Ton *${name}* est chromatique ! Il est maintenant _débloqué_ sur l’écran de sélection.`,
+    shinyPlayerHeld: (name, minutes) => `Quelle chance ! Ton *${name}* est chromatique ! Survis jusqu’à ${minutes}:00 pour le _débloquer_ sur l’écran de sélection.`,
+    shinyUnlocked: (name) => `*${name}* chromatique _débloqué_ sur l’écran de sélection !`,
     caught: (name) => `*${name}* chromatique est à toi ! Ajouté au _Pokédex_.`,
     evolving: (name) => `Hein ? ${name} évolue !`,
     evolved: (from, to) => `Félicitations ! ${from} a évolué en ${to} !`,

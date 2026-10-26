@@ -1602,6 +1602,9 @@ export const pt = {
     boss: (name: string) => `Um *${name}* selvagem apareceu!`,
     bossFled: (name: string) => `O *${name}* selvagem fugiu!`,    shiny: (name: string) => `Um *${name}* shiny apareceu!`,
     shinyPlayer: (name: string) => `Que sorte! Seu *${name}* é shiny! Agora ele fica _liberado_ na seleção.`,
+    /** A hatched family's or a legend's lucky shiny: it unlocks only once the run lasts `minutes`. */
+    shinyPlayerHeld: (name: string, minutes: number) => `Que sorte! Seu *${name}* é shiny! Sobreviva até ${minutes}:00 para _liberar_ ele na seleção.`,
+    shinyUnlocked: (name: string) => `*${name}* _shiny_ liberado na seleção!`,
     caught: (name: string) => `*${name}* shiny é seu! Registrado na _Pokédex_.`,
     evolving: (name: string) => `Hã? ${name} está evoluindo!`,
     evolved: (from: string, to: string) => `Parabéns! ${from} evoluiu para ${to}!`,

@@ -1389,6 +1389,8 @@ export const en: Messages = {
     boss: (name) => `A wild *${name}* appeared!`,
     bossFled: (name) => `The wild *${name}* fled!`,    shiny: (name) => `A shiny *${name}* appeared!`,
     shinyPlayer: (name) => `Lucky! Your *${name}* is shiny! It's now _unlocked_ on the select screen.`,
+    shinyPlayerHeld: (name, minutes) => `Lucky! Your *${name}* is shiny! Survive until ${minutes}:00 to _unlock_ it on the select screen.`,
+    shinyUnlocked: (name) => `Shiny *${name}* _unlocked_ on the select screen!`,
     caught: (name) => `Shiny *${name}* is yours! Added to the _Pokédex_.`,
     evolving: (name) => `What? ${name} is evolving!`,
     evolved: (from, to) => `Congratulations! ${from} evolved into ${to}!`,

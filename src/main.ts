@@ -108,8 +108,8 @@ import { parseHandle, rankable, runMode, runResult } from './game/ranking'
 import { rosterSchedule, type Roster } from './game/roster'
 import { parseReplay, recordEvent, recordStep, resimulate, RULES_VERSION, rulesStanding, runRoster, startGame, startRecording, TICK, type Recorder, type ReplayStart } from './game/replay'
 import { gameSpecial } from './game/special'
-import { unlockShinyStarter } from './game/shinyStarters'
-import { playsShiny } from './game/shinyPicks'
+import { luckyShinyHold, unlockShinyStarter } from './game/shinyStarters'
+import { ownsShiny, playsShiny } from './game/shinyPicks'
 import { canWalkWith, companionForm, OG_GIFT, SUPPORTER_TIERS, TIER_GIFTS, type CompanionId, type SupporterTier } from './game/supporters'
 import { createCompanion, stepCompanion, type CompanionView } from './render/companion'
 import { MOVES } from './game/moves'
@@ -310,6 +310,8 @@ type Run = {
   challenge: { day: DayKey; official: boolean; attempt: boolean } | null
   /** The supporter's companion walking along, drawn only (`render/companion.ts`). */
   companion: CompanionView | null
+  /** The run clock at which the lucky 1/64 roll unlocks the shiny for good (`luckyShinyHold`); null when nothing waits. */
+  luckyShinyAt: number | null
   /** Which sheets the run streams and keeps (`syncSprites`): its cast's windows, and what it keeps in every variant. */
   sprites: { needs: SpriteNeed[]; always: Dex[] }
   /** A co-op run: the client stepping it and what draws it (null solo). */
@@ -1104,8 +1106,9 @@ const launchRun =async (starter: PlayableId, daily: ChallengeRun | null) => {
   // Created like a replay is re-simulated (the roster drawn ahead is the same one).
   const game = startGame(start, view)
   const me = localPlayer(game)
-  // The 1/64 roll unlocks this Pokémon's shiny for good (Normal/Shiny on the select screen).
-  if (me.luckyShiny) updateSave((s) => ({ ...s, shinyStarters: unlockShinyStarter(s.shinyStarters, starter) }))
+  // The 1/64 roll unlocks this Pokémon's shiny for good (Normal/Shiny on the select screen): a starter's at once, a hatched family's or a legend's once the run lasts.
+  const hold = me.luckyShiny && !ownsShiny(save, starter) ? luckyShinyHold(starter) : null
+  if (hold === 0) updateSave((s) => ({ ...s, shinyStarters: unlockShinyStarter(s.shinyStarters, starter) }))
   // A shiny run starts in its own colors (and loads only those).
   await loadRunSheets(familySheets(starter, me.shiny), openingDex(plan))
   // The outbreak's shiny can show up in the first minute (in safe mode it loads when one does).
@@ -1135,6 +1138,7 @@ const launchRun =async (starter: PlayableId, daily: ChallengeRun | null) => {
     bestBefore: save.achievements.lifetime.bestTime,
     challenge: daily ? { day: daily.challenge.day, official: daily.official, attempt: false } : null,
     companion: runCompanion(me),
+    luckyShinyAt: hold === 0 ? null : hold,
     // The run's own roster: a legend's (`avoidLegend`) may have swapped a boss.
     sprites: { needs: castNeeds(game.roster, EXTRAS), always: [...familyDex(starter), playerDex(game), ENEMIES[plan.outbreak].dex] },
     coop: null,
@@ -1327,6 +1331,15 @@ const syncOverlay = (r: Run) => {
 /** Level-ups that took the Oran Berry on their own (`takeBerryLevelUps`): the level reached and how many at once. */
 const berryToast = (g: Game, count: number) =>
   aside(h('span', { class: 'item-toast' }, h('img', { src: berryIcon(), alt: '' }), rich(t().levelUp.autoBerry(localPlayer(g).level, count))), 2200, 'autoBerry')
+
+/** The run lasted long enough (`luckyShinyHold`): its lucky roll unlocks the Pokémon's shiny for good. */
+const unlockLuckyShiny = (r: Run) => {
+  r.luckyShinyAt = null
+  const { starter } = localPlayer(r.game)
+  updateSave((s) => ({ ...s, shinyStarters: unlockShinyStarter(s.shinyStarters, starter) }))
+  playSfx('shiny')
+  aside(rich(t().toast.shinyUnlocked(PLAYABLE[starter].name)), 3600, null, 'shiny')
+}
 
 /** An evolution item's toast: its icon, a line and a hint under it. One found is minor; one missing (`evoHeld`) explains a held evolution. */
 const evoItemToast = (items: readonly EvoItemId[], line: string, hint: string, key: string, show: typeof news) =>
@@ -1574,7 +1587,8 @@ const handleEvent = (r: Run, e: GameEvent) => {
     }
     case 'shinyPlayer': {
       playSfx('shiny')
-      return aside(rich(t().toast.shinyPlayer(PLAYABLE[localPlayer(g).starter].name)), 3600, null, 'shiny')
+      const name = PLAYABLE[localPlayer(g).starter].name
+      return aside(rich(r.luckyShinyAt === null ? t().toast.shinyPlayer(name) : t().toast.shinyPlayerHeld(name, r.luckyShinyAt / 60)), 3600, null, 'shiny')
     }
     case 'branchChoice':
       playCry(playerCry(g), 0.6)
@@ -2114,6 +2128,7 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
     bestBefore: save.achievements.lifetime.bestTime,
     challenge: null,
     companion: null,
+    luckyShinyAt: null,
     // Every teammate's family stays loaded; the cast streams in like a solo run's.
     sprites: { needs: castNeeds(live.game.roster, EXTRAS), always: [...new Set(live.game.players.flatMap((p) => familyDex(p.starter)))] },
     coop: c,
@@ -2626,6 +2641,7 @@ const frame = (now: number) => {
     const berries = takeBerryLevelUps(g, (i) => recordEvent(r.recorder, ['offer', i]))
     for (const e of g.events.splice(0)) handleEvent(r, e)
     if (berries > 0) berryToast(g, berries)
+    if (r.luckyShinyAt !== null && g.time >= r.luckyShinyAt) unlockLuckyShiny(r)
     if (run === r) {
       syncOverlay(r)
       // Toasts and banners wait out menus, level-ups and evolutions with their clocks stopped.
