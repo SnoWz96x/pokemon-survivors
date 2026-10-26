@@ -48,6 +48,12 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
           { pt: 'As doações avulsas na página Apoie continuam: elas tornam você Apoiador(a) para sempre. O Ouro agora vem só pelo Patreon (US$ 10 por mês).', en: 'One-time donations on the Support page are still there: they make you a Supporter for good. Gold now comes only from Patreon (US$ 10 a month).', es: 'Las donaciones únicas en la página Apoya siguen: te convierten en Patrocinador(a) para siempre. Oro ahora solo llega por Patreon (US$ 10 al mes).', fr: 'Les dons ponctuels sur la page Soutenir sont toujours là : ils font de toi un Soutien pour toujours. Or ne s’obtient plus que par Patreon (10 US$ par mois).', zh: '支持頁面的單次捐款依然保留：會讓你永久成為贊助者。金級現在只能透過 Patreon（每月 10 美元）取得。' },
         ],
       },
+      {
+        title: { pt: 'Shiny da sorte', en: 'Lucky shinies', es: 'Shiny de la suerte', fr: 'Chromatiques chanceux', zh: '幸運異色' },
+        notes: [
+          { pt: 'O shiny 1 em 64 ao começar uma partida agora vale só para os iniciais. Os Pokémon dos ovos e os lendários não saem mais shiny assim: o shiny deles vem do ovo, da loja e das capturas. Reiniciar a partida até sair shiny não vale mais.', en: 'The 1 in 64 shiny at the start of a run now applies only to starters. Pokémon from eggs and legendaries no longer roll it: their shinies come from eggs, the shop and captures. Restarting until it rolls shiny no longer works.', es: 'El shiny 1 en 64 al empezar una partida ahora vale solo para los iniciales. Los Pokémon de huevos y los legendarios ya no salen shiny así: su shiny viene de los huevos, la tienda y las capturas. Reiniciar la partida hasta que salga shiny ya no sirve.', fr: 'Le chromatique à 1 sur 64 en début de partie ne vaut plus que pour les starters. Les Pokémon des œufs et les légendaires ne peuvent plus l’obtenir ainsi : leurs chromatiques viennent des œufs, de la boutique et des captures. Relancer la partie jusqu’à tomber dessus ne marche plus.', zh: '開局時 1/64 的異色現在只適用於御三家。蛋裡孵出的寶可夢和傳說寶可夢不會再這樣變成異色：牠們的異色來自孵蛋、商店和捕獲。反覆重開直到出現異色已經行不通。' },
+        ],
+      },
     ],
   },
   {

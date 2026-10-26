@@ -10,7 +10,7 @@ import type { EvoItemId } from '../data/shop'
 import type { EvolutionStage } from '../data/starters'
 import { runBoost } from './evoItems'
 import { evolutionFreed, missingEvoItems, runEvoItems, stepOpen } from './evoGate'
-import { PLAYABLE, type PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
+import { isStarter, PLAYABLE, type PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
 import { abilityImmune, abilityLuck, abilitySet, createAbilityState, grantAbility, updateAbility } from './abilities'
 import { BAG_ITEMS, type BagItem } from './bag'
 import { branchContext, evolutionOffers, playerForm } from './branch'
@@ -214,14 +214,16 @@ export const createPlayer = (slot: number, setup: PlayerSetup, lucky: boolean, x
 
 /**
  * A fresh run for `setups` by slot (one solo), standing side by side. Each
- * player rolls their 1/64 shiny in slot order, then the run draws its wild
+ * player rolls their 1/64 shiny in slot order (only a starter's counts: a
+ * hatched family's shiny comes from its egg, a legend's from beating it shiny), then the run draws its wild
  * cast unless the shell drew it ahead (`drawRoster`). The team's best Shiny
  * Charm counts (solo, the player's).
  */
 const createRun = (view: Game['view'], seed: number, setups: readonly PlayerSetup[], roster: Roster | undefined, options: RunOptions, coop: boolean): Game => {
   const bag = options.bag ?? []
   const rng = createRng(seed)
-  const lucky = setups.map(() => rollShiny(rng, SHINY_ODDS.player))
+  // Every slot rolls, so the rng moves the same whoever plays.
+  const lucky = setups.map((setup) => rollShiny(rng, SHINY_ODDS.player) && isStarter(setup.starter))
   const players = setups.map((setup, slot) => createPlayer(slot, setup, lucky[slot]!, coop ? (slot - (setups.length - 1) / 2) * COOP.spacing : 0, view))
   const player = players[0]!
   const starter = player.starter
