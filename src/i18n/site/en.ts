@@ -305,7 +305,7 @@ export const siteEn: SiteMessages = {
   guide: {
     title: 'How to play Pokémon Survivors: complete guide',
     description:
-      'Pokémon Survivors guide: keyboard, gamepad and phone controls, how a run works, levels, moves, move evolutions with held items, the special attack, types and status, bosses, shinies, map items, map events and the Kecleon Shop.',
+      'Pokémon Survivors guide: keyboard, gamepad and phone controls, how a run works, levels, moves, move evolutions with held items, the special attack, types and status, bosses, shinies, map items, map events, the Kecleon Shop and online co-op.',
     h1: 'How to play',
     intro:
       'Pokémon Survivors is a Vampire Survivors-style roguelite: you only move, and your Pokémon attacks on its own. This guide explains everything that happens in a run, with the game\'s numbers.',
@@ -326,6 +326,7 @@ export const siteEn: SiteMessages = {
       landmarks: 'Landmarks on the map',
       megas: 'Mega Evolution',
       legends: 'Legend Mode',
+      coop: 'Online co-op',
       shinies: 'Shinies',
       eggs: 'Eggs and the incubator',
       items: 'Map items',
@@ -474,6 +475,18 @@ export const siteEn: SiteMessages = {
       flute: 'Poké Flute (map item)',
       itemsNote: 'King\'s Rock raises the status chance, Toxic Orb raises burn and poison damage, and Light Clay makes statuses last longer.',
     },
+    coop: {
+      paragraphs: (m) => [
+        `In the lobby, Co-op opens team play: up to ${m.players} trainers in the same run, each with their own Pokémon. Create a room and bring your friends with the link (opening it goes straight into the room), the 5-character code or your Friends list, which shows who's online, in a room or playing, and sends the invite right away. Everyone picks their Pokémon and gets ready, and the host picks the difficulty and starts. Co-op uses your account: the team sees your @name, and the ₽ you earn is saved to it.`,
+        `EXP belongs to the team: every Exp. Candy reaches everyone, so the whole team levels up together and picks at the same time (past ${m.pick}s, the game picks for you). One player's evolution, Ability, TM or Poké Ball doesn't stop the others' run, and bosses and rifts drop each player their own TM, Poké Ball, Alpha prize and Mega Stone.`,
+        `Whoever faints turns into a Poké Ball on the ground: a teammate standing next to it for ${m.revive}s revives them with ${m.reviveHp}% HP. The run ends when nobody can carry on; after Mewtwo, the team has ${m.vote}s to vote on going into endless mode. If your connection drops, the game reconnects and you pick up where you left off. At the end, the team's ₽ is split among the players who started the run.`,
+        'For now co-op plays the standard mode: places (the cave, the graveyard and the sky) don\'t open, landmarks are scenery only, rift legendaries fight in the old arena instead of their domain, and Legend Mode, the Bag, the shop\'s TMs, evolution items and Bottle Caps, the daily Outbreak, Halloween Night, the Daily Challenge and the ranking stay out.',
+      ],
+      scaleTitle: 'The horde grows with the team',
+      whatHead: 'What',
+      perHead: 'Per extra player',
+      scale: { spawn: 'Horde spawn rate', cap: 'Horde size cap', hp: 'Enemy HP', bossHp: 'Boss, Alpha and legendary HP', coins: 'Poké Dollars collected' },
+    },
     legends: {
       paragraphs: (m: { count: number; awaken: readonly number[] }) => [
         `All ${m.count} legendaries in the game can be caught and played in Legend Mode. To catch one, beat it as a boss, in any mode: every win before the catch, it breaks free of the Poké Ball and the game keeps count (Kyogre broke free… 2/3); on the win that completes it, it's caught and shows up in the Legendaries tab of the partner select. Beating a shiny one on the catching win, or on any win after, unlocks its shiny.`,
@@ -487,7 +500,7 @@ export const siteEn: SiteMessages = {
       opensHead: 'Legendary move',
       pressureTitle: 'Difficulties in Legend Mode',
       pressure: 'Pressure stacks on every difficulty: these are Legend Mode’s multipliers.',
-      where: { rift: 'Legendary rift', trio: 'Legendary trio', mythical: 'Beside Mewtwo (1 in 10)', finale: 'Final boss', endless: 'Endless mode, last of all', event: 'Halloween Night 2026 (event)' },
+      where: { rift: 'Legendary rift', trio: 'Legendary trio', mythical: 'Beside Mewtwo (1 in 10)', finale: 'Final boss', endless: 'Endless mode, last of all', event: 'Halloween Night 2026 (event)', festival: 'Lantern Festival 2026 (prize)' },
       /** The event legends (`EVENT_LEGENDS`), after the table. */
       eventNote: 'On Halloween Night 2026 (October 24 to November 2), Darkrai comes as an event legend: it only shows up in the Nightmare rift, which can take a rift\'s place in a haunted run, and 2 wins catch it. It plays with Dark Void, which puts crowds to sleep, and the innate Bad Dreams, which hurts whoever sleeps near it. After the event it returns to the shadows, but whoever caught it keeps playing it. It doesn\'t count toward Arceus.',
     },
@@ -911,5 +924,23 @@ export const siteEn: SiteMessages = {
     ],
     issues: 'Open an issue on GitHub',
     source: 'View the source code',
+  },
+  notFound: {
+    title: 'Page not found · Pokémon Survivors',
+    eyebrow: 'ERROR 404 · ROUTE 404',
+    h1: 'You got lost on Route 404.',
+    lead: 'This page doesn’t exist, but the Zubat do. Walk to a sign to get out.',
+    url: 'You looked for:',
+    mean: { before: 'Did you mean ', after: '?' },
+    hint: 'Arrow keys or WASD to walk. On a phone, touch and drag. Attacks fire on their own.',
+    game: 'Mini game: walk along Route 404 to a sign',
+    start: 'Walk to start',
+    go: 'Go to',
+    over: '{name} fainted on Route 404.',
+    time: 'Time',
+    ko: 'KOs',
+    best: 'Best',
+    retry: 'Try again',
+    notes: { play: 'A real run', pokedex: 'Every Pokémon in the game', guide: 'How to play' },
   },
 }

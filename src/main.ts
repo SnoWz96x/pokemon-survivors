@@ -171,7 +171,7 @@ import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, readRunToasts, runToast, tickToasts, toast, type ToastTone } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
 import { localPlayer, phaseOf } from './game/players'
-import { addBots, bankCoopRun, botStates, buildRefusal, coopClient, coopEntry, coopEventFor, coopNetPayload, coopUrl, lastCoopNet, linkedRoom, linkRoom, markBuildReload, onCoopEntry, refreshCoopEntry, removeBots, reportCoopNet, reportHeal, setCoopBeta, setCoopUrl, setCoopVpsUrl, setBotRelays, surrenderBots, type CoopNetOutcome } from './coopShell'
+import { addBots, bankCoopRun, botStates, buildRefusal, coopClient, coopEventFor, coopNetPayload, coopUrl, lastCoopNet, linkedRoom, linkRoom, markBuildReload, removeBots, reportCoopNet, reportHeal, setCoopUrl, setCoopVpsUrl, setBotRelays, surrenderBots, type CoopNetOutcome } from './coopShell'
 import { noteDraw, type NetStats } from './coop/netStats'
 import type { CloseWhy, CoopClient } from './coop/client'
 import { coopAccess, coopStarter, freshInvites } from './coop/lobby'
@@ -431,7 +431,7 @@ const isPlazaStage = (n: unknown): n is PlazaStage => n === 0 || n === 1 || n ==
 /**
  * The Festival da Praça on the plaza, from the pot the festival already
  * fetched (`festivalView`; stage 0 while none is known): the fountain from the
- * week before a festival (`festivalAnnounced`), the plaque and the Lantern Festival by the pot's stage while it runs.
+ * day before a festival (`festivalAnnounced`), the plaque and the Lantern Festival by the pot's stage while it runs.
  */
 const plazaFestival = (): PlazaFestival => {
   if (devPlazaStage !== null) return { fountain: true, stage: devPlazaStage, running: true }
@@ -585,7 +585,7 @@ const showTitle = (opts: { intro?: boolean; focus?: LobbyFocus; shop?: ShopTrip;
       ideas: rankingEnabled ? (focus) => suggestionsScreen(ui, input, () => showTitle({ focus })) : undefined,
       supporters: (focus, open) => supportersScreen(ui, input, { play: (id) => void startRun(id), onClose: () => showTitle({ focus }) }, open),
       invites: (focus) => invitesScreen(ui, input, () => showTitle({ focus })),
-      coop: coopEntry() ? () => enterCoop({ room: null, invitedBy: null }) : undefined,
+      coop: coopUrl() ? () => enterCoop({ room: null, invitedBy: null }) : undefined,
       meadow,
     }, opts),
   )
@@ -656,16 +656,20 @@ const replayChallenge = () => {
   return startRun(c.starter, { challenge: c, official: nextIsOfficial(c.day, loadAttempt(), null) })
 }
 
+/** What a hatch scene's "Jogar com" does: a solo run, unless the incubator was opened from a co-op room. */
+type PlayHatched = (id: HatchlingId) => void
+const playSolo: PlayHatched = (id) => void startRun(id)
+
 /** The incubator; hatching a ready egg plays its scene and comes back here, and a Quick Incubator put on an egg redraws it. */
-const showIncubator = (back: () => void) => {
+const showIncubator = (back: () => void, play: PlayHatched = playSolo) => {
   endRun()
   setScreen(
     incubator(ui, input, {
-      onHatch: (i) => hatchAt(i, () => showIncubator(back)),
+      onHatch: (i) => hatchAt(i, () => showIncubator(back, play), play),
       onQuick: (i) => {
         const next = useQuick(loadSave(), i)
         if (next) (writeSave(next), void syncSave(), playSfx('buy'))
-        showIncubator(back)
+        showIncubator(back, play)
       },
       onClose: back,
     }),
@@ -676,16 +680,16 @@ const showIncubator = (back: () => void) => {
  * Hatches the ready egg at `index`, saving it with its missions and medals,
  * and plays its scene, then `then`. What it completed toasts once the scene is over.
  */
-const hatchAt = (index: number, then: () => void) => {
+const hatchAt = (index: number, then: () => void, play: PlayHatched = playSolo) => {
   const result = hatchEgg(loadSave(), index, createRng(Date.now()))
   if (!result) return then()
   const record = saveHatch(result.save, result.hatch.shiny)
   void syncSave()
-  showHatch(result.hatch, then, undefined, () => later(() => progressToast(ui, record)))
+  showHatch(result.hatch, then, undefined, () => later(() => progressToast(ui, record)), play)
 }
 
-const showHatch = (hatch: Hatch, then: () => void, holdAt?: number, after = () => {}) =>
-  setScreen(hatchScene(ui, input, hatch, { play: () => (void startRun(hatch.id), after()), done: () => (then(), after()) }, holdAt))
+const showHatch = (hatch: Hatch, then: () => void, holdAt?: number, after = () => {}, play: PlayHatched = playSolo) =>
+  setScreen(hatchScene(ui, input, hatch, { play: () => (play(hatch.id), after()), done: () => (then(), after()) }, holdAt))
 
 /** Leaves the run; every egg it made ready hatches first ("Oh? The Egg is hatching!"), then `then`. */
 const afterRun = (then: () => void) => {
@@ -2197,7 +2201,7 @@ const watchCoop = (client: CoopClient) => {
 /**
  * Joins a co-op room (the hub, a link, an invite, `ps.coop('join', code)`):
  * sets this player's loadout, ready unless hosting. `via` says how, for the
- * beta's numbers (null: the room this player just created).
+ * analytics (null: the room this player just created).
  */
 const joinCoop = async (code: string, via: 'code' | 'link' | 'invite' | null) => {
   const client = coopClient()
@@ -2485,21 +2489,23 @@ const showRoom = () => {
 
 /** The partner select for the room: the pick becomes this player's loadout (and the saved partner), then back to the room. */
 const showCoopPartner = () => {
+  // The co-op select has no Lendários tab; `coopStarter` keeps the type honest.
+  const pick = (id: PlayableId) => {
+    const starter = coopStarter(id)
+    updateSave((s) => ({ ...s, partner: starter }))
+    const save = loadSave()
+    coopClient()?.setLoadout({ starter, ranks: save.ranks, shiny: playsShiny(save, starter) })
+    setTimeout(showRoom, 250)
+  }
   const select = starterSelect(
     ui,
     input,
     {
-      // The co-op select has no Lendários tab; `coopStarter` keeps the type honest.
-      pick: (id) => {
-        const starter = coopStarter(id)
-        updateSave((s) => ({ ...s, partner: starter }))
-        const save = loadSave()
-        coopClient()?.setLoadout({ starter, ranks: save.ranks, shiny: playsShiny(save, starter) })
-        setTimeout(showRoom, 250)
-      },
+      pick,
       back: () => showRoom(),
       settings: () => setScreen(openSettings(ui, input, () => showCoopPartner())),
-      incubator: () => showIncubator(() => showCoopPartner()),
+      // A hatch's "Jogar com" takes the newcomer into the room, never into a solo run.
+      incubator: () => showIncubator(() => showCoopPartner(), pick),
     },
     coopStarter(loadSave().partner),
     { coop: true },
@@ -2511,15 +2517,14 @@ const showCoopPartner = () => {
 const showFriends = (back: () => void) => setScreen(friendsScreen(ui, input, { room: coopRoomCode, onClose: back }))
 
 /**
- * Tells friends what this player is doing, while co-op is on for them (the
- * beta's entry, or a room they came into by link): signed-in players only,
- * and the heartbeats stop with the page hidden (`net/friends.ts`). A run
- * hides a waiting invite.
+ * Tells friends what this player is doing: signed-in players only, in a
+ * build with co-op, and the heartbeats stop with the page hidden
+ * (`net/friends.ts`). A run hides a waiting invite.
  */
 const syncPresence = () => {
   const code = coopRoomCode()
   if (run) invite?.dispose()
-  if (!signedIn() || (!coopEntry() && code === null)) return setActivity(null)
+  if (!signedIn() || !coopUrl()) return setActivity(null)
   setActivity(run ? 'run' : code ? 'room' : 'lobby', code)
 }
 
@@ -2891,7 +2896,7 @@ const boot = () => {
   // The Meta da comunidade's candies, in the background: reaching the goal opens Mega Darkrai, with a banner the first time.
   startCandyGoal()
   onCandyGoal((_, opened) => opened && banner(ui, rich(t().halloween.goalOpened), 5000))
-  // A co-op link (`?sala=K7QF2`, maybe `&ref=` who sent it), beta or not: join that room and show it (signed in first:
+  // A co-op link (`?sala=K7QF2`, maybe `&ref=` who sent it): join that room and show it (signed in first:
   // `enterCoop`); in a run, by snapshot, on the same seat after a reload. Or back from signing in to play co-op.
   const back = takeCoopReturn()
   const room = linkedRoom()
@@ -2900,13 +2905,7 @@ const boot = () => {
     linkRoom(null)
     later(() => toast(ui, t().coop.off, 5000, 'coopOff'))
   } else if (dest) enterCoop(dest)
-  // The beta's flag: the lobby's tile shows (or goes) once it answers, and again for the account signed in.
-  refreshCoopEntry()
-  onCoopEntry(() => {
-    syncPresence()
-    if (screen?.el.querySelector('.lobby')) showTitle()
-  })
-  onAccountChange(() => (refreshCoopEntry(), syncPresence()))
+  onAccountChange(() => syncPresence())
   onPresence((v) => offerInvites(v.invites))
   // Results that didn't reach the ranking last time (offline) go now, once the account is back.
   if (accountState().kind === 'signedIn') setTimeout(() => void flushRuns(), 5000)
@@ -3050,13 +3049,13 @@ const devGifts = {
    * Puts a Mystery Gift in the lobby's gift box as if a sync listed it: `ps.gift('egg', 'friend')`, `ps.gift('coins', '500')`,
    * `ps.gift('title')`, `ps.gift('style', 'ambassador')` (a frame), `ps.gift('shinyHatch', 'munchlax')`,
    * `ps.gift('ribbon', 'gold')` (yesterday's challenge, #12 of 340), `ps.gift('shinyPick')` (a shiny of one's choice),
-   * `ps.gift('companion', 'pumpkaboo')` (a gift-only companion), `ps.gift('bag', 'lure')` (3 of a Bag item).
+   * `ps.gift('companion', 'pumpkaboo')` (a gift-only companion), `ps.gift('bag', 'lure')` (3 of a Bag item), `ps.gift('legend', 'cresselia')` (a festival legend).
    * `why`: an inviter's handle (welcome) or a count of friends brought.
    */
   gift: (kind: GiftKind = 'egg', arg?: string, why?: string | number) => {
-    const raw = { egg: { tier: arg ?? 'friend' }, coins: { amount: Number(arg ?? 500) }, title: { title: arg ?? 'ambassador' }, style: { style: { slot: 'frame', id: arg ?? 'ambassador' } }, shinyHatch: { family: arg ?? 'munchlax' }, ribbon: { ribbon: { day: previousDay(brasiliaDay(today())), tier: arg ?? 'gold', rank: 12, total: 340 } }, shinyPick: {}, companion: { id: arg ?? 'pumpkaboo' }, bag: { item: arg ?? 'lure', count: 3 } }[kind]
+    const raw = { egg: { tier: arg ?? 'friend' }, coins: { amount: Number(arg ?? 500) }, title: { title: arg ?? 'ambassador' }, style: { style: { slot: 'frame', id: arg ?? 'ambassador' } }, shinyHatch: { family: arg ?? 'munchlax' }, ribbon: { ribbon: { day: previousDay(brasiliaDay(today())), tier: arg ?? 'gold', rank: 12, total: 340 } }, shinyPick: {}, companion: { id: arg ?? 'pumpkaboo' }, bag: { item: arg ?? 'lure', count: 3 }, legend: { legend: arg ?? 'cresselia' } }[kind]
     const content = parseGiftContent({ kind, ...raw })
-    if (!content) return 'Kinds: egg (tier), coins (amount), title, style (frame id), shinyHatch (family), ribbon (tier), shinyPick, companion (id), bag (item, 3 of it)'
+    if (!content) return 'Kinds: egg (tier), coins (amount), title, style (frame id), shinyHatch (family), ribbon (tier), shinyPick, companion (id), bag (item, 3 of it), legend (id)'
     const reason: GiftReason | null = typeof why === 'number' ? { kind: 'friends', count: why } : why ? { kind: 'welcome', from: why } : null
     return stageGifts([{ id: `dev-${Date.now()}`, content, reason }])
   },
@@ -3167,7 +3166,7 @@ const devLandmark = (g: Game, id?: LandmarkId, dy = 60) => {
  * nudges this client's state off the team's (the relay heals it), `('pick', id)` another
  * Pokémon for the room, `('url', u)`
  * points at another relay (null: the default), `('relay', home, u)` sets a VPS relay (`sa`: São Paulo, for South American hosts' rooms), `('botRelays', 'cf=u&sa=u')` the relays the next bots reach (a latency lab), `('net')` the connection numbers and the run's `coop_net` so far; `('room')` and
- * `('hub')` open those screens, `('beta', true|false|null)` forces the lobby's tile on this device,
+ * `('hub')` open those screens,
  * `('build')` joins a room made for another build (the "update" refusal) and `('invite', code, name)`
  * stages a friend's invite banner without the API.
  */
@@ -3192,8 +3191,6 @@ const devCoop = async (cmd?: string, arg?: string | number | boolean | null, ext
       return showRoom()
     case 'hub':
       return showCoopHub(typeof arg === 'string' ? arg : null)
-    case 'beta':
-      return setCoopBeta(arg === null || arg === undefined ? null : arg !== 0 && arg !== 'off' && arg !== 'false')
     case 'build': {
       // A room reserved for another simulation build: joining it is refused with 'build'.
       const res = await fetch(`${coopUrl()}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ v: PROTOCOL, build: 'sim-0000000000000000' }) })
@@ -3267,7 +3264,7 @@ const devCoop = async (cmd?: string, arg?: string | number | boolean | null, ext
       return { ...client.connection(), queued: client.queued(), stats: r?.stats, tickMs: r?.tickMs, slot: r?.slot, where: st.where, summary, last: lastCoopNet() }
     }
     default:
-      return 'ps.coop(): create, join, bots, surrender, pick, ready, start, leave, drop, fresh, desync, url, relay, botRelays, net, wall, room, hub, beta, build, invite'
+      return 'ps.coop(): create, join, bots, surrender, pick, ready, start, leave, drop, fresh, desync, url, relay, botRelays, net, wall, room, hub, build, invite'
   }
 }
 

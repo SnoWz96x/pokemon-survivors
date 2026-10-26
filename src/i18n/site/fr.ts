@@ -306,7 +306,7 @@ export const siteFr: SiteMessages = {
   guide: {
     title: 'Comment jouer à Pokémon Survivors : le guide complet',
     description:
-      'Guide de Pokémon Survivors : commandes au clavier, à la manette et sur téléphone, déroulement d’une partie, niveaux, capacités, évolutions de capacités avec les objets tenus, attaque spéciale, types et statuts, boss, chromatiques, objets de la carte, événements et Boutique de Kecleon.',
+      'Guide de Pokémon Survivors : commandes au clavier, à la manette et sur téléphone, déroulement d’une partie, niveaux, capacités, évolutions de capacités avec les objets tenus, attaque spéciale, types et statuts, boss, chromatiques, objets de la carte, événements, Boutique de Kecleon et coop en ligne.',
     h1: 'Comment jouer',
     intro:
       'Pokémon Survivors est un roguelite façon Vampire Survivors : tu te contentes de bouger, et ton Pokémon attaque tout seul. Ce guide explique tout ce qui se passe pendant une partie, avec les chiffres du jeu.',
@@ -327,6 +327,7 @@ export const siteFr: SiteMessages = {
       landmarks: 'Points de repère sur la carte',
       megas: 'Méga-Évolution',
       legends: 'Mode Légendaire',
+      coop: 'Coop en ligne',
       shinies: 'Chromatiques',
       eggs: 'Œufs et incubateur',
       items: 'Objets de la carte',
@@ -475,6 +476,18 @@ export const siteFr: SiteMessages = {
       flute: 'Poké Flute (objet de la carte)',
       itemsNote: 'La King’s Rock augmente les chances de statut, le Toxic Orb augmente les dégâts de brûlure et de poison, et la Light Clay fait durer les statuts plus longtemps.',
     },
+    coop: {
+      paragraphs: (m) => [
+        `Dans le lobby, Coop ouvre le jeu en équipe : jusqu’à ${m.players} dresseurs dans la même partie, chacun avec son Pokémon. Crée un salon et invite tes amis avec le lien (l’ouvrir mène directement au salon), le code à 5 caractères ou ta liste d’amis, qui montre qui est en ligne, dans un salon ou en partie, et envoie l’invitation tout de suite. Chacun choisit son Pokémon et se met prêt, puis l’hôte choisit la difficulté et lance la partie. La coop utilise ton compte : l’équipe voit ton @nom, et les ₽ que tu gagnes y sont enregistrés.`,
+        `L’EXP appartient à l’équipe : chaque Exp. Candy arrive à tout le monde, donc toute l’équipe monte de niveau ensemble et choisit en même temps (au-delà de ${m.pick}s, le jeu choisit pour toi). L’évolution, le Talent, la CT ou la Poké Ball d’un joueur n’arrêtent pas la partie des autres, et les boss et les failles laissent à chacun sa propre CT, Poké Ball, prix d’Alpha et Méga-Gemme.`,
+        `Celui qui est K.O. devient une Poké Ball au sol : un coéquipier qui reste à côté pendant ${m.revive}s le ranime avec ${m.reviveHp}% de ses PV. La partie se termine quand plus personne ne peut continuer ; après Mewtwo, l’équipe a ${m.vote}s pour voter la suite en mode sans fin. Si la connexion coupe, le jeu se reconnecte et tu reprends là où tu en étais. À la fin, les ₽ de l’équipe sont partagés entre les joueurs qui ont commencé la partie.`,
+        'Pour l’instant, la coop se joue en mode standard : les lieux (la grotte, le cimetière et le ciel) ne s’ouvrent pas, les constructions de la carte ne sont qu’un décor, les légendaires des failles combattent dans l’ancienne arène, sans domaine, et le Mode Légendaire, le Sac, les CT, les objets d’évolution et les Bottle Caps de la boutique, l’Apparition massive du jour, la Nuit des Sorcières, le Défi du jour et le classement restent à l’écart.',
+      ],
+      scaleTitle: 'La horde grandit avec l’équipe',
+      whatHead: 'Quoi',
+      perHead: 'Par joueur en plus',
+      scale: { spawn: 'Rythme de la horde', cap: 'Taille maximale de la horde', hp: 'PV des ennemis', bossHp: 'PV des boss, Alphas et légendaires', coins: 'Poké Dollars ramassés' },
+    },
     legends: {
       paragraphs: (m: { count: number; awaken: readonly number[] }) => [
         `Les ${m.count} légendaires du jeu peuvent tous être capturés et joués en Mode Légendaire. Pour en capturer un, bats-le en tant que boss, dans n’importe quel mode : à chaque victoire avant la capture, il s’échappe de la Poké Ball et le jeu tient le compte (Kyogre s’est échappé… 2/3) ; à la victoire qui complète le compte, il est capturé et apparaît dans l’onglet Légendaires du choix du partenaire. En battre un chromatique lors de la victoire de capture, ou de n’importe quelle victoire après, débloque sa forme chromatique.`,
@@ -488,7 +501,7 @@ export const siteFr: SiteMessages = {
       opensHead: 'Capacité légendaire',
       pressureTitle: 'Difficultés en Mode Légendaire',
       pressure: 'La Pression s’ajoute à chaque difficulté : voici les multiplicateurs du Mode Légendaire.',
-      where: { rift: 'Faille légendaire', trio: 'Trio légendaire', mythical: 'Aux côtés de Mewtwo (1 sur 10)', finale: 'Boss final', endless: 'Mode sans fin, en tout dernier', event: 'Nuit des Sorcières 2026 (événement)' },
+      where: { rift: 'Faille légendaire', trio: 'Trio légendaire', mythical: 'Aux côtés de Mewtwo (1 sur 10)', finale: 'Boss final', endless: 'Mode sans fin, en tout dernier', event: 'Nuit des Sorcières 2026 (événement)', festival: 'Festival des Lanternes 2026 (prix)' },
       /** The event legends (`EVENT_LEGENDS`), after the table. */
       eventNote: 'Pendant la Nuit des Sorcières 2026 (du 24 octobre au 2 novembre), Darkrai arrive comme légendaire d’événement : il n’apparaît que dans la faille du Cauchemar, qui peut remplacer une faille lors d’une partie hantée, et 2 victoires le capturent. Il joue avec Dark Void, qui endort les foules, et l’inné Bad Dreams, qui blesse ceux qui dorment près de lui. Après l’événement, il retourne dans l’ombre, mais qui l’a capturé continue de le jouer. Il ne compte pas pour Arceus.',
     },
@@ -912,5 +925,23 @@ export const siteFr: SiteMessages = {
     ],
     issues: 'Ouvrir une issue sur GitHub',
     source: 'Voir le code source',
+  },
+  notFound: {
+    title: 'Page introuvable · Pokémon Survivors',
+    eyebrow: 'ERREUR 404 · ROUTE 404',
+    h1: 'Tu t’es perdu sur la Route 404.',
+    lead: 'Cette page n’existe pas, mais les Zubat, si. Marche jusqu’à un panneau pour sortir.',
+    url: 'Adresse cherchée\u00a0:',
+    mean: { before: 'Tu cherchais ', after: '\u00a0?' },
+    hint: 'Flèches ou ZQSD pour marcher. Sur mobile, touche et fais glisser. Les attaques partent toutes seules.',
+    game: 'Mini-jeu\u00a0: marche sur la Route 404 jusqu’à un panneau',
+    start: 'Marche pour commencer',
+    go: 'Aller à',
+    over: '{name} est K.O. sur la Route 404.',
+    time: 'Temps',
+    ko: 'K.O.',
+    best: 'Record',
+    retry: 'Réessayer',
+    notes: { play: 'Une vraie partie', pokedex: 'Tous les Pokémon du jeu', guide: 'Comment jouer' },
   },
 }

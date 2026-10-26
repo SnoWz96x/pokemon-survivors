@@ -309,7 +309,7 @@ export const siteEs: SiteMessages = {
   guide: {
     title: 'Cómo jugar Pokémon Survivors: guía completa',
     description:
-      'Guía de Pokémon Survivors: controles en teclado, mando y móvil, cómo funciona la partida, niveles, movimientos, evolución de movimientos con objetos, ataque especial, tipos y estados, jefes, shinies, objetos y eventos del mapa y la Tienda Kecleon.',
+      'Guía de Pokémon Survivors: controles en teclado, mando y móvil, cómo funciona la partida, niveles, movimientos, evolución de movimientos con objetos, ataque especial, tipos y estados, jefes, shinies, objetos y eventos del mapa, la Tienda Kecleon y el co-op en línea.',
     h1: 'Cómo jugar',
     intro:
       'Pokémon Survivors es un roguelite tipo Vampire Survivors: tú solo te mueves y tu Pokémon ataca solo. Esta guía explica todo lo que pasa en una partida, con los números del juego.',
@@ -330,6 +330,7 @@ export const siteEs: SiteMessages = {
       landmarks: 'Puntos de interés del mapa',
       megas: 'Megaevolución',
       legends: 'Modo Legendario',
+      coop: 'Co-op en línea',
       shinies: 'Shinies',
       eggs: 'Huevos e incubadora',
       items: 'Objetos en el mapa',
@@ -478,6 +479,18 @@ export const siteEs: SiteMessages = {
       flute: 'Poké Flute (objeto del mapa)',
       itemsNote: 'King\'s Rock aumenta la probabilidad de estado, Toxic Orb aumenta el daño de quemadura y veneno, y Light Clay hace que los estados duren más.',
     },
+    coop: {
+      paragraphs: (m) => [
+        `En el lobby, Co-op abre el juego en equipo: hasta ${m.players} entrenadores en la misma partida, cada uno con su Pokémon. Crea una sala e invita a tus amigos con el enlace (quien lo abre entra directo a la sala), el código de 5 caracteres o tu lista de Amigos, que muestra quién está en línea, en una sala o jugando, y manda la invitación al instante. Cada uno elige su Pokémon y se pone listo, y el anfitrión elige la dificultad y empieza. El co-op usa tu cuenta: el equipo ve tu @nombre, y los ₽ que ganas se guardan en ella.`,
+        `La EXP es del equipo: cada Exp. Candy llega a todos, así que todos suben de nivel juntos y eligen al mismo tiempo (si pasas de ${m.pick}s, el juego elige por ti). La evolución, la Habilidad, la MT o la Poké Ball de un jugador no detienen la partida de los demás, y los jefes y las grietas dejan a cada uno su propia MT, Poké Ball, premio de Alfa y Megapiedra.`,
+        `Quien se debilita se vuelve una Poké Ball en el suelo: un compañero parado a su lado durante ${m.revive}s lo reanima con el ${m.reviveHp}% de los PS. La partida termina cuando nadie más puede seguir; después de Mewtwo, el equipo tiene ${m.vote}s para votar si sigue en el modo sin fin. Si se cae la conexión, el juego se reconecta y vuelves donde estabas. Al final, los ₽ del equipo se reparten entre los jugadores que empezaron la partida.`,
+        'Por ahora el co-op es el modo normal: los lugares (la cueva, el cementerio y el cielo) no se abren, las construcciones del mapa son solo decorado, los legendarios de las grietas pelean en la arena antigua, sin dominio, y quedan fuera el Modo Legendario, la Mochila, las MT, los objetos de evolución y las Chapas de la tienda, la Horda del día, la Noche de Brujas, el Desafío del día y el ranking.',
+      ],
+      scaleTitle: 'La horda crece con el equipo',
+      whatHead: 'Qué',
+      perHead: 'Por jugador extra',
+      scale: { spawn: 'Ritmo de la horda', cap: 'Tamaño máximo de la horda', hp: 'PS de los enemigos', bossHp: 'PS de jefes, Alfas y legendarios', coins: 'Poké Dollars recogidos' },
+    },
     legends: {
       paragraphs: (m: { count: number; awaken: readonly number[] }) => [
         `Los ${m.count} legendarios del juego se pueden capturar y jugar en el Modo Legendario. Para capturar uno, véncelo como jefe, en cualquier modo: en cada victoria antes de la captura se escapa de la Poké Ball y el juego lleva la cuenta (Kyogre se escapó… 2/3); en la victoria que la completa, queda capturado y aparece en la pestaña Legendarios de la selección de compañero. Vencer a uno shiny en la victoria de la captura, o en cualquier victoria después, desbloquea su forma shiny.`,
@@ -491,7 +504,7 @@ export const siteEs: SiteMessages = {
       opensHead: 'Movimiento legendario',
       pressureTitle: 'Dificultades en el Modo Legendario',
       pressure: 'La Presión se suma a cada dificultad: así quedan los multiplicadores del Modo Legendario.',
-      where: { rift: 'Grieta legendaria', trio: 'Trío legendario', mythical: 'Junto a Mewtwo (1 de cada 10)', finale: 'Jefe final', endless: 'Modo infinito, al final', event: 'Noche de Brujas 2026 (evento)' },
+      where: { rift: 'Grieta legendaria', trio: 'Trío legendario', mythical: 'Junto a Mewtwo (1 de cada 10)', finale: 'Jefe final', endless: 'Modo infinito, al final', event: 'Noche de Brujas 2026 (evento)', festival: 'Festival de las Linternas 2026 (premio)' },
       /** The event legends (`EVENT_LEGENDS`), after the table. */
       eventNote: 'En la Noche de Brujas de 2026 (del 24 de octubre al 2 de noviembre), Darkrai llega como legendario de evento: solo aparece en la grieta de la Pesadilla, que puede tomar el lugar de una grieta en una partida embrujada, y se captura con 2 victorias. Juega con Dark Void, que duerme a las multitudes, y la innata Bad Dreams, que hiere a quien duerme cerca de él. Después del evento vuelve a las sombras, pero quien lo capturó sigue jugando con él. No cuenta para Arceus.',
     },
@@ -915,5 +928,23 @@ export const siteEs: SiteMessages = {
     ],
     issues: 'Abrir un issue en GitHub',
     source: 'Ver el código fuente',
+  },
+  notFound: {
+    title: 'Página no encontrada · Pokémon Survivors',
+    eyebrow: 'ERROR 404 · RUTA 404',
+    h1: 'Te perdiste en la Ruta 404.',
+    lead: 'Esta página no existe, pero los Zubat sí. Camina hasta un letrero para salir.',
+    url: 'Buscaste:',
+    mean: { before: '¿Quisiste decir ', after: '?' },
+    hint: 'Flechas o WASD para caminar. En el celular, toca y arrastra. Los ataques salen solos.',
+    game: 'Minijuego: camina por la Ruta 404 hasta un letrero',
+    start: 'Camina para empezar',
+    go: 'Ir a',
+    over: '{name} se debilitó en la Ruta 404.',
+    time: 'Tiempo',
+    ko: 'KO',
+    best: 'Récord',
+    retry: 'Intentar de nuevo',
+    notes: { play: 'Una partida de verdad', pokedex: 'Todos los Pokémon del juego', guide: 'Cómo jugar' },
   },
 }

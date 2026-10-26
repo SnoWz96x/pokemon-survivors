@@ -76,13 +76,17 @@ export const dexPaths = (slug: string): Paths => ({
   zh: `${ROUTES.pokedex.zh}${slug}/`,
 })
 
-/** sitemap.xml with every route and every `extra` page (the Pokémon pages) in every language, each listing its alternates. */
-export const sitemap = (extra: readonly Paths[] = []) => {
-  const urls = [...ROUTE_IDS.map((id) => ROUTES[id]), ...extra].flatMap((paths) =>
+/** One page of the sitemap in every language, with the day its content last changed when we know it for sure. */
+export type SitemapEntry = { paths: Paths; lastmod?: string | undefined }
+
+/** sitemap.xml with every entry in every language, each listing its alternates. */
+export const sitemap = (entries: readonly SitemapEntry[]) => {
+  const urls = entries.flatMap(({ paths, lastmod }) =>
     LOCALE_IDS.map((l) =>
       [
         '  <url>',
         `    <loc>${absolute(paths[l])}</loc>`,
+        ...(lastmod ? [`    <lastmod>${lastmod}</lastmod>`] : []),
         ...alternatesOf(paths).map((a) => `    <xhtml:link rel="alternate" hreflang="${a.hreflang}" href="${a.href}" />`),
         '  </url>',
       ].join('\n'),
