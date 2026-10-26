@@ -215,8 +215,8 @@ export const createPlayer = (slot: number, setup: PlayerSetup, lucky: boolean, x
 
 /**
  * A fresh run for `setups` by slot (one solo), standing side by side. Each
- * player rolls their 1/64 shiny in slot order (a hatched family's roll never
- * counts, `rollsLuckyShiny`), then the run draws its wild
+ * player rolls their 1/64 shiny in slot order (only a starter's roll counts,
+ * `rollsLuckyShiny`), then the run draws its wild
  * cast unless the shell drew it ahead (`drawRoster`). The team's best Shiny
  * Charm counts (solo, the player's).
  */
