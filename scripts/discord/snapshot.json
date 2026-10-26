@@ -8,15 +8,15 @@
     "splash": null,
     "discovery_splash": null,
     "features": [
-      "COMMUNITY",
-      "NEWS",
-      "GUILD_SERVER_GUIDE",
       "AUTO_MODERATION",
-      "AGE_VERIFICATION_LARGE_GUILD",
       "GUILD_ONBOARDING",
-      "WELCOME_SCREEN_ENABLED",
+      "NEWS",
+      "COMMUNITY",
       "GUILD_ONBOARDING_EVER_ENABLED",
-      "GUILD_ONBOARDING_HAS_PROMPTS"
+      "AGE_VERIFICATION_LARGE_GUILD",
+      "GUILD_ONBOARDING_HAS_PROMPTS",
+      "GUILD_SERVER_GUIDE",
+      "WELCOME_SCREEN_ENABLED"
     ],
     "banner": null,
     "owner_id": "639620117239562251",
@@ -63,7 +63,7 @@
       "name": "Pokémon Survivors",
       "description": null,
       "permissions": "8",
-      "position": 13,
+      "position": 15,
       "color": 0,
       "colors": {
         "primary_color": 0,
@@ -85,7 +85,7 @@
       "name": "Owner",
       "description": null,
       "permissions": "5892853606918",
-      "position": 12,
+      "position": 14,
       "color": 16306224,
       "colors": {
         "primary_color": 16306224,
@@ -104,7 +104,7 @@
       "name": "Dev",
       "description": null,
       "permissions": "5903322589878",
-      "position": 11,
+      "position": 13,
       "color": 16306224,
       "colors": {
         "primary_color": 16306224,
@@ -123,10 +123,48 @@
       "name": "Moderator",
       "description": null,
       "permissions": "5903322589878",
-      "position": 10,
+      "position": 12,
       "color": 6852848,
       "colors": {
         "primary_color": 6852848,
+        "secondary_color": null,
+        "tertiary_color": null
+      },
+      "hoist": true,
+      "managed": false,
+      "mentionable": false,
+      "icon": null,
+      "unicode_emoji": null,
+      "flags": 0
+    },
+    {
+      "id": "1564342411793277029",
+      "name": "『💎』Diamond Supporter",
+      "description": null,
+      "permissions": "0",
+      "position": 11,
+      "color": 9559549,
+      "colors": {
+        "primary_color": 9559549,
+        "secondary_color": null,
+        "tertiary_color": null
+      },
+      "hoist": true,
+      "managed": false,
+      "mentionable": false,
+      "icon": null,
+      "unicode_emoji": null,
+      "flags": 0
+    },
+    {
+      "id": "1564342412833329316",
+      "name": "『🏆』OG Supporter",
+      "description": null,
+      "permissions": "0",
+      "position": 10,
+      "color": 10514672,
+      "colors": {
+        "primary_color": 10514672,
         "secondary_color": null,
         "tertiary_color": null
       },
@@ -219,9 +257,9 @@
       "description": null,
       "permissions": "0",
       "position": 5,
-      "color": 6868976,
+      "color": 4629957,
       "colors": {
-        "primary_color": 6868976,
+        "primary_color": 4629957,
         "secondary_color": null,
         "tertiary_color": null
       },
@@ -309,44 +347,6 @@
       "flags": 1
     },
     {
-      "id": "1564342411793277029",
-      "name": "Diamond Supporter",
-      "description": null,
-      "permissions": "0",
-      "position": 1,
-      "color": 5818616,
-      "colors": {
-        "primary_color": 5818616,
-        "secondary_color": null,
-        "tertiary_color": null
-      },
-      "hoist": true,
-      "managed": false,
-      "mentionable": false,
-      "icon": null,
-      "unicode_emoji": null,
-      "flags": 0
-    },
-    {
-      "id": "1564342412833329316",
-      "name": "OG Supporter",
-      "description": null,
-      "permissions": "0",
-      "position": 1,
-      "color": 10514672,
-      "colors": {
-        "primary_color": 10514672,
-        "secondary_color": null,
-        "tertiary_color": null
-      },
-      "hoist": true,
-      "managed": false,
-      "mentionable": false,
-      "icon": null,
-      "unicode_emoji": null,
-      "flags": 0
-    },
-    {
       "id": "1561824253559709777",
       "name": "@everyone",
       "description": null,
@@ -427,7 +427,7 @@
       "position": 1,
       "permission_overwrites": [
         {
-          "id": "1562199946545991730",
+          "id": "1561829008507928587",
           "type": 0,
           "allow": "377957124096",
           "deny": "0"
@@ -445,7 +445,7 @@
           "deny": "0"
         },
         {
-          "id": "1561829008507928587",
+          "id": "1562199946545991730",
           "type": 0,
           "allow": "377957124096",
           "deny": "0"
@@ -485,7 +485,7 @@
       "position": 3,
       "permission_overwrites": [
         {
-          "id": "1561829008507928587",
+          "id": "1562199946545991730",
           "type": 0,
           "allow": "377957124096",
           "deny": "0"
@@ -503,7 +503,7 @@
           "deny": "0"
         },
         {
-          "id": "1562199946545991730",
+          "id": "1561829008507928587",
           "type": 0,
           "allow": "377957124096",
           "deny": "0"
@@ -523,7 +523,7 @@
       "position": 4,
       "permission_overwrites": [
         {
-          "id": "1562199946545991730",
+          "id": "1561829008507928587",
           "type": 0,
           "allow": "377957124096",
           "deny": "0"
@@ -541,7 +541,7 @@
           "deny": "0"
         },
         {
-          "id": "1561829008507928587",
+          "id": "1562199946545991730",
           "type": 0,
           "allow": "377957124096",
           "deny": "0"
@@ -690,7 +690,7 @@
       "position": 7,
       "permission_overwrites": [
         {
-          "id": "1562199946545991730",
+          "id": "1561829008507928587",
           "type": 0,
           "allow": "1024",
           "deny": "0"
@@ -702,7 +702,7 @@
           "deny": "1024"
         },
         {
-          "id": "1561829008507928587",
+          "id": "1561829006846730414",
           "type": 0,
           "allow": "1024",
           "deny": "0"
@@ -714,7 +714,7 @@
           "deny": "0"
         },
         {
-          "id": "1561829006846730414",
+          "id": "1562199946545991730",
           "type": 0,
           "allow": "1024",
           "deny": "0"
@@ -734,7 +734,7 @@
       "position": 8,
       "permission_overwrites": [
         {
-          "id": "1561829008507928587",
+          "id": "1562199946545991730",
           "type": 0,
           "allow": "1024",
           "deny": "0"
@@ -746,7 +746,7 @@
           "deny": "1024"
         },
         {
-          "id": "1562199946545991730",
+          "id": "1561829008507928587",
           "type": 0,
           "allow": "1024",
           "deny": "0"
@@ -778,7 +778,7 @@
       "position": 9,
       "permission_overwrites": [
         {
-          "id": "1562199946545991730",
+          "id": "1561829008507928587",
           "type": 0,
           "allow": "1024",
           "deny": "0"
@@ -790,7 +790,7 @@
           "deny": "1024"
         },
         {
-          "id": "1561829006846730414",
+          "id": "1562199946545991730",
           "type": 0,
           "allow": "1024",
           "deny": "0"
@@ -802,7 +802,7 @@
           "deny": "0"
         },
         {
-          "id": "1561829008507928587",
+          "id": "1561829006846730414",
           "type": 0,
           "allow": "1024",
           "deny": "0"
@@ -820,7 +820,7 @@
       "position": 2,
       "permission_overwrites": [
         {
-          "id": "1564342412833329316",
+          "id": "1561829010953207861",
           "type": 0,
           "allow": "4776006782464",
           "deny": "0"
@@ -832,13 +832,13 @@
           "deny": "0"
         },
         {
-          "id": "1564342411793277029",
+          "id": "1561829008507928587",
           "type": 0,
           "allow": "4776006782464",
           "deny": "0"
         },
         {
-          "id": "1561829008507928587",
+          "id": "1564342411793277029",
           "type": 0,
           "allow": "4776006782464",
           "deny": "0"
@@ -856,7 +856,7 @@
           "deny": "0"
         },
         {
-          "id": "1561829010953207861",
+          "id": "1564342412833329316",
           "type": 0,
           "allow": "4776006782464",
           "deny": "0"
@@ -883,7 +883,7 @@
       "position": 0,
       "permission_overwrites": [
         {
-          "id": "1564342412833329316",
+          "id": "1561829010953207861",
           "type": 0,
           "allow": "4776006782464",
           "deny": "0"
@@ -901,7 +901,7 @@
           "deny": "0"
         },
         {
-          "id": "1561829010953207861",
+          "id": "1564342412833329316",
           "type": 0,
           "allow": "4776006782464",
           "deny": "0"
@@ -946,7 +946,7 @@
       "position": 10,
       "permission_overwrites": [
         {
-          "id": "1564342412833329316",
+          "id": "1561829010953207861",
           "type": 0,
           "allow": "4776006782464",
           "deny": "0"
@@ -964,7 +964,7 @@
           "deny": "0"
         },
         {
-          "id": "1561829008507928587",
+          "id": "1564342412833329316",
           "type": 0,
           "allow": "4776006782464",
           "deny": "0"
@@ -982,7 +982,7 @@
           "deny": "0"
         },
         {
-          "id": "1561829010953207861",
+          "id": "1561829008507928587",
           "type": 0,
           "allow": "4776006782464",
           "deny": "0"
@@ -1129,7 +1129,7 @@
       "position": 16,
       "permission_overwrites": [
         {
-          "id": "1561829006846730414",
+          "id": "1561829008507928587",
           "type": 0,
           "allow": "377957173248",
           "deny": "0"
@@ -1153,7 +1153,7 @@
           "deny": "0"
         },
         {
-          "id": "1561829008507928587",
+          "id": "1561829006846730414",
           "type": 0,
           "allow": "377957173248",
           "deny": "0"
