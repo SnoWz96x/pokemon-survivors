@@ -375,6 +375,8 @@ export const zh: Messages = {
     runToastModes: { all: '全部', important: '僅重要', none: '關閉' },
     minimap: '小地圖',
     minimapModes: { square: '方形', round: '圓形', off: '關' },
+    theme: '主題',
+    themes: { system: '跟隨系統', light: '淺色', dark: '深色' },
     attackOpacity: '招式透明度',
     teamAttackOpacity: '隊伍招式透明度',
     uiScale: '介面大小',

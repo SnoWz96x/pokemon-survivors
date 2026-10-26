@@ -498,6 +498,9 @@ export const pt = {
     /** The HUD's mini map (`render/minimap.ts`): its shape, or off. */
     minimap: 'Mini mapa',
     minimapModes: { square: 'Quadrado', round: 'Redondo', off: 'OFF' },
+    /** Menus' and HUD's colors (`ui/theme.ts`): light, dark or the system's. */
+    theme: 'Tema',
+    themes: { system: 'Sistema', light: 'Claro', dark: 'Escuro' },
     /** How opaque your moves draw (and, in co-op, your teammates'): `render/attackLayers.ts`. */
     attackOpacity: 'Opacidade dos golpes',
     teamAttackOpacity: 'Opacidade do time',

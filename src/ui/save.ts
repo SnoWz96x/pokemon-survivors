@@ -14,6 +14,7 @@ import { DAMAGE_NUMBERS, type DamageNumbers } from '../render/damageNumbers'
 import { FLASH_MODES, type Flashes } from '../render/flashes'
 import { RUN_TOASTS, type RunToasts } from './toastQueue'
 import { DEFAULT_BINDINGS, parseBindings, type Bindings } from '../engine/bindings'
+import { THEMES, type Theme } from './theme'
 import { UI_SCALES, type UiScale } from './uiScale'
 
 const KEY = 'ps:save'
@@ -195,6 +196,8 @@ export type Settings = {
   uiScale: UiScale
   /** The HUD's mini map (`render/minimap.ts`): square, round or off. */
   minimap: MinimapMode
+  /** Menus and HUD colors (`ui/theme.ts`). Per device: a phone may follow its own dark mode. */
+  theme: Theme
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -214,6 +217,7 @@ export const DEFAULT_SETTINGS: Settings = {
   stickEdge: 'near',
   uiScale: 'auto',
   minimap: 'square',
+  theme: 'system',
 }
 
 const volume = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback)
@@ -251,6 +255,7 @@ export const parseSettings = (raw: string | null, defaults = DEFAULT_SETTINGS): 
     stickEdge: STICK_EDGES.find((m) => m === data.stickEdge) ?? defaults.stickEdge,
     uiScale: UI_SCALES.find((s) => s === data.uiScale) ?? defaults.uiScale,
     minimap: MINIMAP_MODES.find((m) => m === data.minimap) ?? defaults.minimap,
+    theme: THEMES.find((m) => m === data.theme) ?? defaults.theme,
   }
 }
 

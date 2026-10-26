@@ -375,6 +375,8 @@ export const fr: Messages = {
     runToastModes: { all: 'Toutes', important: 'Importantes', none: 'Aucune' },
     minimap: 'Mini-carte',
     minimapModes: { square: 'Carrée', round: 'Ronde', off: 'OFF' },
+    theme: 'Thème',
+    themes: { system: 'Système', light: 'Clair', dark: 'Sombre' },
     attackOpacity: 'Opacité des attaques',
     teamAttackOpacity: 'Opacité de l’équipe',
     uiScale: 'Taille de l’interface',
