@@ -1,10 +1,11 @@
 import type { ClerkClient } from '@clerk/backend'
 import { DISCORD_GIFT } from '../../src/game/gifts'
-import { supporterTier, type SupporterTier } from '../../src/game/supporters'
+import { SUPPORTER_TIERS, type SupporterTier } from '../../src/game/supporters'
 import { isRecord } from '../../src/game/parse'
 import type { Sql } from './db'
 import { idsByName, restClient, type DiscordConfig } from './discord'
 import { sendGift } from './gifts'
+import { tierOfRow, type StandingRow } from './supporters'
 
 /**
  * A game account linked to Discord. The player connects Discord to their
@@ -13,25 +14,23 @@ import { sendGift } from './gifts'
  * community server (Discord's `guilds.join`, with the OAuth token Clerk keeps)
  * and gives them their supporter role. Once they're in, the account gets
  * its thank-you (`DISCORD_GIFT`, key `discord`: once per account, however
- * often they relink). A donation that raises a linked player's tier updates
- * the role (`syncRoles`). Linking never grants Trainer: that one is earned
+ * often they relink). A donation or a pledge that changes a linked player's
+ * tier, up or down, updates the role (`syncRoles`). Linking never grants Trainer: that one is earned
  * in #introductions (`discord.ts`).
  */
 
 /** The server's supporter roles, by name (`scripts/discord/setup.mjs`). */
-export const SUPPORTER_ROLES = { supporter: 'Supporter', gold: 'Gold Supporter' } as const satisfies Record<SupporterTier, string>
+export const SUPPORTER_ROLES = { supporter: 'Supporter', gold: 'Gold Supporter', diamond: 'Diamond Supporter' } as const satisfies Record<SupporterTier, string>
 
 /**
- * The roles a tier adds and removes. Gold replaces Supporter (one heart on
- * the member list); no tier changes nothing, so a role a moderator gave by
- * hand stays (tiers only go up anyway).
+ * The roles a tier adds and removes: its own, never the others (one heart on
+ * the member list). No tier removes all three: a pledge that ended takes its
+ * role back (only `syncRoles` passes null, when the tier went down).
  */
-export const supporterRoleChanges = (tier: SupporterTier | null): { add: string[]; remove: string[] } =>
-  tier === 'gold'
-    ? { add: [SUPPORTER_ROLES.gold], remove: [SUPPORTER_ROLES.supporter] }
-    : tier === 'supporter'
-      ? { add: [SUPPORTER_ROLES.supporter], remove: [] }
-      : { add: [], remove: [] }
+export const supporterRoleChanges = (tier: SupporterTier | null): { add: string[]; remove: string[] } => ({
+  add: tier ? [SUPPORTER_ROLES[tier]] : [],
+  remove: SUPPORTER_TIERS.filter((t) => t !== tier).map((t) => SUPPORTER_ROLES[t]),
+})
 
 /** What Clerk says of one of a user's external accounts (the fields `discordAccount` reads). */
 export type ExternalAccountInfo = { provider: string; providerUserId: string; username: string | null; verification: { status: string } | null }
@@ -84,8 +83,8 @@ export const discordLink = (sql: Sql, clerk: ClerkClient, bot: DiscordConfig | n
   }
 
   const tierOf = async (userId: string) => {
-    const [row] = await sql<{ points: number }[]>`select supporter_points as points from users where id = ${userId}`
-    return supporterTier(row?.points ?? 0)
+    const [row] = await sql<StandingRow[]>`select supporter_points, og_tier, patreon_tier, patreon_best from users where id = ${userId}`
+    return row ? tierOfRow(row) : null
   }
 
   /** The Discord OAuth token Clerk keeps for the player (`identify guilds.join`), or null. */
@@ -128,7 +127,9 @@ export const discordLink = (sql: Sql, clerk: ClerkClient, bot: DiscordConfig | n
         joined = await join(account.id, token)
         if (joined) {
           await thank(userId)
-          await applyRoles(account.id, await tierOf(userId))
+          // Only adds: a role a moderator gave someone who has no tier stays.
+          const tier = await tierOf(userId)
+          if (tier) await applyRoles(account.id, tier)
         }
       } catch (err) {
         console.error(`discord join failed for ${userId}`, err)
@@ -158,12 +159,13 @@ export const discordLink = (sql: Sql, clerk: ClerkClient, bot: DiscordConfig | n
       await sql`update users set discord_id = null, discord_name = null where id = ${userId}`
     },
 
-    /** Puts a linked player's supporter role in line with their tier (after a donation). Never throws. */
+    /** Puts a linked player's supporter role in line with their tier (after it changed, up or down). Never throws. */
     syncRoles: async (userId: string) => {
       if (!call) return
       try {
-        const [row] = await sql<{ discord_id: string | null; points: number }[]>`select discord_id, supporter_points as points from users where id = ${userId}`
-        if (row?.discord_id) await applyRoles(row.discord_id, supporterTier(row.points))
+        const [row] = await sql<(StandingRow & { discord_id: string | null })[]>`
+          select discord_id, supporter_points, og_tier, patreon_tier, patreon_best from users where id = ${userId}`
+        if (row?.discord_id) await applyRoles(row.discord_id, tierOfRow(row))
       } catch (err) {
         console.error(`discord roles failed for ${userId}`, err)
       }

@@ -86,10 +86,12 @@ const TEAMS = ['grass', 'fire', 'water'].map((type) => {
   }
 })
 
-// Top of the list first. `staff` roles see the staff and supporter channels.
+// Top of the list first. `staff` roles see the staff and supporter channels; `supporter` roles (the API gives them
+// by tier, `SUPPORTER_ROLES` in server/src/discordLink.ts) see the 💛 Supporters category.
 const ROLES = [
   { name: 'Dev', color: 0xf8d030, hoist: true, staff: true },
   { name: 'Moderator', color: 0x6890f0, hoist: true, staff: true },
+  { name: 'Diamond Supporter', color: 0x58c8f8, hoist: true, supporter: true },
   { name: 'Gold Supporter', color: 0xf0b000, hoist: true, supporter: true },
   { name: 'Supporter', color: 0xf85888, hoist: true, supporter: true },
   // Picked in Onboarding: the member's name takes the type's color.

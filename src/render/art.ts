@@ -992,9 +992,16 @@ const FLAG = ['11........', '141111111.', '1432222221', '1432222221', '143222222
 
 export const flagIcon = () => toIconUrl('flag', () => art(FLAG, { 1: '#402030', 2: '#e83838', 3: '#f88878', 4: '#c8d0e0' }))
 
-/** The supporter's badge by their names (`game/supporters.ts`): a rose heart, a gold one for the gold tier. */
+/** The Diamond tier's heart, cut like a gem: 1 its edges, 3 the glint, 4 the light facets, 5 the shaded ones. */
+const DIAMOND_HEART = ['.11.11.', '1341341', '1334441', '1444451', '.14551.', '..151..', '...1...']
+
+/** The supporter's badge by their names (`game/supporters.ts`): a rose heart, a gold one for Gold, a faceted ice-blue one for Diamond. */
 export const supporterIcon = (tier: SupporterTier) =>
-  tier === 'gold' ? toIconUrl('heart:gold', () => art(HEART, { 1: '#c88a10', 2: '#f8d030', 3: '#fffbe0' }, '#4a3008')) : heartIcon()
+  tier === 'diamond'
+    ? toIconUrl('heart:diamond', () => art(DIAMOND_HEART, { 1: '#2870c0', 3: '#ffffff', 4: '#a8ecff', 5: '#50b0f0' }, '#0c2448'))
+    : tier === 'gold'
+      ? toIconUrl('heart:gold', () => art(HEART, { 1: '#c88a10', 2: '#f8d030', 3: '#fffbe0' }, '#4a3008'))
+      : heartIcon()
 export const sparkleIcon = () => toIconUrl('sparkle', () => outlined(SPARKLE()[2]!, '#584010'))
 
 /** PlayStation's face buttons in their colors, the size of a Press Start 2P letter: the pixel fonts have no ✕ ○ □ △ (see `ui/inputLabels.ts`). */

@@ -1,24 +1,77 @@
+import { accountUserId, onAccountChange } from './account'
 import { apiCall } from './api'
-import type { PollOptionId } from './data/supporters'
+import type { PollKind, PollOption } from './data/supporters'
+import type { Save } from './game/meta'
 import { isRecord } from './game/parse'
-import { parseHidden, parsePoll, parseSupporterStatus, parseWall, type Poll, type SupporterStatus, type SupporterTier, type Wall } from './game/supporters'
+import { parseHidden, parsePoll, parseSupporterStatus, parseWall, savedSupporterTier, type Poll, type SupporterStatus, type SupporterTier, type Wall } from './game/supporters'
 
 /**
  * The supporters' side of the API (`server/`): the player's own standing,
- * redeeming a donation's code, linking a Patreon, the wall and the poll. Like `ranking.ts`,
+ * redeeming a donation's code, linking a Patreon, the wall and the polls. Like `ranking.ts`,
  * every call fails soft (null), so the screens just say they're out of reach.
  */
 
-/** The signed-in player's standing, or null (guest, offline). */
+const STATUS_KEY = 'ps:supporter'
+
+/** The standing the API last gave this device, kept per account (a dev hook stages one). */
+const storeStatus = (status: SupporterStatus) => {
+  try {
+    localStorage.setItem(STATUS_KEY, JSON.stringify({ userId: accountUserId() ?? '', status }))
+  } catch {
+    // Storage blocked: the device asks again next time.
+  }
+}
+
+/** The signed-in player's standing the API last gave, or null (another account's, or never asked). */
+export const knownStatus = (): SupporterStatus | null => {
+  try {
+    const kept: unknown = JSON.parse(localStorage.getItem(STATUS_KEY) ?? 'null')
+    return isRecord(kept) && kept.userId === (accountUserId() ?? '') ? parseSupporterStatus(kept.status) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The account's tier as this device knows it: the API's last word, else the
+ * save's thank-yous (`savedSupporterTier`, never Diamond). Diamond, and a
+ * pledge that ended, only come from the API. It only decides what's drawn
+ * (the badge, the companion), never anything in a run.
+ */
+export const knownTier = (save: Save): SupporterTier | null => {
+  const status = knownStatus()
+  return status ? status.tier : savedSupporterTier(save)
+}
+
+/** The signed-in player's standing (kept for `knownTier`), or null (guest, offline). */
 export const fetchSupporterStatus = async (): Promise<SupporterStatus | null> => {
   const { status, body } = await apiCall('/me/supporter', { auth: true })
-  return status === 200 ? parseSupporterStatus(body) : null
+  const parsed = status === 200 ? parseSupporterStatus(body) : null
+  if (parsed) storeStatus(parsed)
+  return parsed
 }
+
+/** Dev: stands the device at `tier` as if the API said so (`ps.supporter`). */
+export const stageSupporterStatus = (tier: SupporterTier) =>
+  storeStatus({ tier, since: new Date().toISOString(), public: true, og: false, vote: null, diamondVote: null, patreon: null })
+
+let asked: string | null = null
+
+/** Asks the API for the standing once per signed-in account per page, so `knownTier` follows a pledge that changed. */
+export const watchSupporterStatus = () =>
+  onAccountChange((s) => {
+    const userId = accountUserId()
+    if (s.kind !== 'signedIn' || !userId || asked === userId) return
+    asked = userId
+    void fetchSupporterStatus()
+  })
 
 /** Shows or hides the player's badge and name. Their standing after it, or null when it didn't go through. */
 export const setSupporterPublic = async (show: boolean): Promise<SupporterStatus | null> => {
   const { status, body } = await apiCall('/me/supporter', { method: 'PUT', body: { public: show }, auth: true })
-  return status === 200 ? parseSupporterStatus(body) : null
+  const parsed = status === 200 ? parseSupporterStatus(body) : null
+  if (parsed) storeStatus(parsed)
+  return parsed
 }
 
 /** What redeeming a code came to: the tier the account has now, or why not. */
@@ -66,15 +119,17 @@ export const fetchWall = () =>
     return { entries: parseWall(body.supporters), hidden: parseHidden(body.hidden) }
   }))
 
-/** The current poll, or null when the API can't be reached. */
-export const fetchPoll = async (): Promise<Poll | null> => {
-  const { status, body } = await apiCall('/poll')
-  return status === 200 ? parsePoll(body) : null
+const POLL_PATHS = { supporters: '/poll', diamond: '/poll/diamond' } as const satisfies Record<PollKind, string>
+
+/** The `kind` poll, or null when the API can't be reached. */
+export const fetchPoll = async <K extends PollKind>(kind: K): Promise<Poll<K> | null> => {
+  const { status, body } = await apiCall(POLL_PATHS[kind])
+  return status === 200 ? parsePoll(body, kind) : null
 }
 
-/** A supporter's vote. The poll after it, `denied` for anyone who isn't a supporter, null offline. */
-export const vote = async (choice: PollOptionId): Promise<Poll | 'denied' | null> => {
-  const { status, body } = await apiCall('/poll', { method: 'PUT', body: { choice }, auth: true })
+/** A vote in the `kind` poll. The poll after it, `denied` for anyone who may not vote there, null offline. */
+export const vote = async <K extends PollKind>(kind: K, choice: PollOption<K>): Promise<Poll<K> | 'denied' | null> => {
+  const { status, body } = await apiCall(POLL_PATHS[kind], { method: 'PUT', body: { choice }, auth: true })
   if (status === 403) return 'denied'
-  return status === 200 ? parsePoll(body) : null
+  return status === 200 ? parsePoll(body, kind) : null
 }

@@ -1,10 +1,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { isRecord } from '../../src/game/parse'
 import { parseHandle } from '../../src/game/ranking'
+import { pledgeTier, type SupporterTier } from '../../src/game/supporters'
 
 /**
  * Payment webhooks, as pure functions: checking that an event really came
- * from Stripe, AbacatePay or Patreon, and reading the paid donation out of it.
+ * from Stripe, AbacatePay or Patreon, and reading the paid donation (or a
+ * patron's pledge) out of it.
  */
 
 /** A paid donation, as a webhook tells it. `handle`: the account it's for, when the donor gave one. */
@@ -116,25 +118,49 @@ const PATREON_ID = /^[A-Za-z0-9-]{1,64}$/
 
 const cents = (v: unknown) => (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : null)
 
-/**
- * The charge a Patreon webhook (`X-Patreon-Event`) tells of, or null: any
- * `members:` event whose member's last charge is `Paid`. The currency is the
- * campaign's when the payload includes it, else `fallbackCurrency`.
- */
-export const patreonCharge = (event: string | undefined, body: unknown, fallbackCurrency: string): PatreonCharge | null => {
+/** The member a Patreon `members:` event is about: its id, attributes and Patreon user id (`patron`), or null. */
+const memberOf = (event: string | undefined, body: unknown) => {
   if (!event?.startsWith('members:') || !isRecord(body) || !isRecord(body.data)) return null
   const m = body.data
   if (m.type !== 'member' || typeof m.id !== 'string' || !PATREON_ID.test(m.id) || !isRecord(m.attributes)) return null
+  const user = isRecord(m.relationships) && isRecord(m.relationships.user) && isRecord(m.relationships.user.data) ? m.relationships.user.data.id : null
+  if (typeof user !== 'string' || !PATREON_ID.test(user)) return null
+  return { id: m.id, attributes: m.attributes, patron: user }
+}
+
+/**
+ * The charge a Patreon webhook (`X-Patreon-Event`) tells of, or null: any
+ * `members:` event whose member's last charge is `Paid`. The currency is the
+ * campaign's when the payload includes it, else `fallbackCurrency`. A charge
+ * is only history now: the tier comes from the pledge (`patreonMember`).
+ */
+export const patreonCharge = (event: string | undefined, body: unknown, fallbackCurrency: string): PatreonCharge | null => {
+  const m = memberOf(event, body)
+  if (!m || !isRecord(body)) return null
   const a = m.attributes
   const date = typeof a.last_charge_date === 'string' ? new Date(a.last_charge_date) : null
   if (a.last_charge_status !== 'Paid' || !date || Number.isNaN(date.getTime())) return null
-  const user = isRecord(m.relationships) && isRecord(m.relationships.user) && isRecord(m.relationships.user.data) ? m.relationships.user.data.id : null
-  if (typeof user !== 'string' || !PATREON_ID.test(user)) return null
   const lifetime = cents(a.campaign_lifetime_support_cents) ?? cents(a.lifetime_support_cents)
   const entitled = cents(a.currently_entitled_amount_cents) ?? 0
   const campaign: unknown = Array.isArray(body.included) ? body.included.find((r: unknown) => isRecord(r) && r.type === 'campaign') : undefined
   const currency = isRecord(campaign) && isRecord(campaign.attributes) && typeof campaign.attributes.currency === 'string' ? campaign.attributes.currency : fallbackCurrency
-  return { ref: `patreon:${m.id}:${date.toISOString()}`, member: m.id, patron: user, lifetime, entitled, currency: currency.toLowerCase() }
+  return { ref: `patreon:${m.id}:${date.toISOString()}`, member: m.id, patron: m.patron, lifetime, entitled, currency: currency.toLowerCase() }
+}
+
+/** A patron's tier now, as a Patreon member event tells it: `patron` their Patreon user id, `tier` null once the pledge ended. */
+export type PatreonMember = { patron: string; tier: SupporterTier | null }
+
+/**
+ * The tier a Patreon `members:` event leaves the patron at, or null when it
+ * isn't about a member: their active pledge's (`pledgeTier` of
+ * `currently_entitled_amount_cents`) while `patron_status` is `active_patron`;
+ * none once it's declined or former, or the event deletes the member or the pledge.
+ */
+export const patreonMember = (event: string | undefined, body: unknown): PatreonMember | null => {
+  const m = memberOf(event, body)
+  if (!m) return null
+  const ended = event === 'members:delete' || event === 'members:pledge:delete' || m.attributes.patron_status !== 'active_patron'
+  return { patron: m.patron, tier: ended ? null : pledgeTier(cents(m.attributes.currently_entitled_amount_cents) ?? 0) }
 }
 
 /**

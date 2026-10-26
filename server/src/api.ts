@@ -76,7 +76,7 @@ const app = createApp({
   gifts,
   verify: clerkVerifier(env),
   donate: env.abacatePayKey ? abacatePay(env.abacatePayKey) : null,
-  supporters: supporterStore(sql, { onTierUp: (userId) => void discord.syncRoles(userId) }),
+  supporters: supporterStore(sql, { onTierChange: (userId) => void discord.syncRoles(userId) }),
   festival: festivalStore(sql),
   candyGoal: candyGoalStore(sql),
   discord,
