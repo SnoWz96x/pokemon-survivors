@@ -7,13 +7,14 @@ import { layout } from '../layout'
 import { STRIPE_DONATION_URL } from '../routes'
 
 /**
- * `/apoie/`: donations, two ways side by side. From Brazil, a preset or any
+ * `/apoie/`: the monthly tiers on Patreon (`PATREON_URL`) up top, then one-time
+ * donations, two ways side by side. From Brazil, a preset or any
  * amount in reais opens an AbacatePay checkout (Pix or card) through the API;
  * from elsewhere, the Stripe Payment Link (card, Apple Pay, Google Pay in US$).
  * Portuguese lists Brazil first; `client.ts` reorders by the device's time zone
  * and wires the form. Above them, the @ of the account that gets the rewards
  * (filled from the game's `?u=` or this browser's account); under them, what
- * donors get, the monthly tiers on Patreon (`PATREON_URL`) and the supporters' wall. Both checkouts come back with
+ * donors get and the supporters' wall. Both checkouts come back with
  * `?thanks=<ref>`, and the page says where the rewards went, or shows the code.
  */
 export const supportPage = (locale: Locale) => {
@@ -72,12 +73,12 @@ export const supportPage = (locale: Locale) => {
       <p class="donate-status"></p>
       <div class="donate-code" hidden><p>${st.code}</p><p class="donate-code-row"><code></code><button class="btn-play" type="button">${st.copy}</button></p><p class="note">${st.codeHint}</p></div>
     </div>
+    ${monthly}
     ${account}
     <div class="donate-ways" id="donate-ways" role="group" aria-label="${s.pick}">
       ${locale === 'pt' ? [br, intl] : [intl, br]}
     </div>
     ${perks}
-    ${monthly}
     ${wall}
   </div>`
   return layout({ id: 'support', locale, title: s.title, description: s.description }, main)
