@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { SUPPORTER } from '../data/supporters'
+import { DIAMOND_POLL, POLL, SUPPORTER } from '../data/supporters'
 import { EMPTY_SAVE, type Save } from './meta'
-import { badgesOf, canWalkWith, donationPoints, effectiveTier, hallOf, hallTier, newCode, NO_STANDING, ogTier, parseCode, parseHidden, parseWall, pledgeTier, supporterCount, tiersReached } from './supporters'
+import { badgesOf, canWalkWith, donationPoints, effectiveTier, hallOf, hallTier, mayVote, newCode, NO_STANDING, ogTier, parseCode, parseHidden, parseWall, pledgeTier, pollToVote, supporterCount, tiersReached, withVote, type SupporterStatus } from './supporters'
 
 describe('supporter tiers', () => {
   it('counts reais and dollars on one scale', () => {
@@ -142,5 +142,31 @@ describe('the wall', () => {
     expect(hall.legends.map((e) => e.handle)).toEqual(['gem', 'gold'])
     expect(hall.supporters.map((e) => e.handle)).toEqual(['new', 'twin', 'old'])
     expect(hall.og.map((e) => e.handle)).toEqual(['old', 'gold'])
+  })
+})
+
+describe('polls', () => {
+  const status = (tier: SupporterStatus['tier']): SupporterStatus => ({ tier, since: null, public: true, og: false, vote: null, diamondVote: null, patreon: null })
+  const pick = POLL.options[0].id
+  const diamondPick = DIAMOND_POLL.options[0].id
+
+  it('lets anyone see both polls but only Diamond vote in its own', () => {
+    expect(mayVote(null, 'diamond')).toBe(false)
+    expect(mayVote(status('gold'), 'diamond')).toBe(false)
+    expect(mayVote(status('gold'), 'supporters')).toBe(true)
+    expect(mayVote(status('diamond'), 'diamond')).toBe(true)
+  })
+
+  it('calls a supporter to each poll they may vote in until they do', () => {
+    expect(pollToVote(status(null))).toBe(null)
+    expect(pollToVote(status('gold'))).toBe('supporters')
+    expect(pollToVote(withVote(status('gold'), 'supporters', pick))).toBe(null)
+    const diamond = withVote(status('diamond'), 'supporters', pick)
+    expect(pollToVote(diamond)).toBe('diamond')
+    expect(pollToVote(withVote(diamond, 'diamond', diamondPick))).toBe(null)
+  })
+
+  it('ignores a choice outside the poll', () => {
+    expect(withVote(status('diamond'), 'diamond', pick).diamondVote).toBe(null)
   })
 })
