@@ -49,6 +49,7 @@ import { createSpecialState, specialBusy, specialSpeedFactor, updateSpecial } fr
 import { AWAKENING, avoidLegend, createLegendState, formAfter, pendingAwakening, updateLegend } from './legend'
 import { decidePokeball, updatePickups } from './pickups'
 import { rollShiny, SHINY_ODDS, shinyBoost } from './shiny'
+import { rollsLuckyShiny } from './shinyStarters'
 import { updateProps } from './props'
 import { withHoney, withOutbreak } from './outbreak'
 import { withHaunts } from './halloween'
@@ -214,14 +215,16 @@ export const createPlayer = (slot: number, setup: PlayerSetup, lucky: boolean, x
 
 /**
  * A fresh run for `setups` by slot (one solo), standing side by side. Each
- * player rolls their 1/64 shiny in slot order, then the run draws its wild
+ * player rolls their 1/64 shiny in slot order (a hatched family's roll never
+ * counts, `rollsLuckyShiny`), then the run draws its wild
  * cast unless the shell drew it ahead (`drawRoster`). The team's best Shiny
  * Charm counts (solo, the player's).
  */
 const createRun = (view: Game['view'], seed: number, setups: readonly PlayerSetup[], roster: Roster | undefined, options: RunOptions, coop: boolean): Game => {
   const bag = options.bag ?? []
   const rng = createRng(seed)
-  const lucky = setups.map(() => rollShiny(rng, SHINY_ODDS.player))
+  // Every slot rolls, so the rng moves the same whoever plays.
+  const lucky = setups.map((setup) => rollShiny(rng, SHINY_ODDS.player) && rollsLuckyShiny(setup.starter))
   const players = setups.map((setup, slot) => createPlayer(slot, setup, lucky[slot]!, coop ? (slot - (setups.length - 1) / 2) * COOP.spacing : 0, view))
   const player = players[0]!
   const starter = player.starter

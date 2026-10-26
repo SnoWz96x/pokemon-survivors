@@ -1,11 +1,11 @@
-import { isStarter, PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
+import { isHatchling, isStarter, PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
 import { LEGEND_IDS } from '../data/legends'
 import { isRecord } from './parse'
 
 /**
  * Shiny starters for good: rolling the 1/64 shiny on a Pokémon unlocks its
- * shiny form forever (a hatched family or a legend once the run lasts
- * `LUCKY_SHINY_HOLD`), and the select screen then offers Normal or Shiny.
+ * shiny form forever (a legend's once the run lasts `LUCKY_SHINY_HOLD`; a
+ * hatched family never rolls it), and the select screen then offers Normal or Shiny.
  * Saved as `{ [id]: picked }`: a key means unlocked, its value whether the
  * next run plays it shiny. A family hatched shiny owns its shiny through
  * `hatched` and keeps its Normal/Shiny pick here too (`pickShinyForm` in
@@ -19,7 +19,10 @@ export const NO_SHINY_STARTERS: ShinyStarters = {}
 /** Every Pokémon that can own a shiny here: the regular cast and the legends. */
 const OWNERS: readonly PlayableId[] = [...PLAYABLE_IDS, ...LEGEND_IDS]
 
-/** Seconds a run must reach before its 1/64 roll unlocks a hatched family's or a legend's shiny: restarting until the roll hits must not farm what eggs and rifts give. */
+/** Whether `id` can roll the 1/64 shiny: a hatched family's shiny comes only from its egg, never from restarting runs until the roll hits. */
+export const rollsLuckyShiny = (id: PlayableId) => !isHatchling(id)
+
+/** Seconds a run must reach before its 1/64 roll unlocks a legend's shiny: restarting until the roll hits must not farm what rifts give. */
 export const LUCKY_SHINY_HOLD = 300
 
 /** The run clock (`Game.time`) at which `id`'s lucky roll unlocks its shiny: at once for a starter. */

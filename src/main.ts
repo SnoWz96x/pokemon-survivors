@@ -1106,7 +1106,7 @@ const launchRun =async (starter: PlayableId, daily: ChallengeRun | null) => {
   // Created like a replay is re-simulated (the roster drawn ahead is the same one).
   const game = startGame(start, view)
   const me = localPlayer(game)
-  // The 1/64 roll unlocks this Pokémon's shiny for good (Normal/Shiny on the select screen): a starter's at once, a hatched family's or a legend's once the run lasts.
+  // The 1/64 roll unlocks this Pokémon's shiny for good (Normal/Shiny on the select screen): a starter's at once, a legend's once the run lasts (a hatched family never rolls it).
   const hold = me.luckyShiny && !ownsShiny(save, starter) ? luckyShinyHold(starter) : null
   if (hold === 0) updateSave((s) => ({ ...s, shinyStarters: unlockShinyStarter(s.shinyStarters, starter) }))
   // A shiny run starts in its own colors (and loads only those).

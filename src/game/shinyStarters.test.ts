@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LUCKY_SHINY_HOLD, luckyShinyHold, mergeShinyStarters, parseShinyStarters, unlockShinyStarter } from './shinyStarters'
+import { LUCKY_SHINY_HOLD, luckyShinyHold, mergeShinyStarters, parseShinyStarters, rollsLuckyShiny, unlockShinyStarter } from './shinyStarters'
 
 describe('shiny starters', () => {
   it('unlock picked shiny, and a second roll keeps the pick', () => {
@@ -7,9 +7,11 @@ describe('shiny starters', () => {
     expect(unlockShinyStarter({ charmander: false }, 'charmander')).toEqual({ charmander: false })
   })
 
-  it('a lucky roll unlocks a starter at once, a hatched family or a legend only once the run lasts', () => {
+  it('a hatched family never rolls the lucky shiny; a starter unlocks it at once, a legend once the run lasts', () => {
+    expect(rollsLuckyShiny('gible')).toBe(false)
+    expect(rollsLuckyShiny('charmander')).toBe(true)
+    expect(rollsLuckyShiny('kyogre')).toBe(true)
     expect(luckyShinyHold('charmander')).toBe(0)
-    expect(luckyShinyHold('gible')).toBe(LUCKY_SHINY_HOLD)
     expect(luckyShinyHold('kyogre')).toBe(LUCKY_SHINY_HOLD)
   })
 
