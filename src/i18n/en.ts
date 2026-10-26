@@ -1702,6 +1702,11 @@ export const en: Messages = {
       already: 'This egg is in a Quick Incubator already: it walks twice as fast until it hatches.',
       none: (price) => `No Quick Incubator. Kecleon's shop sells them for ${price} (*Incubator* tab).`,
     },
+    pity: {
+      rule: (n) => `Guarantee: after ${n} eggs of a kind with no new Pokémon, the next one brings one.`,
+      count: (egg, n, max) => (n >= max ? `${egg}: *new one guaranteed!*` : `${egg} ${n}/${max}`),
+      hatched: (n) => `Egg guarantee: after ${n} with nothing new, this one is new!`,
+    },
     hatching: 'Oh? The Egg is moving!',
     hatched: (name) => `*${name}* hatched from the Egg!`,
     hatchedShiny: (name) => `A _shiny_ *${name}* hatched from the Egg!`,

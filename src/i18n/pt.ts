@@ -1931,6 +1931,12 @@ export const pt = {
       already: 'Este ovo já está numa Incubadora Rápida: anda o dobro até chocar.',
       none: (price: string) => `Sem Incubadora Rápida. A loja do Kecleon vende por ${price} (aba *Incubadora*).`,
     },
+    /** The egg pity (`EGGS.pity` in `game/eggs.ts`): the incubator's line and the hatching scene's note. */
+    pity: {
+      rule: (n: number) => `Garantia: depois de ${n} ovos do mesmo tipo sem Pokémon novo, o próximo traz um.`,
+      count: (egg: string, n: number, max: number) => (n >= max ? `${egg}: *novo garantido!*` : `${egg} ${n}/${max}`),
+      hatched: (n: number) => `Garantia de ovo: depois de ${n} sem novidade, este veio novo!`,
+    },
     hatching: 'Hã? O ovo está se mexendo!',
     hatched: (name: string) => `Saiu um *${name}*!`,
     hatchedShiny: (name: string) => `Saiu um *${name}* _shiny_!`,

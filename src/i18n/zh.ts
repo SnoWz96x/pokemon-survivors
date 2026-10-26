@@ -1700,6 +1700,11 @@ export const zh: Messages = {
       already: '這顆蛋已經在快速孵化器裡了：孵化前步數累積速度加倍。',
       none: (price) => `沒有快速孵化器。Kecleon商店有賣，售價 ${price}（*孵化器*分頁）。`,
     },
+    pity: {
+      rule: (n) => `保底：同一種蛋連續 ${n} 顆沒孵出新寶可夢，下一顆必定是新的。`,
+      count: (egg, n, max) => (n >= max ? `${egg}：*必出新寶可夢！*` : `${egg} ${n}/${max}`),
+      hatched: (n) => `孵蛋保底：連續 ${n} 顆沒有新寶可夢，這顆是新的！`,
+    },
     hatching: '咦？蛋在動！',
     hatched: (name) => `*${name}*從蛋裡孵出來了！`,
     hatchedShiny: (name) => `_異色_的*${name}*從蛋裡孵出來了！`,

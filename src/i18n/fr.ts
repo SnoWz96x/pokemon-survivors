@@ -1700,6 +1700,11 @@ export const fr: Messages = {
       already: 'Cet œuf est déjà dans un Incubateur rapide : il marche deux fois plus vite jusqu’à l’éclosion.',
       none: (price) => `Pas d’Incubateur rapide. La boutique de Kecleon en vend pour ${price} (onglet *Incubateur*).`,
     },
+    pity: {
+      rule: (n) => `Garantie : après ${n} œufs du même type sans nouveau Pokémon, le suivant en apporte un.`,
+      count: (egg, n, max) => (n >= max ? `${egg} : *nouveau garanti !*` : `${egg} ${n}/${max}`),
+      hatched: (n) => `Garantie d’œuf : après ${n} sans nouveauté, celui-ci est nouveau !`,
+    },
     hatching: 'Hein ? L’Œuf bouge !',
     hatched: (name) => `*${name}* est sorti de l’Œuf !`,
     hatchedShiny: (name) => `Un *${name}* _chromatique_ est sorti de l’Œuf !`,
