@@ -1,16 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { mergeShinyStarters, parseShinyStarters, rollsLuckyShiny, unlockShinyStarter } from './shinyStarters'
+import { mergeShinyStarters, parseShinyStarters, unlockShinyStarter } from './shinyStarters'
 
 describe('shiny starters', () => {
   it('unlock picked shiny, and a second roll keeps the pick', () => {
     expect(unlockShinyStarter({}, 'charmander')).toEqual({ charmander: true })
     expect(unlockShinyStarter({ charmander: false }, 'charmander')).toEqual({ charmander: false })
-  })
-
-  it('only a starter rolls the lucky shiny', () => {
-    expect(rollsLuckyShiny('charmander')).toBe(true)
-    expect(rollsLuckyShiny('gible')).toBe(false)
-    expect(rollsLuckyShiny('kyogre')).toBe(false)
   })
 
   it('merge as a union, with the incoming pick', () => {

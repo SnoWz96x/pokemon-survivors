@@ -1,4 +1,4 @@
-import { isStarter, PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
+import { PLAYABLE_IDS, type PlayableId } from '../data/hatchlings'
 import { LEGEND_IDS } from '../data/legends'
 import { isRecord } from './parse'
 
@@ -17,9 +17,6 @@ export const NO_SHINY_STARTERS: ShinyStarters = {}
 
 /** Every Pokémon that can own a shiny here: the regular cast and the legends. */
 const OWNERS: readonly PlayableId[] = [...PLAYABLE_IDS, ...LEGEND_IDS]
-
-/** Only a starter rolls the 1/64 shiny: a hatched family's comes from its egg and a legend's from beating it shiny, never from restarting runs until the roll hits. */
-export const rollsLuckyShiny = (id: PlayableId) => isStarter(id)
 
 /** Unlocks `id`'s shiny (picked, since the player just met it shiny). Already unlocked: the pick stays. */
 export const unlockShinyStarter = (owned: ShinyStarters, id: PlayableId): ShinyStarters => (id in owned ? owned : { ...owned, [id]: true })
