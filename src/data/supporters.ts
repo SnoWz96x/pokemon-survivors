@@ -51,8 +51,8 @@ export const POLL = {
 
 /**
  * Diamond supporters' own monthly vote, on a new ultra-rare Pokémon. Same
- * mechanics as `POLL` (a new month is a new `id`); only Diamond accounts vote
- * and only they see it. Options need sprites in the game (`npm run assets`).
+ * mechanics as `POLL` (a new month is a new `id`); everyone sees it, only
+ * Diamond accounts vote. Options need sprites in the game (`npm run assets`).
  */
 export const DIAMOND_POLL = {
   id: '2026-11-diamond',

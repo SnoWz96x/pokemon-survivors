@@ -1192,7 +1192,7 @@ export const zh: Messages = {
     codeShort: '兌換碼',
     og: { badge: 'OG 贊助者', button: (n) => `OG · ${n}`, title: 'OG 贊助者', intro: '在 Patreon 之前就贊助遊戲的人。永遠留在名人堂。謝謝你！♥' },
     companionLegends: '傳說寶可夢（鑽石級）',
-    diamondPoll: { tile: '鑽石', title: '本月超稀有', intro: '只有鑽石級可以投票：決定哪隻超稀有寶可夢加入遊戲。隨時都能改票。', voteOnly: '只有鑽石贊助者可以投票。' },
+    diamondPoll: { tile: '鑽石', title: '本月超稀有', intro: '鑽石贊助者決定哪隻超稀有寶可夢加入遊戲。隨時都能改票。', voteOnly: '只有鑽石贊助者可以投票，所有人都能看到結果。', link: '鑽石投票' },
     patreon: { link: '連結 Patreon', unlink: '✓ Patreon · 解除連結', linked: 'Patreon 已連結！你的等級會跟著每月贊助變動。', unlinked: '已解除 Patreon 連結。', failed: '無法連結 Patreon，請再試一次。' },
     show: (on) => (on ? '徽章與名稱：顯示' : '徽章與名稱：隱藏'),
     shown: (on) => (on ? '顯示' : '隱藏'),
@@ -1241,6 +1241,7 @@ export const zh: Messages = {
 
     credits: '感謝讓遊戲持續運作的訓練家們',
     banner: '你的異色在等你！',
+    voteWaiting: '投票進行中：快來投下你的一票！',
     badge: (tier) => ({ supporter: '贊助者', gold: '金級贊助者', diamond: '鑽石贊助者' })[tier],
     profileSince: (date) => `自 ${date} 起成為贊助者`,
   },

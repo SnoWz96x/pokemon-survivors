@@ -1194,7 +1194,7 @@ export const es: Messages = {
     codeShort: 'Código',
     og: { badge: 'Patrocinador(a) OG', button: (n) => `OG · ${n}`, title: 'PATROCINADORES OG', intro: 'Quienes apoyaron el juego antes de Patreon. En el Hall para siempre. ¡Gracias! ♥' },
     companionLegends: 'Legendarios (Diamante)',
-    diamondPoll: { tile: 'Diamante', title: 'ULTRARRARO DEL MES', intro: 'Solo Diamante vota: qué Pokémon ultrarraro entra al juego. Puedes cambiar tu voto cuando quieras.', voteOnly: 'Solo votan los Patrocinadores Diamante.' },
+    diamondPoll: { tile: 'Diamante', title: 'ULTRARRARO DEL MES', intro: 'Los Patrocinadores Diamante eligen qué Pokémon ultrarraro entra al juego. Puedes cambiar tu voto cuando quieras.', voteOnly: 'Solo votan los Patrocinadores Diamante. Todos ven el resultado.', link: 'Votación Diamante' },
     patreon: { link: 'Vincular Patreon', unlink: '✓ Patreon · desvincular', linked: '¡Patreon vinculado! Tu nivel sigue tu apoyo mensual.', unlinked: 'Patreon desvinculado.', failed: 'No se pudo vincular Patreon. Inténtalo de nuevo.' },
     show: (on) => (on ? 'Sello y nombre: visibles' : 'Sello y nombre: ocultos'),
     shown: (on) => (on ? 'Visible' : 'Oculto'),
@@ -1243,6 +1243,7 @@ export const es: Messages = {
 
     credits: 'Gracias a los entrenadores que mantienen el juego en línea',
     banner: '¡Tu shiny te espera!',
+    voteWaiting: 'Votación abierta: ¡deja tu voto!',
     badge: (tier) => ({ supporter: 'Patrocinador(a)', gold: 'Patrocinador(a) Oro', diamond: 'Patrocinador(a) Diamante' })[tier],
     profileSince: (date) => `Patrocinador(a) desde el ${date}`,
   },

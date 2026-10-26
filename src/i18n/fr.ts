@@ -1192,7 +1192,7 @@ export const fr: Messages = {
     codeShort: 'Code',
     og: { badge: 'Soutien OG', button: (n) => `OG · ${n}`, title: 'SOUTIENS OG', intro: 'Ceux qui ont soutenu le jeu avant Patreon. Au Hall pour toujours. Merci ! ♥' },
     companionLegends: 'Légendaires (Diamant)',
-    diamondPoll: { tile: 'Diamant', title: 'ULTRA-RARE DU MOIS', intro: 'Seuls les Diamant votent : quel Pokémon ultra-rare arrive dans le jeu. Tu peux changer ton vote quand tu veux.', voteOnly: 'Seuls les Soutiens Diamant votent.' },
+    diamondPoll: { tile: 'Diamant', title: 'ULTRA-RARE DU MOIS', intro: 'Les Soutiens Diamant choisissent quel Pokémon ultra-rare arrive dans le jeu. Tu peux changer ton vote quand tu veux.', voteOnly: 'Seuls les Soutiens Diamant votent. Tout le monde voit le résultat.', link: 'Vote Diamant' },
     patreon: { link: 'Lier Patreon', unlink: '✓ Patreon · délier', linked: 'Patreon lié ! Ton niveau suit ton soutien mensuel.', unlinked: 'Patreon délié.', failed: 'Impossible de lier Patreon. Réessaie.' },
     show: (on) => (on ? 'Badge et nom : affichés' : 'Badge et nom : masqués'),
     shown: (on) => (on ? 'Affiché' : 'Masqué'),
@@ -1241,6 +1241,7 @@ export const fr: Messages = {
 
     credits: 'Merci aux dresseurs qui font tourner le jeu',
     banner: 'Ton shiny t’attend !',
+    voteWaiting: 'Vote ouvert : donne ta voix !',
     badge: (tier) => ({ supporter: 'Soutien', gold: 'Soutien Or', diamond: 'Soutien Diamant' })[tier],
     profileSince: (date) => `Soutien depuis le ${date}`,
   },
