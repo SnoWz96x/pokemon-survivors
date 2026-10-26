@@ -74,12 +74,12 @@ describe('Standard Webhooks (AbacatePay since 01/10/2026)', () => {
 })
 
 describe('Patreon webhooks', () => {
-  const member = (attributes: Record<string, unknown> = {}, included: unknown[] = []) => ({
+  const member = (attributes: Record<string, unknown> = {}, included: unknown[] = [], tiers: string[] = ['29913157']) => ({
     data: {
       type: 'member',
       id: 'a1b2c3d4-0000-4000-8000-000000000001',
       attributes: { last_charge_status: 'Paid', last_charge_date: '2026-11-01T08:15:00.000+00:00', currently_entitled_amount_cents: 500, campaign_lifetime_support_cents: 1500, ...attributes },
-      relationships: { user: { data: { id: '9876543', type: 'user' } } },
+      relationships: { user: { data: { id: '9876543', type: 'user' } }, currently_entitled_tiers: { data: tiers.map((id) => ({ id, type: 'tier' })) } },
     },
     included,
   })
@@ -128,12 +128,22 @@ describe('Patreon webhooks', () => {
     expect(patreonAmount({ ...charge, lifetime: null }, 1000)).toBe(500)
   })
 
-  it("reads the patron's tier from the pledge they keep active, never from what they paid in all", () => {
+  it("reads the patron's tier from the tier they're entitled to, never from what they paid", () => {
     expect(patreonMember('members:pledge:create', member({ patron_status: 'active_patron' }))).toEqual({ patron: '9876543', tier: 'supporter' })
     // Months of US$ 5 add up in the lifetime total, the tier stays.
     expect(patreonMember('members:update', member({ patron_status: 'active_patron', campaign_lifetime_support_cents: 9000 }))?.tier).toBe('supporter')
-    expect(patreonMember('members:pledge:update', member({ patron_status: 'active_patron', currently_entitled_amount_cents: 1000 }))?.tier).toBe('gold')
-    expect(patreonMember('members:pledge:update', member({ patron_status: 'active_patron', currently_entitled_amount_cents: 2500 }))?.tier).toBe('diamond')
+    // A Brazilian's Supporter is R$ 32,50: their amounts come in reais, the tier is still Supporter.
+    expect(patreonMember('members:pledge:create', member({ patron_status: 'active_patron', currently_entitled_amount_cents: 3250 }))?.tier).toBe('supporter')
+    expect(patreonMember('members:pledge:update', member({ patron_status: 'active_patron' }, [], ['29913165']))?.tier).toBe('gold')
+    expect(patreonMember('members:pledge:update', member({ patron_status: 'active_patron' }, [], ['29913157', '29913169']))?.tier).toBe('diamond')
+  })
+
+  it("prices a tier it doesn't know by the tier's own price, and gives nothing for a free one", () => {
+    const tier = (id: string, amount: number) => ({ type: 'tier', id, attributes: { amount_cents: amount } })
+    expect(patreonMember('members:pledge:create', member({ patron_status: 'active_patron' }, [tier('1', 1000)], ['1']))?.tier).toBe('gold')
+    expect(patreonMember('members:pledge:create', member({ patron_status: 'active_patron' }, [tier('2', 0)], ['2']))?.tier).toBeNull()
+    expect(patreonMember('members:pledge:create', member({ patron_status: 'active_patron' }, [], ['3']))?.tier).toBeNull()
+    expect(patreonMember('members:create', member({ patron_status: 'active_patron' }, [], []))?.tier).toBeNull()
   })
 
   it('drops the tier once the pledge is declined, cancelled or the member is gone', () => {

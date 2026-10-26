@@ -6,6 +6,9 @@
  * the cumulative total that made Gold before them (R$ 50, or US$ 10), which
  * the OG migration froze into `users.og_tier` and nothing reaches any more.
  */
+
+import type { SupporterTier } from '../game/supporters'
+
 export const SUPPORTER = {
   gold: 5000,
   /** Points per cent of each currency. Stripe may charge in another one: those count as dollars. */
@@ -14,11 +17,18 @@ export const SUPPORTER = {
   credits: 40,
 } as const
 
-/**
- * Patreon's tiers by the pledge a member keeps active (`currently_entitled_amount_cents`,
- * cents of the campaign's currency, US dollars): US$ 5, 10 and 20 a month.
- */
+/** Patreon's tiers by their price, cents of the campaign's currency (US dollars): US$ 5, 10 and 20 a month. */
 export const PATREON_TIERS = { supporter: 500, gold: 1000, diamond: 2000 } as const
+
+/**
+ * The campaign's Patreon tiers by id (Patreon's `tier` resources), as a
+ * member's `currently_entitled_tiers` names them. A member's amounts are in
+ * the patron's own currency (a Brazilian pays in reais), so the tier comes
+ * from these ids, never from `currently_entitled_amount_cents`. A tier added
+ * on Patreon goes here; until then its price in the payload decides
+ * (`patreonMember`).
+ */
+export const PATREON_TIER_IDS: Readonly<Record<string, SupporterTier>> = { '29913157': 'supporter', '29913165': 'gold', '29913169': 'diamond' }
 
 /** The Patreon page, for the monthly tiers (the support page links it). */
 export const PATREON_URL = 'https://www.patreon.com/c/pokemonsurvivors'
