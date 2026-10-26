@@ -230,6 +230,20 @@ export type Wall = { entries: WallEntry[]; hidden: HiddenSupporters }
 /** `GET /poll`, `GET /poll/diamond`: a poll and its votes per option. */
 export type Poll<K extends PollKind = 'supporters'> = { id: string; votes: Record<PollOption<K>, number> }
 
+/** Whether `s` may vote in the `kind` poll: any supporter in the supporters', only Diamond in Diamond's. Anyone sees both. */
+export const mayVote = (s: SupporterStatus | null, kind: PollKind) => (kind === 'diamond' ? s?.tier === 'diamond' : Boolean(s?.tier))
+
+/** The player's vote in the `kind` poll, as their standing says (null for none). */
+export const voteIn = (s: SupporterStatus | null, kind: PollKind) => (kind === 'diamond' ? s?.diamondVote : s?.vote) ?? null
+
+/** `s` after a vote for `choice` in the `kind` poll, so the device knows it until the API next answers. */
+export const withVote = (s: SupporterStatus, kind: PollKind, choice: string): SupporterStatus =>
+  kind === 'diamond' ? { ...s, diamondVote: isPollOptionOf('diamond', choice) ? choice : s.diamondVote } : { ...s, vote: isPollOptionOf('supporters', choice) ? choice : s.vote }
+
+/** The poll a supporter may vote in but hasn't yet (the supporters', then Diamond's): the lobby's Hall card calls them to it. */
+export const pollToVote = (s: SupporterStatus | null): PollKind | null =>
+  (['supporters', 'diamond'] as const).find((kind) => mayVote(s, kind) && voteIn(s, kind) === null) ?? null
+
 const isoOrNull = (v: unknown) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : null)
 
 /** The player's standing from the API, or null when the answer isn't one. */

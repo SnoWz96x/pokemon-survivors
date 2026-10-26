@@ -166,7 +166,8 @@ import { starterSelect } from './ui/starterSelect'
 import { invitesScreen } from './ui/invites'
 import { titleScreen, type LobbyFocus, type Meadow, type ShopTrip } from './ui/title'
 import { creditsLine, supportersScreen } from './ui/supporters'
-import { knownTier, patreonReturn, stageSupporterStatus, watchSupporterStatus } from './supporters'
+import type { PollKind } from './data/supporters'
+import { knownTier, linkedPoll, patreonReturn, stageSupporterStatus, watchSupporterStatus } from './supporters'
 import { suggestionsScreen } from './ui/suggestions'
 import { banner, clearToasts, readRunToasts, runToast, tickToasts, toast, type ToastTone } from './ui/toasts'
 import { bugReportForm, crashPrompt } from './ui/bugReport'
@@ -2733,6 +2734,12 @@ const showIdeasLink = () =>
     }),
   )
 
+/** `?votar` (`?votar=diamante`): the Hall da Fama opens on that poll over the lobby, for the Discord's and Patreon's posts to link. */
+const showPollLink = (poll: PollKind) => {
+  history.replaceState(null, '', location.pathname)
+  setScreen(supportersScreen(ui, input, { play: (id) => void startRun(id), onClose: () => showTitle({ focus: 'hall' }) }, { poll }))
+}
+
 /** Back from Patreon (`?patreon=linked|failed`): the Hall da Fama opens over the lobby and says how the link went. */
 const showPatreonReturn = (linked: boolean) => {
   history.replaceState(null, '', location.pathname)
@@ -2874,10 +2881,12 @@ const boot = () => {
   // Someone's link (`?ref=`, a profile): remember who brought this device, before anything reads the URL.
   captureRef()
   const shared = rankingEnabled ? parseHandle(new URLSearchParams(location.search).get(PROFILE_PARAM)) : null
+  const poll = accountsEnabled ? linkedPoll() : null
   if (shared) showSharedProfile(shared)
   else if (rankingEnabled && new URLSearchParams(location.search).has(IDEAS_PARAM)) showIdeasLink()
   else if (new URLSearchParams(location.search).has(SHOP_PARAM)) showTitle({ shop: 'shop', instant: true })
   else if (patreonReturn()) showPatreonReturn(patreonReturn() === 'linked')
+  else if (poll) showPollLink(poll)
   // Back from signing in, the player already pressed start before leaving: straight to the menu.
   else showTitle({ intro: !backFromSignIn() })
   askAboutCrash()

@@ -1399,8 +1399,8 @@ export const pt = {
     og: { badge: 'Apoiador(a) OG', button: (n: number): string => `OG · ${n}`, title: 'APOIADORES OG', intro: 'Quem apoiou o jogo antes do Patreon. No Hall para sempre. Obrigado! ♥' },
     /** The companion picker's section of captured legends, Diamond only. */
     companionLegends: 'Lendários (Diamante)',
-    /** Diamond's monthly poll on a new ultra-rare Pokémon (`DIAMOND_POLL`), shown only to Diamond. */
-    diamondPoll: { tile: 'Diamante', title: 'ULTRARRARO DO MÊS', intro: 'Só quem é Diamante vota: qual Pokémon ultrarraro entra no jogo. Dá para mudar o voto quando quiser.', voteOnly: 'Só Apoiadores Diamante votam.' },
+    /** Diamond's monthly poll on a new ultra-rare Pokémon (`DIAMOND_POLL`): everyone sees it, only Diamond votes. `link` is the Hall's way there for non-supporters. */
+    diamondPoll: { tile: 'Diamante', title: 'ULTRARRARO DO MÊS', intro: 'Apoiadores Diamante escolhem qual Pokémon ultrarraro entra no jogo. Dá para mudar o voto quando quiser.', voteOnly: 'Só Apoiadores Diamante votam. Todo mundo vê o resultado.', link: 'Votação Diamante' },
     /** The Hall's Patreon link: a linked Patreon's pledge sets the account's tier. */
     patreon: { link: 'Vincular Patreon', unlink: '✓ Patreon · desvincular', linked: 'Patreon vinculado! Seu nível segue o seu apoio mensal.', unlinked: 'Patreon desvinculado.', failed: 'Não deu para vincular o Patreon. Tente de novo.' },
     show: (on: boolean): string => (on ? 'Selo e nome: visíveis' : 'Selo e nome: ocultos'),
@@ -1450,6 +1450,8 @@ export const pt = {
 
     credits: 'Obrigado aos treinadores que mantêm o jogo no ar',
     banner: 'Seu shiny te espera!',
+    /** The lobby's Hall card while a supporter hasn't voted in an open poll yet (`pollToVote`). */
+    voteWaiting: 'Votação aberta: dê seu voto!',
     badge: (tier: SupporterTier): string => ({ supporter: 'Apoiador(a)', gold: 'Apoiador(a) Ouro', diamond: 'Apoiador(a) Diamante' })[tier],
     profileSince: (date: string) => `Apoiador(a) desde ${date}`,
   },

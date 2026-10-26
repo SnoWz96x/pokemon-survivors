@@ -6,7 +6,7 @@ import { HALLOWEEN } from '../data/halloween'
 import { LEGEND_IDS } from '../data/legends'
 import { pollOptions, SUPPORTER, type PollKind, type PollOption } from '../data/supporters'
 import { pendingPicks, pickShiny, shinyChoices } from '../game/shinyPicks'
-import { canWalkWith, companionForm, hallOf, isSupporter, parseCode, SUPPORTER_TIERS, supporterCount, walksShiny, type Companion, type CompanionId, type SupporterStatus, type SupporterTier, type Wall, type WallEntry } from '../game/supporters'
+import { canWalkWith, companionForm, hallOf, isSupporter, mayVote, parseCode, pollToVote, SUPPORTER_TIERS, supporterCount, voteIn, walksShiny, type Companion, type CompanionId, type SupporterStatus, type SupporterTier, type Wall, type WallEntry } from '../game/supporters'
 import { isSpecialCompanion, SPECIAL_COMPANION_IDS } from '../data/companions'
 import { brasiliaDay } from '../game/day'
 import { pumpkinOfferOpen } from '../game/halloween'
@@ -16,7 +16,7 @@ import { eggIcon, giftIcon, heartIcon, medalIcon, ogIcon, pokeballIcon, sparkleI
 import { pumpkinHeartIcon } from '../render/halloweenArt'
 import { cryUrl, drawPokemon, hasShiny, loadSpecies, portraitUrl, type SpeciesSprites } from '../render/sprites'
 import { ROUTES } from '../site/routes'
-import { fetchPoll, fetchSupporterStatus, fetchWall, knownOg, knownTier, linkPatreon, redeemCode, setSupporterPublic, unlinkPatreon, vote } from '../supporters'
+import { fetchPoll, fetchSupporterStatus, fetchWall, knownOg, knownStatus, knownTier, linkPatreon, redeemCode, setSupporterPublic, unlinkPatreon, vote } from '../supporters'
 import { h, later, rich } from './dom'
 import { hatchScene } from './incubator'
 import { ogBadge, profileEditor, profileScreen, supporterBadgeIcon } from './profile'
@@ -34,6 +34,9 @@ import { toast } from './toasts'
  */
 
 type Action = { label: string; run: () => void }
+
+/** A screen the Hall opens straight onto (`supportersScreen`): the shiny picker or a poll. */
+export type HallOpen = 'pick' | { poll: PollKind }
 
 /** A date of the account's history, in the current language (`14/10/2026`). */
 const longDay = (iso: string) => new Date(iso).toLocaleDateString(LOCALES[locale()].tag, { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -301,18 +304,21 @@ const companionPicker = (root: HTMLElement, input: Input, tier: SupporterTier | 
 }
 
 /**
- * A poll: each option's votes; whoever may vote taps one (and may change it).
- * `supporters` is the next egg family's, any supporter's; `diamond` Diamond's
- * monthly ultra-rare (`DIAMOND_POLL`).
+ * A poll: each option's votes; whoever may vote taps one (and may change it),
+ * anyone else sees them. `supporters` is the next egg family's, any
+ * supporter's; `diamond` Diamond's monthly ultra-rare (`DIAMOND_POLL`). It
+ * reads the standing on its own (the device's, then the API's, again when the
+ * account changes), so a link can open it before the account has loaded.
  */
-const pollScreen = <K extends PollKind>(root: HTMLElement, input: Input, kind: K, mine: SupporterStatus | null, back: Back): Screen => {
+const pollScreen = <K extends PollKind>(root: HTMLElement, input: Input, kind: K, back: Back): Screen => {
   const m = t().supporters
   const o = overlay(root, input, back)
   const options = pollOptions(kind)
   const words = kind === 'diamond' ? { title: m.diamondPoll.title, intro: m.diamondPoll.intro, voteOnly: m.diamondPoll.voteOnly } : { title: m.pollTitle, intro: m.pollIntro, voteOnly: m.voteOnly }
-  const voted: PollOption<PollKind> | null = (kind === 'diamond' ? mine?.diamondVote : mine?.vote) ?? null
-  let choice = options.find((p) => p.id === voted)?.id ?? null
-  const canVote = mine?.tier === 'diamond' || (kind === 'supporters' && Boolean(mine?.tier))
+  let mine = knownStatus()
+  let choice = options.find((p) => p.id === voteIn(mine, kind))?.id ?? null
+  /** The votes per option, null until the API gave them. */
+  let votes: Record<PollOption<K>, number> | null = null
 
   const frame = (body: Node[], rows: { el: HTMLElement; run: () => void }[]) => {
     const backButton = h('button', { class: 'btn' }, m.back)
@@ -324,8 +330,9 @@ const pollScreen = <K extends PollKind>(root: HTMLElement, input: Input, kind: K
     )
   }
 
-  const show = (votes: Record<PollOption<K>, number> | null) => {
-    const total = votes ? Math.max(1, options.reduce((sum, p) => sum + votes[p.id], 0)) : 1
+  const show = () => {
+    const canVote = mayVote(mine, kind)
+    const total = votes ? Math.max(1, options.reduce((sum, p) => sum + (votes?.[p.id] ?? 0), 0)) : 1
     const rows = options.map((p) => {
       const n = votes?.[p.id] ?? 0
       const el = h(
@@ -343,18 +350,38 @@ const pollScreen = <K extends PollKind>(root: HTMLElement, input: Input, kind: K
           const next = await vote(kind, p.id)
           if (!next || next === 'denied') return toast(root, m.offline, 2200)
           choice = p.id
+          votes = next.votes
           playSfx('unlock')
           toast(root, m.voted(p.name), 2000)
-          show(next.votes)
+          show()
         },
       }
     })
     frame([...(canVote ? [] : [h('p', { class: 'account-line account-note' }, words.voteOnly)]), h('div', { class: 'poll-rows' }, ...rows.map((r) => r.el))], canVote ? rows : [])
   }
 
-  show(null)
-  void fetchPoll(kind).then((p) => o.el.isConnected && (p ? show(p.votes) : toast(root, m.offline, 2200)))
-  return { el: o.el, dispose: o.dispose, dim: 0.5 }
+  /** The API's word on the standing: who may vote and for what they did. */
+  const loadMine = () => {
+    if (accountState().kind !== 'signedIn') return
+    void fetchSupporterStatus().then((next) => {
+      if (!next || !o.el.isConnected) return
+      mine = next
+      choice = options.find((p) => p.id === voteIn(mine, kind))?.id ?? null
+      show()
+    })
+  }
+  // Signed in after the screen opened (a link at boot, before the account loads): ask again. Leaves with the screen.
+  const offAccount = onAccountChange(() => (o.el.isConnected ? loadMine() : offAccount()))
+
+  show()
+  loadMine()
+  void fetchPoll(kind).then((p) => {
+    if (!o.el.isConnected) return
+    if (!p) return toast(root, m.offline, 2200)
+    votes = p.votes
+    show()
+  })
+  return { el: o.el, dispose: () => (offAccount(), o.dispose()), dim: 0.5 }
 }
 
 /** Redeems a donation's code for the signed-in account. `redeemed` runs once one goes through. */
@@ -584,11 +611,12 @@ export type SupportersActions = {
  * in a new tab, with the player's handle). A supporter's perks become their
  * actions there: pick their shiny (one per ticket), the companion, the poll (and Diamond's),
  * a code, show or hide themselves; anyone else gets the poll, a code and
- * sign in as links. Signed in, both get Link Patreon (or Unlink) while the API has it. Wide screens put the call to action in a column on the
- * right; phones in a footer. `open: 'pick'` goes straight to the shiny picker
- * while a ticket waits (the lobby's Hall card sparkles then).
+ * sign in as links. Everyone sees Diamond's poll; only Diamond votes there. Signed in, both get Link Patreon (or Unlink) while the API has it. Wide screens put the call to action in a column on the
+ * right; phones in a footer. `open` goes straight to a screen: `'pick'` the
+ * shiny picker while a ticket waits (the lobby's Hall card sparkles then),
+ * `{ poll }` that poll (the Hall card's call to vote, the `?votar` link).
  */
-export const supportersScreen = (root: HTMLElement, input: Input, actions: SupportersActions, open: 'pick' | null = null): Screen => {
+export const supportersScreen = (root: HTMLElement, input: Input, actions: SupportersActions, open: HallOpen | null = null): Screen => {
   const el = h('div', { class: 'screen shell hall-screen', style: `--sparkle:url(${sparkleIcon()})` })
   let nav: ReturnType<typeof spatialNav> | null = null
   /** How many buttons `nav` walks. */
@@ -623,6 +651,8 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
   }
 
   const profile = (handle: string) => openSub((back) => profileScreen(root, input, handle, back))
+  // A vote changes the standing kept on the device: the Hall picks it up on the way back.
+  const poll = (kind: PollKind) => openSub((back) => pollScreen(root, input, kind, () => ((status = status && (knownStatus() ?? status)), back())))
   const picker = () => openSub((back) => shinyPicker(root, input, { play: (id) => (dispose(), actions.play(id)) }, back))
 
   /** The tier the top bar's chip shows: the API's word once it came, the save's until then. */
@@ -647,14 +677,14 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
     const signedIn = s.kind === 'signedIn'
     const tier = myTier()
     const pending = pendingPicks(save).length
-    const poll = () => openSub((back) => pollScreen(root, input, 'supporters', status ?? null, back))
+    const toVote = pollToVote(status ?? knownStatus())
     const code = () => openSub((back) => codeScreen(root, input, loadStatus, back))
     const tiles: Tile[] = tier
       ? [
           ...(pending > 0 ? [{ icon: sparkleIcon(), label: m.perks.shiny, title: m.pick(pending), run: picker, glow: true }] : []),
           { icon: eggIcon('friend'), label: m.perks.companion, title: m.companion, run: () => openSub((back) => companionPicker(root, input, tier, back)) },
-          { icon: giftIcon(), label: m.perks.vote, title: m.vote, run: poll },
-          ...(tier === 'diamond' ? [{ icon: supporterIcon('diamond'), label: m.diamondPoll.tile, title: m.diamondPoll.title, run: () => openSub((back) => pollScreen(root, input, 'diamond', status ?? null, back)) }] : []),
+          { icon: giftIcon(), label: m.perks.vote, title: m.vote, run: () => poll('supporters'), glow: pending === 0 && toVote === 'supporters' },
+          { icon: supporterIcon('diamond'), label: m.diamondPoll.tile, title: m.diamondPoll.title, run: () => poll('diamond'), glow: pending === 0 && toVote === 'diamond' },
           { icon: pokeballIcon(), label: m.codeShort, title: m.code, run: code },
           {
             icon: heartIcon(),
@@ -697,7 +727,8 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
       : [
           ...(accountsEnabled && s.kind === 'guest' ? [{ label: m.signIn, run: () => void signIn() }] : []),
           ...(signedIn && s.handle === null ? [{ label: m.createProfile, run: () => openSub((back) => profileEditor(root, input, () => back())) }] : []),
-          { label: m.vote, run: poll },
+          { label: m.vote, run: () => poll('supporters') },
+          { label: m.diamondPoll.link, run: () => poll('diamond') },
           ...(signedIn ? [{ label: m.code, run: code }] : []),
           ...patreon,
         ]
@@ -825,6 +856,7 @@ export const supportersScreen = (root: HTMLElement, input: Input, actions: Suppo
     if (!closed) build()
   })
   if (open === 'pick' && pendingPicks(loadSave()).length > 0) picker()
+  else if (open !== null && open !== 'pick') poll(open.poll)
   const tick = (time: number) => {
     if (sub) return sub.tick?.(time)
     for (const card of legends) card.draw(time)

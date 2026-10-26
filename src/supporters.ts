@@ -3,7 +3,7 @@ import { apiCall } from './api'
 import type { PollKind, PollOption } from './data/supporters'
 import type { Save } from './game/meta'
 import { isRecord } from './game/parse'
-import { parseHidden, parsePoll, parseSupporterStatus, parseWall, savedSupporterTier, type Poll, type SupporterStatus, type SupporterTier, type Wall } from './game/supporters'
+import { parseHidden, parsePoll, parseSupporterStatus, parseWall, savedSupporterTier, withVote, type Poll, type SupporterStatus, type SupporterTier, type Wall } from './game/supporters'
 
 /**
  * The supporters' side of the API (`server/`): the player's own standing,
@@ -104,6 +104,13 @@ export const linkPatreon = async (): Promise<boolean> => {
 /** Forgets the player's Patreon. Whether it went through. */
 export const unlinkPatreon = async () => (await apiCall('/patreon/link', { method: 'DELETE', auth: true })).status === 200
 
+/** `?votar`, the polls' own link: the supporters' poll, Diamond's with `?votar=diamante` (or `diamond`); null without it. */
+export const linkedPoll = (): PollKind | null => {
+  const v = new URLSearchParams(location.search).get('votar')
+  if (v === null) return null
+  return v === 'diamante' || v === 'diamond' ? 'diamond' : 'supporters'
+}
+
 /** `?patreon=` on the way back from Patreon: how the link went, or null when the page didn't come from there. */
 export const patreonReturn = (): 'linked' | 'failed' | null => {
   const v = new URLSearchParams(location.search).get('patreon')
@@ -130,9 +137,16 @@ export const fetchPoll = async <K extends PollKind>(kind: K): Promise<Poll<K> | 
   return status === 200 ? parsePoll(body, kind) : null
 }
 
-/** A vote in the `kind` poll. The poll after it, `denied` for anyone who may not vote there, null offline. */
+/**
+ * A vote in the `kind` poll, kept in the standing on the device (so the
+ * lobby's Hall card stops calling to it). The poll after it, `denied` for
+ * anyone who may not vote there, null offline.
+ */
 export const vote = async <K extends PollKind>(kind: K, choice: PollOption<K>): Promise<Poll<K> | 'denied' | null> => {
   const { status, body } = await apiCall(POLL_PATHS[kind], { method: 'PUT', body: { choice }, auth: true })
   if (status === 403) return 'denied'
-  return status === 200 ? parsePoll(body, kind) : null
+  if (status !== 200) return null
+  const kept = knownStatus()
+  if (kept) storeStatus(withVote(kept, kind, choice))
+  return parsePoll(body, kind)
 }
