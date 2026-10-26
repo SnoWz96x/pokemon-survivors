@@ -655,16 +655,20 @@ const replayChallenge = () => {
   return startRun(c.starter, { challenge: c, official: nextIsOfficial(c.day, loadAttempt(), null) })
 }
 
+/** What a hatch scene's "Jogar com" does: a solo run, unless the incubator was opened from a co-op room. */
+type PlayHatched = (id: HatchlingId) => void
+const playSolo: PlayHatched = (id) => void startRun(id)
+
 /** The incubator; hatching a ready egg plays its scene and comes back here, and a Quick Incubator put on an egg redraws it. */
-const showIncubator = (back: () => void) => {
+const showIncubator = (back: () => void, play: PlayHatched = playSolo) => {
   endRun()
   setScreen(
     incubator(ui, input, {
-      onHatch: (i) => hatchAt(i, () => showIncubator(back)),
+      onHatch: (i) => hatchAt(i, () => showIncubator(back, play), play),
       onQuick: (i) => {
         const next = useQuick(loadSave(), i)
         if (next) (writeSave(next), void syncSave(), playSfx('buy'))
-        showIncubator(back)
+        showIncubator(back, play)
       },
       onClose: back,
     }),
@@ -675,16 +679,16 @@ const showIncubator = (back: () => void) => {
  * Hatches the ready egg at `index`, saving it with its missions and medals,
  * and plays its scene, then `then`. What it completed toasts once the scene is over.
  */
-const hatchAt = (index: number, then: () => void) => {
+const hatchAt = (index: number, then: () => void, play: PlayHatched = playSolo) => {
   const result = hatchEgg(loadSave(), index, createRng(Date.now()))
   if (!result) return then()
   const record = saveHatch(result.save, result.hatch.shiny)
   void syncSave()
-  showHatch(result.hatch, then, undefined, () => later(() => progressToast(ui, record)))
+  showHatch(result.hatch, then, undefined, () => later(() => progressToast(ui, record)), play)
 }
 
-const showHatch = (hatch: Hatch, then: () => void, holdAt?: number, after = () => {}) =>
-  setScreen(hatchScene(ui, input, hatch, { play: () => (void startRun(hatch.id), after()), done: () => (then(), after()) }, holdAt))
+const showHatch = (hatch: Hatch, then: () => void, holdAt?: number, after = () => {}, play: PlayHatched = playSolo) =>
+  setScreen(hatchScene(ui, input, hatch, { play: () => (play(hatch.id), after()), done: () => (then(), after()) }, holdAt))
 
 /** Leaves the run; every egg it made ready hatches first ("Oh? The Egg is hatching!"), then `then`. */
 const afterRun = (then: () => void) => {
@@ -2484,21 +2488,23 @@ const showRoom = () => {
 
 /** The partner select for the room: the pick becomes this player's loadout (and the saved partner), then back to the room. */
 const showCoopPartner = () => {
+  // The co-op select has no Lendários tab; `coopStarter` keeps the type honest.
+  const pick = (id: PlayableId) => {
+    const starter = coopStarter(id)
+    updateSave((s) => ({ ...s, partner: starter }))
+    const save = loadSave()
+    coopClient()?.setLoadout({ starter, ranks: save.ranks, shiny: playsShiny(save, starter) })
+    setTimeout(showRoom, 250)
+  }
   const select = starterSelect(
     ui,
     input,
     {
-      // The co-op select has no Lendários tab; `coopStarter` keeps the type honest.
-      pick: (id) => {
-        const starter = coopStarter(id)
-        updateSave((s) => ({ ...s, partner: starter }))
-        const save = loadSave()
-        coopClient()?.setLoadout({ starter, ranks: save.ranks, shiny: playsShiny(save, starter) })
-        setTimeout(showRoom, 250)
-      },
+      pick,
       back: () => showRoom(),
       settings: () => setScreen(openSettings(ui, input, () => showCoopPartner())),
-      incubator: () => showIncubator(() => showCoopPartner()),
+      // A hatch's "Jogar com" takes the newcomer into the room, never into a solo run.
+      incubator: () => showIncubator(() => showCoopPartner(), pick),
     },
     coopStarter(loadSave().partner),
     { coop: true },
