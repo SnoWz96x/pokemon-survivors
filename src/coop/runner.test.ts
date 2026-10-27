@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { arenaResult } from '../game/arenaRank'
 import { NO_RANKS } from '../game/meta'
 import { deflate, restore, snapshot, stateHash } from '../game/snapshot'
 import type { ClientMessage, Entry, Frame, RunStart, ServerMessage } from '../net/protocol'
@@ -144,5 +145,16 @@ describe('the lockstep runner', () => {
     expect(onFrame(r, frame(5, 12), h.at(), () => {})).toBe(true)
     expect(r.known).toBe(12)
     expect(onFrame(r, frame(20, 21), h.at(), () => {})).toBe(false)
+  })
+
+  it("says an Arena match's result with its end, as the relay counts it", () => {
+    const h = harness()
+    const r = createRunner({ ...START, settings: { difficulty: 'normal', mode: 'versus' } }, 'ROOMS', 0)
+    r.ticks.set(0, [])
+    r.game.versus!.result = { winner: 1 }
+    r.game.phase = 'gameover'
+    stepOne(r, h.deps)
+    const over = h.sent.find((m) => m.t === 'over')
+    expect(over).toMatchObject({ t: 'over', tick: 1, result: JSON.stringify(arenaResult(r.game)) })
   })
 })

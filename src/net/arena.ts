@@ -5,9 +5,9 @@
  *
  * The flow: a signed-in client opens a WebSocket to the matchmaker
  * (`/arena/queue` on the relay) and sends `queue`; the matchmaker (one
- * Durable Object per region) groups tickets by MMR (the API's, fetched with
- * the ticket's token) and wait, splits teams (`splitTeams` in
- * `game/arenaRank.ts`, mirrored here by data only), makes a locked Arena room
+ * Durable Object, on Cloudflare) groups tickets by MMR (the API's,
+ * `POST /arena/tickets`) and wait, splits teams (`splitTeams` in
+ * `net/arenaQueue.ts`), makes a locked Arena room
  * on the relay with every seat's team set, and sends each ticket `matched`.
  * Bots fill what's missing after `botsAfter`. When the match ends, the room
  * counts its clients' `ArenaResult`s (opaque to it) and posts the agreed one
@@ -17,9 +17,18 @@
 /** Bumped with any incompatible change to these messages. */
 export const ARENA_PROTOCOL = 1
 
-/** What a client in the queue sends. `party`: the code of the friends' party it queues with (all of it joins the same team). */
+/**
+ * Who queues: a Clerk session token, or a guest id where the relay seats guests (dev only). The same
+ * shape as the rooms' `Auth` (`protocol.ts`), spelled out since this file imports nothing.
+ */
+export type QueueAuth = { kind: 'clerk'; token: string } | { kind: 'guest'; id: string }
+
+/**
+ * What a client in the queue sends. `party`: the code of the friends' party it queues with (all of it
+ * joins the same team). `build`: the co-op build id (`__SIM_BUILD__`), the matched room's.
+ */
 export type QueueClientMessage =
-  | { t: 'queue'; kind: 'casual' | 'ranked'; starter: string; party: string | null; build: string }
+  | { t: 'queue'; kind: 'casual' | 'ranked'; starter: string; party: string | null; build: string; auth: QueueAuth }
   | { t: 'cancel' }
   /** The client's round trip to each relay home, so the match lands where it plays best. */
   | { t: 'rtt'; homes: Record<string, number> }
@@ -33,8 +42,16 @@ export type QueueServerMessage =
   /** Refused: not signed in, already queued in another tab, an old build, or the queue is closed. */
   | { t: 'refused'; why: 'auth' | 'duplicate' | 'build' | 'closed' }
 
-/** The room settings a matchmade Arena room carries (opaque to the relay's room, read by `coop/start.ts`). */
+/** The room settings a matchmade Arena room carries (the relay's room sets them with its lock; `coop/start.ts` reads them). */
 export type MatchedSettings = { difficulty: 'normal'; mode: 'versus'; queue: 'casual' | 'ranked'; locked: true }
+
+/**
+ * `POST /arena/tickets` (matchmaker → API), signed like the report (`x-arena-signature`): the queued
+ * accounts' season ratings, to match by MMR. An account the API doesn't know yet is left out (the
+ * matchmaker takes `mmr.start` for it).
+ */
+export type ArenaTicketsRequest = { userIds: string[] }
+export type ArenaTicketsResponse = Record<string, { mmr: number; rp: number; games: number }>
 
 /**
  * `POST /arena/report` (relay → API), with header `x-arena-signature`: hex
