@@ -1,3 +1,4 @@
+import { arenaResult } from '../game/arenaRank'
 import { coopOver } from '../game/coop'
 import { stepTick } from '../game/lockstep'
 import { setLocalSlot } from '../game/players'
@@ -101,9 +102,10 @@ export type Runner = {
    * relay confirmed it. The runner keeps stepping (and hashing) after its
    * `over` until `ended`: a client that ended wrongly is still healed. Once
    * the relay confirms, a client still behind steps on to the end's tick
-   * (`endedAt`) and stops there.
+   * (`endedAt`) and stops there. An Arena match's `over` carries its result
+   * (`arenaResult`, as JSON): the relay reports the one most agree on.
    */
-  over: { tick: number; h: string } | null
+  over: { tick: number; h: string; result?: string } | null
   ended: boolean
   endedAt: number | null
   /** Events of the ticks simulated, in order, for the shell (drained after every tick, so the state hashes alike everywhere). */
@@ -377,7 +379,8 @@ export const stepOne = (r: Runner, deps: RunnerDeps) => {
     if (n % SNAPSHOT_EVERY === 0 && r.uploader) uploadSnapshot(r, h, deps)
   }
   if (!r.over && coopOver(g)) {
-    r.over = { tick: n, h: stateHash(g) }
+    const result = arenaResult(g)
+    r.over = { tick: n, h: stateHash(g), ...(result && { result: JSON.stringify(result) }) }
     deps.send({ t: 'over', ...r.over })
   }
   if (r.healing && n >= r.tailTo) {

@@ -12,6 +12,7 @@ import { DISCORD_GIFT } from '../game/gifts'
 import { nextMilestone } from '../game/referral'
 import { dayKey, missionStatus } from '../game/missions'
 import { pendingPicks, playsShiny } from '../game/shinyPicks'
+import type { ArenaHubTab } from './arenaHub'
 import { pollToVote, supporterCount, tierRank, type WallEntry } from '../game/supporters'
 import { formatNumber, locale, t } from '../i18n'
 import { arenaIcon, bulbIcon, coinIcon, coopIcon, discordIcon, eggIcon, giftIcon, heartIcon, itemIcon, medalIcon, newsIcon, pawIcon, pokeballIcon, ribbonIcon, socialIcon, sparkleIcon, supporterIcon, surveyIcon } from '../render/art'
@@ -163,8 +164,6 @@ export type TitleActions = {
   meadow: Meadow
 }
 
-/** The Arena hub's tabs (`showArenaHub` in `main.ts`). */
-export type ArenaHubTab = 'profile' | 'season' | 'ranking' | 'history' | 'rules'
 
 /**
  * The lobby's three layouts, in sync with the media queries of the lobby's

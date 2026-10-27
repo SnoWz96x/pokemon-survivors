@@ -20610,3 +20610,792 @@ button.hall-tile:hover {
     font-size: 18px;
   }
 }
+
+/* ---------- Arena ranqueada: the four ways to play, the queue, the end's RP line and the hub (ui/arenaHub.ts) ---------- */
+
+/* Four ways to play in a row: compact cards, each its picture, name and one line. */
+.dialog.arena .arena-modes {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dialog.arena .arena-modes.choose {
+  grid-template-columns: 1fr;
+}
+
+.dialog.arena .arena-mode {
+  gap: 8px;
+  min-height: 58px;
+  padding: 6px 8px;
+}
+
+.dialog.arena .arena-mode img {
+  width: 28px;
+  height: 28px;
+}
+
+.dialog.arena .arena-mode-text small {
+  font-size: 15px;
+}
+
+.arena-mode.ranked {
+  background: linear-gradient(100deg, var(--dk-wash-purple, #efe4fb), var(--dk-wash-gold, #fff8d8));
+  border-color: #8848c8;
+}
+
+.arena-mode.casual {
+  background: var(--dk-wash-red, #fdeaea);
+}
+
+.arena-foot-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.arena-hub-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 12px;
+}
+
+.arena-hub-open img {
+  width: 18px;
+  height: 18px;
+  image-rendering: pixelated;
+}
+
+.arena-foot .btn.selected {
+  box-shadow: 0 0 0 3px #e83838;
+}
+
+/* The tier badges: drawn at whole multiples of their 17 px. */
+.tier-badge {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.tier-badge.big {
+  width: 68px;
+  height: 68px;
+}
+
+/* The public queue: its kind beside the title, the trainers found and the bots' countdown. */
+.arena-queue-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 4px;
+  font-family: var(--title);
+  font-size: 8px;
+  color: #fff;
+  background: #c03040;
+  border-radius: 99px;
+}
+
+.arena-queue-kind.ranked {
+  background: #6a38a8;
+}
+
+.arena-queue-kind img {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+}
+
+.arena-queue-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px 14px;
+  font-family: var(--body);
+  font-size: 20px;
+}
+
+.arena-queue-count {
+  font-family: var(--title);
+  font-size: 11px;
+}
+
+.arena-queue-bots {
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-queue-honest.downgraded {
+  color: #c03040;
+}
+
+/* The end's ranking line: practice and casual in grey, a ranked match's RP in its tier's badge. */
+.vs-end-rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  margin: 0;
+  font-family: var(--body);
+  font-size: 19px;
+  color: var(--dk-ink-2, #505870);
+  text-align: center;
+}
+
+.vs-end-rank.ranked {
+  font-size: 20px;
+  color: var(--dk-ink, #303040);
+}
+
+.vs-end-rp {
+  font-family: var(--title);
+  font-size: 16px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+}
+
+.vs-end-rank.up .vs-end-rp {
+  color: #2f9a40;
+}
+
+.vs-end-rank.down .vs-end-rp {
+  color: #c03040;
+}
+
+/* The hub: a fixed frame, its tabs, and one scrolling page per tab. */
+.dialog.arena-hub {
+  width: min(760px, 96 * var(--vw));
+  height: min(640px, calc(100 * var(--vh) - 36px));
+  gap: 10px;
+  padding: 14px 16px 12px;
+}
+
+.dialog.arena-hub > * {
+  flex: none;
+}
+
+.arena-hub-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.arena-hub-badge {
+  display: inline-flex;
+}
+
+.arena-hub-badge img {
+  width: 34px;
+  height: 34px;
+  image-rendering: pixelated;
+}
+
+.arena-hub-season {
+  margin-left: auto;
+  font-family: var(--body);
+  font-size: 17px;
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-hub-tabs .shell-tab {
+  min-height: 36px;
+}
+
+.dialog.arena-hub > .arena-hub-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 4px 0;
+  overflow-y: auto;
+  outline: none;
+  overscroll-behavior: contain;
+}
+
+.arena-hub-body > * {
+  flex: none;
+}
+
+.arena-hub-body > :last-child {
+  margin-bottom: 8px;
+}
+
+.arena-hub-body > .arena-hub-row.pinned {
+  margin-bottom: 0;
+}
+
+.arena-hub-note {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.05;
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-hub-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--dk-surface-2, #e8e8f0);
+  border-radius: 8px;
+}
+
+.arena-hub-card b {
+  font-family: var(--title);
+  font-size: 10px;
+}
+
+.arena-hub-card p,
+.arena-hub-card span {
+  margin: 4px 0 0;
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.05;
+}
+
+.arena-hub-cta {
+  background: linear-gradient(100deg, var(--dk-wash-purple, #efe4fb), var(--dk-wash-gold, #fff8d8));
+  border: 3px solid #8848c8;
+}
+
+.arena-hub-cta img {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.arena-hub-cta .btn {
+  flex: none;
+  margin-left: auto;
+}
+
+.arena-hub-device {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.arena-hub-device span {
+  margin: 0;
+}
+
+.arena-hub-standing {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: var(--dk-surface-2, #e8e8f0);
+  border-left: 6px solid var(--tier, #e83838);
+  border-radius: 8px;
+}
+
+.tier-poke {
+  --tier: #e83838;
+}
+
+.tier-great {
+  --tier: #3878e8;
+}
+
+.tier-ultra {
+  --tier: #e8b020;
+}
+
+.tier-master {
+  --tier: #8848c8;
+}
+
+.arena-hub-standing-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-family: var(--body);
+  font-size: 18px;
+}
+
+.arena-hub-tier {
+  font-family: var(--title);
+  font-size: 15px;
+}
+
+.arena-hub-rp {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-family: var(--title);
+  font-size: 11px;
+}
+
+.arena-hub-rp small {
+  font-family: var(--body);
+  font-size: 17px;
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-hub-bar {
+  height: 10px;
+  overflow: hidden;
+  background: var(--dk-surface-3, #d8dce8);
+  border: 2px solid #283040;
+  border-radius: 4px;
+}
+
+.arena-hub-bar i {
+  display: block;
+  height: 100%;
+  background: var(--tier, #e83838);
+}
+
+.arena-hub-stats {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.arena-hub-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 2px;
+  background: var(--dk-surface-1, #f4f4f8);
+  border: 2px solid var(--dk-line, #c8d0e0);
+  border-radius: 6px;
+}
+
+.arena-hub-stat b {
+  font-family: var(--title);
+  font-size: 12px;
+}
+
+.arena-hub-stat small {
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 0.95;
+  color: var(--dk-ink-2, #505870);
+  text-align: center;
+}
+
+.arena-hub-favs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.arena-hub-fav-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.arena-hub-fav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
+  background: var(--dk-surface-1, #f4f4f8);
+  border: 2px solid var(--dk-line, #c8d0e0);
+  border-radius: 6px;
+}
+
+.arena-hub-fav img,
+img.arena-hub-face {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  image-rendering: pixelated;
+  border-radius: 4px;
+}
+
+span.arena-hub-face {
+  width: 36px;
+}
+
+.arena-hub-fav span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.arena-hub-fav b {
+  font-family: var(--title);
+  font-size: 8px;
+}
+
+.arena-hub-fav small {
+  font-family: var(--body);
+  font-size: 15px;
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-hub-season-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-family: var(--body);
+  font-size: 18px;
+}
+
+.arena-hub-season-head b {
+  font-family: var(--title);
+  font-size: 12px;
+}
+
+.arena-hub-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.arena-hub-rung {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--dk-surface-1, #f4f4f8);
+  border: 2px solid var(--dk-line, #c8d0e0);
+  border-left: 6px solid var(--tier);
+  border-radius: 6px;
+}
+
+.arena-hub-rung.mine {
+  border-color: var(--tier);
+  box-shadow: 0 0 0 2px var(--tier);
+}
+
+.arena-hub-rung img {
+  width: 26px;
+  height: 26px;
+  image-rendering: pixelated;
+}
+
+.arena-hub-rung-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 112px;
+}
+
+.arena-hub-rung-text b {
+  font-family: var(--title);
+  font-size: 9px;
+}
+
+.arena-hub-rung-text small,
+.arena-hub-reward {
+  font-family: var(--body);
+  font-size: 16px;
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-hub-reward {
+  flex: 1;
+}
+
+.arena-hub-you {
+  padding: 2px 6px;
+  font-family: var(--title);
+  font-size: 7px;
+  font-style: normal;
+  color: #fff;
+  background: var(--tier);
+  border-radius: 99px;
+}
+
+.arena-hub-board,
+.arena-hub-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.arena-hub-row,
+.arena-hub-match {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--dk-surface-1, #f4f4f8);
+  border: 2px solid var(--dk-line, #c8d0e0);
+  border-radius: 6px;
+}
+
+.arena-hub-row.me {
+  border-color: #e83838;
+  background: var(--dk-wash-red, #fdeaea);
+}
+
+.arena-hub-row.pinned {
+  position: sticky;
+  bottom: 0;
+  margin-top: 2px;
+  box-shadow: 0 -4px 8px rgba(0, 0, 0, 0.12);
+}
+
+.arena-hub-row.top1 .arena-hub-place {
+  color: #c89810;
+}
+
+.arena-hub-row.top2 .arena-hub-place {
+  color: #8890a8;
+}
+
+.arena-hub-row.top3 .arena-hub-place {
+  color: #b06830;
+}
+
+.arena-hub-place {
+  min-width: 36px;
+  font-family: var(--title);
+  font-size: 10px;
+}
+
+.arena-hub-who,
+.arena-hub-match-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.arena-hub-who b {
+  overflow: hidden;
+  font-family: var(--title);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arena-hub-who small,
+.arena-hub-record,
+.arena-hub-match-text small {
+  font-family: var(--body);
+  font-size: 15px;
+  color: var(--dk-ink-2, #505870);
+  white-space: nowrap;
+}
+
+.arena-hub-match-text small {
+  white-space: normal;
+}
+
+.arena-hub-match-end {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.arena-hub-points {
+  min-width: 64px;
+  font-family: var(--title);
+  font-size: 9px;
+  text-align: right;
+}
+
+.arena-hub-match {
+  border-left: 6px solid #a0a8c0;
+}
+
+.arena-hub-match.win {
+  border-left-color: #2f9a40;
+}
+
+.arena-hub-match.loss {
+  border-left-color: #c03040;
+}
+
+.arena-hub-match-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.arena-hub-match-top b {
+  font-family: var(--title);
+  font-size: 9px;
+}
+
+.arena-hub-match.win .arena-hub-match-top b {
+  color: #2f9a40;
+}
+
+.arena-hub-match.loss .arena-hub-match-top b {
+  color: #c03040;
+}
+
+.arena-hub-kind {
+  padding: 2px 6px;
+  font-family: var(--title);
+  font-size: 7px;
+  font-style: normal;
+  color: #fff;
+  background: #707088;
+  border-radius: 99px;
+}
+
+.arena-hub-kind.ranked {
+  background: #6a38a8;
+}
+
+.arena-hub-kind.casual {
+  background: #c03040;
+}
+
+.arena-hub-kind.room {
+  background: #2a7ab8;
+}
+
+.arena-hub-score {
+  font-family: var(--title);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.arena-hub-score b {
+  color: var(--team);
+}
+
+.arena-hub-delta {
+  min-width: 64px;
+  font-family: var(--title);
+  font-size: 9px;
+  text-align: right;
+}
+
+.arena-hub-delta.up {
+  color: #2f9a40;
+}
+
+.arena-hub-delta.down {
+  color: #c03040;
+}
+
+.arena-hub-delta.none {
+  color: var(--dk-ink-3, #707088);
+}
+
+.arena-hub-more {
+  align-self: center;
+}
+
+.arena-hub-rules-title {
+  font-family: var(--title);
+  font-size: 11px;
+}
+
+.arena-hub-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding-left: 34px;
+  font-family: var(--body);
+  font-size: 19px;
+  line-height: 1.05;
+}
+
+/* Phones held upright: two ways to play a row, the hub's numbers in fewer columns. */
+@media (max-width: 640px) {
+  .dialog.arena .arena-modes {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dialog.arena .arena-mode {
+    gap: 6px;
+    min-height: 54px;
+    padding: 6px;
+  }
+  .dialog.arena .arena-mode img {
+    width: 24px;
+    height: 24px;
+  }
+  .dialog.arena .arena-mode-text b {
+    font-size: 8px;
+  }
+  .dialog.arena .arena-mode-text small {
+    font-size: 13px;
+  }
+  .dialog.arena-hub {
+    padding: 10px;
+    height: calc(100 * var(--vh) - 36px);
+  }
+  .arena-hub-season {
+    margin-left: 0;
+    flex-basis: 100%;
+    font-size: 15px;
+  }
+  .arena-hub-tabs .shell-tab {
+    font-size: 7px;
+  }
+  .arena-hub-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .arena-hub-fav-list {
+    grid-template-columns: 1fr;
+  }
+  .arena-hub-cta {
+    flex-wrap: wrap;
+  }
+  .arena-hub-cta .btn {
+    width: 100%;
+  }
+  .arena-hub-record {
+    display: none;
+  }
+  .arena-hub-rung {
+    flex-wrap: wrap;
+  }
+  .arena-hub-reward {
+    flex-basis: 100%;
+    padding-left: 36px;
+  }
+  .arena-hub-foot .hint,
+  .dialog.arena-hub .arena-foot .hint {
+    display: none;
+  }
+}
+
+/* Phones on their side: a shorter frame, a thinner standing. */
+@media (max-height: 500px) {
+  .dialog.arena .arena-mode {
+    min-height: 46px;
+  }
+  .dialog.arena .arena-mode-text small {
+    display: none;
+  }
+  .dialog.arena-hub {
+    height: calc(100 * var(--vh) - 36px);
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .arena-hub-tabs .shell-tab {
+    min-height: 30px;
+  }
+  .tier-badge.big {
+    width: 51px;
+    height: 51px;
+  }
+  .arena-hub-standing {
+    padding: 6px 10px;
+  }
+  .dialog.arena-hub .arena-foot .hint {
+    display: none;
+  }
+}
+
+@media (max-height: 500px) {
+  .vs-end-rank {
+    min-height: 0;
+    font-size: 16px;
+  }
+}

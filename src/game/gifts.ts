@@ -1,4 +1,5 @@
 import { GIFT_TITLES, type GiftTitleId } from '../data/achievements'
+import { TIER_IDS, type TierId } from '../data/arenaRanked'
 import { isSpecialCompanion, type SpecialCompanionId } from '../data/companions'
 import { FESTIVALS, type FestivalId } from '../data/festivals'
 import { isLegend, LEGEND_IDS, legendFestival, type LegendId } from '../data/legends'
@@ -56,8 +57,8 @@ export type GiftKind = GiftContent['kind']
  * Discord with the account linked (`DISCORD_GIFT`), the Noite das Bruxas
  * candy jar and Caça aos Fantasmas, supporting the game on the Noite das Bruxas,
  * the Kecleon Shop's loyalty card and Department Store, or a Festival da
- * Praça's pot reaching a milestone or making the player a Mecenas, or
- * being an OG Supporter.
+ * Praça's pot reaching a milestone or making the player a Mecenas,
+ * being an OG Supporter, or an Arena season's peak tier.
  */
 export type GiftReason =
   | { kind: 'welcome'; from: string | null }
@@ -81,6 +82,8 @@ export type GiftReason =
   | { kind: 'patron'; festival: FestivalId }
   /** Having supported the game before Patreon (`OG_GIFT` in `game/supporters.ts`). */
   | { kind: 'og' }
+  /** The peak tier `tier` reached in the Arena's ranked season `season` (`game/arenaRewards.ts`). */
+  | { kind: 'arenaSeason'; season: number; tier: TierId }
 
 export type Gift = { id: string; content: GiftContent; reason: GiftReason | null }
 
@@ -165,6 +168,7 @@ const parseReason = (v: unknown): GiftReason | null => {
   if (v.kind === 'festival' && isOneOf(v.festival, FESTIVAL_IDS)) return { kind: 'festival', festival: v.festival, pot: wholeNumber(v.pot) }
   if (v.kind === 'patron' && isOneOf(v.festival, FESTIVAL_IDS)) return { kind: 'patron', festival: v.festival }
   if (v.kind === 'og') return { kind: 'og' }
+  if (v.kind === 'arenaSeason' && isOneOf(v.tier, TIER_IDS)) return { kind: 'arenaSeason', season: wholeNumber(v.season), tier: v.tier }
   return null
 }
 

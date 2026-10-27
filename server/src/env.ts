@@ -86,6 +86,11 @@ export const loadEnv = () => {
      * `src/game/replayStream.ts`) stays off the public boards. Off (the default), the API only stores and logs the lag.
      */
     streamEnforce: ['1', 'true', 'on'].includes((process.env.STREAM_ENFORCE ?? '').trim().toLowerCase()),
+    /**
+     * Optional: the secret the co-op relay signs Arena reports and ticket lookups with (`x-arena-signature`, hex
+     * HMAC-SHA256 of the body; the relay's own `ARENA_REPORT_SECRET`). Without it `POST /arena/report` and `/arena/tickets` answer 503.
+     */
+    arenaReportSecret: process.env.ARENA_REPORT_SECRET || undefined,
     /** Whether the game at `origin` may call the API (CORS) and own its tokens (`azp`). */
     allowedOrigin: (origin: string) => origins.includes(origin) || LOCALHOST.test(origin),
   }
