@@ -192,6 +192,8 @@ import { coopOver } from './game/coop'
 import { createTeamLayer, type TeamLayer } from './ui/teamLayer'
 import { teamFeedback, teamMoment } from './ui/teamScreens'
 import { arenaPick, arenaScreen } from './ui/arena'
+import { arenaQueue } from './ui/arenaQueue'
+import { versusSplash } from './ui/versusSplash'
 import { createVersusHud, isVersusEvent, versusFeedback, type VersusHud } from './ui/versusHud'
 import { createVersusTray, type VersusTray } from './ui/versusTray'
 import { versusEnd } from './ui/versusEnd'
@@ -1025,12 +1027,12 @@ const familySheets = (starter: PlayableId, shiny: boolean): Variant[] => familyD
  * stage's species ahead of anything else, so a phone never holds both sets.
  * Back in the lobby, the menus' stream (`syncSprites`) brings its own back.
  */
-const loadRunSheets = async (families: readonly Variant[], opening: readonly Dex[]) => {
+const loadRunSheets = async (families: readonly Variant[], opening: readonly Dex[], progress?: (done: number, total: number) => void) => {
   startingRun = true
   try {
     const sheets = [...families, ...opening.map((dex) => ({ dex, shiny: false }))]
     await releaseSprites({ species: new Set(sheets.map((v) => v.dex)), variants: new Set(families.flatMap((v) => (v.shiny ? [v.dex] : []))) })
-    await loadAll(sheets)
+    await loadAll(sheets, progress)
   } finally {
     startingRun = false
   }
@@ -2089,19 +2091,26 @@ const playAgain = (c: CoopRun) => {
 /**
  * Enters a co-op run the client is in (it began, or this tab joined it):
  * loads every player's family and the run's opening, then shows it. The
- * client keeps stepping the run meanwhile (`frame`).
+ * client keeps stepping the run meanwhile (`frame`). `startsIn`: a run that
+ * just began, its tick 0 that many ms from now.
  */
-const startCoopRun = async (client: CoopClient, runner: Runner) => {
+const startCoopRun = async (client: CoopClient, runner: Runner, startsIn: number | null = null) => {
   if (run?.coop?.runner === runner) return
+  // When tick 0 goes out (performance.now() s), for a match's opening countdown: the splash may take most of the wait.
+  const goAt = startsIn === null ? null : performance.now() / 1000 + startsIn / 1000
   setScreen(null)
   endRun()
-  const loading = loadingScreen()
-  ui.append(loading)
   const g = runner.game
+  // A match opens on its lineups (`ui/versusSplash.ts`), held a moment so they read; a run on the plain loading line.
+  const splash = g.versus ? versusSplash(ui, g, runner.slot) : null
+  const loading = splash?.el ?? loadingScreen()
+  if (!splash) ui.append(loading)
   // A match's wild are its camps and objectives, not a run's waves.
   const opening = g.versus ? VERSUS_CAST : rosterSchedule(g.roster).flatMap((s) => (s.at === 0 ? [s.dex] : []))
-  await loadRunSheets(g.players.flatMap((p) => familySheets(p.starter, p.shiny)), opening)
-  loading.remove()
+  await loadRunSheets(g.players.flatMap((p) => familySheets(p.starter, p.shiny)), opening, splash?.progress)
+  await splash?.hold()
+  if (splash) splash.dispose()
+  else loading.remove()
   // Closed for good while loading (kicked, the room gone): the close already went back to the title.
   if (client.state().status.kind === 'closed') return
   // The run may have moved on while loading (a heal, a newer run): show the client's current one.
@@ -2129,7 +2138,7 @@ const startCoopRun = async (client: CoopClient, runner: Runner) => {
     net: client.state().net,
     versus: live.game.versus
       ? {
-          hud: createVersusHud(ui, client === arenaClient()),
+          hud: createVersusHud(ui, client === arenaClient(), goAt),
           tray: createVersusTray(ui, input, (offer) => c.team.pick(localPlayer(c.view.game), offer)),
           local: client === arenaClient(),
           reported: false,
@@ -2248,7 +2257,7 @@ const watchCoop = (client: CoopClient) => {
         }
         // Back in the room after a run: that run's resume or heal stays behind the room screen.
         if (!c && e.why !== 'start' && e.runner.room === leftRun?.code && e.runner.start.id === leftRun.run) return
-        if (e.why === 'start' || !c || c.runner.start.id !== e.runner.start.id) void startCoopRun(client, e.runner)
+        if (e.why === 'start' || !c || c.runner.start.id !== e.runner.start.id) void startCoopRun(client, e.runner, e.why === 'start' ? e.startsIn : null)
         else c.runner = e.runner
         return
       case 'game':
@@ -2660,6 +2669,7 @@ const showArena = () => {
     arenaScreen(ui, input, arenaStart(), {
       bots: (id) => void playArenaBots(id),
       friends: coopUrl() ? (id) => void openArenaRoom(id) : null,
+      needsAccount: coopAccess(accountsEnabled, accountState()) !== 'open',
       back: () => showTitle({ focus: 'arena' }),
     }),
   )
@@ -2668,8 +2678,10 @@ const showArena = () => {
 /**
  * A match against bots: an in-page relay (`coop/localRelay.ts`) and a client
  * on it run it through co-op's path (lockstep, prediction, draw view), so
- * guests play too. The room is made, joined, set to Versus with this
- * player's Pokémon on Blue, and started; the `run` event brings the match in.
+ * guests play too. The matchmaking screen (`ui/arenaQueue.ts`) shows while
+ * the room is made, joined and set to Versus with this player's Pokémon on
+ * Blue; once its seats have filled, "Partida encontrada!" and the start; the
+ * `run` event brings the match in. Cancel drops the relay.
  */
 const playArenaBots = async (id: VersusPick) => {
   // A co-op room this tab was still in: left, the Arena runs alone.
@@ -2680,6 +2692,11 @@ const playArenaBots = async (id: VersusPick) => {
   }
   const client = openArenaClient(arenaName())
   watchCoop(client)
+  const queue = arenaQueue(ui, input, { name: arenaName(), pick: id }, () => {
+    closeArenaClient()
+    showArena()
+  })
+  setScreen(queue)
   const failed = () => {
     closeArenaClient()
     toast(ui, t().coop.closed.unavailable, 4000, 'arenaFailed')
@@ -2693,6 +2710,10 @@ const playArenaBots = async (id: VersusPick) => {
   if (!res.ok) return failed()
   client.setSettings({ difficulty: 'normal', mode: 'versus' })
   client.setLoadout(arenaLoadout(id, 0))
+  await queue.filled()
+  if (arenaClient() !== client) return
+  await queue.found()
+  if (arenaClient() !== client) return
   client.start()
 }
 
@@ -3524,11 +3545,31 @@ const devCoop = async (cmd?: string, arg?: string | number | boolean | null, ext
  * the running match's clock to 125 s left (the stretch starts at 120, the end
  * screen at 0); `ps.versus('energy', 30)` sets the Energy you carry. Both
  * write the match's state directly: only a match against bots takes it
- * (a room's teammates would drift and be healed back).
+ * (a room's teammates would drift and be healed back). For screenshots:
+ * `ps.versus('arena')` opens the Arena's screen, `ps.versus('queue')` its
+ * matchmaking screen with no match behind it (`ps.versus('queue', 1)` goes
+ * on to "Partida encontrada!"), and `ps.versus('splash')` puts the running
+ * match's opening splash up again (again takes it down).
  */
+let devSplash: ReturnType<typeof versusSplash> | null = null
 const devVersus = (cmd?: string, arg?: number) => {
   const g = run?.coop?.runner.game
   const me = g ? g.players[run!.coop!.runner.slot] : undefined
+  if (cmd === 'arena') return showArena()
+  if (cmd === 'queue') {
+    endRun()
+    const queue = arenaQueue(ui, input, { name: arenaName(), pick: arenaStart() }, () => showArena())
+    setScreen(queue)
+    if (arg) void queue.filled().then(() => queue.found())
+    return 'Arena: matchmaking screen'
+  }
+  if (cmd === 'splash') {
+    if (devSplash) return (devSplash.dispose(), (devSplash = null), 'splash down')
+    if (!g?.versus) return 'ps.versus: start a match first (ps.versus())'
+    devSplash = versusSplash(ui, g, run!.coop!.runner.slot)
+    devSplash.progress(Math.round(arg ?? 6), 10)
+    return 'splash up'
+  }
   if (cmd === 'time' || cmd === 'energy') {
     if (!g?.versus || !me?.versus) return 'ps.versus: start a match first (ps.versus())'
     if (cmd === 'time') g.time = Math.max(0, VERSUS.length - Math.max(0, arg ?? VERSUS.stretch + 5))

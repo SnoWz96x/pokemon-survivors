@@ -51,7 +51,7 @@ export const createVersusTray = (root: HTMLElement, input: Input, pick: (offer: 
   const build = (g: Game, me: Player) => {
     const m = t().versus.tray
     offers = me.offers
-    title.textContent = me.phase === 'branch' ? m.branch : me.phase === 'ability' ? m.ability : m.levelup(me.level)
+    title.textContent = me.phase === 'branch' ? m.branch : me.phase === 'ability' ? m.ability : me.level <= 1 ? m.first : m.levelup(me.level)
     cards.replaceChildren(
       ...me.offers.map((offer, i) => {
         const v = offerView(g, offer)

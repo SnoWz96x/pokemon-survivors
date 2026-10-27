@@ -746,16 +746,19 @@ export const pauseMenu = (root: HTMLElement, input: Input, g: Game, actions: Pau
         h(
           'div',
           { class: 'pause-body' },
-          h(
-            'div',
-            { class: 'pause-grid' },
-            pauseSection(m.statsTitle, statTable(g)),
-            h('div', { class: 'pause-column' }, pauseSection(m.movesTitle, moveList(g)), pauseSection(m.itemsTitle, itemList(g))),
-          ),
-          pauseSection(m.damageTitle, damagePanel(g)),
+          // A match keeps running behind the menu: your moves and your team's builds, not the run's whole sheet.
+          g.versus
+            ? pauseSection(m.movesTitle, moveList(g))
+            : h(
+                'div',
+                { class: 'pause-grid' },
+                pauseSection(m.statsTitle, statTable(g)),
+                h('div', { class: 'pause-column' }, pauseSection(m.movesTitle, moveList(g)), pauseSection(m.itemsTitle, itemList(g))),
+              ),
+          !g.versus && pauseSection(m.damageTitle, damagePanel(g)),
           builds && pauseSection(cm.builds, builds),
-          duoPanel(g),
-          h('p', { class: 'evo-legend' }, m.evoLegend),
+          !g.versus && duoPanel(g),
+          !g.versus && h('p', { class: 'evo-legend' }, m.evoLegend),
           hint(m.cardHintKeys, m.cardHintTouch),
         ),
         h('div', { class: 'buttons' }, ...buttons),

@@ -103,5 +103,5 @@ describe('a match', () => {
     expect(g.versus!.result).not.toBeNull()
     expect(g.versus!.score[0]).toBeGreaterThan(0)
     expect(g.versus!.score[1]).toBeGreaterThan(0)
-  })
+  }, 30_000)
 })

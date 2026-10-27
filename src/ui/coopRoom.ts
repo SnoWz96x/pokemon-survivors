@@ -15,7 +15,7 @@ import { h, later } from './dom'
 import { confirmDialog, difficultyTag, hint, type Screen } from './screens'
 import { toast } from './toasts'
 import { roleChip, teamColor } from './arena'
-import { isVersusPick, VERSUS_ROSTER, type Team } from '../data/versus'
+import { isVersusPick, VERSUS, VERSUS_ROSTER, type Team } from '../data/versus'
 
 /**
  * Co-op outside a run: the hub (create a room, or join one by code) and the
@@ -188,7 +188,7 @@ const shareRoom = async (root: HTMLElement, code: string) => {
 /**
  * A seat's card: their Pokémon's portrait in the seat's color, name, crown,
  * partner and what they're up to; the host can remove them. In an Arena room
- * (`team` set) the color is their team's, with its name and the Pokémon's role.
+ * (`team` set, the card in its team's column) the color is their team's, with the Pokémon's role.
  */
 const seatCard = (member: Member, index: number, me: boolean, kick: (() => void) | null, team: Team | null = null) => {
   const m = t().coop.lobby
@@ -205,7 +205,6 @@ const seatCard = (member: Member, index: number, me: boolean, kick: (() => void)
       { class: 'coop-seat-text' },
       h('b', { class: 'coop-seat-name' }, member.host ? h('img', { class: 'coop-crown', src: crownIcon(), alt: m.host, title: m.host }) : null, h('span', {}, member.name)),
       h('span', { class: 'coop-seat-partner' }, form?.name ?? '…', role, me ? h('em', { class: 'coop-you' }, m.you) : null),
-      team !== null ? h('span', { class: 'arena-seat-team' }, t().versus.teams[team]) : null,
       h('span', { class: `coop-seat-state ${state}` }, m.state[state]),
     ),
     kick ? navButton(`kick:${member.seat}`, m.kick, kick, 'btn small coop-kick') : null,
@@ -258,9 +257,10 @@ export const coopRoom = (root: HTMLElement, input: Input, client: CoopClient, ac
     const mine = me?.loadout ? parseLoadout(me.loadout) : null
     const teamOf = (member: Member): Team | null => (arena ? (member.loadout ? (parseLoadout(member.loadout).team ?? 0) : 0) : null)
 
+    const kickOf = (member: Member) => (host && lobby && member.seat !== st.seat ? () => ask(m.kickConfirm(member.name), m.kick, () => client.kick(member.seat)) : null)
     const seats = Array.from({ length: MAX_PLAYERS }, (_, i) => {
       const member = room.members[i]
-      if (member) return seatCard(member, i, member.seat === st.seat, host && lobby && member.seat !== st.seat ? () => ask(m.kickConfirm(member.name), m.kick, () => client.kick(member.seat)) : null, teamOf(member))
+      if (member) return seatCard(member, i, member.seat === st.seat, kickOf(member), teamOf(member))
       return h(
         'div',
         { class: 'coop-seat empty' },
@@ -284,20 +284,38 @@ export const coopRoom = (root: HTMLElement, input: Input, client: CoopClient, ac
         )
       : h('span', { class: 'coop-difficulty-read' }, v.room.modes[arena ? 'versus' : 'run'], h('small', {}, m.hostPicks))
 
-    /** Arena: your side, Azul or Vermelho (a full side sends the rest to the other when the match starts). */
+    /**
+     * Arena: the seats in two columns, Azul and Vermelho, each with its
+     * players and, for the rest of its 4, the bots that will take them (the
+     * first one on your side invites, when there are friends to ask). Your
+     * column's head switches you to the other side (a full side sends the
+     * rest to the other when the match starts).
+     */
     const myTeam: Team = mine?.team ?? 0
-    const teamSwitch = arena && lobby && mine
-      ? h(
-          'div',
-          { class: 'shell-seg arena-team-seg', role: 'radiogroup', 'aria-label': v.room.team },
-          ...([0, 1] as const).map((team) =>
-            h(
-              'button',
-              { class: `shell-seg-option team${team}${team === myTeam ? ' on' : ''}`, type: 'button', style: `--team:${teamColor(team)}`, 'data-nav': `team:${team}`, 'aria-pressed': String(team === myTeam), onclick: () => team !== myTeam && (playSfx('move'), client.setLoadout({ ...mine, team })) },
-              v.teams[team],
+    const columns = arena
+      ? ([0, 1] as const).map((team) => {
+          const members = room.members.filter((member) => teamOf(member) === team)
+          const open = Math.max(0, VERSUS.teamSize - members.length)
+          const other: Team = team === 0 ? 1 : 0
+          const switcher = lobby && mine && team === myTeam
+            ? h('button', { class: 'btn small arena-switch', type: 'button', style: `--team:${teamColor(other)}`, 'data-nav': 'team', onclick: () => (playSfx('move'), client.setLoadout({ ...mine, team: other })) }, v.room.switchTo(v.teams[other]!))
+            : null
+          return h(
+            'div',
+            { class: `arena-room-team team${team}${team === myTeam ? ' mine' : ''}`, style: `--team:${teamColor(team)}` },
+            h('div', { class: 'arena-room-head' }, h('b', {}, v.teams[team]), h('span', {}, `${members.length}/${VERSUS.teamSize}`), switcher),
+            ...members.map((member) => seatCard(member, room.members.indexOf(member), member.seat === st.seat, kickOf(member), team)),
+            ...Array.from({ length: open }, (_, i) =>
+              h(
+                'div',
+                { class: 'coop-seat arena-bot-seat', style: `--slot:${teamColor(team)}` },
+                h('img', { class: 'coop-seat-portrait', src: pokeballIcon(), alt: '' }),
+                h('div', { class: 'coop-seat-text' }, h('b', { class: 'coop-seat-name' }, v.room.open), h('span', { class: 'coop-seat-partner' }, v.room.bot)),
+                actions.friends && lobby && team === myTeam && i === 0 && room.members.length < MAX_PLAYERS ? navButton(`invite:${team}`, m.invite, actions.friends, 'btn small') : null,
+              ),
             ),
-          ),
-        )
+          )
+        })
       : null
 
     const difficulty = host && lobby
@@ -355,11 +373,12 @@ export const coopRoom = (root: HTMLElement, input: Input, client: CoopClient, ac
             h('b', { class: 'coop-code-value' }, room.code),
             navButton('share', sheet() ? m.share : m.copy, () => void shareRoom(root, room.code), 'btn small'),
           ),
-          h('div', { class: 'coop-seats' }, ...seats),
+          columns ? h('div', { class: 'arena-room-teams' }, columns[0]!, h('span', { class: 'arena-vs' }, 'VS'), columns[1]!) : h('div', { class: 'coop-seats' }, ...seats),
           h('div', { class: 'coop-settings' }, h('span', { class: 'field-label' }, v.room.mode), mode),
-          teamSwitch && h('div', { class: 'coop-settings' }, h('span', { class: 'field-label' }, v.room.team), teamSwitch),
           !arena && h('div', { class: 'coop-settings' }, h('span', { class: 'field-label' }, m.difficulty), difficulty),
-          h('p', { class: 'invite-tip coop-rules' }, arena ? `${v.intro} ${v.room.fill}` : `${t().coop.hub.intro} ${m.rules}`),
+          arena
+            ? h('ol', { class: 'arena-room-steps' }, ...v.room.steps.map((step, i) => h('li', {}, h('span', { class: 'arena-step-n' }, String(i + 1)), h('span', {}, step))))
+            : h('p', { class: 'invite-tip coop-rules' }, `${t().coop.hub.intro} ${m.rules}`),
         ),
         h('p', { class: `coop-wait${notice && notice.until > performance.now() ? ' error' : ''}`, role: 'status' }, said),
         h(

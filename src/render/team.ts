@@ -11,6 +11,7 @@ import { markerInsets, type MarkerInsets } from './mapEvents'
 import { drawPokemon, hasSheets, sprites, type SpeciesSprites } from './sprites'
 import { dashedRing } from './strokes'
 import { orbGlyph, TEAM_COLORS, TEAM_LIGHT } from './vale'
+import { VERSUS } from '../data/versus'
 
 /**
  * Co-op in the world, draw-only: every teammate's Pokémon with a ring at its
@@ -50,9 +51,9 @@ const cleanTag = (name: string, max: number) =>
 
 /**
  * A Versus player's tag: a human's name as `tagText` writes it; a bot's
- * Pokémon (its form now) and `CPU`. A human who left keeps their name.
+ * Pokémon (its form now: the HUD's cards say CPU). A human who left keeps their name.
  */
-export const versusTag = (name: string, pokemon: string, slot: number) => (name.trim() ? tagText(name, slot) : `${cleanTag(pokemon, 10)} CPU`)
+export const versusTag = (name: string, pokemon: string, slot: number) => (name.trim() ? tagText(name, slot) : cleanTag(pokemon, 10) || `P${slot + 1}`)
 
 /** Each slot's tag, worked out once per name. */
 const tagNames: string[] = []
@@ -282,8 +283,9 @@ const energyText = (n: number) => (energies[n] ??= String(n))
 
 /**
  * Versus, over everyone: each other Pokémon's tag in its team's color (a
- * bot's form and `CPU`), and over every Pokémon carrying Energy (the local
- * one too) a badge with the orb and how much. HP bars come with `drawPlayer`.
+ * bot's form), and over every Pokémon carrying Energy (the local one too) a
+ * dark badge with the orb and how much, gold-rimmed when full. HP bars come
+ * with `drawPlayer`.
  */
 const drawVersusAir = (ctx: Ctx, g: Game, me: Player) => {
   for (const p of g.players) {
@@ -292,17 +294,49 @@ const drawVersusAir = (ctx: Ctx, g: Game, me: Player) => {
     let above = top - 5
     if (p !== me) {
       blitPacked(ctx, textSprite(versusTagOf(g, p), TEAM_LIGHT[p.versus.team]), p.x, above)
-      above -= 8
+      above -= 9
     }
     const energy = Math.floor(p.versus.energy)
     if (energy <= 0) continue
-    const text = textSprite(energyText(energy), energy >= 30 ? '#ffffff' : '#f8d848')
+    const full = energy >= VERSUS.energy.cap
+    const text = textSprite(energyText(energy), full ? '#ffffff' : '#f8d848')
     const orb = orbGlyph()
     const w = orb.width + 1 + text.w
     const x0 = Math.round(p.x - w / 2)
-    ctx.drawImage(orb, x0, Math.round(above - orb.height / 2))
-    blitPacked(ctx, text, x0 + orb.width + 1 + text.w / 2, above)
+    const y0 = Math.round(above - 4)
+    // The badge: a dark pill, its corners cut.
+    ctx.fillStyle = full ? '#e0b850' : '#181820'
+    ctx.fillRect(x0 - 2, y0, w + 3, 9)
+    ctx.fillRect(x0 - 3, y0 + 1, w + 5, 7)
+    ctx.fillStyle = '#181820'
+    if (full) {
+      ctx.fillRect(x0 - 1, y0 + 1, w + 1, 7)
+      ctx.fillRect(x0 - 2, y0 + 2, w + 3, 5)
+    }
+    ctx.drawImage(orb, x0, y0 + 2)
+    blitPacked(ctx, text, x0 + orb.width + 1 + text.w / 2, y0 + 4.5)
   }
+}
+
+/** The markers drawn so far this frame (x, y pairs), for `unstack`. */
+const placed: number[] = []
+/** How far apart two markers' middles stay (px), across and down: their discs and tags never touch. */
+const MARKER_GAP = { x: 40, y: 24 } as const
+
+/** Slides `spot` along the screen's edge, past any marker drawn already this frame, and keeps it. */
+const unstack = (w: number, h: number) => {
+  const tx = -Math.sin(spot.angle)
+  const ty = Math.cos(spot.angle)
+  for (let tries = 0; tries < 4; tries++) {
+    let hit = false
+    for (let i = 0; i < placed.length; i += 2) {
+      if (Math.abs(placed[i]! - spot.x) < MARKER_GAP.x && Math.abs(placed[i + 1]! - spot.y) < MARKER_GAP.y) hit = true
+    }
+    if (!hit) break
+    spot.x = Math.min(w - 12, Math.max(12, spot.x + tx * MARKER_GAP.x))
+    spot.y = Math.min(h - 12, Math.max(12, spot.y + ty * MARKER_GAP.x))
+  }
+  placed.push(spot.x, spot.y)
 }
 
 /** Where an edge marker goes (`edgeSpot` fills it, so drawing allocates nothing). */
@@ -342,6 +376,7 @@ export const drawTeamMarkers = (ctx: Ctx, g: Game, me: Player, camX: number, cam
   const { w, h } = g.view
   const insets = markerInsets()
   const versus = me.versus
+  placed.length = 0
   for (const p of g.players) {
     if (p.gone || p === me) continue
     // Versus: only teammates on their feet, in the team's color.
@@ -349,6 +384,8 @@ export const drawTeamMarkers = (ctx: Ctx, g: Game, me: Player, camX: number, cam
     const sx = p.x - camX
     const sy = p.y - 8 - camY
     if (!edgeSpot(w, h, insets, sx, sy, spot)) continue
+    // Versus: teammates walk together, so a marker on one already slides along the edge, its tag clear of the other's.
+    if (versus) unstack(w, h)
     const down = fainted(p)
     const color = versus ? TEAM_LIGHT[versus.team] : slotColor(p.slot)
     const urgent = down && Math.floor(t * 4) % 2 === 0

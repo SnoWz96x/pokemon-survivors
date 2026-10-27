@@ -12,6 +12,7 @@ import { t } from '../i18n'
 import { curseIcon, itemIcon, moveIcon, teamAwayIcon, teamBallIcon, sparkleIcon } from '../render/art'
 import { portraitUrl } from '../render/sprites'
 import { busyWith, slotColor } from '../render/team'
+import { TEAM_COLORS } from '../render/vale'
 import { h, setStyle, setText } from './dom'
 import { moveCard, withMoveCard } from './moveCard'
 import { versusName } from './versusHud'
@@ -85,7 +86,7 @@ export const teamBuilds = (g: Game, me: Player) => {
   )
 }
 
-type Card = { el: HTMLElement; portrait: HTMLImageElement; badge: HTMLImageElement; level: HTMLElement; fill: HTMLElement; state: HTMLElement; clock: HTMLElement; build: HTMLElement; key: string; mode: string; loadout: string }
+type Card = { el: HTMLElement; portrait: HTMLImageElement; badge: HTMLImageElement; level: HTMLElement; fill: HTMLElement; state: HTMLElement; clock: HTMLElement; build: HTMLElement; energy: HTMLElement; key: string; mode: string; loadout: string; shown: string }
 
 /**
  * Co-op HUD: one compact card per teammate (not the client's own player, whose
@@ -95,6 +96,8 @@ type Card = { el: HTMLElement; portrait: HTMLImageElement; badge: HTMLImageEleme
  * their build (moves and items, a move's card on hover or hold). Three cards fit
  * a phone held upright in one row under the top bar; landscape stacks them on
  * the left (`style.css`). `update` runs every frame and only touches what changed.
+ * In an Arena match the cards are slimmer (`vs`): no build, the Energy the
+ * teammate carries instead, and their respawn countdown while they're down.
  */
 export const createTeamHud = (root: HTMLElement) => {
   const el = h('div', { class: 'team-hud' })
@@ -110,21 +113,22 @@ export const createTeamHud = (root: HTMLElement) => {
     const state = h('span', { class: 'team-state hidden' })
     const clock = h('div', { class: 'team-clock hidden' })
     const build = h('div', { class: 'team-build' })
+    const energy = h('span', { class: 'team-energy hidden' })
     const card = h(
       'div',
-      { class: 'team-card', style: `--slot:${slotColor(p.slot)}` },
+      { class: 'team-card', style: `--slot:${p.versus ? TEAM_COLORS[p.versus.team] : slotColor(p.slot)}` },
       h('div', { class: 'team-face' }, portrait, badge),
       h(
         'div',
         { class: 'team-body' },
-        h('div', { class: 'team-head' }, h('b', { class: 'team-name' }, seatName(g, p.slot)), level),
+        h('div', { class: 'team-head' }, h('b', { class: 'team-name' }, seatName(g, p.slot)), energy, level),
         h('div', { class: 'team-hp' }, fill),
         state,
       ),
       build,
       clock,
     )
-    const made: Card = { el: card, portrait, badge, level, fill, state, clock, build, key: '', mode: '', loadout: '' }
+    const made: Card = { el: card, portrait, badge, level, fill, state, clock, build, energy, key: '', mode: '', loadout: '', shown: '' }
     cards.set(p.slot, made)
     el.append(card)
     return made
@@ -169,15 +173,29 @@ export const createTeamHud = (root: HTMLElement) => {
       const mode = state ?? ''
       if (mode !== card.mode) {
         card.mode = mode
-        card.el.className = state ? `team-card ${state}` : 'team-card'
+        card.shown = ''
+        card.el.className = `team-card${p.versus ? ' vs' : ''}${state ? ` ${state}` : ''}`
         card.state.classList.toggle('hidden', !state)
         setText(card.state, state ? t().team.state[state] : '')
         const icon = state === 'fainted' ? teamBallIcon() : state === 'away' ? teamAwayIcon() : state === 'evolving' ? sparkleIcon() : null
         card.badge.classList.toggle('hidden', !icon)
         if (icon) card.badge.src = icon
       }
+      if (p.versus) {
+        // Arena: what they carry, and when they're back while down.
+        const carried = Math.floor(p.versus.energy)
+        const down = p.hp <= 0 && p.versus.respawn > 0 ? Math.ceil(p.versus.respawn) : 0
+        const shown = `${carried}|${down}`
+        if (shown !== card.shown) {
+          card.shown = shown
+          card.energy.classList.toggle('hidden', carried <= 0)
+          card.energy.classList.toggle('full', carried >= VERSUS.energy.cap)
+          setText(card.energy, String(carried))
+          if (down) setText(card.state, t().versus.hud.respawn(down))
+        }
+      }
       const loadout = buildKey(p)
-      if (loadout !== card.loadout) {
+      if (!p.versus && loadout !== card.loadout) {
         card.loadout = loadout
         const next = buildIcons(g, p)
         card.build.replaceWith(next)

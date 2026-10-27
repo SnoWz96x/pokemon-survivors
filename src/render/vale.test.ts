@@ -20,9 +20,9 @@ describe('the Vale floor', () => {
 })
 
 describe('versusTag', () => {
-  it("writes a human's name, and a bot's Pokémon with CPU", () => {
+  it("writes a human's name, and a bot's Pokémon", () => {
     expect(versusTag('@ana', 'Bulbasaur', 0)).toBe('ANA')
-    expect(versusTag('', 'Charmander', 3)).toBe('CHARMANDER CPU')
-    expect(versusTag('', 'Flabébé', 3)).toBe('FLABEBE CPU')
+    expect(versusTag('', 'Charmander', 3)).toBe('CHARMANDER')
+    expect(versusTag('', 'Flabébé', 3)).toBe('FLABEBE')
   })
 })

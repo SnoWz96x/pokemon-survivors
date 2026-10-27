@@ -134,7 +134,8 @@ export type CoopEvent =
   | { kind: 'status'; status: Status }
   | { kind: 'room'; room: RoomView }
   /** A run began (tick 0 in `startsIn` ms), or this client joined one mid-way: `runner` holds its game. */
-  | { kind: 'run'; runner: Runner; why: 'start' | 'join' | 'seed' | 'heal' }
+  | { kind: 'run'; runner: Runner; why: 'start'; startsIn: number }
+  | { kind: 'run'; runner: Runner; why: 'join' | 'seed' | 'heal' }
   /** The runner's game object was replaced (a restore): re-link what the shell shares with it. */
   | { kind: 'game'; runner: Runner; why: 'join' | 'heal' | 'seed' }
   /** The relay is bringing this client to the run's present: from its own state (`resume`), the agreed snapshot (`base`) or the seed. */
@@ -544,7 +545,7 @@ export const createCoopClient = (deps: CoopDeps) => {
         const r = runnerFor(m.run)
         s.runner = r
         setStatus({ kind: 'playing' })
-        return emit({ kind: 'run', runner: r, why: 'start' })
+        return emit({ kind: 'run', runner: r, why: 'start', startsIn: m.startsIn })
       }
       case 'sync': {
         emit({ kind: 'sync', reason: m.reason, from: m.from, to: m.to, base: m.base?.tick ?? null })

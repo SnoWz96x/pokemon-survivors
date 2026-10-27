@@ -536,9 +536,12 @@ const loadable = (v: Variant): Loadable[] => {
   return [{ dex: v.dex, shiny: v.shiny && manifestVariant(v.dex, true, form) !== undefined, form }]
 }
 
-/** Loads these variants first in the queue, for a loading screen; one that fails is left to its stand-in (a puff), never holding the run back. */
-export const loadAll = async (variants: readonly Variant[]) => {
-  await Promise.allSettled(variants.flatMap(loadable).map((v) => loadSpecies(v.dex, v.shiny, v.form, 'now')))
+/** Loads these variants first in the queue, for a loading screen; one that fails is left to its stand-in (a puff), never holding the run back. `progress` hears each one land. */
+export const loadAll = async (variants: readonly Variant[], progress?: (done: number, total: number) => void) => {
+  const all = variants.flatMap(loadable)
+  let done = 0
+  progress?.(0, all.length)
+  await Promise.allSettled(all.map((v) => loadSpecies(v.dex, v.shiny, v.form, 'now').finally(() => progress?.(++done, all.length))))
 }
 
 /** Loads shiny forms in the background. Until one is ready, `sprites` falls back to the normal form. */

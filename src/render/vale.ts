@@ -5,6 +5,7 @@ import { channelTime, goalOpen } from '../game/versusRules'
 import type { GoalState, VersusState } from '../game/versus'
 import type { Game, Player } from '../game/types'
 import { dashedRing } from './strokes'
+import { bannerOf, FLOWER_PATCHES, lampOf, LOG, MUSHROOMS, TALL_GRASS, TALL_GRASS_SMALL } from './valeDecor'
 
 /**
  * The Vale (Arena, `game/versus.ts`) on screen, draw-only: its floor baked in
@@ -27,6 +28,9 @@ export const teamColor = (team: Team) => TEAM_COLORS[team]
 export const teamLight = (team: Team) => TEAM_LIGHT[team]
 
 const hex = (s: string): RGB => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)]
+
+/** `a` moved `k` of the way to `b`. */
+const mix = (a: RGB, b: RGB, k: number): RGB => [Math.round(a[0] + (b[0] - a[0]) * k), Math.round(a[1] + (b[1] - a[1]) * k), Math.round(a[2] + (b[2] - a[2]) * k)]
 
 /* ---------------- The floor: what stands where ---------------- */
 
@@ -90,6 +94,7 @@ const SHADOW = hex('#0c1c10')
 const FLOWERS = [hex('#f8f0f0'), hex('#f88aa8'), hex('#98b8f8')] as const
 const POLLEN = hex('#f8d848')
 const TINTS = [hex(TEAM_COLORS[0]), hex(TEAM_COLORS[1])] as const
+const TEAM_LIGHT_RGB = [hex(TEAM_LIGHT[0]), hex(TEAM_LIGHT[1])] as const
 
 /* ---------------- Ground patterns (world px) ---------------- */
 
@@ -151,22 +156,148 @@ const pathDepth = (x: number, y: number) => {
   return best
 }
 
-/** The bases' flagstones, staggered rows, tinted toward their team. */
-const stoneAt = (x: number, y: number, out: number[]) => {
-  const W = 18
-  const H = 13
-  const row = Math.floor((y + 1300) / H)
-  const sx = x + 1300 + (row % 2) * 9
+/** The bases' plaza (|x|, |y|): the carpet's spine north–south, its arms out to both lanes and from the pad to the jungle, and the ball emblems on it. */
+const PLAZA = { spine: 645, half: 10, reach: 295, gate: 540, pad: 700, emblemY: 175, emblemR: 24 } as const
+const GOLD = { lit: hex('#f0d070'), main: hex('#d8a840'), dark: hex('#7a5a28') }
+const INK = hex('#282830')
+const CREAM = { lit: hex('#fbf6ea'), main: hex('#ece2cc'), dark: hex('#c8bca0') }
+const WHITE = hex('#ffffff')
+const CARPETS = TINTS.map((c) => ({ main: mix(c, hex('#1c1c2c'), 0.38), lit: mix(c, WHITE, 0.18) }))
+
+/** How deep (ax, ay) sits in a base's carpet (> 0 inside, its half width at the middle) and how far along it, or null off it. */
+const carpetAt = (ax: number, ay: number): { depth: number; along: number } | null => {
+  const { spine, half, reach, gate, pad } = PLAZA
+  let best: { depth: number; along: number } | null = null
+  const take = (depth: number, along: number) => {
+    if (depth >= 0 && (!best || depth > best.depth)) best = { depth, along }
+  }
+  if (ay <= reach + half) take(half - Math.abs(ax - spine), ay)
+  if (ax >= gate && ax <= pad) take(half - ay, ax)
+  if (ax >= gate && ax <= spine + half) take(half - Math.abs(ay - reach), ax)
+  return best
+}
+
+/** The ball emblem painted on the carpet, in the team's color over cream; false off it. */
+const emblemAt = (dx: number, dy: number, team: Team, out: number[]) => {
+  const d = Math.sqrt(dx * dx + dy * dy)
+  const R = PLAZA.emblemR
+  if (d > R) return false
+  if (d > R - 1) set(out, INK)
+  else if (d > R - 4) set(out, dx + dy < -R * 0.6 ? GOLD.lit : dx + dy > R * 0.9 ? GOLD.dark : GOLD.main)
+  else if (d > R - 5) set(out, INK)
+  else if (d <= 8) set(out, d > 6 ? INK : d > 4.5 ? CREAM.dark : dx + dy < -2 ? WHITE : CREAM.lit)
+  else if (Math.abs(dy) <= 2) set(out, INK)
+  else if (dy < 0) {
+    set(out, dx + dy < -R * 0.7 ? CARPETS[team]!.lit : TINTS[team])
+    if (dx + dy > R * 0.45) mixInto(out, out, hex('#101018'), 0.25)
+  } else set(out, dx + dy > R * 0.7 ? CREAM.dark : CREAM.main)
+  return true
+}
+
+const PLAZA_STONE = [hex('#d2c6aa'), hex('#dcd2b8'), hex('#c8bc9e')] as const
+const PLAZA_LIT = hex('#eee6d0')
+const PLAZA_EDGE = hex('#b4a888')
+const PLAZA_GROUT = hex('#8c8068')
+const MOSS = hex('#6a9a4a')
+
+/**
+ * A base: wide bevelled flagstones (tinted toward the team, a moss speck in
+ * the grout here and there), the team's carpet with gold trim and a diamond
+ * weave from the spawn pad to every exit, and the ball emblems on it.
+ */
+const plazaAt = (x: number, y: number, out: number[]) => {
+  const team: Team = x < 0 ? 0 : 1
+  const ax = Math.abs(x)
+  const ay = Math.abs(y)
+  if (emblemAt(ax - PLAZA.spine, y - (y < 0 ? -PLAZA.emblemY : PLAZA.emblemY), team, out)) return
+  const carpet = carpetAt(ax, ay)
+  if (carpet) {
+    const { depth, along } = carpet
+    if (depth < 1) return set(out, GOLD.dark)
+    if (depth < 3) return set(out, depth < 2 ? GOLD.main : GOLD.lit)
+    if (depth < 4) return set(out, GOLD.dark)
+    const u = ((Math.floor(along) % 14) + 14) % 14
+    const v = PLAZA.half - 4 - depth
+    const k = Math.abs(u - 7) + Math.abs(v + 3)
+    return set(out, k === 3 ? GOLD.main : k < 3 ? CARPETS[team]!.lit : CARPETS[team]!.main)
+  }
+  const W = 26
+  const H = 16
+  const row = Math.floor((y + 1400) / H)
+  const sx = x + 1400 + (row % 2) * 13
   const col = Math.floor(sx / W)
   const lx = sx - col * W
-  const ly = y + 1300 - row * H
-  const team = x < 0 ? 0 : 1
-  if (lx === 0 || ly === 0) return set(out, STONE.grout)
-  const tone = hash2(col, row, 51) < 0.5 ? STONE.a : STONE.b
-  const base = lx === 1 || ly === 1 ? STONE.lit : tone
-  const speck = hash2(x, y, 52) < 0.04 ? 0.18 : 0
-  mixInto(out, base, TINTS[team], 0.16)
-  if (speck) mixInto(out, out, STONE.grout, speck)
+  const ly = y + 1400 - row * H
+  if (lx === 0 || ly === 0) set(out, hash2(x, y, 53) < 0.07 ? MOSS : PLAZA_GROUT)
+  else {
+    const tone = PLAZA_STONE[Math.floor(hash2(col, row, 51) * PLAZA_STONE.length)]!
+    set(out, lx === 1 || ly === 1 ? PLAZA_LIT : lx === W - 1 || ly === H - 1 ? PLAZA_EDGE : hash2(x, y, 52) < 0.03 ? PLAZA_EDGE : tone)
+  }
+  mixInto(out, out, TINTS[team], 0.1)
+}
+
+/** The center's stone ring (radii, world px), where Drednaw and Zapdos come down. */
+const CENTER = { inner: 50, outer: 60 } as const
+const SAND = { main: hex('#c8a870'), alt: hex('#bc9c64'), line: hex('#e4cc98'), dark: hex('#9c7c4c') }
+
+/** The center: a ring of stone blocks round trodden sand, a painted circle inside; false off it. */
+const centerAt = (x: number, y: number, out: number[]) => {
+  const d = Math.sqrt(x * x + y * y)
+  const { inner, outer } = CENTER
+  if (d > outer + 3) return false
+  if (d > outer) {
+    grassAt(x, y, true, out)
+    mixInto(out, out, SHADOW, 0.3)
+    return true
+  }
+  if (d > inner) {
+    const arc = (Math.atan2(y, x) + Math.PI) * ((inner + outer) / 2)
+    const block = Math.floor(arc / 13)
+    if (d > outer - 1 || d <= inner + 1 || arc - block * 13 < 1) set(out, d > outer - 1 ? INK : STONE.grout)
+    else set(out, d < inner + 3 || y < -inner ? STONE.lit : hash2(block, 0, 54) < 0.5 ? STONE.a : STONE.b)
+    if (hash2(x, y, 55) < 0.05) mixInto(out, out, MOSS, 0.6)
+    return true
+  }
+  const painted = Math.abs(d - 30) < 1 || (d < 6 && (Math.abs(x) < 1.5 || Math.abs(y) < 1.5))
+  set(out, painted ? SAND.line : hash2(x, y, 56) < 0.04 ? SAND.dark : noise2(x, y, 12, 57) > 0.55 ? SAND.alt : SAND.main)
+  // The ring's shadow on the sand under its north side.
+  if (d > inner - 4 && y < 0) mixInto(out, out, SHADOW, 0.25)
+  return true
+}
+
+/** Each camp's nest (its trampled ground and pebble ring), sized to what stands there. */
+const NESTS = VALE.camps.map((c) => ({ x: c.x, y: c.y, r: c.species === 'ludicolo' ? 24 : 14 + c.count * 2 }))
+const PEBBLE = { lit: hex('#d8d4c8'), main: hex('#9e9a90'), dark: hex('#5e5c58') }
+const TRAMPLE = hex('#6e5a38')
+
+/** Over a camp's nest, the floor gets trampled and a ring of pebbles. */
+const nestAt = (x: number, y: number, out: number[]) => {
+  for (const n of NESTS) {
+    const dx = x - n.x
+    const dy = y - n.y
+    if (Math.abs(dx) > n.r + 1 || Math.abs(dy) > n.r + 1) continue
+    const d = Math.sqrt(dx * dx + dy * dy)
+    if (d > n.r + 0.5) continue
+    if (d > n.r - 2.5) {
+      const seg = Math.floor(((Math.atan2(dy, dx) + Math.PI) * n.r) / 3)
+      if (hash2(seg, n.r, 58) < 0.72) set(out, d > n.r - 0.5 ? PEBBLE.dark : dy < 0 ? PEBBLE.lit : PEBBLE.main)
+    } else if (d < n.r - 4) mixInto(out, out, TRAMPLE, 0.18 + (hash2(x, y, 59) < 0.1 ? 0.12 : 0))
+    return
+  }
+}
+
+/** The lanes' paths: faint chevrons in each half's team color, pointing at the rival side, and the midline. */
+const chevronAt = (x: number, y: number, out: number[]) => {
+  const v = Math.abs(y) - LANE_Y
+  if (Math.abs(v) > 6 || Math.abs(x) > 500) return
+  if (Math.abs(x) < 1) return mixInto(out, out, STONE.lit, hash2(0, y, 60) < 0.8 ? 0.7 : 0.3)
+  const ax = Math.abs(x)
+  // Clear of the goals and camps on the path.
+  if (Math.abs(ax - 420) < 46 || Math.abs(ax - 250) < 26 || ax < 34) return
+  // Apex toward the middle: each half's chevrons point the way its team attacks.
+  const u = (((ax - 18) % 70) + 70) % 70
+  const k = u - 30 - Math.abs(v)
+  if (k === 0 || k === 1) mixInto(out, out, TEAM_LIGHT_RGB[x < 0 ? 0 : 1], 0.55)
 }
 
 /**
@@ -223,11 +354,82 @@ const mixInto = (out: number[], a: RGB | number[], b: RGB, k: number) => {
 /** A floor pixel's color before the hedge's shadows. */
 const floorAt = (x: number, y: number, out: number[]) => {
   const zone = zoneAt(x, y)
-  if (zone === 'base') return stoneAt(x, y, out)
+  if (zone === 'base') return plazaAt(x, y, out)
+  if (zone === 'jungle' && centerAt(x, y, out)) return
   const depth = pathDepth(x, y)
   // The path's edge frays: grass and dirt dither over a couple of pixels.
-  if (depth > 1.5 || (depth > -1.5 && hash2(x, y, 44) < (depth + 1.5) / 3)) return dirtAt(x, y, out)
-  grassAt(x, y, zone === 'jungle', out)
+  if (depth > 1.5 || (depth > -1.5 && hash2(x, y, 44) < (depth + 1.5) / 3)) {
+    dirtAt(x, y, out)
+    if (zone === 'lane') chevronAt(x, y, out)
+  } else grassAt(x, y, zone === 'jungle', out)
+  nestAt(x, y, out)
+}
+
+/* ---------------- Decor ---------------- */
+
+/** A decor sprite baked into the floor with its top left at (x, y). */
+type Decor = { sprite: () => PixelSprite; x: number; y: number }
+
+/** Spots decor stays off: the goals, the pads, the camps, the center, the cover and the paths. */
+const keepsClear = (x: number, y: number, r: number) => {
+  for (const goal of VALE.goals) if (Math.hypot(x - goal.x, y - goal.y) < goal.r + r + 6) return true
+  for (const pad of VALE.spawn) if (Math.hypot(x - pad.x, y - pad.y) < VERSUS.spawnPad.r + r + 6) return true
+  for (const n of NESTS) if (Math.hypot(x - n.x, y - n.y) < n.r + r + 8) return true
+  for (const s of VALE.solids) if (Math.hypot(x - s.x, y - s.y) < r + 22) return true
+  if (Math.hypot(x, y) < CENTER.outer + r + 10) return true
+  return pathDepth(x, y) > -r - 4
+}
+
+/** Whether a sprite `w`×`h` at top left (x, y) lies wholly on the floor, a few px clear of the hedge. */
+const fits = (x: number, y: number, w: number, h: number) => onFloor(x - 3, y - 3) && onFloor(x + w + 3, y - 3) && onFloor(x - 3, y + h + 3) && onFloor(x + w + 3, y + h + 3)
+
+/**
+ * Every piece of decor, placed once: each base's banners on the hedge behind
+ * it and lamps round its plaza, tall grass in the jungle, flowers on the
+ * lanes' verges, mushrooms by the hedge and two fallen logs. Hashed spots,
+ * the same on every device.
+ */
+const DECOR = lazy((): Decor[] => {
+  const out: Decor[] = []
+  for (const team of [0, 1] as const) {
+    const sx = team === 0 ? -1 : 1
+    for (const ax of [585, 705]) out.push({ sprite: () => bannerOf(team), x: sx * ax - 5, y: -386 })
+    for (const [ax, ay] of [[566, 140], [728, 140], [566, -140], [728, -140]] as const) out.push({ sprite: () => lampOf(team), x: sx * ax - 3, y: ay - 13 })
+  }
+  for (const [x, y] of [[-96, -132], [92, 126]] as const) out.push({ sprite: LOG, x, y })
+  const grass = [TALL_GRASS, TALL_GRASS_SMALL] as const
+  for (let cy = -160; cy < 160; cy += 26) {
+    for (let cx = -470; cx < 470; cx += 30) {
+      const h = hash2(cx, cy, 91)
+      if (h > 0.5) continue
+      const x = cx + Math.floor(hash2(cx, cy, 92) * 18)
+      const y = cy + Math.floor(hash2(cx, cy, 93) * 14)
+      const sprite = grass[h < 0.2 ? 1 : 0]
+      if (zoneAt(x, y) !== 'jungle' || keepsClear(x + 6, y + 4, 8) || !fits(x, y, 12, 8)) continue
+      out.push({ sprite, x, y })
+    }
+  }
+  for (let cy = -380; cy < 380; cy += 22) {
+    if (Math.abs(cy) < 200) continue
+    for (let cx = -540; cx < 540; cx += 34) {
+      const h = hash2(cx, cy, 94)
+      if (h > 0.2) continue
+      const x = cx + Math.floor(hash2(cx, cy, 95) * 20)
+      const y = cy + Math.floor(hash2(cx, cy, 96) * 12)
+      if (zoneAt(x, y) !== 'lane' || keepsClear(x + 3, y + 3, 4) || !fits(x, y, 7, 7)) continue
+      out.push({ sprite: h < 0.04 ? MUSHROOMS : () => FLOWER_PATCHES()[Math.floor(hash2(cx, cy, 97) * 3)]!, x, y })
+    }
+  }
+  return out
+})
+
+/** Bakes the decor overlapping the tile at world (ox, oy) onto it. */
+const stampDecor = (ctx: CanvasRenderingContext2D, ox: number, oy: number) => {
+  for (const d of DECOR()) {
+    const s = d.sprite()
+    if (d.x + s.width <= ox || d.x >= ox + TILE || d.y + s.height <= oy || d.y >= oy + TILE) continue
+    ctx.drawImage(s, d.x - ox, d.y - oy)
+  }
 }
 
 /* ---------------- Baking ---------------- */
@@ -289,6 +491,7 @@ const bake = (ox: number, oy: number, pure: boolean) => {
     }
   }
   ctx.putImageData(img, 0, 0)
+  if (!pure) stampDecor(ctx, ox, oy)
   return canvas
 }
 
@@ -390,16 +593,56 @@ const bakeZone = (team: Team, look: ZoneLook, r: number) => {
       }
     }
   }
-  if (look === 'pad') {
-    // Healing crosses around the pad.
-    for (let k = 0; k < 6; k++) {
-      const a = (k / 6) * Math.PI * 2 + Math.PI / 6
-      const x = Math.round(c + Math.cos(a) * (r - 16))
-      const y = Math.round(c + Math.sin(a) * (r - 16))
-      ctx.fillStyle = rgba(light, 0.8)
-      ctx.fillRect(x - 2, y, 5, 1)
-      ctx.fillRect(x, y - 2, 1, 5)
+  return canvas
+}
+
+/**
+ * A team's spawn pad: a ring of stone blocks in the team's trim round a
+ * glassy disc of its color, a big healing cross in the middle, small ones
+ * round it. Opaque at the rim, so it reads as a place on the plaza.
+ */
+const bakePad = (team: Team, r: number) => {
+  const size = r * 2 + 3
+  const c = size / 2
+  const canvas = createCanvas(size, size)
+  const ctx = context2d(canvas)
+  const color = TINTS[team]
+  const light: number[] = [0, 0, 0]
+  mixInto(light, color, WHITE, 0.55)
+  const dark: number[] = [0, 0, 0]
+  mixInto(dark, color, hex('#101018'), 0.5)
+  const stone = r - 9
+  for (let py = 0; py < size; py++) {
+    for (let px = 0; px < size; px++) {
+      const dx = px + 0.5 - c
+      const dy = py + 0.5 - c
+      const d = Math.sqrt(dx * dx + dy * dy)
+      if (d > r + 1) continue
+      let style: string
+      if (d > r) style = rgba(INK, 0.9)
+      else if (d > r - 2) style = rgba(dy < 0 ? light : color, 1)
+      else if (d > stone + 1) {
+        const block = Math.floor(((Math.atan2(dy, dx) + Math.PI) * (r - 5)) / 11)
+        const edge = Math.floor(((Math.atan2(dy, dx) + Math.PI) * (r - 5)) % 11) === 0
+        style = edge || d < stone + 2 ? rgba(STONE.grout, 1) : rgba(dy < -stone * 0.4 ? STONE.lit : hash2(block, 1, 83) < 0.5 ? STONE.a : STONE.b, 1)
+      } else if (d > stone) style = rgba(dark, 1)
+      else {
+        const cross = (Math.abs(dx) < 4 && Math.abs(dy) < 13) || (Math.abs(dy) < 4 && Math.abs(dx) < 13)
+        const rim = (Math.abs(dx) < 5 && Math.abs(dy) < 14) || (Math.abs(dy) < 5 && Math.abs(dx) < 14)
+        style = cross ? rgba(dx + dy < -6 ? WHITE : light, 0.95) : rim ? rgba(dark, 0.7) : rgba(color, 0.32 + ((px + py) % 4 === 0 ? 0.08 : 0))
+      }
+      ctx.fillStyle = style
+      ctx.fillRect(px, py, 1, 1)
     }
+  }
+  // Small crosses round the cross, on the glass.
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + Math.PI / 4
+    const x = Math.round(c + Math.cos(a) * (stone - 9))
+    const y = Math.round(c + Math.sin(a) * (stone - 9))
+    ctx.fillStyle = rgba(light, 0.9)
+    ctx.fillRect(x - 2, y, 5, 1)
+    ctx.fillRect(x, y - 2, 1, 5)
   }
   return canvas
 }
@@ -408,9 +651,103 @@ const zones = canvasCache<string, PixelSprite>()
 const zoneSprite = (team: Team, look: ZoneLook, r: number) => {
   const key = `${team}:${look}:${r}`
   let s = zones.get(key)
-  if (!s) zones.set(key, (s = bakeZone(team, look, r)))
+  if (!s) zones.set(key, (s = look === 'pad' ? bakePad(team, r) : bakeZone(team, look, r)))
   return s
 }
+
+/* ---------------- Goal posts ---------------- */
+
+type PostLook = 'open' | 'locked' | 'broken'
+
+/** The post's size and where its hoop sits on it (sprite px). */
+const POST = { w: 21, h: 33, hx: 10.5, hy: 9.5, outer: 9.5, inner: 5.5, foot: 29 } as const
+
+/**
+ * A goal's post, Unite style: a hoop in the team's colors on a pole over a
+ * stone pedestal. Shut, it greys over with a chain across the hoop (the
+ * padlock goes on top); broken, the pole is a snapped stump with the hoop in
+ * pieces at its foot.
+ */
+const bakePost = (team: Team, look: PostLook) => {
+  const canvas = createCanvas(POST.w, POST.h)
+  const ctx = context2d(canvas)
+  const dot = (x: number, y: number, c: ArrayLike<number>, a = 1) => {
+    ctx.fillStyle = rgba(c, a)
+    ctx.fillRect(x, y, 1, 1)
+  }
+  const grey = hex('#8a8a92')
+  const color: number[] = [0, 0, 0]
+  mixInto(color, TINTS[team], grey, look === 'open' ? 0 : look === 'locked' ? 0.6 : 1)
+  const light: number[] = [0, 0, 0]
+  mixInto(light, color, WHITE, 0.5)
+  const dark: number[] = [0, 0, 0]
+  mixInto(dark, color, hex('#101018'), 0.5)
+  // The pedestal.
+  const cx = POST.hx
+  const fy = POST.foot
+  for (let y = fy - 4; y <= fy + 3; y++) {
+    for (let x = 0; x < POST.w; x++) {
+      const e = ((x + 0.5 - cx) / 8) ** 2 + ((y + 0.5 - fy) / 3.6) ** 2
+      if (e > 1) continue
+      const top = ((x + 0.5 - cx) / 8) ** 2 + ((y + 0.5 - (fy - 1)) / 2.6) ** 2 <= 1
+      dot(x, y, e > 0.72 ? INK : top ? (x < cx - 2 ? STONE.lit : STONE.b) : STONE.grout)
+    }
+  }
+  if (look === 'broken') {
+    // A snapped stump, jagged on top, and the hoop's pieces on the ground.
+    for (let y = fy - 12; y <= fy - 2; y++) for (let x = 9; x <= 11; x++) if (y > fy - 12 + ((x * 7) % 3)) dot(x, y, x === 9 ? light : x === 11 ? INK : dark)
+    for (const [x0, y0, len] of [[1, fy - 1, 5], [15, fy, 5]] as const) {
+      for (let i = 0; i < len; i++) {
+        dot(x0 + i, y0 - (i === 1 || i === 2 ? 1 : 0), dark)
+        dot(x0 + i, y0 + 1 - (i === 1 || i === 2 ? 1 : 0), INK, 0.6)
+      }
+    }
+    dot(6, fy - 3, PEBBLE.lit)
+    dot(12, fy - 4, PEBBLE.main)
+    return canvas
+  }
+  // The pole.
+  for (let y = Math.round(POST.hy + POST.outer - 1); y <= fy - 2; y++) {
+    dot(9, y, light)
+    dot(10, y, color)
+    dot(11, y, dark)
+  }
+  // The hoop: a thick ring lit from the top left, a dark rim, the middle seen through.
+  for (let y = 0; y < POST.hy * 2 + 1; y++) {
+    for (let x = 0; x < POST.w; x++) {
+      const dx = x + 0.5 - POST.hx
+      const dy = y + 0.5 - POST.hy
+      const d = Math.sqrt(dx * dx + dy * dy)
+      if (d > POST.outer) continue
+      if (d > POST.outer - 1 || (d > POST.inner - 1 && d <= POST.inner)) dot(x, y, INK)
+      else if (d > POST.inner) dot(x, y, dx + dy < -3 ? light : dx + dy > 4 ? dark : color)
+      else dot(x, y, look === 'open' ? light : grey, look === 'open' ? 0.55 : 0.35)
+    }
+  }
+  if (look === 'locked') {
+    // A chain across the hoop.
+    for (let i = -7; i <= 7; i += 2) {
+      dot(Math.round(POST.hx + i), Math.round(POST.hy + i * 0.35), hex('#c8c8d0'))
+      dot(Math.round(POST.hx + i + 1), Math.round(POST.hy + i * 0.35), hex('#606068'))
+    }
+  }
+  return canvas
+}
+
+/** An open hoop's glow, in its team's light. */
+const GLOWS = [rgba(TEAM_LIGHT_RGB[0], 0.22), rgba(TEAM_LIGHT_RGB[1], 0.22)] as const
+
+const posts = canvasCache<string, PixelSprite>()
+const postSprite = (team: Team, look: PostLook) => {
+  const key = `${team}:${look}`
+  let s = posts.get(key)
+  if (!s) posts.set(key, (s = bakePost(team, look)))
+  return s
+}
+
+/** Where a goal's post sprite goes: its pedestal's foot on the goal's middle. */
+const postLeft = (goal: GoalState) => Math.round(goal.x - POST.hx)
+const postTop = (goal: GoalState) => Math.round(goal.y + 4 - POST.foot)
 
 /** A base goal still shut: a small padlock. */
 const PADLOCK = lazy(() =>
@@ -429,9 +766,20 @@ export const drawValeZones = (ctx: Ctx, g: Game, t: number) => {
     const open = goalOpen(s, goal)
     const look: ZoneLook = goal.broken ? 'broken' : open ? 'open' : 'locked'
     blitCentered(ctx, zoneSprite(goal.team, look, goal.r), goal.x, goal.y)
-    if (look === 'locked') blitCentered(ctx, PADLOCK(), goal.x, goal.y)
     // An open goal's rim runs, faster as it empties.
     if (look === 'open') dashedRing(ctx, goal.x, goal.y, goal.r + 2, t * (1.5 + (1 - goal.left / goal.max) * 3), [TEAM_LIGHT[goal.team], '#ffffff', TEAM_COLORS[goal.team]], 0.45)
+    blitEllipse(ctx, 10, 3, 'rgba(12,20,12,0.35)', goal.x + 1, goal.y + 5)
+    const x = postLeft(goal)
+    const y = postTop(goal)
+    if (look === 'open') blitEllipse(ctx, 13, 13, GLOWS[goal.team], x + POST.hx, y + POST.hy)
+    ctx.drawImage(postSprite(goal.team, look), x, y)
+    if (look === 'locked') blitCentered(ctx, PADLOCK(), goal.x, y + POST.hy + 1)
+    else if (look === 'open') {
+      // A spark runs round the hoop.
+      const a = t * 3 + goal.x * 0.01
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(Math.round(x + POST.hx + Math.cos(a) * 7.5 - 0.5), Math.round(y + POST.hy + Math.sin(a) * 7.5 - 0.5), 1, 1)
+    }
   }
 }
 
@@ -513,13 +861,26 @@ export const drawValeGround = (ctx: Ctx, g: Game, t: number, visible: (x: number
 const numbers: string[] = []
 const numberText = (n: number) => (numbers[n] ??= String(n))
 
-/** Over everyone: each standing goal's points left, in its team's color (grey while shut). */
+/**
+ * Over everyone: each standing goal's points left over its hoop, in its
+ * team's color (grey while shut), and a bar of what's left of them.
+ */
 export const drawValeAir = (ctx: Ctx, g: Game) => {
   const s = g.versus
   if (!s) return
   for (const goal of s.goals) {
     if (goal.broken) continue
-    const color = goalOpen(s, goal) ? TEAM_LIGHT[goal.team] : '#a8a8b0'
-    blitPacked(ctx, textSprite(numberText(Math.max(0, Math.round(goal.left))), color), goal.x, goal.y - goal.r - 6)
+    const open = goalOpen(s, goal)
+    const top = postTop(goal)
+    blitPacked(ctx, textSprite(numberText(Math.max(0, Math.round(goal.left))), open ? TEAM_LIGHT[goal.team] : '#a8a8b0'), goal.x, top - 7)
+    const w = 16
+    const x = Math.round(goal.x - w / 2)
+    const y = top - 3
+    ctx.fillStyle = '#181010'
+    ctx.fillRect(x - 1, y - 1, w + 2, 4)
+    ctx.fillStyle = '#404048'
+    ctx.fillRect(x, y, w, 2)
+    ctx.fillStyle = open ? TEAM_COLORS[goal.team] : '#8a8a92'
+    ctx.fillRect(x, y, Math.ceil((w * Math.max(0, goal.left)) / goal.max), 2)
   }
 }

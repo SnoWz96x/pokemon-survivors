@@ -18009,11 +18009,11 @@ button.hall-tile:hover {
   }
 }
 
-/* The Arena's screen: rules, the roster as a grid of faces, the one picked, and the ways to play. */
+/* The Arena's screen (ui/arena.ts): the picked Pokémon in a hero panel beside the roster, Como jogar, and the two ways to play. */
 .dialog.arena {
-  width: min(640px, 94 * var(--vw));
+  width: min(900px, 96 * var(--vw));
   gap: 10px;
-  padding: 16px;
+  padding: 14px 16px 12px;
 }
 
 /* The screen scrolls when it doesn't fit: no part of the dialog gets squeezed. */
@@ -18021,21 +18021,11 @@ button.hall-tile:hover {
   flex: none;
 }
 
-.arena-bots {
-  color: #fff;
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
-  background: linear-gradient(90deg, #4890f0 50%, #f05858 50%);
-}
-
-.arena-bots.selected,
-.arena-bots:hover {
-  filter: brightness(1.08);
-}
-
 .arena-title {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 4px 10px;
 }
 
 .arena-title img {
@@ -18045,7 +18035,6 @@ button.hall-tile:hover {
 }
 
 .arena-tagline {
-  margin-left: auto;
   padding: 3px 6px 2px;
   font-size: 8px;
   font-style: normal;
@@ -18055,27 +18044,149 @@ button.hall-tile:hover {
   border-radius: 6px;
 }
 
-.arena-intro {
-  margin: 0;
-  font-family: var(--body);
-  font-size: 20px;
-  line-height: 1.05;
-}
-
-.arena-rules {
-  margin: 0;
-  padding: 0 0 0 18px;
+.arena-sub {
+  flex: 1 1 260px;
   font-family: var(--body);
   font-size: 18px;
-  line-height: 1.05;
+  line-height: 1;
   color: var(--dk-ink-2, #505870);
+}
+
+.arena-main {
+  display: grid;
+  grid-template-columns: 214px minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* The hero: the one picked, in its role's color. */
+.arena-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--role, #888) 26%, var(--dk-surface-0, #fff)), var(--dk-surface-1, #f0f0f8) 62%);
+  border: 3px solid var(--role, #888);
+  border-radius: 8px;
+}
+
+.arena-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.arena-hero-face {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  image-rendering: pixelated;
+  background: var(--dk-surface-0, #fff);
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
+}
+
+.arena-hero-face.pop {
+  animation: pop 0.25s steps(4);
+}
+
+.arena-hero-id {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.arena-hero-name {
+  font-family: var(--title);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.arena-hero-info {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1;
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-stats {
+  display: grid;
+  gap: 3px;
+}
+
+.arena-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.arena-pips {
+  display: flex;
+  gap: 2px;
+}
+
+.arena-pips i {
+  width: 12px;
+  height: 7px;
+  background: var(--dk-line, #c8d0e0);
+  border-radius: 2px;
+}
+
+.arena-pips i.on {
+  background: var(--role, #888);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+}
+
+.arena-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  margin-top: auto;
+}
+
+.arena-line small {
+  flex-basis: 100%;
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1;
+  color: var(--dk-ink-3, #707088);
+}
+
+.arena-line img {
+  width: 30px;
+  height: 30px;
+  image-rendering: pixelated;
+  border-radius: 4px;
+}
+
+.arena-line-arrow {
+  font-family: var(--title);
+  font-size: 9px;
+  color: var(--dk-ink-3, #707088);
+}
+
+.arena-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .arena-pick-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  gap: 2px 8px;
 }
 
 .arena-pick-head small {
@@ -18084,12 +18195,36 @@ button.hall-tile:hover {
   color: var(--dk-ink-3, #707088);
 }
 
+/* The role filter: a chip per role and Todos. */
+.arena-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.arena-filter {
+  padding: 4px 7px 3px;
+  font-family: var(--title);
+  font-size: 7px;
+  color: var(--ink);
+  background: var(--dk-surface-1, #f0f0f8);
+  border: 2px solid var(--role, var(--dk-line, #c8d0e0));
+  border-radius: 10px;
+}
+
+.arena-filter.on {
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.45);
+  background: var(--role, #505870);
+  border-color: var(--role, #505870);
+}
+
 .arena-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 5px;
   min-height: 0;
-  max-height: 228px;
+  max-height: 300px;
   overflow-y: auto;
   padding: 2px;
   overscroll-behavior: contain;
@@ -18101,7 +18236,7 @@ button.hall-tile:hover {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 4px 2px 3px;
+  padding: 4px 0 3px;
   background: var(--dk-surface-1, #f0f0f8);
   border: 3px solid var(--dk-line, #c8d0e0);
   border-bottom-color: var(--role);
@@ -18109,19 +18244,19 @@ button.hall-tile:hover {
 }
 
 .arena-tile img {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   image-rendering: pixelated;
   border-radius: 4px;
 }
 
+/* Whole names: the longest starter's fits a tile. */
 .arena-tile-name {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--body);
-  font-size: 15px;
+  font-size: 12px;
+  letter-spacing: -0.6px;
   line-height: 1;
 }
 
@@ -18144,98 +18279,806 @@ button.hall-tile:hover {
   vertical-align: middle;
 }
 
-.arena-chosen {
+/* Como jogar: four numbered steps, each with its picture. */
+.arena-how {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.arena-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.arena-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 8px;
+  background: var(--dk-surface-1, #f0f0f8);
+  border: 2px solid var(--dk-line, #c8d0e0);
+  border-radius: 6px;
+}
+
+.arena-step.step4 {
+  border-color: #f8c030;
+  background: color-mix(in srgb, #f8d030 18%, var(--dk-surface-1, #f0f0f8));
+}
+
+.arena-step-n {
+  position: absolute;
+  top: -6px;
+  left: -5px;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  font-family: var(--title);
+  font-size: 7px;
+  color: #fff;
+  background: #283040;
+  border-radius: 50%;
+}
+
+.arena-step img {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.arena-step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.arena-step-text b {
+  font-family: var(--title);
+  font-size: 8px;
+  line-height: 1.3;
+}
+
+.arena-step-text small {
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 0.95;
+  color: var(--dk-ink-2, #505870);
+}
+
+/* The two ways to play, each saying what it is. */
+.arena-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.arena-modes.choose {
+  grid-template-columns: 1fr;
+}
+
+.arena-mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 8px 12px;
+  text-align: left;
+  background: var(--dk-surface-2, #e8e8f0);
+  border: 3px solid transparent;
+  border-radius: 8px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+}
+
+.arena-mode.quick {
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.45);
+  background: linear-gradient(100deg, #4890f0 0 50%, #f05858 50% 100%);
+  border-color: #283040;
+}
+
+.arena-mode.selected,
+.arena-mode:hover:not(:disabled) {
+  border-color: #e83838;
+  filter: brightness(1.06);
+}
+
+.arena-mode.quick.selected,
+.arena-mode.quick:hover {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px #e83838, 0 3px 0 rgba(0, 0, 0, 0.18);
+}
+
+.arena-mode:disabled {
+  opacity: 0.55;
+}
+
+.arena-mode img {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.arena-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.arena-mode-text b {
+  font-family: var(--title);
+  font-size: 10px;
+}
+
+.arena-mode-text small {
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 0.95;
+}
+
+.arena-mode-text em {
+  font-family: var(--title);
+  font-size: 7px;
+  font-style: normal;
+  color: #c03040;
+}
+
+.arena-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.arena-foot .hint {
+  margin: 0;
+}
+
+.arena-back {
+  min-height: 34px;
+  padding: 6px 12px;
+}
+
+/* Phones held upright: the hero shrinks to a row over the roster, the steps go two by two. */
+@media (max-width: 640px) {
+  .dialog.arena {
+    padding: 12px;
+  }
+  .arena-sub {
+    font-size: 16px;
+  }
+  .arena-main {
+    grid-template-columns: 1fr;
+  }
+  .arena-hero {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 10px;
+    padding: 8px;
+  }
+  .arena-hero-top {
+    grid-column: 1 / -1;
+  }
+  .arena-hero-face {
+    width: 56px;
+    height: 56px;
+  }
+  .arena-hero-info {
+    grid-column: 1 / -1;
+    font-size: 16px;
+  }
+  .arena-stats {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 12px;
+  }
+  .arena-line {
+    display: none;
+  }
+  .arena-grid {
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    max-height: 210px;
+  }
+  .arena-steps {
+    grid-template-columns: 1fr 1fr;
+  }
+  .arena-step-text small {
+    font-size: 14px;
+  }
+  /* The ways to play right under the roster, before Como jogar: no scrolling to Play. */
+  .arena-modes {
+    order: 1;
+  }
+  .arena-how {
+    order: 2;
+  }
+  .arena-foot {
+    order: 3;
+  }
+  .arena-modes {
+    grid-template-columns: 1fr;
+  }
+  .arena-mode {
+    min-height: 54px;
+  }
+  .arena-foot .hint {
+    display: none;
+  }
+}
+
+/* Phones on their side: the hero's line and the steps' lines go, the roster gets the room. */
+@media (max-height: 500px) {
+  .dialog.arena {
+    width: min(900px, 98 * var(--vw));
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .arena-sub {
+    display: none;
+  }
+  .arena-main {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+  .arena-hero {
+    gap: 5px;
+    padding: 6px 8px;
+  }
+  .arena-hero-face {
+    width: 44px;
+    height: 44px;
+  }
+  .arena-hero-info {
+    font-size: 15px;
+  }
+  .arena-line {
+    display: none;
+  }
+  .arena-grid {
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    max-height: 150px;
+  }
+  .arena-tile img {
+    width: 30px;
+    height: 30px;
+  }
+  .arena-steps {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .arena-step {
+    padding: 4px 4px 4px 6px;
+  }
+  .arena-step img {
+    width: 24px;
+    height: 24px;
+  }
+  .arena-step-text small {
+    display: none;
+  }
+  .arena-modes {
+    grid-template-columns: 1fr 1fr;
+  }
+  .arena-mode {
+    min-height: 46px;
+    padding: 5px 10px;
+  }
+  .arena-mode-text small {
+    font-size: 15px;
+  }
+  .arena-foot .hint {
+    display: none;
+  }
+}
+
+/* The room in Arena mode: the seats in two columns by team, each card in its team's color. */
+.arena-room-teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.arena-room-team {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  background: color-mix(in srgb, var(--team) 10%, transparent);
+  border: 3px solid var(--team);
+  border-radius: 8px;
+}
+
+.arena-room-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  font-family: var(--title);
+  font-size: 9px;
+  color: var(--team);
+}
+
+.arena-room-head > span {
+  font-size: 7px;
+  opacity: 0.8;
+}
+
+.arena-switch {
+  margin-left: auto;
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 7px;
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
+  background: var(--team);
+}
+
+.arena-room-team .coop-seat {
+  min-height: 0;
+}
+
+/* Narrow columns: the Pokémon's name, role and "Você" wrap rather than squeeze. */
+.arena-room-team .coop-seat-partner {
+  flex-wrap: wrap;
+  row-gap: 3px;
+}
+
+.arena-room-teams > .arena-vs {
+  align-self: center;
+}
+
+/* A seat nobody takes: a bot plays it. Lighter and shorter than a player's. */
+.arena-bot-seat {
+  padding: 3px 8px;
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.arena-bot-seat .coop-seat-portrait {
+  width: 28px;
+  height: 28px;
+}
+
+.arena-bot-seat .coop-seat-partner {
+  font-size: 16px;
+}
+
+.coop-seat .arena-role {
+  margin-left: 4px;
+}
+
+.arena-room-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.arena-room-steps li {
+  position: relative;
+  padding: 7px 6px 5px 10px;
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 0.95;
+  background: var(--dk-surface-1, #f0f0f8);
+  border: 2px solid var(--dk-line, #c8d0e0);
+  border-radius: 6px;
+}
+
+@media (max-width: 640px) {
+  .arena-room-teams {
+    grid-template-columns: 1fr;
+  }
+  .arena-room-teams > .arena-vs {
+    justify-self: center;
+  }
+  .arena-room-steps {
+    grid-template-columns: 1fr;
+  }
+  /* A phone's column of bots: one short line each, so the steps and Start stay close. */
+  .arena-bot-seat {
+    padding: 2px 8px;
+  }
+  .arena-bot-seat .coop-seat-portrait,
+  .arena-bot-seat .coop-seat-name {
+    display: none;
+  }
+  .arena-bot-seat .coop-seat-partner {
+    font-size: 15px;
+  }
+  .arena-room-head {
+    min-height: 0;
+  }
+}
+
+/* Phones on their side: the columns' seats stay rows (co-op's go upright there), short, and the bots one line. */
+@media (max-height: 500px) {
+  .arena-room-teams {
+    gap: 6px;
+  }
+  .arena-room-team {
+    gap: 4px;
+    padding: 4px;
+  }
+  .arena-room-team .coop-seat {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    gap: 6px;
+    padding: 2px 6px;
+  }
+  .arena-room-team .coop-seat-portrait {
+    width: 28px;
+    height: 28px;
+  }
+  .arena-room-team .coop-seat-name,
+  .arena-room-team .coop-seat-partner {
+    justify-content: flex-start;
+  }
+  .arena-room-team .coop-seat-state {
+    display: none;
+  }
+  .arena-bot-seat .coop-seat-portrait,
+  .arena-bot-seat .coop-seat-name {
+    display: none;
+  }
+  .arena-switch {
+    min-height: 24px;
+    padding: 3px 6px;
+  }
+  .arena-room-steps li {
+    font-size: 14px;
+  }
+}
+
+/* The lineups the matchmaking screen and the opening splash share: Azul | VS | Vermelho (ui/arenaQueue.ts, ui/versusSplash.ts). */
+.arena-lineups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.arena-lineup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.arena-lineup-head {
+  font-family: var(--title);
+  font-size: 9px;
+  color: var(--team);
+}
+
+.arena-vs {
+  font-family: var(--title);
+  font-size: 18px;
+  color: #f8d030;
+  text-shadow: 2px 2px 0 #283040, -1px -1px 0 #283040, 1px -1px 0 #283040, -1px 1px 0 #283040;
+}
+
+.arena-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 6px;
+  background: var(--dk-surface-0, #fff);
+  border: 3px solid var(--team);
+  border-radius: 6px;
+}
+
+.arena-slot.me {
+  background: color-mix(in srgb, #f8d030 30%, var(--dk-surface-0, #fff));
+  box-shadow: 0 0 0 2px #f8d030;
+}
+
+.arena-slot.seeking {
+  border-style: dashed;
+  opacity: 0.7;
+  animation: arena-seek 1s steps(2) infinite;
+}
+
+.arena-slot.in {
+  animation: pop 0.25s steps(4);
+}
+
+@keyframes arena-seek {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.arena-slot-face {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  image-rendering: pixelated;
+  border-radius: 4px;
+}
+
+.arena-slot.seeking .arena-slot-face,
+.arena-slot.cpu .arena-slot-face[src^='data:'] {
+  width: 20px;
+  height: 20px;
+  margin: 0 7px;
+}
+
+.arena-slot-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.arena-slot-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.arena-slot-text small {
+  font-family: var(--title);
+  font-size: 7px;
+  color: var(--dk-ink-3, #707088);
+}
+
+/* Matchmaking: the search, its clock and the honest line about bots. */
+.dialog.arena-queue {
+  width: min(620px, 96 * var(--vw));
+  gap: 12px;
+}
+
+.arena-queue-head {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.arena-chosen-face {
-  width: 48px;
-  height: 48px;
+.arena-queue-spin {
+  width: 26px;
+  height: 24px;
   image-rendering: pixelated;
-  border: 2px solid var(--ink);
+  animation: arena-spin 1.2s steps(8) infinite;
+}
+
+@keyframes arena-spin {
+  50% {
+    transform: translateY(-3px) rotate(-8deg);
+  }
+}
+
+.arena-queue-title {
+  font-family: var(--title);
+  font-size: 13px;
+}
+
+.arena-queue-clock {
+  margin-left: auto;
+  padding: 3px 8px 2px;
+  font-family: var(--title);
+  font-size: 10px;
+  color: #fff;
+  background: #283040;
   border-radius: 6px;
 }
 
-.arena-chosen-text {
+.arena-queue-honest {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1;
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-queue.found .arena-queue-title {
+  color: #2c9a40;
+  animation: pop 0.3s steps(4);
+}
+
+.arena-queue.found .arena-queue-spin {
+  animation: none;
+}
+
+.arena-queue .buttons {
+  justify-content: center;
+}
+
+/* The opening splash: the lineups over the team colors, the tip and the loading bar. */
+.arena-splash {
+  z-index: 6;
+  background:
+    linear-gradient(100deg, rgba(40, 80, 160, 0.92) 0 50%, rgba(160, 40, 48, 0.92) 50% 100%),
+    #181820;
+}
+
+.arena-splash-box {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  gap: 14px;
+  width: min(720px, 96 * var(--vw));
+  color: #fff;
 }
 
-.arena-chosen-name {
-  font-family: var(--title);
-  font-size: 12px;
-}
-
-.arena-buttons {
+.arena-splash-head {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--title);
+  font-size: 14px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.arena-splash-head img {
+  width: 30px;
+  height: 28px;
+  image-rendering: pixelated;
+}
+
+.arena-splash-head span {
+  font-size: 9px;
+  opacity: 0.85;
+}
+
+.arena-lineups.splash .arena-lineup-head {
+  color: #fff;
+  font-size: 11px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.arena-lineups.splash .arena-lineup {
+  animation: arena-slide-l 0.35s steps(5) both;
+}
+
+.arena-lineups.splash .arena-lineup:last-child {
+  animation-name: arena-slide-r;
+}
+
+.arena-lineups.splash .arena-slot {
+  color: var(--ink);
+  border-color: #283040;
+  box-shadow: inset 6px 0 0 var(--team);
+}
+
+.arena-lineups.splash .arena-slot.me {
+  box-shadow: inset 6px 0 0 var(--team), 0 0 0 3px #f8d030;
+}
+
+.arena-lineups.splash .arena-vs {
+  font-size: 26px;
+  animation: pop 0.4s steps(4);
+}
+
+@keyframes arena-slide-l {
+  from {
+    transform: translateX(-40px);
+    opacity: 0;
+  }
+}
+
+@keyframes arena-slide-r {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+
+.arena-splash-tip {
+  display: flex;
+  justify-content: center;
   gap: 8px;
+  min-height: 2em;
+  margin: 0;
+  font-family: var(--body);
+  font-size: 20px;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
 }
 
-.arena-buttons .btn {
-  flex: 1 1 140px;
+.arena-splash-tip b {
+  flex: none;
+  padding: 3px 6px 2px;
+  font-family: var(--title);
+  font-size: 8px;
+  color: #283040;
+  text-shadow: none;
+  background: #f8d030;
+  border-radius: 4px;
+  align-self: flex-start;
 }
 
-@media (max-width: 480px) {
-  .arena-intro {
-    font-size: 17px;
-  }
-  .arena-rules {
-    font-size: 16px;
-  }
-  .arena-grid {
-    max-height: 200px;
-  }
+.arena-splash-bar {
+  height: 10px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid #fff;
+  border-radius: 6px;
 }
 
-/* Phones in landscape: the rules' first line is enough, the roster gets the room. */
-@media (max-height: 500px) {
-  .dialog.arena {
-    padding: 10px 14px;
+.arena-splash-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #f8d030;
+  transition: width 0.2s steps(4);
+}
+
+.arena-splash-status {
+  font-family: var(--title);
+  font-size: 8px;
+  text-align: center;
+  opacity: 0.85;
+}
+
+@media (max-width: 640px) {
+  .arena-lineups {
     gap: 6px;
   }
-  .arena-intro {
+  .arena-slot {
+    gap: 5px;
+    padding: 3px 4px;
+  }
+  .arena-slot-face {
+    width: 28px;
+    height: 28px;
+  }
+  .arena-slot-name {
+    font-size: 15px;
+  }
+  .arena-vs {
+    font-size: 12px;
+  }
+  .arena-lineups.splash .arena-vs {
     font-size: 16px;
   }
-  .arena-rules {
+  .arena-queue-title {
+    font-size: 10px;
+  }
+  .arena-slot .arena-role {
+    font-size: 6px;
+  }
+}
+
+@media (max-height: 500px) {
+  .arena-splash-box {
+    gap: 8px;
+  }
+  .arena-lineup {
+    gap: 3px;
+  }
+  .arena-slot {
+    min-height: 34px;
+    padding: 2px 5px;
+  }
+  .arena-slot-face {
+    width: 26px;
+    height: 26px;
+  }
+  .dialog.arena-queue {
+    gap: 8px;
+    padding: 10px 14px;
+  }
+  .arena-queue .hint {
     display: none;
   }
-  .arena-grid {
-    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
-    max-height: 132px;
-  }
-  .arena-tile img {
-    width: 32px;
-    height: 32px;
-  }
-  .arena-chosen-face {
-    width: 36px;
-    height: 36px;
-  }
-  .arena-buttons .btn {
-    min-height: 40px;
-    padding: 6px 10px;
-  }
-}
-
-/* The room in Arena mode: the side switch in the teams' colors, each seat in its team's. */
-.arena-team-seg .shell-seg-option.on {
-  background: var(--team);
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
-}
-
-.arena-seat-team {
-  font-family: var(--title);
-  font-size: 7px;
-  color: var(--slot);
-}
-
-.coop-seat .arena-role {
-  margin-left: 4px;
 }
 
 /* ---------- A match's HUD (ui/versusHud.ts) ---------- */
@@ -18251,7 +19094,7 @@ button.hall-tile:hover {
 }
 
 [data-versus='room'] .coop-pip {
-  top: calc(env(safe-area-inset-top, 0px) + 62px);
+  top: calc(env(safe-area-inset-top, 0px) + 78px);
 }
 
 .versus-hud {
@@ -18268,7 +19111,8 @@ button.hall-tile:hover {
   top: 22px;
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto auto;
   align-items: stretch;
   border: 3px solid #101020;
   border-radius: 8px;
@@ -18340,7 +19184,7 @@ button.hall-tile:hover {
 
 .vs-pills {
   position: absolute;
-  top: 64px;
+  top: 146px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -18348,7 +19192,7 @@ button.hall-tile:hover {
 }
 
 [data-versus='room'] .vs-pills {
-  top: 86px;
+  top: 164px;
 }
 
 .vs-pill {
@@ -18379,24 +19223,25 @@ button.hall-tile:hover {
   display: grid;
   grid-template-columns: auto auto;
   align-items: center;
-  gap: 2px 6px;
-  padding: 5px 9px 6px;
-  font-size: 11px;
+  gap: 3px 7px;
+  min-width: 96px;
+  padding: 6px 10px 7px;
+  font-size: 14px;
   color: var(--ink);
   text-shadow: none;
 }
 
 .vs-orb {
   grid-row: span 2;
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #fff 0 18%, #f8e070 19% 55%, #e8a020 56%);
   box-shadow: 0 0 0 2px #101020;
 }
 
 .vs-energy-bar {
-  height: 4px;
+  height: 5px;
   background: #283040;
   border-radius: 2px;
   overflow: hidden;
@@ -18469,21 +19314,10 @@ button.hall-tile:hover {
     left: auto;
     right: 62px;
     transform: none;
-    top: 58px;
+    top: 76px;
   }
 }
 
-.vs-respawn {
-  position: absolute;
-  top: 40%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 10px 16px;
-  font-size: 14px;
-  background: rgba(16, 16, 32, 0.72);
-  border: 3px solid #f05858;
-  border-radius: 8px;
-}
 
 .vs-count {
   position: absolute;
@@ -18538,6 +19372,412 @@ button.hall-tile:hover {
   color: #181010;
   background: #f8d030;
   border-radius: 6px;
+}
+
+/* ---------- A match's guidance (ui/versusHud.ts, ui/versusCoach.ts): goal pips, the coach, the channel, the knockout overlay, the Energy's cue ---------- */
+
+.versus-hud {
+  --mine: #4890f0;
+}
+
+.versus-hud.red-side {
+  --mine: #f05858;
+}
+
+/* Each team's goals under its score: north lane, base, south lane. */
+.vs-goals,
+.vs-goals-mid {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 5px 3px;
+  background: #182030;
+  border-top: 2px solid #101020;
+}
+
+.vs-goals.blue {
+  justify-content: flex-end;
+}
+
+.vs-goal {
+  min-width: 18px;
+  height: 11px;
+  padding: 0 2px;
+  font-size: 7px;
+  font-style: normal;
+  line-height: 12px;
+  text-align: center;
+  color: #fff;
+  text-shadow: 1px 1px 0 #101020;
+  background: var(--team);
+  border-radius: 3px;
+}
+
+.vs-goal.base {
+  min-width: 22px;
+  box-shadow: inset 0 0 0 1px #f8d030;
+}
+
+.vs-goal.locked {
+  color: #b0b4c0;
+  background: #3a4258;
+}
+
+.vs-goal.broken {
+  background: repeating-linear-gradient(135deg, #2a2e3c 0 2px, #4a4e5c 2px 4px);
+}
+
+/* The coach: one line under the score. */
+.vs-coach {
+  position: absolute;
+  top: 82px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(460px, 90%);
+  padding: 4px 10px 5px;
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.05;
+  text-align: center;
+  text-shadow: 1px 1px 0 #101020;
+  background: rgba(16, 20, 40, 0.8);
+  border: 2px solid #101020;
+  border-left: 5px solid #f8d030;
+  border-radius: 6px;
+}
+
+.vs-coach b {
+  color: #f8d030;
+  font-weight: normal;
+}
+
+.vs-coach[data-tip='lowHp'],
+.vs-coach[data-tip='defend'] {
+  border-left-color: #f05858;
+}
+
+.vs-coach[data-tip='channel'],
+.vs-coach[data-tip='carry'],
+.vs-coach[data-tip='full'] {
+  border-left-color: var(--mine);
+}
+
+.vs-coach.in {
+  animation: vs-coach-in 0.25s ease-out;
+}
+
+@keyframes vs-coach-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}
+
+[data-versus='room'] .vs-coach {
+  top: 100px;
+}
+
+/* Scoring: below the Pokémon, the channel filling in the team's color. */
+.vs-channel {
+  position: absolute;
+  top: 62%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 120px;
+  padding: 4px 8px 5px;
+  font-size: 9px;
+  background: rgba(16, 16, 32, 0.78);
+  border: 2px solid var(--mine);
+  border-radius: 6px;
+}
+
+.vs-channel-bar {
+  width: 100%;
+  height: 6px;
+  background: #283040;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.vs-channel-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--mine);
+}
+
+.vs-channel.blocked {
+  border-color: #f05858;
+  animation: coop-blink 0.3s steps(2) infinite;
+}
+
+.vs-channel.blocked .vs-channel-text {
+  color: #f87878;
+}
+
+/* The Energy: brighter once carried, a pulse and "Marque!" when full. */
+.vs-energy-cue {
+  display: none;
+  grid-column: 1 / -1;
+  font-size: 9px;
+  font-style: normal;
+  text-align: center;
+  color: #f05838;
+}
+
+.vs-energy.some .vs-energy-text {
+  color: #b86808;
+}
+
+.vs-energy.full .vs-energy-cue {
+  display: block;
+  animation: vs-pulse 0.4s ease-in-out infinite alternate;
+}
+
+.vs-energy.full {
+  animation: vs-energy-full 0.7s ease-in-out infinite alternate;
+}
+
+@keyframes vs-energy-full {
+  to {
+    box-shadow:
+      inset 0 0 0 var(--px) var(--paper),
+      inset 0 0 0 calc(var(--px) * 2) #f8a030,
+      0 0 0 3px #f86838,
+      0 0 14px 4px rgba(248, 160, 48, 0.75);
+  }
+}
+
+/* Knocked out: the field dims, the countdown in the middle. The HUD's buttons stay reachable. */
+.vs-down {
+  position: absolute;
+  inset: calc(-1 * var(--safe-t)) calc(-1 * var(--safe-r)) calc(-1 * var(--safe-b)) calc(-1 * var(--safe-l));
+  background: radial-gradient(ellipse at center, rgba(16, 8, 24, 0.35), rgba(16, 8, 24, 0.7));
+}
+
+.vs-down.in {
+  animation: vs-down-in 0.4s ease-out;
+}
+
+@keyframes vs-down-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.vs-down-card {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 200px;
+  padding: 12px 18px 10px;
+  text-align: center;
+  background: rgba(16, 16, 32, 0.82);
+  border: 3px solid #f05858;
+  border-radius: 8px;
+}
+
+.vs-down-title {
+  font-size: 14px;
+  color: #f87878;
+}
+
+.vs-down-by,
+.vs-down-note {
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.vs-down-by:empty {
+  display: none;
+}
+
+.vs-down-back {
+  font-size: 20px;
+  color: #f8d030;
+  text-shadow: 2px 2px 0 #101020;
+}
+
+.vs-down-note {
+  font-size: 15px;
+  color: #c8c8d8;
+}
+
+/* Off a phone held upright, the run's boss bar (Drednaw, Zapdos) goes under the coach. */
+@media (orientation: landscape), (min-width: 701px) {
+  .hud.versus .boss {
+    top: 118px;
+  }
+  [data-versus='room'] .hud.versus .boss {
+    top: 136px;
+  }
+}
+
+/* A phone held upright: the coach above the status box, left of the special button and the Energy. */
+@media (orientation: portrait) and (max-width: 700px) {
+  .vs-coach {
+    top: auto;
+    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 64px);
+    left: 8px;
+    right: 110px;
+    width: auto;
+    max-width: none;
+    transform: none;
+    font-size: 15px;
+    text-align: left;
+  }
+  [data-versus='room'] .vs-coach {
+    top: auto;
+  }
+  @keyframes vs-coach-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* Phones in landscape: the coach smaller, clear of the move slots and the mini map. */
+@media (pointer: coarse) and (max-height: 500px) {
+  .vs-coach {
+    top: 76px;
+    max-width: min(340px, 48%);
+    padding: 3px 8px 4px;
+    font-size: 14px;
+  }
+}
+
+/* The Arena's teammate cards (ui/teamHud.ts): slim, the Energy they carry instead of their build. */
+.team-card.vs .team-build {
+  display: none;
+}
+
+.team-card.vs {
+  width: 118px;
+}
+
+.team-energy {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  font-size: 7px;
+  color: #f8d848;
+}
+
+.team-energy::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff 0 18%, #f8e070 19% 55%, #e8a020 56%);
+  box-shadow: 0 0 0 1px #101020;
+}
+
+.team-energy.full {
+  color: #f86838;
+}
+
+.team-card.vs .team-energy + .team-level {
+  margin-left: 0;
+}
+
+/* The end's MVP and medals (ui/versusEnd.ts). */
+.vs-mvp {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: center;
+  padding: 6px 14px 6px 6px;
+  background: linear-gradient(90deg, var(--team), transparent 140%);
+  border: 3px solid #101020;
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px #f8d030;
+}
+
+.vs-mvp img {
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+  background: rgba(255, 255, 255, 0.85);
+  border: 2px solid #101020;
+  border-radius: 4px;
+}
+
+.vs-mvp-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #fff;
+  text-shadow: 1px 1px 0 #101020;
+}
+
+.vs-mvp-tag {
+  align-self: flex-start;
+  padding: 2px 5px 1px;
+  font-family: var(--title);
+  font-size: 8px;
+  color: #181010;
+  text-shadow: none;
+  background: #f8d030;
+  border-radius: 3px;
+}
+
+.vs-mvp-name {
+  font-family: var(--title);
+  font-size: 12px;
+}
+
+.vs-mvp-text small {
+  font-family: var(--body);
+  font-size: 16px;
+}
+
+.vs-end-who .vs-end-name {
+  overflow: visible;
+  white-space: normal;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px 4px;
+  min-width: 0;
+}
+
+.vs-end-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vs-medal {
+  padding: 1px 3px 0;
+  font-family: var(--title);
+  font-size: 6px;
+  font-style: normal;
+  line-height: 8px;
+  color: #181010;
+  background: #f8d030;
+  border-radius: 2px;
+}
+
+.vs-medal.kos {
+  color: #fff;
+  background: #d04848;
+}
+
+.vs-medal.damage {
+  color: #fff;
+  background: #7048c8;
 }
 
 /* ---------- The pick tray (ui/versusTray.ts): never modal, a column at the side, a strip on phones held upright ---------- */
@@ -18740,6 +19980,8 @@ button.hall-tile:hover {
 
 .vs-end-box {
   width: min(760px, 96 * var(--vw));
+  max-height: calc(100 * var(--vh) - 16px);
+  overflow-y: auto;
   gap: 10px;
   padding: 16px;
 }
@@ -18808,7 +20050,7 @@ button.hall-tile:hover {
 .vs-end-team th {
   padding: 4px 3px;
   font-family: var(--title);
-  font-size: 6px;
+  font-size: 7px;
   font-weight: normal;
   color: var(--dk-ink-3, #707088);
   text-align: center;

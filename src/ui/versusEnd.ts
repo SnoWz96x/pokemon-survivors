@@ -9,11 +9,12 @@ import { teamColor } from './arena'
 import { h, later } from './dom'
 import { menu, type Screen } from './screens'
 import { versusName } from './versusHud'
+import { countArenaMatch } from './versusCoach'
 
 /**
  * A Versus match's end: Vitória, Derrota or Empate from this player's team,
- * the final score, and a table per team (each Pokémon, its KOs, falls,
- * points and damage, best scorer first). "Jogar de novo" starts the next
+ * the final score, the match's MVP, and a table per team (each Pokémon, its
+ * KOs, falls, points and damage, best scorer first, with the match's medals). "Jogar de novo" starts the next
  * match (the shell's: a new one against bots, or the room's next run) and
  * says so while it gets ready; "Voltar ao lobby" leaves.
  */
@@ -23,18 +24,57 @@ export type VersusEndActions = { again: () => void; lobby: () => void }
 /** Damage a player dealt in the match (the wild's and the rivals'). */
 const damageOf = (p: Player) => Math.round(Object.values(p.damageByMove).reduce((a, b) => a + (b ?? 0), 0))
 
-/** One team's table, best scorer first. */
-const teamTable = (g: Game, me: Player, team: Team) => {
+/** Best of the match first: points, then KOs, then damage. */
+const better = (a: Player, b: Player) => (b.versus?.scored ?? 0) - (a.versus?.scored ?? 0) || (b.versus?.kos ?? 0) - (a.versus?.kos ?? 0) || damageOf(b) - damageOf(a)
+
+type Medal = 'points' | 'kos' | 'damage'
+
+/** The match's medals: who scored most, knocked out most and dealt most damage (none for a zero). Ties go to the better player. */
+const medalsOf = (g: Game) => {
+  const ranked = g.players.filter((p) => p.versus).sort(better)
+  const top = (of: (p: Player) => number) => ranked.reduce<Player | null>((best, p) => (of(p) > 0 && (!best || of(p) > of(best)) ? p : best), null)
+  const medals = new Map<Player, Medal[]>()
+  const give = (p: Player | null, medal: Medal) => p && medals.set(p, [...(medals.get(p) ?? []), medal])
+  give(top((p) => p.versus!.scored), 'points')
+  give(top((p) => p.versus!.kos), 'kos')
+  give(top(damageOf), 'damage')
+  return { mvp: ranked[0] ?? null, medals }
+}
+
+const medalChip = (medal: Medal) => h('em', { class: `vs-medal ${medal}` }, t().versus.end.medals[medal])
+
+/** A seat's name on this screen, "(Você)" after this player's own. */
+const endName = (g: Game, me: Player, p: Player) => (p === me && versusName(g, p.slot) !== t().versus.you ? `${versusName(g, p.slot)} (${t().versus.you})` : versusName(g, p.slot))
+
+/** The match's best player: big portrait in their team's color, name and line. */
+const mvpCard = (g: Game, me: Player, p: Player) => {
+  const v = p.versus!
+  const m = t().versus.end
+  return h(
+    'div',
+    { class: 'vs-mvp', style: `--team:${teamColor(v.team)}` },
+    h('img', { src: portraitUrl(formAt(p.starter, p.branch, p.stage).dex), alt: '' }),
+    h('div', { class: 'vs-mvp-text' }, h('b', { class: 'vs-mvp-tag' }, m.mvp), h('span', { class: 'vs-mvp-name' }, endName(g, me, p)), h('small', {}, m.mvpLine(v.scored, v.kos, damageOf(p)))),
+  )
+}
+
+/** One team's table, best scorer first, each row with its medals. */
+const teamTable = (g: Game, me: Player, team: Team, medals: ReadonlyMap<Player, readonly Medal[]>) => {
   const m = t().versus.end
   const rows = g.players
     .filter((p) => p.versus?.team === team)
-    .sort((a, b) => (b.versus?.scored ?? 0) - (a.versus?.scored ?? 0) || (b.versus?.kos ?? 0) - (a.versus?.kos ?? 0))
+    .sort(better)
     .map((p) => {
       const v = p.versus!
       return h(
         'tr',
         { class: p === me ? 'me' : '' },
-        h('td', { class: 'vs-end-who' }, h('img', { src: portraitUrl(formAt(p.starter, p.branch, p.stage).dex), alt: '' }), h('span', {}, p === me && versusName(g, p.slot) !== t().versus.you ? `${versusName(g, p.slot)} (${t().versus.you})` : versusName(g, p.slot))),
+        h(
+          'td',
+          { class: 'vs-end-who' },
+          h('img', { src: portraitUrl(formAt(p.starter, p.branch, p.stage).dex), alt: '' }),
+          h('span', { class: 'vs-end-name' }, h('span', {}, endName(g, me, p)), ...(medals.get(p) ?? []).map(medalChip)),
+        ),
         h('td', {}, String(v.kos)),
         h('td', {}, String(v.deaths)),
         h('td', { class: 'vs-end-points' }, String(v.scored)),
@@ -80,6 +120,8 @@ export const versusEnd = (root: HTMLElement, input: Input, g: Game, me: Player, 
   )
   // Your team's table first.
   const teams = mine === 0 ? ([0, 1] as const) : ([1, 0] as const)
+  const { mvp, medals } = medalsOf(g)
+  countArenaMatch()
   const el = h(
     'div',
     { class: 'screen dim vs-end' },
@@ -94,7 +136,8 @@ export const versusEnd = (root: HTMLElement, input: Input, g: Game, me: Player, 
         h('span', {}, ':'),
         h('b', { style: `color:${teamColor(1)}` }, String(s?.score[1] ?? 0)),
       ),
-      h('div', { class: 'vs-end-tables' }, ...teams.map((team) => teamTable(g, me, team))),
+      mvp && mvpCard(g, me, mvp),
+      h('div', { class: 'vs-end-tables' }, ...teams.map((team) => teamTable(g, me, team, medals))),
       status,
       h('div', { class: 'buttons' }, again, lobby),
     ),
