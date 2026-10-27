@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { seasonById, seasonReset, type ArenaResult } from '../../src/game/arenaRank'
 import { arenaStore, parseArenaReport, planMatch, type ParsedReport } from './arena'
-import { connect, migrate, type Sql } from './db'
+import type { Sql } from './db'
 
 /**
  * The Arena's store against a real Postgres: set `ARENA_TEST_DATABASE_URL`
  * to a throwaway database (it's wiped), e.g. the README's local docker one.
- * Skipped without it.
+ * Skipped without it. `db.ts` loads only then: CI's root tests run without
+ * the server's packages.
  */
 const url = process.env.ARENA_TEST_DATABASE_URL
 
@@ -39,6 +40,7 @@ describe.skipIf(!url)('arena store (Postgres)', () => {
   let arena: ReturnType<typeof arenaStore>
 
   beforeAll(async () => {
+    const { connect, migrate } = await import('./db')
     sql = connect(url!, 4)
     await migrate(sql, new URL('../migrations/', import.meta.url))
     arena = arenaStore(sql)
