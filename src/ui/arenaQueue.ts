@@ -3,14 +3,17 @@ import { formatTime } from '../engine/math'
 import type { Input } from '../engine/input'
 import { VERSUS, VERSUS_ROSTER, type Team, type VersusPick } from '../data/versus'
 import { t } from '../i18n'
-import { arenaIcon, pokeballIcon } from '../render/art'
+import type { QueueKind } from '../data/arenaRanked'
+import type { QueueServerMessage } from '../net/arena'
+import { arenaIcon, pokeballIcon, tierBallIcon } from '../render/art'
 import { portraitUrl } from '../render/sprites'
 import { firstForm, roleChip, teamColor } from './arena'
 import { h, later } from './dom'
 import { hint, type Screen } from './screens'
 
 /**
- * The Partida rápida's matchmaking screen: "Procurando partida…" with the
+ * The Partida rápida's matchmaking screen (and, below, the public queue's:
+ * `arenaQueueLive`): "Procurando partida…" with the
  * time searched, the eight seats (Azul × Vermelho) with this player on
  * Blue's first and the others filling in one by one as CPUs, then "Partida
  * encontrada!". There's no public queue yet, and the screen says so: the
@@ -127,6 +130,143 @@ export const arenaQueue = (root: HTMLElement, input: Input, me: { name: string; 
     found,
     dispose: () => {
       done = true
+      cancelAnimationFrame(timer)
+      off()
+      el.remove()
+    },
+  }
+}
+
+/* ---------------- The public queue ---------------- */
+
+export type LiveQueue = Screen & {
+  /** The matchmaker's word on the wait (`queued`). */
+  update: (m: Extract<QueueServerMessage, { t: 'queued' }>) => void
+  /** A match: the lineup fills (`humans` trainers, the rest CPUs), "Partida encontrada!", and a note when a ranked ticket plays as casual. */
+  found: (m: Extract<QueueServerMessage, { t: 'matched' }>) => void
+}
+
+/**
+ * Casual and Ranqueada's queue: the same lineups, with the real wait from the
+ * matchmaker (`arena/queue.ts`): the time searched, how many trainers the
+ * forming match has (they fill Blue's and Red's seats as Poké Balls), the
+ * seconds until bots fill the rest, and what the kind means. On a match,
+ * "Partida encontrada!" stays up while the shell joins the room, whose
+ * match starts by itself. `cancel`: back out.
+ */
+export const arenaQueueLive = (root: HTMLElement, input: Input, me: { name: string; pick: VersusPick }, kind: QueueKind, cancel: () => void): LiveQueue => {
+  const m = t().versus
+  const q = m.queue
+  let since = performance.now()
+  let botsAt: number | null = null
+  let found = 1
+  let matched = false
+  const title = h('b', { class: 'arena-queue-title' }, q.connecting)
+  const clock = h('span', { class: 'arena-queue-clock' }, formatTime(0))
+  const chip = h('span', { class: `arena-queue-kind ${kind}` }, h('img', { src: tierBallIcon(kind === 'ranked' ? 'master' : 'poke'), alt: '' }), q.kinds[kind])
+  const count = h('b', { class: 'arena-queue-count' })
+  const bots = h('span', { class: 'arena-queue-bots' })
+  const note = h('p', { class: 'arena-queue-honest' }, kind === 'ranked' ? q.rankedNote : q.casualNote)
+  const columns = ([0, 1] as const).map((team) => h('div', { class: `arena-lineup team${team}`, style: `--team:${teamColor(team)}` }, h('b', { class: 'arena-lineup-head' }, m.teams[team])))
+  const size = 2 * VERSUS.teamSize
+  const seats: HTMLElement[] = []
+  for (let i = 0; i < size; i++) {
+    const team: Team = i < VERSUS.teamSize ? 0 : 1
+    const seat = i === 0 ? lineupSeat(0, { dex: firstForm(me.pick).dex, name: me.name, pick: me.pick, me: true }) : lineupSeat(team, null)
+    seats.push(seat)
+    columns[team]!.append(seat)
+  }
+  /** Seat `i` (past this player's) as a trainer found, a CPU, or still sought. */
+  const fill = (i: number, as: 'player' | 'cpu' | null) => {
+    const team: Team = i < VERSUS.teamSize ? 0 : 1
+    const was = seats[i]!.dataset.as ?? null
+    if (was === as) return
+    const seat = as === null ? lineupSeat(team, null) : lineupSeat(team, { name: as === 'cpu' ? m.cpu : q.player, cpu: as === 'cpu' })
+    if (as) seat.dataset.as = as
+    if (as) seat.classList.add('in')
+    seats[i]!.replaceWith(seat)
+    seats[i] = seat
+  }
+  /** Seats in order Blue, Red, Blue, Red… past this player's, as the forming match fills. */
+  const order = Array.from({ length: size - 1 }, (_, k) => (k % 2 === 0 ? VERSUS.teamSize + Math.floor(k / 2) : 1 + Math.floor(k / 2)))
+  const paintSeats = (humans: number, cpus: boolean) => order.forEach((i, k) => fill(i, k < humans - 1 ? 'player' : cpus ? 'cpu' : null))
+
+  const cancelButton = h('button', { class: 'btn selected arena-queue-cancel', type: 'button' }, q.cancel)
+  const box = h(
+    'div',
+    { class: `dialog box pop arena-queue live ${kind}` },
+    h('div', { class: 'arena-queue-head' }, h('img', { class: 'arena-queue-spin', src: arenaIcon(), alt: '' }), title, chip, clock),
+    h('div', { class: 'arena-queue-status' }, count, bots),
+    note,
+    h('div', { class: 'arena-lineups' }, columns[0]!, h('span', { class: 'arena-vs' }, 'VS'), columns[1]!),
+    h('div', { class: 'buttons' }, cancelButton),
+    hint(q.hintKeys, q.hintTouch),
+  )
+  const el = h('div', { class: 'screen dim arena-queue-screen' }, box)
+
+  let timer = 0
+  const paintCount = () => {
+    count.textContent = q.players(found, size)
+    if (matched) return
+    const left = botsAt === null ? null : Math.ceil((botsAt - performance.now()) / 1000)
+    bots.textContent = left === null ? '' : left > 0 ? q.botsIn(left) : q.botsNow
+  }
+  const tick = () => {
+    if (!matched) clock.textContent = formatTime(Math.floor((performance.now() - since) / 1000))
+    paintCount()
+    timer = requestAnimationFrame(tick)
+  }
+  timer = requestAnimationFrame(tick)
+
+  let left = false
+  const back = () => {
+    if (left || matched) return
+    left = true
+    playSfx('select')
+    later(cancel)
+  }
+  cancelButton.addEventListener('click', back)
+  const off = input.onKey((key) => {
+    if (key === 'Escape' || key === 'Backspace' || key === 'Enter') back()
+  })
+
+  const update: LiveQueue['update'] = (msg) => {
+    if (matched) return
+    title.textContent = q.searching
+    since = performance.now() - msg.waited * 1000
+    botsAt = performance.now() + msg.botsIn * 1000
+    if (msg.found !== found) playSfx('move', 0)
+    found = Math.max(1, Math.min(size, msg.found))
+    paintSeats(found, false)
+  }
+
+  const foundMatch: LiveQueue['found'] = (msg) => {
+    if (matched) return
+    matched = true
+    found = Math.max(1, Math.min(size, msg.humans))
+    paintSeats(found, true)
+    title.textContent = q.found
+    bots.textContent = q.joining
+    box.classList.add('found')
+    cancelButton.disabled = true
+    // A ranked ticket whose match came short of trainers plays as casual: said plainly, where the kind's note was.
+    if (kind === 'ranked' && !msg.ranked) {
+      note.textContent = q.downgraded
+      note.classList.add('downgraded')
+      chip.className = 'arena-queue-kind casual'
+      chip.replaceChildren(h('img', { src: tierBallIcon('poke'), alt: '' }), q.kinds.casual)
+    }
+    playSfx('levelUp')
+  }
+
+  root.append(el)
+  return {
+    el,
+    dim: 0.6,
+    update,
+    found: foundMatch,
+    dispose: () => {
+      left = true
       cancelAnimationFrame(timer)
       off()
       el.remove()

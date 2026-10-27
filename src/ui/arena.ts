@@ -4,7 +4,8 @@ import { ENEMIES } from '../data/enemies'
 import { STARTERS } from '../data/starters'
 import { isVersusPick, ROLES, VERSUS_PICKS, VERSUS_ROSTER, type Role, type VersusPick } from '../data/versus'
 import { t } from '../i18n'
-import { arenaIcon, coopIcon, toIconUrl } from '../render/art'
+import type { QueueKind } from '../data/arenaRanked'
+import { arenaIcon, coopIcon, tierBallIcon, toIconUrl } from '../render/art'
 import { portraitUrl } from '../render/sprites'
 import { orbGlyph } from '../render/vale'
 import { h, later } from './dom'
@@ -17,8 +18,9 @@ import { hint, type Screen } from './screens'
  * The selected Pokémon stands in a hero panel (its role, what the role does,
  * the role's numbers as bars, its evolution line) beside the roster of the
  * 27 starters, which role chips filter; below, the Como jogar strip and the
- * two ways to play, each saying what it is. The pick is kept on the device
- * (`ps:arenaPick`).
+ * four ways to play, each saying what it is (Partida rápida against bots,
+ * the public queue's Casual and Ranqueada, Com amigos), and the way to the
+ * Arena's hub (Ranking). The pick is kept on the device (`ps:arenaPick`).
  */
 
 /** Each team's color, the world's (`render/vale.ts`): the HUD, the room and the end screen use the same. */
@@ -99,10 +101,14 @@ export const statPips = (role: Role, stat: Stat) => {
 export type ArenaActions = {
   /** Partida rápida: a match against bots on the in-page relay. */
   bots?: (id: VersusPick) => void
+  /** Casual and Ranqueada: the public queue (null: no relay in this build). */
+  queue?: ((id: VersusPick, kind: QueueKind) => void) | null
   /** Com amigos: an Arena room (null: no relay in this build). */
   friends?: ((id: VersusPick) => void) | null
-  /** Com amigos needs an account with a @handle this player doesn't have yet: the card says so. */
+  /** The queue and Com amigos need an account with a @handle this player doesn't have yet: the cards say so (a tap leads to sign in). */
   needsAccount?: boolean
+  /** The Arena's hub: profile, season, ranking, history and rules. */
+  hub?: () => void
   /** From a room: the pick goes back to it. */
   choose?: (id: VersusPick) => void
   back: () => void
@@ -235,14 +241,23 @@ export const arenaScreen = (root: HTMLElement, input: Input, pick: VersusPick, a
       h('span', { class: 'arena-mode-text' }, h('b', {}, title), h('small', {}, text), note ? h('em', {}, note) : null),
     )
 
+  /** What an account-only card says under its line: unavailable in this build, or the account it needs. */
+  const lockNote = (open: boolean) => (!open ? l.offline : actions.needsAccount ? l.room.account : null)
+  const queue = actions.queue
+  const queueCard = (kind: QueueKind) =>
+    modeCard(kind, tierBallIcon(kind === 'ranked' ? 'master' : 'poke'), l[kind].title, l[kind].text, lockNote(Boolean(queue)), queue ? go((id) => queue(id, kind)) : null)
   const buttons: HTMLButtonElement[] = choose
     ? [h('button', { class: 'btn confirm', type: 'button', onclick: primary }, m.room.pick)]
     : [
         modeCard('quick', arenaIcon(), l.quick.title, l.quick.text, null, primary),
-        modeCard('friends', coopIcon(), l.room.title, l.room.text, actions.friends ? (actions.needsAccount ? l.room.account : null) : l.offline, actions.friends ? go(actions.friends) : null),
+        queueCard('casual'),
+        queueCard('ranked'),
+        modeCard('friends', coopIcon(), l.room.title, l.room.text, lockNote(Boolean(actions.friends)), actions.friends ? go(actions.friends) : null),
       ]
+  const hub = actions.hub
+  const hubButton = hub && !choose ? h('button', { class: 'btn small arena-hub-open', type: 'button', onclick: () => (playSfx('select'), later(hub)) }, h('img', { src: tierBallIcon('ultra'), alt: '' }), l.hub) : null
   const backButton = h('button', { class: 'btn small arena-back', type: 'button', onclick: back }, m.back)
-  const below = [...buttons, backButton]
+  const below = [...buttons, ...(hubButton ? [hubButton] : []), backButton]
 
   const paint = () => {
     const visible = new Set(shown())
@@ -298,7 +313,7 @@ export const arenaScreen = (root: HTMLElement, input: Input, pick: VersusPick, a
       ),
       choose ? null : howToPlay(),
       h('div', { class: `arena-modes${choose ? ' choose' : ''}` }, ...buttons),
-      h('div', { class: 'arena-foot' }, backButton, hint(m.hintKeys, m.hintTouch)),
+      h('div', { class: 'arena-foot' }, h('div', { class: 'arena-foot-buttons' }, backButton, hubButton), hint(m.hintKeys, m.hintTouch)),
     ),
   )
 
