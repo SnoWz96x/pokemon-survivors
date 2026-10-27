@@ -266,3 +266,14 @@ export type ArenaHistoryEntry = {
 
 /** A row of `GET /arena/leaderboard?season=N`. */
 export type ArenaLeaderboardRow = { place: number; handle: string; name: string; rp: number; tier: TierView; wins: number; matches: number; favorite: VersusPick | null }
+
+/** `GET /arena/leaderboard?season=N`: the season, its top rows and the asker's own row (null for a guest or before they're rated). */
+export type ArenaLeaderboard = { season: Season; rows: ArenaLeaderboardRow[]; me: ArenaLeaderboardRow | null }
+
+/**
+ * `POST /arena/practice` (signed-in client): a quick match against bots on
+ * the in-page relay, for the player's history and totals only. `slot`: the
+ * player's own seat (a human one). `key`: optional, the same for a retry, so
+ * it lands once.
+ */
+export type ArenaPracticeRequest = { result: ArenaResult; slot: number; key?: string }
