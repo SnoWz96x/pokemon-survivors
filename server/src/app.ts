@@ -1,9 +1,10 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { createMiddleware } from 'hono/factory'
 import { logger } from 'hono/logger'
 import { parseAdminGift, parseAdminQuery } from '../../src/game/admin'
+import { parseArenaResult } from '../../src/game/arenaRank'
 import { parseBugReport } from '../../src/game/bugReport'
 import { challengeOpen } from '../../src/game/challenge'
 import { parseDonation } from '../../src/data/donations'
@@ -23,6 +24,7 @@ import { banGated, parseModeration, parseReport } from '../../src/game/reports'
 import { parseCode } from '../../src/game/supporters'
 import { isSuggestionSort, isSuggestionStatus, isVote, parseSuggestionDraft } from '../../src/game/suggestions'
 import type { AdminStore } from './admin'
+import { ARENA_PAGES, parseArenaReport, shownSeason, verifyArenaSignature, type ArenaStore } from './arena'
 import type { Verify } from './auth'
 import type { BugReports } from './bugReports'
 import type { SaveStore } from './db'
@@ -65,6 +67,10 @@ export type AppDeps = {
   admin: Pick<AdminStore, 'isAdmin' | 'search' | 'send' | 'recent'>
   /** Reports and bans: the write gate asks who is banned, players report, the admin acts. */
   moderation: Pick<ModerationStore, 'banned' | 'report' | 'open' | 'act'>
+  /** The Arena's ranked layer: reports, ratings, history and the season's board. */
+  arena: Pick<ArenaStore, 'report' | 'practice' | 'takePractice' | 'tickets' | 'profile' | 'history' | 'leaderboard'>
+  /** The secret the relay signs Arena reports and ticket lookups with; unset, those routes answer 503. */
+  arenaReportSecret: string | undefined
   /** Linking a Patreon account (its OAuth client), null when the server has none. */
   patreon: Pick<PatreonOAuth, 'linkUrl' | 'readState' | 'patronOf'> | null
   /** Webhook secrets: Stripe's signing secret and Payment Link, AbacatePay's URL secret, Patreon's secret and campaign currency. Unset ones answer 503. */
@@ -111,6 +117,18 @@ const INVITE_ERRORS = { notFriend: 404, limit: 429 } as const
 
 /** What a festival donation answers when it's refused, by `DonateError`. */
 const DONATE_ERRORS = { closed: 409, profile: 403, runs: 403, cap: 409, funds: 409, nosave: 409, stale: 409 } as const satisfies Record<DonateError, number>
+
+/** How far ahead of this clock a relay's `endedAt` may be (its clock drifts a little). */
+const ARENA_CLOCK_SKEW_MS = 5 * 60_000
+
+/** An Arena practice's optional retry key. */
+const PRACTICE_KEY = /^[A-Za-z0-9-]{8,64}$/
+
+/** A query's whole number in [min, max], else `fallback`. */
+const queryInt = (raw: string | undefined, min: number, max: number, fallback: number) => {
+  const n = raw === undefined || raw === '' ? NaN : Number(raw)
+  return Number.isSafeInteger(n) && n >= min && n <= max ? n : fallback
+}
 
 /** What a run's end answers when it's refused, by `FinishError`. */
 const FINISH_ERRORS = { unknown: 404, replaced: 409, mismatch: 409, seed: 400, clock: 422, challenge: 400, rewrite: 409 } as const
@@ -244,8 +262,15 @@ const CHUNK_ERRORS = { unknown: 404, replaced: 409, committed: 409, gap: 409, cl
  *   resolving the reports it answers. `{ resolved }`, 404 for an unknown player or run.
  *   `GET /admin/festival`: `{ donations }` (`HeldDonation[]`), the festival donations held for review.
  *   `POST /admin/festival/:id/approve` (it counts in the pot) or `/void` (it never counts; its ₽ stays spent): `{ ok }`, 404 for an unknown or already settled one.
+ * - `POST /arena/report` (relay, signed: `x-arena-signature`) `ArenaReport`: a finished match, once per (room, run).
+ *   `ArenaReportResponse`; a retry gets the stored match with `duplicate`. 400 invalid, 401 bad signature, 503 without `ARENA_REPORT_SECRET`.
+ * - `POST /arena/tickets` (relay, signed) `{ userIds }`: `ArenaTicketsResponse`, each player's current-season MMR, RP and games.
+ * - `POST /arena/practice` (auth) `ArenaPracticeRequest`: a quick match against bots, for history and totals only.
+ *   201 `{ match }` (200 `{ duplicate: true }` for a retried `key`), 400 invalid or a bot's slot, 429 past the hourly limit.
+ * - `GET /arena/me` (auth): `ArenaProfile`. `GET /arena/history?before=<ms>&limit=` (auth): `ArenaHistoryEntry[]`, newest first.
+ * - `GET /arena/leaderboard?season=N&limit=`: `ArenaLeaderboard`, the season's top rows, with a token the asker's own.
  */
-export const createApp = ({ store, ranking, friends, gifts, verify, donate, supporters, festival, candyGoal, suggestions, bugReports, discord, admin, moderation, patreon, webhooks, allowedOrigin, ping, report }: AppDeps) => {
+export const createApp = ({ store, ranking, friends, gifts, verify, donate, supporters, festival, candyGoal, suggestions, bugReports, discord, admin, moderation, arena, arenaReportSecret, patreon, webhooks, allowedOrigin, ping, report }: AppDeps) => {
   // `userId` is set by `auth` or `maybeAuth` on the routes that ask who's calling; `onError` reports it.
   const app = new Hono<MaybeAuth>()
 
@@ -672,6 +697,62 @@ export const createApp = ({ store, ranking, friends, gifts, verify, donate, supp
     if (!report) return c.json({ error: 'expected { text, tech? }' }, 400)
     const submitted = await bugReports.submit(report, { userId: c.var.userId, ip: clientIp(c.req.header('X-Real-IP'), c.req.header('X-Forwarded-For')) })
     return submitted.ok ? c.json({ id: submitted.id }, 201) : c.json({ error: 'too many reports' }, 429)
+  })
+
+  /** A relay's signed body, parsed: the JSON, or a response to send back (503 without the secret, 401 for a bad signature, 400 for bad JSON). */
+  const relayBody = async (c: Context) => {
+    if (!arenaReportSecret) return { error: c.json({ error: 'arena is off' }, 503) }
+    const raw = await c.req.text()
+    if (!verifyArenaSignature(raw, c.req.header('x-arena-signature'), arenaReportSecret)) return { error: c.json({ error: 'bad signature' }, 401) }
+    try {
+      return { body: JSON.parse(raw) as unknown }
+    } catch {
+      return { error: c.json({ error: 'invalid json' }, 400) }
+    }
+  }
+
+  app.post('/arena/report', bodyLimit({ maxSize: 32 * 1024 }), async (c) => {
+    const signed = await relayBody(c)
+    if ('error' in signed) return signed.error
+    const r = parseArenaReport(signed.body)
+    if (!r || r.endedAt > Date.now() + ARENA_CLOCK_SKEW_MS) return c.json({ error: 'invalid report' }, 400)
+    return c.json(await arena.report(r))
+  })
+
+  app.post('/arena/tickets', smallBody, async (c) => {
+    const signed = await relayBody(c)
+    if ('error' in signed) return signed.error
+    const ids = isRecord(signed.body) && Array.isArray(signed.body.userIds) ? signed.body.userIds : null
+    if (!ids || ids.length > 64 || !ids.every((id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 64)) return c.json({ error: 'expected { userIds }' }, 400)
+    return c.json(await arena.tickets(ids))
+  })
+
+  app.post('/arena/practice', auth, bodyLimit({ maxSize: 16 * 1024 }), async (c) => {
+    const body = await json(c)
+    const result = isRecord(body) ? parseArenaResult(body.result) : null
+    const slot = isRecord(body) && typeof body.slot === 'number' && Number.isInteger(body.slot) ? body.slot : null
+    const key = isRecord(body) && body.key !== undefined ? body.key : null
+    if (!result || slot === null || (key !== null && (typeof key !== 'string' || !PRACTICE_KEY.test(key)))) return c.json({ error: 'expected { result, slot, key? }' }, 400)
+    if (!arena.takePractice(c.var.userId)) return c.json({ error: 'too many matches' }, 429)
+    const stored = await arena.practice(c.var.userId, result, slot, key)
+    if (!stored) return c.json({ error: 'not your seat' }, 400)
+    return stored.duplicate ? c.json({ duplicate: true }) : c.json({ match: stored.match }, 201)
+  })
+
+  app.get('/arena/me', auth, async (c) => c.json(await arena.profile(c.var.userId)))
+
+  app.get('/arena/history', auth, async (c) => {
+    const before = queryInt(c.req.query('before'), 0, Number.MAX_SAFE_INTEGER, Date.now() + 86_400_000)
+    const limit = queryInt(c.req.query('limit'), 1, 50, ARENA_PAGES.history)
+    return c.json(await arena.history(c.var.userId, before, limit))
+  })
+
+  app.get('/arena/leaderboard', maybeAuth, async (c) => {
+    const current = shownSeason(Date.now()).id
+    const season = queryInt(c.req.query('season'), 1, current, current)
+    const limit = queryInt(c.req.query('limit'), 1, 100, ARENA_PAGES.board)
+    if (!c.var.userId) c.header('Cache-Control', 'public, max-age=30')
+    return c.json(await arena.leaderboard(season, limit, c.var.userId))
   })
 
   /** The desk's routes, all behind a valid token whose user Clerk says is admin. Everyone else gets 403, whatever they send. */
