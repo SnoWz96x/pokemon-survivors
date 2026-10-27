@@ -2,7 +2,7 @@ import { accountHandle, accountsEnabled, sessionToken } from './account'
 import { track, type RunPerf } from './analytics'
 import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/bank'
 import { createBot, botPick, type Bot } from './coop/bot'
-import { createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
+import { coopGuestId, createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
 import { measureRelay, type VpsUrls } from './coop/relays'
 import type { QueueDeps } from './arena/queue'
 import { createLocalRelay, LOCAL_RELAY_URL, type LocalRelay } from './coop/localRelay'
@@ -148,7 +148,10 @@ export const arenaQueueDeps = (): QueueDeps | null => {
   return {
     relay: url,
     build: __SIM_BUILD__,
-    token: coopToken,
+    auth: async () => {
+      const token = await coopToken().catch(() => null)
+      return token ? { kind: 'clerk', token } : { kind: 'guest', id: coopGuestId(local, Math.random) }
+    },
     socket: webSocket,
     rtts: async () => {
       const probes = await Promise.all(homes.map(async ([home, u]) => [home, await measureRelay(u.replace(/\/+$/, ''), get, () => performance.now(), 3)] as const))

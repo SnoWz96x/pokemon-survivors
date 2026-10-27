@@ -1,7 +1,7 @@
 import type { SocketHandlers, SocketLike } from '../coop/client'
 import { isRecord } from '../game/parse'
 import type { QueueKind } from '../data/arenaRanked'
-import type { QueueClientMessage, QueueServerMessage } from '../net/arena'
+import type { QueueAuth, QueueClientMessage, QueueServerMessage } from '../net/arena'
 
 /**
  * The Arena's public queue from the client's side: one WebSocket to the
@@ -10,7 +10,8 @@ import type { QueueClientMessage, QueueServerMessage } from '../net/arena'
  * when they're measured (`rtt`) and `cancel` when the player backs out, and
  * passes on what the matchmaker says (`queued`, `matched`, `refused`), plus
  * `lost` when the socket drops before a match. DOM-free: the shell passes
- * the socket and the Clerk token.
+ * the socket and who's queuing (`auth`: the Clerk token, or the guest id the
+ * dev relay seats).
  */
 
 /** What the queue tells the screen: the matchmaker's messages, or the socket gone before a match. */
@@ -21,8 +22,8 @@ export type QueueDeps = {
   relay: string
   /** The simulation's build id (`__SIM_BUILD__`): the matchmaker refuses an old one. */
   build: string
-  /** A fresh Clerk session token, or null (the matchmaker refuses guests). */
-  token: () => Promise<string | null>
+  /** Who queues: a fresh Clerk session token, or this device's guest id (only the dev relay takes guests). Sent in `queue`, never in the URL. */
+  auth: () => Promise<QueueAuth>
   socket: (url: string, on: SocketHandlers) => SocketLike
   /** Round trips (ms) to each relay home this build has; sent when it resolves. */
   rtts?: () => Promise<Record<string, number>>
@@ -30,15 +31,8 @@ export type QueueDeps = {
 
 export type Ticket = { kind: QueueKind; starter: string; party: string | null }
 
-/**
- * The matchmaker's WebSocket URL from the relay's: same origin, `ws(s)`,
- * path `/arena/queue`, the Clerk token as `?token=` (a browser can't set
- * headers on a WebSocket).
- */
-export const queueUrl = (relay: string, token: string | null) => {
-  const base = relay.replace(/^http/, 'ws').replace(/\/+$/, '')
-  return `${base}/arena/queue${token ? `?token=${encodeURIComponent(token)}` : ''}`
-}
+/** The matchmaker's WebSocket URL from the relay's: same origin, `ws(s)`, path `/arena/queue`. */
+export const queueUrl = (relay: string) => `${relay.replace(/^http/, 'ws').replace(/\/+$/, '')}/arena/queue`
 
 const REFUSALS = ['auth', 'duplicate', 'build', 'closed'] as const
 const QUEUES = ['casual', 'ranked'] as const
@@ -82,11 +76,11 @@ export const joinQueue = (deps: QueueDeps, ticket: Ticket, on: (e: QueueEvent) =
     ws = null
   }
   void (async () => {
-    const token = await deps.token().catch(() => null)
+    const auth = await deps.auth()
     if (over) return
-    ws = deps.socket(queueUrl(deps.relay, token), {
+    ws = deps.socket(queueUrl(deps.relay), {
       open: () => {
-        send({ t: 'queue', kind: ticket.kind, starter: ticket.starter, party: ticket.party, build: deps.build })
+        send({ t: 'queue', kind: ticket.kind, starter: ticket.starter, party: ticket.party, build: deps.build, auth })
         void deps.rtts?.().then((homes) => !over && Object.keys(homes).length > 0 && send({ t: 'rtt', homes }))
       },
       message: (data) => {

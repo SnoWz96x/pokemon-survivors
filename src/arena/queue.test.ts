@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { parseQueueMessage, queueUrl } from './queue'
 
 describe('queueUrl', () => {
-  it("is the relay's origin over WebSocket, with the token", () => {
-    expect(queueUrl('https://relay.example/', 'a b')).toBe('wss://relay.example/arena/queue?token=a%20b')
-    expect(queueUrl('http://localhost:8787', null)).toBe('ws://localhost:8787/arena/queue')
+  it("is the relay's origin over WebSocket", () => {
+    expect(queueUrl('https://relay.example/')).toBe('wss://relay.example/arena/queue')
+    expect(queueUrl('http://localhost:8787')).toBe('ws://localhost:8787/arena/queue')
   })
 })
 
