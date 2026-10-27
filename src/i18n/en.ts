@@ -377,6 +377,8 @@ export const en: Messages = {
     runToastModes: { all: 'All', important: 'Important only', none: 'None' },
     minimap: 'Mini map',
     minimapModes: { square: 'Square', round: 'Round', off: 'OFF' },
+    theme: 'Theme',
+    themes: { system: 'System', light: 'Light', dark: 'Dark' },
     /** How opaque your moves draw (and, in co-op, your teammates'): `render/attackLayers.ts`. */
     attackOpacity: 'Move opacity',
     teamAttackOpacity: 'Team move opacity',
