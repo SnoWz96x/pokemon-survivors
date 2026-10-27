@@ -381,8 +381,8 @@ CHUNSOFT are original *Pokémon Mystery Dungeon* sprites. This file is generated
 | 37 | Vulpix (shiny) | Lovi | Lovi, baronessfaron |
 | 38 | Ninetales | [CHUNSOFT](https://www.spike-chunsoft.com/), baronessfaron | [CHUNSOFT](https://www.spike-chunsoft.com/), baronessfaron |
 | 38 | Ninetales (shiny) | [Emmuffin](https://twitter.com/Ernmuffin) | Lovi, Emboarger, baronessfaron |
-| 104 | Cubone | [CHUNSOFT](https://www.spike-chunsoft.com/), [Emmuffin](https://twitter.com/Ernmuffin), Sceptile | [CHUNSOFT](https://www.spike-chunsoft.com/), [Felis-Licht](https://www.deviantart.com/felis-licht/), [Emmuffin](https://twitter.com/Ernmuffin) |
-| 104 | Cubone (shiny) | [Emmuffin](https://twitter.com/Ernmuffin) | [Emmuffin](https://twitter.com/Ernmuffin) |
+| 104 | Cubone | [CHUNSOFT](https://www.spike-chunsoft.com/), Sceptile, Some_Shinx | [CHUNSOFT](https://www.spike-chunsoft.com/), [Felis-Licht](https://www.deviantart.com/felis-licht/), [Emmuffin](https://twitter.com/Ernmuffin) |
+| 104 | Cubone (shiny) | [Emmuffin](https://twitter.com/Ernmuffin), Some_Shinx | [Emmuffin](https://twitter.com/Ernmuffin) |
 | 105 | Marowak | [CHUNSOFT](https://www.spike-chunsoft.com/) | [CHUNSOFT](https://www.spike-chunsoft.com/), [Emmuffin](https://twitter.com/Ernmuffin) |
 | 105 | Marowak (shiny) | El_Pangoro_Parse | [Emmuffin](https://twitter.com/Ernmuffin) |
 | 123 | Scyther | [CHUNSOFT](https://www.spike-chunsoft.com/) | [CHUNSOFT](https://www.spike-chunsoft.com/), [Noo](https://artfight.net/~NooNoo_Skidoo), [G〜](https://bsky.app/profile/justtr4sh.pmd.social) |
@@ -542,7 +542,7 @@ CHUNSOFT are original *Pokémon Mystery Dungeon* sprites. This file is generated
 | 937 | Ceruledge | baronessfaron | baronessfaron |
 | 937 | Ceruledge (shiny) | baronessfaron | ◥θ┴θ◤ |
 | 10 | Caterpie | [CHUNSOFT](https://www.spike-chunsoft.com/) | [CHUNSOFT](https://www.spike-chunsoft.com/), Frostdrop1, baronessfaron |
-| 10 | Caterpie (shiny) | [SilverDeoxys563](https://www.reddit.com/user/SilverDeoxys563) | [Moo](https://twitter.com/MoonMoonMemes), Emboarger, baronessfaron |
+| 10 | Caterpie (shiny) | [SilverDeoxys563](https://www.reddit.com/user/SilverDeoxys563) | Some_Shinx |
 | 11 | Metapod | [CHUNSOFT](https://www.spike-chunsoft.com/) | [CHUNSOFT](https://www.spike-chunsoft.com/), baronessfaron, [Blanky](https://www.tumblr.com/theblankest123) |
 | 11 | Metapod (shiny) | [SilverDeoxys563](https://www.reddit.com/user/SilverDeoxys563) | Tacocoa, [Morei](https://bsky.app/profile/murpia57.bsky.social), Magu |
 | 12 | Butterfree | [CHUNSOFT](https://www.spike-chunsoft.com/) | [CHUNSOFT](https://www.spike-chunsoft.com/), [Emmuffin](https://twitter.com/Ernmuffin) |
@@ -695,7 +695,7 @@ CHUNSOFT are original *Pokémon Mystery Dungeon* sprites. This file is generated
 | 128 | Tauros (shiny) | El_Pangoro_Parse | Tacocoa, [Emmuffin](https://twitter.com/Ernmuffin) |
 | 131 | Lapras | [CHUNSOFT](https://www.spike-chunsoft.com/) | [CHUNSOFT](https://www.spike-chunsoft.com/), C_Pariah, [silverfox88](https://twitter.com/realsilverfox88) |
 | 131 | Lapras (shiny) | [RaoKurai](https://twitter.com/RaoKurai) | [RaoKurai](https://twitter.com/RaoKurai), [silverfox88](https://twitter.com/realsilverfox88), [Deeshura](https://bsky.app/profile/deeshura.bsky.social) |
-| 132 | Ditto | [CHUNSOFT](https://www.spike-chunsoft.com/) | [CHUNSOFT](https://www.spike-chunsoft.com/), Anonymous |
+| 132 | Ditto | [CHUNSOFT](https://www.spike-chunsoft.com/), [Caitemis](https://caitemis-art.tumblr.com/) | [CHUNSOFT](https://www.spike-chunsoft.com/), Anonymous |
 | 132 | Ditto (shiny) | ShyStarryRain | ShyStarryRain |
 | 138 | Omanyte | [CHUNSOFT](https://www.spike-chunsoft.com/) | [CHUNSOFT](https://www.spike-chunsoft.com/), Frostdrop1 |
 | 138 | Omanyte (shiny) | Tacocoa | Lovi, [Morei](https://bsky.app/profile/murpia57.bsky.social) |
@@ -1237,9 +1237,10 @@ CHUNSOFT are original *Pokémon Mystery Dungeon* sprites. This file is generated
 
 The Kecleon shop's buildings, props, its own icons (the daily gift, the expansion, the wishlist, the loyalty
 stamp and the Kecleon Egg), Meowth's caravan and the seasonal stalls in the lobby
-(`public/assets/shop/`), and the Dojo's hall, training posts and banners (`public/assets/dojo/`), were
-generated for this project with [PixelLab](https://www.pixellab.ai). The emotion portraits in the dialogue
-box (Kecleon, Meowth, Duskull, Delibird, Lanturn and Machoke) are SpriteCollab portraits,
+(`public/assets/shop/`), the Dojo's hall, training posts and banners (`public/assets/dojo/`) and the
+Estádio (`public/assets/stadium/`), were generated for this project with [PixelLab](https://www.pixellab.ai).
+The emotion portraits in the dialogue box (Kecleon, Meowth, Duskull, Delibird, Lanturn, Machoke and Slowking)
+are SpriteCollab portraits,
 credited in their rows above.
 
 ## Cries

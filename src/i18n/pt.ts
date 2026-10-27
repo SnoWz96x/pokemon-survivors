@@ -5357,6 +5357,19 @@ export const pt = {
     first: ['Bem-vindo ao Dojo! Aqui ninguém desmaia: escolha um Pokémon e teste golpes, itens e formas à vontade.', 'Gostou de uma combinação? Salve a build. Nas partidas, as cartas dela vão ter uma ★.'],
     hello: ['Pronto pra treinar? Os alvos não revidam!', 'Um bom treinador conhece o próprio DPS.', 'O Wobbuffet aguenta tudo. Pode caprichar!', 'Fogo contra Água? Troque o alvo e veja a diferença.'],
   },
+  /** The Estádio (`render/stadium.ts`), south of home: the Arena's place in the lobby. */
+  stadium: {
+    /** Its boards' names, on the talk bubble while the partner stands by one: Jogar opens the Arena, the rest its hub's tabs. */
+    boards: { play: 'Jogar', ranking: 'Ranking', season: 'Temporada', history: 'Histórico', rules: 'Regras' },
+    /** Slowking, the Arena's judge, before the Arena opens: the first visit, then one of these in turn. */
+    first: [
+      'Hmm... Bem-vindo ao Estádio. Eu sou o juiz da Arena, e nada aqui escapa ao meu olhar.',
+      'Duas equipes de quatro se enfrentam no Vale. Derrote Pokémon selvagens, junte Energia e leve-a ao gol rival.',
+      'Partida rápida: contra bots, começa na hora. Casual: contra treinadores, sem pontos. Ranqueada: cada vitória sobe seu tier.',
+      'Cada temporada dura duas semanas. Os quadros do pátio mostram o ranking, a temporada, seu histórico e as regras.',
+    ],
+    hello: ['Hmm... De volta à Arena? Que vença o melhor time.', 'Energia guardada não marca ponto. Leve-a ao gol!', 'Quatro cabeças pensam melhor que uma. Jogue com sua equipe.', 'O placar da temporada não espera. Vamos?'],
+  },
 
   /** Explainer toast the first time each enemy trait shows up in a run. */
   traits: {

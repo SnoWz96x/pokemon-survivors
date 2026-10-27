@@ -69,6 +69,7 @@ import { applyBuild, setDummies, startTraining } from './game/training'
 import { buildOf } from './game/builds'
 import { TRAINING } from './data/training'
 import { DOJO_DEX } from './render/dojo'
+import { STADIUM_DEX } from './render/stadium'
 import { trainingPanel } from './ui/training'
 import { formAt, playerForm } from './game/branch'
 import { unlockedAt } from './game/learnsets'
@@ -169,7 +170,7 @@ import { runShare, sharePreview, trainerShare } from './ui/share'
 import { shop, type ShopPlaza, type VisitorShelf } from './ui/shop'
 import { starterSelect } from './ui/starterSelect'
 import { invitesScreen } from './ui/invites'
-import { titleScreen, type LobbyFocus, type Meadow, type ShopTrip } from './ui/title'
+import { titleScreen, type ArenaHubTab, type LobbyFocus, type Meadow, type ShopTrip } from './ui/title'
 import { creditsLine, supportersScreen } from './ui/supporters'
 import type { PollKind } from './data/supporters'
 import { knownTier, linkedPoll, patreonReturn, stageSupporterStatus, watchSupporterStatus } from './supporters'
@@ -608,6 +609,7 @@ const showTitle = (opts: { intro?: boolean; focus?: LobbyFocus; shop?: ShopTrip;
       invites: (focus) => invitesScreen(ui, input, () => showTitle({ focus })),
       coop: coopUrl() ? () => enterCoop({ room: null, invitedBy: null }) : undefined,
       arena: () => showArena(),
+      arenaHub: (tab) => showArenaHub(tab),
       dojo: () => showDojo(),
       meadow,
     }, opts),
@@ -991,8 +993,9 @@ const menuSprites = (): Variant[] => [
     ...new Set([
     ...(halloweenToday() ? HAUNT_DEX : []),
     KECLEON_DEX,
-    // The Dojo's Machoke and Wobbuffet, west of home.
+    // The Dojo's Machoke and Wobbuffet, west of home, and the Estádio's Slowking, south of it.
     ...DOJO_DEX,
+    ...STADIUM_DEX,
     // The plaza's visitors today: Meowth at his caravan, a seasonal stall's keeper.
     ...(scene.plaza.visitors.caravan ? [CARAVAN.dex] : []),
     ...(scene.plaza.visitors.stall ? [STALLS[scene.plaza.visitors.stall].dex] : []),
@@ -2843,6 +2846,9 @@ const showArena = () => {
   )
 }
 
+/** The Arena's hub on `tab` (the Estádio's boards). The Arena hub (arena/4-client) replaces this. */
+const showArenaHub = (_tab: ArenaHubTab) => showArena()
+
 /**
  * A match against bots: an in-page relay (`coop/localRelay.ts`) and a client
  * on it run it through co-op's path (lockstep, prediction, draw view), so
@@ -3819,6 +3825,12 @@ if (import.meta.env.DEV) {
         if (id) return void startDojo(id)
         showTitle({ shop: 'dojo' })
       },
+      /**
+       * The Estádio: `ps.stadium()` walks the lobby there, south of home, Slowking's hello included (the first visit's long one
+       * after `localStorage.removeItem('ps:stadiumSeen')`), then the Arena's screen. Its boards (Jogar, Ranking, Temporada,
+       * Histórico, Regras) open with E or a tap while the partner strolls by them.
+       */
+      stadium: () => showTitle({ shop: 'stadium' }),
       /**
        * The Kecleon plaza: `ps.plaza(3)` shows the shop's building at that level (1 to 5, until the next reload; `ps.plaza(0)`
        * goes back to the save's) and the lobby pans there for a look, cards out; Esc or Enter comes back.
