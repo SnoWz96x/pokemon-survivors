@@ -2,7 +2,7 @@ import { playSfx } from '../engine/audio'
 import { ABILITIES } from '../data/abilities'
 import { ENEMIES } from '../data/enemies'
 import { evolutionOf, evolvedFrom } from '../data/evolutions'
-import { PLAYABLE } from '../data/hatchlings'
+import { PLAYABLE, type PlayableId } from '../data/hatchlings'
 import { ITEM_IDS, ITEMS, type ItemDef, type ItemId } from '../data/items'
 import { TRAINING, TRAINING_TARGETS, type TrainingTarget } from '../data/training'
 import type { PokeType } from '../data/types'
@@ -12,14 +12,37 @@ import { MAX_ITEMS, MAX_MOVES } from '../game/leveling'
 import { branchAt, forkAt, maxMoveLevel, MOVES, type MoveId } from '../game/moves'
 import { localPlayer } from '../game/players'
 import { resolveSpecial } from '../game/special'
-import { createMeter, METER, readMeter, sampleMeter, setAbility, setFork, setForm, setItem, setMove, trainingForms, trainingMoves, type DpsMeter } from '../game/training'
+import { shownLegends } from '../game/festival'
+import { brasiliaDay } from '../game/day'
+import {
+  createMeter,
+  METER,
+  MOVE_SHELVES,
+  moveBlock,
+  readMeter,
+  sampleMeter,
+  setAbility,
+  setFork,
+  setForm,
+  setItem,
+  setMove,
+  shelfMoves,
+  trainingForms,
+  type DpsMeter,
+  type MoveShelf,
+  type TrainingForm,
+} from '../game/training'
+import { formAfter, innateAbility } from '../game/legend'
+import { formLocked } from '../game/communityGoal'
+import { AWAKEN_AT, isLegend, LEGENDS } from '../data/legends'
 import type { DamageSource, Game } from '../game/types'
 import { formatNumber, t } from '../i18n'
 import { abilityIcon } from '../render/abilityArt'
 import { itemIcon, moveIcon } from '../render/art'
-import { portraitUrl } from '../render/sprites'
+import { formPortraitUrl, portraitUrl } from '../render/sprites'
 import { specialIcon } from '../render/specialFx'
 import { h, setText } from './dom'
+import { today } from './save'
 import { holdMoveCard, hoverMoveCard, moveCard } from './moveCard'
 import { typeBadge, type Screen } from './screens'
 
@@ -27,10 +50,12 @@ import { typeBadge, type Screen } from './screens'
  * The Dojo's panel, over a training run (`game/training.ts`): the damage meter
  * on top, then four tabs to set the run as the player likes (moves with their
  * levels and forks, held items, the form and ability, the dummies), and the
- * build's buttons. Every change goes straight into the running game, so the
- * moves play out on the dummies at once. The panel slides to the right on
- * wide screens and up from the bottom on a phone held upright, and folds down
- * to the meter alone to see the whole field.
+ * build's buttons. The moves tab has three shelves: the family's own moves,
+ * every TM and the legendaries' capstones. Every change goes straight into the
+ * running game, so the moves play out on the dummies at once. The panel slides
+ * to the right on wide screens and up from the bottom on a phone held upright,
+ * and folds down to the meter alone to see the whole field; the camera keeps
+ * the player in the middle of the field it leaves open (`actions.lens`).
  */
 
 type Tab = 'moves' | 'items' | 'form' | 'targets'
@@ -47,6 +72,8 @@ export type TrainingActions = {
   clear: (() => void) | null
   /** Leaves the Dojo, back to the lobby. */
   leave: () => void
+  /** Where the player should stand on screen: the middle of the field the panel leaves open, from the screen's center (CSS px). */
+  lens: (x: number, y: number) => void
 }
 
 /** The damage source's name and icon: a move, the special or the ability. */
@@ -62,6 +89,17 @@ const sourceView = (g: Game, source: DamageSource) => {
 
 const whole = (n: number) => formatNumber(Math.round(n))
 
+/** A form's portrait and name: a legend's awakened form where it has one (and the community goal opened it), else the line's stage. */
+const lookOf = (starter: PlayableId, shiny: boolean, f: TrainingForm) => {
+  if (isLegend(starter)) {
+    const own = LEGENDS[starter].line[0]
+    const form = formAfter(starter, f.awakened)
+    return form && !formLocked(form) ? { src: formPortraitUrl(own.dex, form.key), name: form.name } : { src: portraitUrl(own.dex, shiny), name: own.name }
+  }
+  const form = formAt(starter, f.branch, f.stage)
+  return { src: portraitUrl(form.dex, shiny), name: form.name }
+}
+
 /** A − n + stepper: `set` gets the next level (0 forgets), the label says where it stands. */
 const stepper = (level: number, max: number, set: (level: number) => void, labelOf: (level: number) => string) =>
   h(
@@ -75,6 +113,8 @@ const stepper = (level: number, max: number, set: (level: number) => void, label
 export const trainingPanel = (root: HTMLElement, g: Game, actions: TrainingActions): Screen & { refresh: (clear: (() => void) | null) => void } => {
   const m = () => t().training
   let tab: Tab = 'moves'
+  let shelf: MoveShelf = 'family'
+  const legends = shownLegends(brasiliaDay(today()))
   // A phone held upright opens on the field: the panel folds to the meter until asked for.
   let folded = matchMedia('(orientation: portrait) and (max-width: 700px)').matches
   let meter: DpsMeter = createMeter(g.now)
@@ -130,20 +170,17 @@ export const trainingPanel = (root: HTMLElement, g: Game, actions: TrainingActio
   const movesTab = (): Part[] => {
     const p = me()
     const owned = (id: MoveId) => p.moves.find((x) => x.id === id)
-    const full = p.moves.length >= MAX_MOVES
-    const rows = trainingMoves(p.starter, p.branch).map((id) => {
+    const rows = shelfMoves(shelf, p.starter, p.branch, legends).map((id) => {
       const o = owned(id)
       const level = o?.level ?? 0
       const max = maxMoveLevel(id)
       const base = evolvedFrom(id)?.from
-      const evo = evolutionOf(id)
       const set = (lv: number) => {
         if (!setMove(g, id, lv)) return void playSfx('denied')
         changed()
       }
-      // A new move needs a free slot, unless it takes its base's (or evolution's) slot.
-      const twin = base ?? evo?.to
-      const blocked = !o && full && !(twin && owned(twin))
+      // A new move needs a free slot (unless it takes its base's or evolution's), and a run teaches one manual and one legendary move.
+      const blocked = o ? null : moveBlock(g, id)
       const forks = o
         ? [4, 7].flatMap((at) => {
             const fork = forkAt(id, at)
@@ -180,7 +217,7 @@ export const trainingPanel = (root: HTMLElement, g: Game, actions: TrainingActio
           ...forks,
         ),
         blocked
-          ? h('small', { class: 'dojo-row-full' }, m().movesFull)
+          ? h('small', { class: 'dojo-row-full' }, { full: m().movesFull, manual: m().manualFull, legendary: m().legendaryFull }[blocked])
           : o
             ? stepper(level, max, set, (lv) => (lv === 0 ? m().forget : m().level(lv)))
             : h('button', { class: 'dojo-learn', type: 'button', onclick: () => set(1) }, m().learn),
@@ -188,13 +225,22 @@ export const trainingPanel = (root: HTMLElement, g: Game, actions: TrainingActio
       holdMoveCard(row, () => moveCard(g, id, { level: Math.max(1, level), path: o?.path ?? 0 }))
       return row
     })
-    return [h('p', { class: 'dojo-slots' }, m().slots(p.moves.length, MAX_MOVES)), ...rows]
+    return [
+      h(
+        'div',
+        { class: 'dojo-shelves', role: 'tablist' },
+        ...MOVE_SHELVES.map((k) => h('button', { class: k === shelf ? 'dojo-chip on' : 'dojo-chip', type: 'button', role: 'tab', 'aria-selected': String(k === shelf), onclick: () => ((shelf = k), (body.scrollTop = 0), changed()) }, m().shelves[k])),
+        h('span', { class: 'dojo-slots' }, m().slots(p.moves.length, MAX_MOVES)),
+      ),
+      shelf !== 'family' && h('p', { class: 'dojo-shelf-note' }, m().shelfNote[shelf]),
+      ...rows,
+    ]
   }
 
   const itemsTab = (): Part[] => {
     const p = me()
-    // Type items only for the types the family's moves have, as the level-ups offer them.
-    const types = new Set<PokeType>(trainingMoves(p.starter, p.branch).map((id) => MOVES[id].type))
+    // Type items only for the types the family's moves (and the TMs carried) have, as the level-ups offer them.
+    const types = new Set<PokeType>([...shelfMoves('family', p.starter, p.branch, legends), ...p.moves.map((o) => o.id)].map((id) => MOVES[id].type))
     const full = p.items.length >= MAX_ITEMS
     const rows = ITEM_IDS.filter((id) => {
       const def: ItemDef = ITEMS[id]
@@ -224,18 +270,23 @@ export const trainingPanel = (root: HTMLElement, g: Game, actions: TrainingActio
   const formTab = (): Part[] => {
     const p = me()
     const forms = trainingForms(p.starter).map((f) => {
-      const form = formAt(p.starter, f.branch, f.stage)
-      const on = p.stage === f.stage && (f.branch === null || p.branch === f.branch)
+      const look = lookOf(p.starter, p.shiny, f)
+      const on = p.stage === f.stage && (f.branch === null || p.branch === f.branch) && (p.legend?.awakened ?? 0) === f.awakened
       return h(
         'button',
-        { class: on ? 'dojo-form on' : 'dojo-form', type: 'button', onclick: () => (setForm(g, f.stage, f.branch), changed()) },
-        h('img', { src: portraitUrl(form.dex, p.shiny), alt: '' }),
-        h('span', {}, form.name),
+        { class: on ? 'dojo-form on' : 'dojo-form', type: 'button', onclick: () => (setForm(g, f.stage, f.branch, f.awakened), changed()) },
+        h('img', { src: look.src, alt: '' }),
+        h('span', {}, look.name),
+        // A legend's awakenings look alike until the last: each says the level a run reaches it at.
+        p.legend && h('small', { class: 'dojo-form-at' }, m().level(f.awakened === 0 ? 1 : AWAKEN_AT[f.awakened - 1]!)),
       )
     })
     const set = abilitySet(p.starter, p.branch)
+    const innate = innateAbility(p.starter)
     const abilities =
-      p.stage === 0 && PLAYABLE[p.starter].line.length > 1
+      p.legend?.awakened === 0
+        ? [h('p', { class: 'dojo-empty' }, m().abilityAwaken)]
+        : p.stage === 0 && PLAYABLE[p.starter].line.length > 1
         ? [h('p', { class: 'dojo-empty' }, m().abilityLater)]
         : [
             h('button', { class: p.ability.id === null ? 'dojo-chip on' : 'dojo-chip', type: 'button', onclick: () => (setAbility(g, null), changed()) }, m().noAbility),
@@ -253,6 +304,8 @@ export const trainingPanel = (root: HTMLElement, g: Game, actions: TrainingActio
       h('h3', { class: 'dojo-label' }, m().form),
       h('div', { class: 'dojo-forms' }, ...forms),
       h('h3', { class: 'dojo-label' }, m().ability),
+      // A legend's innate is always on, besides the ability picked.
+      innate && h('p', { class: 'dojo-innate' }, h('img', { src: abilityIcon(innate), alt: '' }), `${t().legend.innate}: ${ABILITIES[innate].name}`),
       h('div', { class: 'dojo-chips' }, ...abilities),
       ability && h('p', { class: 'dojo-row-note' }, t().abilities[ability]),
     ]
@@ -316,12 +369,13 @@ export const trainingPanel = (root: HTMLElement, g: Game, actions: TrainingActio
   /** Rebuilds the panel around what the player carries now (the meter keeps going). */
   function render() {
     const p = me()
-    const form = formAt(p.starter, p.branch, p.stage)
-    head.replaceChildren(h('img', { src: portraitUrl(form.dex, p.shiny), alt: '' }), h('b', {}, form.name), h('small', {}, m().title))
+    const look = lookOf(p.starter, p.shiny, { stage: p.stage, branch: p.branch, awakened: p.legend?.awakened ?? 0 })
+    head.replaceChildren(h('img', { src: look.src, alt: '' }), h('b', {}, look.name), h('small', {}, m().title))
     TABS.forEach((k, i) => tabButtons[i]!.classList.toggle('on', k === tab))
     const scroll = body.scrollTop
     body.replaceChildren(...TAB_VIEWS[tab]().filter((n) => n instanceof Node))
     body.scrollTop = scroll
+    requestAnimationFrame(aimLens)
     clearBtn.hidden = clear === null
     el.classList.toggle('folded', folded)
     setText(foldBtn, folded ? m().show : m().hide)
@@ -329,9 +383,28 @@ export const trainingPanel = (root: HTMLElement, g: Game, actions: TrainingActio
     if (document.activeElement instanceof HTMLElement && el.contains(document.activeElement)) document.activeElement.blur()
   }
 
+  /** Tells the shell the middle of the widest field around the panel (its layout box, so the slide-in doesn't count). */
+  function aimLens() {
+    if (!el.isConnected) return
+    const w = root.clientWidth
+    const hh = root.clientHeight
+    const left = el.offsetLeft
+    const top = el.offsetTop
+    const right = left + el.offsetWidth
+    const bottom = top + el.offsetHeight
+    const open = [
+      { x: left / 2, y: hh / 2, area: left * hh },
+      { x: (right + w) / 2, y: hh / 2, area: (w - right) * hh },
+      { x: w / 2, y: top / 2, area: top * w },
+      { x: w / 2, y: (bottom + hh) / 2, area: (hh - bottom) * w },
+    ].reduce((a, b) => (b.area > a.area ? b : a))
+    actions.lens(open.x - w / 2, open.y - hh / 2)
+  }
+
   root.append(el)
   render()
   paintMeter()
+  addEventListener('resize', aimLens)
 
   return {
     el,
@@ -345,6 +418,9 @@ export const trainingPanel = (root: HTMLElement, g: Game, actions: TrainingActio
       clear = next
       render()
     },
-    dispose: () => el.remove(),
+    dispose: () => {
+      removeEventListener('resize', aimLens)
+      el.remove()
+    },
   }
 }
