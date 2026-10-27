@@ -61,7 +61,7 @@ export const VERSUS = {
   },
   pvp: {
     /** Every hit from a rival's move is cut to this share (moves are tuned against hordes). */
-    damage: 0.32,
+    damage: 0.36,
     /** Rivals' hits don't stack i-frames; a hitbox still hits a body once per its own `hitInterval`. A rival's knockback pushes this many px per 100 knockback. */
     shove: 3,
     /** A versus Pokémon has this many times the HP it would have in a run. */
