@@ -72,10 +72,10 @@ export const parseQueueMessage = (raw: string): QueueClientMessage | null => {
 }
 
 /** The API's answer to `POST /arena/tickets`, keeping only well-formed ratings (an account left out matches at the start). */
-export const parseTickets = (v: unknown): ArenaTicketsResponse => {
-  const out: ArenaTicketsResponse = {}
-  if (!isRecord(v)) return out
-  for (const [id, r] of Object.entries(v)) {
+export const parseTickets = (v: unknown): ArenaTicketsResponse['ratings'] => {
+  const out: ArenaTicketsResponse['ratings'] = {}
+  if (!isRecord(v) || !isRecord(v.ratings)) return out
+  for (const [id, r] of Object.entries(v.ratings)) {
     if (isRecord(r) && typeof r.mmr === 'number' && Number.isFinite(r.mmr)) out[id] = { mmr: r.mmr, rp: typeof r.rp === 'number' ? r.rp : 0, games: typeof r.games === 'number' ? r.games : 0 }
   }
   return out

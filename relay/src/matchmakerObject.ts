@@ -189,7 +189,7 @@ export class Matchmaker extends DurableObject<Env> {
     const asking = [...this.tickets.values()].filter((t) => t.mmr === null)
     if (this.fetching || asking.length === 0) return
     const api = arenaApiOf(this.env.ARENA_API_URL, this.env.ARENA_REPORT_SECRET)
-    const settle = (ratings: ArenaTicketsResponse) => {
+    const settle = (ratings: ArenaTicketsResponse['ratings']) => {
       for (const t of asking) {
         const live = this.tickets.get(t.conn)
         const r = ratings[t.user.slice(2)]

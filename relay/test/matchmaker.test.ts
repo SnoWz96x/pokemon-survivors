@@ -72,6 +72,6 @@ describe('matchmaking', () => {
     expect(parseQueueMessage(JSON.stringify({ ...queue, auth: undefined }))).toBeNull()
     expect(parseQueueMessage(JSON.stringify({ ...queue, party: 'a b' }))).toBeNull()
     expect(parseQueueMessage('{"t":"cancel"}')).toEqual({ t: 'cancel' })
-    expect(parseTickets({ user_1: { mmr: 1200, rp: 30, games: 2 }, user_2: { mmr: 'x' } })).toEqual({ user_1: { mmr: 1200, rp: 30, games: 2 } })
+    expect(parseTickets({ season: 1, ratings: { user_1: { mmr: 1200, rp: 30, games: 2 }, user_2: { mmr: 'x' } } })).toEqual({ user_1: { mmr: 1200, rp: 30, games: 2 } })
   })
 })

@@ -46,14 +46,6 @@ export type QueueServerMessage =
 export type MatchedSettings = { difficulty: 'normal'; mode: 'versus'; queue: 'casual' | 'ranked'; locked: true }
 
 /**
- * `POST /arena/tickets` (matchmaker → API), signed like the report (`x-arena-signature`): the queued
- * accounts' season ratings, to match by MMR. An account the API doesn't know yet is left out (the
- * matchmaker takes `mmr.start` for it).
- */
-export type ArenaTicketsRequest = { userIds: string[] }
-export type ArenaTicketsResponse = Record<string, { mmr: number; rp: number; games: number }>
-
-/**
  * `POST /arena/report` (relay → API), with header `x-arena-signature`: hex
  * HMAC-SHA256 of the raw body with `ARENA_REPORT_SECRET`. `result` is the
  * clients' agreed `ArenaResult` as they sent it (the API parses it with
