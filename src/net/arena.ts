@@ -70,3 +70,15 @@ export type ArenaReport = {
   seats: { slot: number; userId: string | null; handle: string | null; left: boolean }[]
   result: unknown
 }
+
+/** What `POST /arena/report` answers: the stored match, whether it moved ratings, and whether it was already in (a retry). */
+export type ArenaReportResponse = { match: string; rated: boolean; duplicate: boolean }
+
+/** `POST /arena/tickets` (relay → API), signed like `ArenaReport`: the players a matchmaker is about to match. */
+export type ArenaTicketsRequest = { userIds: string[] }
+
+/** One player's numbers in the current season, as the matchmaker matches on them (a fresh rating for a newcomer). */
+export type ArenaTicketRating = { mmr: number; rp: number; games: number }
+
+/** What `POST /arena/tickets` answers: the season it read (the first one before it starts) and each asked player's rating, by user id. */
+export type ArenaTicketsResponse = { season: number; ratings: Record<string, ArenaTicketRating> }

@@ -1316,6 +1316,7 @@ export const en: Messages = {
     festival: (festival, pot) => `The plaza raised ${pot} in the ${festival}. Thanks to every patron!`,
     patron: (festival) => `For being a Patron of the ${festival} ♥`,
     og: 'For supporting the game from the very start ♥',
+    arenaSeason: (season) => `For your peak in Arena season ${season}`,
   },
 
   supporters: {
@@ -2157,7 +2158,7 @@ export const en: Messages = {
     noTitle: 'none',
     titleTag: 'TITLE',
     equipped: 'SHOWN',
-    giftTitles: { ambassador: 'Brought 3 friends to the game', supporter: 'Supported the project with a donation', pumpkinKing: 'Filled the Halloween Night candy jar', exorcist: 'Beat every Ghost Hunt boss', vipCustomer: "Collected 30 stamps on Kecleon's loyalty card", tycoon: "Grew Kecleon's shop into a Department Store", patron: 'Gave ₽50,000 or more to a Plaza Festival', ogSupporter: 'Supported the game before Patreon' },
+    giftTitles: { ambassador: 'Brought 3 friends to the game', supporter: 'Supported the project with a donation', pumpkinKing: 'Filled the Halloween Night candy jar', exorcist: 'Beat every Ghost Hunt boss', vipCustomer: "Collected 30 stamps on Kecleon's loyalty card", tycoon: "Grew Kecleon's shop into a Department Store", patron: 'Gave ₽50,000 or more to a Plaza Festival', ogSupporter: 'Supported the game before Patreon', arenaPoke: 'Finished an Arena ranked season in Poké Ball', arenaGreat: 'Reached Great Ball in an Arena ranked season', arenaUltra: 'Reached Ultra Ball in an Arena ranked season', arenaMaster: 'Reached Master Ball in an Arena ranked season' },
     newMedals: 'New medals',
     names: {
       firstRun: 'First steps',
@@ -2248,6 +2249,10 @@ export const en: Messages = {
       tycoon: 'Tycoon',
       patron: 'Patron',
       ogSupporter: 'OG Supporter',
+      arenaPoke: 'Arena Poké Ball',
+      arenaGreat: 'Arena Great Ball',
+      arenaUltra: 'Arena Ultra Ball',
+      arenaMaster: 'Arena Master Ball',
     },
     goals: {
       runs: (n) => (n === '1' ? 'Play a run' : `Play ${n} runs`),

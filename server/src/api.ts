@@ -6,6 +6,7 @@
 import { createClerkClient } from '@clerk/backend'
 import { serve } from '@hono/node-server'
 import { adminStore } from './admin'
+import { arenaStore, createArenaRewards } from './arena'
 import { createApp } from './app'
 import { bugReportStore, createBugReports, discordBugForum } from './bugReports'
 import { clerkVerifier } from './auth'
@@ -74,6 +75,10 @@ const supporters = supporterStore(sql, { onTierChange: (userId) => void discord.
 void supporters.ogGifts().catch((err) => console.error('og gifts failed', err))
 void discord.settleOg().catch((err) => console.error('discord OG roles failed', err))
 
+// The Arena's ranked seasons: once one ends, its titles go out (safe on every instance: each gift has a key per season).
+const arena = arenaStore(sql)
+createArenaRewards(arena).start()
+
 const app = createApp({
   store: saveStore(sql),
   ranking,
@@ -89,6 +94,8 @@ const app = createApp({
   bugReports,
   admin: adminStore(sql, clerk, env.adminEmails),
   moderation: moderationStore(sql),
+  arena,
+  arenaReportSecret: env.arenaReportSecret,
   patreon: env.patreon ? patreonOAuth(env.patreon) : null,
   webhooks: {
     stripeSecret: env.stripeWebhookSecret,

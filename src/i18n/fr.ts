@@ -1314,6 +1314,7 @@ export const fr: Messages = {
     festival: (festival, pot) => `La place a récolté ${pot} au ${festival}. Merci à chaque mécène !`,
     patron: (festival) => `Pour avoir été Mécène du ${festival} ♥`,
     og: 'Pour avoir soutenu le jeu dès le début ♥',
+    arenaSeason: (season) => `Pour ton meilleur rang de la saison ${season} de l’Arène`,
   },
 
   supporters: {
@@ -2155,7 +2156,7 @@ export const fr: Messages = {
     noTitle: 'aucun',
     titleTag: 'TITRE',
     equipped: 'AFFICHE',
-    giftTitles: { ambassador: 'A amené 3 amis dans le jeu', supporter: 'A soutenu le projet par un don', pumpkinKing: 'A rempli le bocal de bonbons de la Nuit des Sorcières', exorcist: 'A battu tous les boss de la Chasse aux Fantômes', vipCustomer: 'A réuni 30 tampons sur la carte de fidélité de Kecleon', tycoon: 'A fait de la boutique de Kecleon un Grand Magasin', patron: 'A donné ₽50 000 ou plus à un Festival de la Place', ogSupporter: 'A soutenu le jeu avant Patreon' },
+    giftTitles: { ambassador: 'A amené 3 amis dans le jeu', supporter: 'A soutenu le projet par un don', pumpkinKing: 'A rempli le bocal de bonbons de la Nuit des Sorcières', exorcist: 'A battu tous les boss de la Chasse aux Fantômes', vipCustomer: 'A réuni 30 tampons sur la carte de fidélité de Kecleon', tycoon: 'A fait de la boutique de Kecleon un Grand Magasin', patron: 'A donné ₽50 000 ou plus à un Festival de la Place', ogSupporter: 'A soutenu le jeu avant Patreon', arenaPoke: 'A fini une saison classée de l’Arène en Poké Ball', arenaGreat: 'A atteint Great Ball lors d’une saison classée de l’Arène', arenaUltra: 'A atteint Ultra Ball lors d’une saison classée de l’Arène', arenaMaster: 'A atteint Master Ball lors d’une saison classée de l’Arène' },
     newMedals: 'Nouvelles médailles',
     names: {
       firstRun: 'Premiers pas',
@@ -2246,6 +2247,10 @@ export const fr: Messages = {
       tycoon: 'Magnat',
       patron: 'Mécène',
       ogSupporter: 'Soutien OG',
+      arenaPoke: 'Poké Ball de l’Arène',
+      arenaGreat: 'Great Ball de l’Arène',
+      arenaUltra: 'Ultra Ball de l’Arène',
+      arenaMaster: 'Master Ball de l’Arène',
     },
     goals: {
       runs: (n) => (n === '1' ? 'Joue une partie' : `Joue ${n} parties`),
