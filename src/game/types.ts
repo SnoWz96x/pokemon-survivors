@@ -60,6 +60,7 @@ import type { AlphaClock, AlphaState } from './alphas'
 import type { LegendForm, LegendId } from '../data/legends'
 import type { LegendState } from './legend'
 import type { CoopState } from './coop'
+import type { Training } from './training'
 import type { Harm, HarmBy } from './harm'
 
 export type OwnedMove = {
@@ -899,6 +900,8 @@ export type Game = {
   coop: CoopState | null
   /** A Versus match (`versus.ts`): the map, score, goals, camps and clock. Absent in every other run (its rules never touch them). */
   versus?: VersusState
+  /** The Dojo (`training.ts`): the run is a training session, with dummies instead of a horde. Null in every other run. */
+  training: Training | null
 }
 
 /** Where a prize level-up came from: an Alpha's gem or a field mission. */

@@ -14,15 +14,14 @@ import { dayKey, missionStatus } from '../game/missions'
 import { pendingPicks, playsShiny } from '../game/shinyPicks'
 import { pollToVote, supporterCount, tierRank, type WallEntry } from '../game/supporters'
 import { formatNumber, locale, t } from '../i18n'
-import { arenaIcon, bulbIcon, coinIcon, coopIcon, discordIcon, eggIcon, giftIcon, heartIcon, medalIcon, newsIcon, pawIcon, pokeballIcon, ribbonIcon, socialIcon, sparkleIcon, supporterIcon, surveyIcon } from '../render/art'
+import { arenaIcon, bulbIcon, coinIcon, coopIcon, discordIcon, eggIcon, giftIcon, heartIcon, itemIcon, medalIcon, newsIcon, pawIcon, pokeballIcon, ribbonIcon, socialIcon, sparkleIcon, supporterIcon, surveyIcon } from '../render/art'
 import { logoScale, titleLogo } from '../render/logo'
 import { drawPokemon, loadedSprites, loadSpecies, type Dex } from '../render/sprites'
-import type { Place } from '../render/titleScene'
-import type { PlazaNpc } from '../render/plaza'
+import type { LobbyNpc, Place } from '../render/titleScene'
 import { stallGoods } from '../game/stalls'
 import type { VisitorShelf } from './shop'
 import { dialogue, type Dialogue, type Speaker } from './dialogue'
-import { lanturnSpeaker, stallSpeaker, stallToday } from './visitors'
+import { lanturnSpeaker, senseiSpeaker, stallSpeaker, stallToday } from './visitors'
 import { inviterName } from '../ranking'
 import { ROUTES, SOCIAL_IDS, SOCIALS, type SocialId } from '../site/routes'
 import { fetchWall, knownStatus } from '../supporters'
@@ -63,6 +62,7 @@ export type LobbyFocus =
   | 'pokedex'
   | 'eggs'
   | 'mart'
+  | 'dojo'
   | 'ranking'
   | 'ideas'
   | 'coop'
@@ -95,9 +95,9 @@ export type Meadow = {
   /** Passear on or off: on, the partner hops into the meadow and stays out, the camera following it; off, it heads back to its stage. */
   explore: (on: boolean) => void
   /** Above whoever at the plaza the strolling partner stands close enough to talk to (and who), or null. */
-  talkSpot: () => (Vec & { who: PlazaNpc }) | null
+  talkSpot: () => (Vec & { who: LobbyNpc }) | null
   /** Who a tap is for: the shop (its shopkeepers, building or the edge marker pointing to it), Meowth, a stall (or its edge marker), the festival's fountain or plaque; null for none. */
-  tapsShop: (at: Vec) => PlazaNpc | null
+  tapsShop: (at: Vec) => LobbyNpc | null
   /** On a phone with the lobby's cards up, the partner's stage (CSS px): the shop's edge marker keeps to it, since the cards cover the view's edges; null otherwise. */
   stageBox: (box: DOMRect | null) => void
 }
@@ -155,6 +155,8 @@ export type TitleActions = {
   coop?: () => void
   /** Arena (Versus): its screen. Always there: against bots it needs no relay nor account. */
   arena: () => void
+  /** The Dojo, once Machoke said hello: who trains (the partner select in its Dojo guise, `game/training.ts`). */
+  dojo: () => void
   meadow: Meadow
 }
 
@@ -736,6 +738,17 @@ const arenaSeen = () => {
   }
 }
 
+/** Set once the player first trains at the Dojo on this device: the tile's NOVO tag and Machoke's long hello go for good. */
+const DOJO_SEEN = 'ps:dojoSeen'
+
+const dojoSeen = () => {
+  try {
+    return localStorage.getItem(DOJO_SEEN) !== null
+  } catch {
+    return true
+  }
+}
+
 const markArenaSeen = () => {
   try {
     localStorage.setItem(ARENA_SEEN, '1')
@@ -748,6 +761,22 @@ const markArenaSeen = () => {
 const arenaTile = () => {
   const el = dockTile('arena', arenaIcon(), t().versus.entry, 'V')
   if (!arenaSeen()) el.append(h('em', { class: 'lobby-new arena-new' }, t().versus.fresh))
+  return el
+}
+
+const markDojoSeen = () => {
+  try {
+    localStorage.setItem(DOJO_SEEN, '1')
+  } catch {
+    // Private modes may refuse: the tag and the long hello just show again next time.
+  }
+}
+
+/** The Dojo's tile (a Black Belt for an icon), tagged NOVO until the player first trains; a rail tile on phones held upright. */
+const dojoTile = (rails: boolean) => {
+  const icon = itemIcon('blackBelt')
+  const el = rails ? railTile('dojo', h('img', { src: icon, alt: '' }), t().home.dojo, t().home.dojoLabel) : dockTile('dojo', icon, t().home.dojo, 'T', 0, t().home.dojoLabel)
+  if (!dojoSeen()) el.append(h('em', { class: 'lobby-new' }, t().coop.fresh))
   return el
 }
 
@@ -775,7 +804,7 @@ const heldMove = (input: Input, arrows: boolean): Vec => {
 }
 
 /** Shortcuts, shown as key hints on what they press (`C` belongs to the Trainer chip; P, E and Space are taken by the run's controls, and E talks to a shopkeeper the partner stands by). */
-const HOTKEYS: Readonly<Record<string, LobbyFocus>> = { KeyF: 'festival', KeyJ: 'coop', KeyV: 'arena', KeyG: 'gifts', KeyN: 'news', KeyX: 'pokedex', KeyO: 'eggs', KeyL: 'mart', KeyR: 'ranking', KeyI: 'ideas', KeyM: 'missions', KeyH: 'hall' }
+const HOTKEYS: Readonly<Record<string, LobbyFocus>> = { KeyF: 'festival', KeyJ: 'coop', KeyV: 'arena', KeyG: 'gifts', KeyN: 'news', KeyX: 'pokedex', KeyO: 'eggs', KeyL: 'mart', KeyT: 'dojo', KeyR: 'ranking', KeyI: 'ideas', KeyM: 'missions', KeyH: 'hall' }
 
 /** The "Falar · E" bubble over a shopkeeper while the strolling partner stands close (a tap on it talks too). */
 const talkPrompt = (onTalk: () => void) =>
@@ -793,7 +822,7 @@ const talkPrompt = (onTalk: () => void) =>
  * sheet there (`plaque`, a talk at the donors' plaque, on its plaque tab),
  * `look` (dev, `ps.plaza()`) only goes there, for a look; Esc or Enter brings it back.
  */
-export type ShopTrip = 'shop' | 'festival' | 'plaque' | 'look'
+export type ShopTrip = 'shop' | 'festival' | 'plaque' | 'look' | 'dojo'
 
 /**
  * Title screen over the live meadow: the pixel logo and a blinking "press
@@ -861,7 +890,7 @@ export const titleScreen = (
   /** A trip to the Kecleon's shop under way: going there, the shop open, or coming back. */
   let visit: { mode: ShopTrip; phase: 'going' | 'here' | 'shop' | 'back'; shelf?: VisitorShelf } | null = null
   /** Who the talk prompt is over: a shopkeeper, Meowth, a stall's keeper, the festival's fountain or plaque. */
-  let talkWho: PlazaNpc = 'keeper'
+  let talkWho: LobbyNpc = 'keeper'
   /** A seasonal stall's keeper talking, over the plaza (the lobby's keys wait). */
   let chat: Dialogue | null = null
   /** A sync landed during a trip: the lobby is rebuilt once back home (`refresh`). */
@@ -965,6 +994,7 @@ export const titleScreen = (
     pokedex: () => openOver(actions.pokedex),
     eggs: actions.incubator,
     mart: () => visitShop('shop'),
+    dojo: () => visitShop('dojo'),
     ranking: () => ranking && openOver(ranking),
     ideas: () => ideas && openOver(ideas),
     coop: () => (markCoopSeen(), coop?.()),
@@ -1036,7 +1066,8 @@ export const titleScreen = (
       : landscape
         ? []
         : [h('div', { class: 'lobby-community' }, pressable(discordCard(), 'discord'), ...SOCIAL_IDS.map((id) => pressable(socialCard(id), id)))]
-    const side = h('div', { class: 'lobby-side' }, ...(rails ? [gift] : []), hall, ...invites, ...community, ...(rails ? [explore] : []))
+    const dojo = rails ? [pressable(dojoTile(true), 'dojo')] : []
+    const side = h('div', { class: 'lobby-side' }, ...(rails ? [gift] : []), hall, ...invites, ...dojo, ...community, ...(rails ? [explore] : []))
     // A friend's invite needs the room of a banner: under the partner on the rails, under the Hall elsewhere.
     const notice = rails ? h('div', { class: 'lobby-notice' }) : side
     inviteBanner(notice, press('invite'), (banner) => navigable(banner, 'invite'))
@@ -1046,6 +1077,8 @@ export const titleScreen = (
       pressable(dockTile('pokedex', pokeballIcon(), m.pokedex, 'X'), 'pokedex'),
       pressable(dockTile('eggs', eggIcon('rare'), m.eggs, 'O', ready, ready > 0 ? `${m.eggs}: ${m.eggsReady(ready)}` : m.eggs), 'eggs'),
       pressable(dockTile('mart', coinIcon(2), m.mart, 'L'), 'mart'),
+      // Phones held upright have it on the rail: their tab bar is full.
+      ...(rails ? [] : [pressable(dojoTile(false), 'dojo')]),
       ...(ranking ? [pressable(dockTile('ranking', medalIcon('gold'), m.ranking, 'R'), 'ranking')] : []),
       ...(ideas ? [pressable(dockTile('ideas', bulbIcon(), m.ideas, 'I'), 'ideas')] : []),
     ]
@@ -1126,14 +1159,15 @@ export const titleScreen = (
     tap = null
     actions.meadow.stick(null)
     actions.meadow.steer({ x: 0, y: 0 }, null, stage.feet())
-    actions.meadow.visit('plaza', instant)
+    actions.meadow.visit(visit.mode === 'dojo' ? 'dojo' : 'plaza', instant)
   }
 
   /**
-   * A talk at the plaza: the shop with a shopkeeper, the caravan's shelf with Meowth, a few words with a stall's keeper or Lanturn, the festival's sheet at the fountain (its plaque tab at the plaque).
+   * A talk at the plaza or the Dojo: the shop with a shopkeeper, the caravan's shelf with Meowth, a few words with a stall's keeper or Lanturn, the festival's sheet at the fountain (its plaque tab at the plaque), the Dojo with its sensei.
    * `beside`: the partner stands by `who`; from afar (a tap on the stall's edge marker), the stall skips its keeper's words.
    */
-  function talkTo(who: PlazaNpc, beside = true) {
+  function talkTo(who: LobbyNpc, beside = true) {
+    if (who === 'sensei') return visitShop('dojo')
     if (who === 'stall') return talkToStall(beside)
     if (who === 'lanturn') return chatThen(lanturnSpeaker(), t().plaza.lanturn, () => visitShop('festival'))
     if (who === 'fountain') return visitShop('festival')
@@ -1183,7 +1217,7 @@ export const titleScreen = (
     if ((visit.phase === 'going' && back) || (visit.phase === 'here' && (back || key === 'Enter' || key === 'Space'))) goHome()
   }
 
-  /** At the plaza: the shop opens, Kecleon talking beside it (a look just waits). */
+  /** At the plaza: the shop opens, Kecleon talking beside it (a look just waits). At the Dojo, Machoke says hello and the Dojo opens. */
   const arrived = () => {
     if (!visit) return
     if (visit.mode === 'look') {
@@ -1191,8 +1225,27 @@ export const titleScreen = (
       return
     }
     visit.phase = 'shop'
+    if (visit.mode === 'dojo') return greetAtDojo()
     if (visit.mode === 'festival' || visit.mode === 'plaque') overScreen = actions.festival(goHome, visit.mode === 'plaque' ? 'plaque' : 'fountain')
     else openShop(visit.shelf)
+  }
+
+  /** Machoke's hello at the Dojo (the long one the first time), then who trains; Esc during it turns back home. */
+  function greetAtDojo() {
+    const m = t().training
+    const first = !dojoSeen()
+    const lines = first ? m.first : [m.hello[Math.floor(Math.random() * m.hello.length)]!]
+    chat = dialogue(root, input, {
+      speaker: senseiSpeaker(),
+      lines: lines.map((text, i) => ({ text, emotion: i === 0 ? 'Happy' : 'Joyous' })),
+      onDone: () =>
+        later(() => {
+          chat?.dispose()
+          chat = null
+          markDojoSeen()
+          actions.dojo()
+        }),
+    })
   }
 
   /** The shop over the plaza; its Festival button swaps it for the festival's sheet, whose Back brings the shop again. */
@@ -1243,7 +1296,7 @@ export const titleScreen = (
     meadow.steer({ x: 0, y: 0 }, null, stage.feet())
     stage.setOut(meadow.out())
     const at = meadow.at()
-    if (visit.phase === 'going' && at === 'plaza') arrived()
+    if (visit.phase === 'going' && at === (visit.mode === 'dojo' ? 'dojo' : 'plaza')) arrived()
     else if (visit.phase === 'back' && at === 'home') landed()
   }
 
