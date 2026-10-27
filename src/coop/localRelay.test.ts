@@ -72,9 +72,15 @@ describe('the in-page relay', () => {
     const syncs: (number | null)[] = []
     client.on((e) => void (e.kind === 'sync' && syncs.push(e.base)))
     client.rejoinFresh()
-    await play([client], 1000)
+    // The snapshot inflates on real streams, not on the fake timers: give it real turns until the run moves past it (a slow CI box needs a few).
+    await vi.waitFor(
+      async () => {
+        await play([client], 100)
+        expect(client.state().runner?.next).toBeGreaterThan(600)
+      },
+      { timeout: 10_000, interval: 20 },
+    )
     expect(syncs).toEqual([600])
-    expect(client.state().runner?.next).toBeGreaterThan(600)
     relay.dispose()
     await vi.advanceTimersByTimeAsync(1)
     expect(client.state().status).toEqual({ kind: 'closed', why: 'expired' })
