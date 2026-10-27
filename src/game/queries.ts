@@ -1,15 +1,16 @@
 import { onAnyScreen } from './players'
 import type { Enemy, Game } from './types'
+import { isAlly } from './versusRules'
 import * as dm from '../engine/dmath'
 
 export const isAlive = (e: Enemy) => e.dying < 0
 
-/** Nearest living enemy within `maxDist`, optionally skipping ids already targeted. */
+/** Nearest living enemy within `maxDist`, optionally skipping ids already targeted (and, in Versus, the acting player's own team). */
 export const nearestEnemy = (g: Game, x: number, y: number, maxDist: number, exclude?: ReadonlySet<number>) => {
   let best: Enemy | null = null
   let bestD = maxDist * maxDist
   for (const e of g.enemies) {
-    if (!isAlive(e) || exclude?.has(e.id)) continue
+    if (!isAlive(e) || exclude?.has(e.id) || isAlly(g, e)) continue
     const d = dm.sq(e.x - x) + dm.sq(e.y - y)
     if (d < bestD) {
       bestD = d
@@ -29,4 +30,4 @@ export const inSight = (g: Game, x: number, y: number, margin = 0) => {
 }
 
 /** Living foes on the acting player's screen (a little inside its edges). */
-export const enemiesInView = (g: Game) => g.enemies.filter((e) => isAlive(e) && inSight(g, e.x, e.y, -8))
+export const enemiesInView = (g: Game) => g.enemies.filter((e) => isAlive(e) && !isAlly(g, e) && inSight(g, e.x, e.y, -8))

@@ -1,0 +1,56 @@
+import { ROLES, VERSUS, type Role, type Team } from '../data/versus'
+import type { PlayerStats } from './stats'
+import type { Enemy, Game } from './types'
+import type { GoalState, VersusState } from './versus'
+import * as dm from '../engine/dmath'
+
+/**
+ * Versus's pure rules (`versus.ts` runs them): the channel to score, the time
+ * down after a knockout, a rival's hit, the stats a Pokémon plays with, and
+ * who won. No game state: numbers in, numbers out.
+ */
+
+/** Seconds standing in a rival goal to score `energy` with `allies` teammates in it too. */
+export const channelTime = (energy: number, allies: number) =>
+  (VERSUS.score.base + VERSUS.score.perPoint * energy) / (1 + VERSUS.score.allyBoost * allies)
+
+/** Points a score is worth: double in the last stretch. */
+export const scoreValue = (energy: number, stretch: boolean) => (stretch ? energy * 2 : energy)
+
+/** Seconds down after a knockout at `level`. */
+export const respawnTime = (level: number, stretch: boolean) =>
+  VERSUS.respawn.base + VERSUS.respawn.perLevel * level + (stretch ? VERSUS.respawn.stretch : 0)
+
+/**
+ * A rival's hit of `raw` (the move's damage after type effectiveness) on a
+ * Pokémon: cut to PvP scale, tilted by both roles and the target's own damage
+ * taken, before armor. At least 1.
+ */
+export const pvpDamage = (raw: number, by: Role, target: Role, damageTaken: number) =>
+  Math.max(1, raw * VERSUS.pvp.damage * ROLES[by].dealt * ROLES[target].taken * damageTaken)
+
+/** Energy left on the ground by a knocked out Pokémon carrying `energy`. */
+export const droppedEnergy = (energy: number) => Math.floor(energy * VERSUS.energy.dropShare)
+
+/** The stats a Pokémon plays Versus with: its run stats with more HP (`VERSUS.pvp.hp`). */
+export const versusStats = (stats: PlayerStats): PlayerStats => ({ ...stats, maxHp: dm.round(stats.maxHp * VERSUS.pvp.hp) })
+
+/** The winner of a final score, null on a draw. */
+export const winnerOf = (score: readonly [number, number]): Team | null => (score[0] > score[1] ? 0 : score[1] > score[0] ? 1 : null)
+
+/** The other team. */
+export const rivalTeam = (team: Team): Team => (team === 0 ? 1 : 0)
+
+/** EXP a teammate gets from a faint worth `xp`, standing `d2` px² from it: full within `VERSUS.xpShare.radius`, the remote share past it. */
+export const xpShareOf = (xp: number, d2: number) => (d2 <= VERSUS.xpShare.radius * VERSUS.xpShare.radius ? xp : xp * VERSUS.xpShare.remote)
+
+/**
+ * Whether `e` is on the acting player's side in Versus: an avatar of their
+ * own team (their own body included). Their moves pass through it and never
+ * aim at it. Always false outside Versus (no avatars there).
+ */
+export const isAlly = (g: Game, e: Enemy) => e.behavior.kind === 'avatar' && e.behavior.team === g.player.versus?.team
+
+/** Whether `goal` takes scores now: not broken, and a base goal only once a lane goal of its team is gone. */
+export const goalOpen = (s: VersusState, goal: GoalState) =>
+  !goal.broken && (!goal.base || s.goals.some((o) => o.team === goal.team && !o.base && o.broken))

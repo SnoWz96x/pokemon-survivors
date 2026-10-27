@@ -44,9 +44,12 @@ export const ownerOf = (g: Game, slot: number): Player => g.players[slot] ?? g.p
  * Standing in the run: can be chased, hit and pick things up. In co-op a
  * fainted, away or gone player isn't, nor one wrapped up in something of their
  * own: their evolution, a Mega Evolution or a personal pick (`personal`),
- * which play without holding the team.
+ * which play without holding the team. In Versus a pick screen doesn't take
+ * the Pokémon out (its cards wait while it plays on), nor does being away (a
+ * bot plays it, `versusBots.ts`): only an evolution does.
  */
-export const inPlay = (p: Player) => p.hp > 0 && !p.away && !p.gone && p.phase === 'playing' && p.mega.intro <= 0
+export const inPlay = (p: Player) =>
+  p.hp > 0 && !p.gone && p.mega.intro <= 0 && (p.versus !== undefined ? p.phase !== 'evolving' : !p.away && p.phase === 'playing')
 
 /**
  * Co-op: phases that are one player's own and don't hold the world: the
@@ -220,13 +223,15 @@ export const phaseOf = (g: Game, p: Player = g.player): Phase =>
  * world's: held on the first player in slot order who isn't playing, playing
  * once nobody is busy. Solo the world takes `phase` as is. In co-op only a
  * level-up holds the world: a `personal` phase plays with the player wrapped
- * up, untargetable, while the team plays on (`inPlay`).
+ * up, untargetable, while the team plays on (`inPlay`). Versus holds it for
+ * nobody.
  */
 export const setPhase = (g: Game, phase: PlayerPhase, p: Player = g.player) => {
   p.phase = phase
   let team: PlayerPhase = 'playing'
   for (const q of g.players) {
-    if (q.phase === 'playing' || (g.coop !== null && personal(q.phase))) continue
+    // Versus never holds the world: every screen there is the player's own.
+    if (q.phase === 'playing' || q.versus !== undefined || (g.coop !== null && personal(q.phase))) continue
     team = q.phase
     break
   }

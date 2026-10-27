@@ -28,6 +28,8 @@ import type { EggTier, RunEggs } from './eggs'
 import type { EndlessState } from './endless'
 import type { MoveId } from './moves'
 import type { MapEventNotice, MapEventsState } from './mapEvents'
+import type { Team } from '../data/versus'
+import type { VersusSeat, VersusState } from './versus'
 import type { MegaState } from './mega'
 import type { Prop } from './props'
 import type { TerrainState } from './terrain'
@@ -219,6 +221,8 @@ export type Player = {
   record: PlayerRecord
   /** The last hits this player took, oldest first (`noteHit`): the end screen's cause of the faint. Bookkeeping: the simulation never reads it. */
   hits: Harm[]
+  /** Versus (`versus.ts`): their team, Energy, respawn and match stats. Absent outside Versus. */
+  versus?: VersusSeat
 }
 
 /** One player's run stats (damage dealt is `damageByMove`). `tally` counts their own faints only in co-op. */
@@ -239,6 +243,14 @@ export type EnemyBehavior =
   | { kind: 'flyby'; vx: number; vy: number; ttl: number }
   /** Walks to a field mission's nest at (x, y) and bites the egg there, turning on the player within `aggro` px (`fieldMissions.ts`). */
   | { kind: 'raid'; mission: number; x: number; y: number; aggro: number }
+  /**
+   * Versus: the body of the player at `slot` that the rival team's moves hit
+   * (`versusCombat.ts`). It never moves or bites on its own: it stands where
+   * its player stands, and what hits it hurts them.
+   */
+  | { kind: 'avatar'; slot: number; team: Team }
+  /** Versus: a wild Pokémon of camp `camp` standing at (x, y); it turns on the player at `target` (a slot, -1 none) who hit it, and walks home past `leash` px. */
+  | { kind: 'camp'; camp: number; x: number; y: number; leash: number; target: number }
 
 export type Enemy = {
   id: number
@@ -776,6 +788,14 @@ export type GameEvent =
   /** Co-op: a vote for the endless mode was cast, or the vote ended (`outcome`). */
   | { kind: 'vote'; slot: number; endless: boolean }
   | { kind: 'voted'; outcome: 'endless' | 'over' }
+  /** Versus (`versus.ts`): `slot` scored `points` for `team`; a goal broke; `slot` was knocked out (by `by`, -1 the wild) or came back; the last stretch began; an objective arrived or fell (to `team`, -1 none); the match ended (`winner` null on a draw). */
+  | { kind: 'versusScore'; slot: number; team: Team; points: number }
+  | { kind: 'versusGoal'; team: Team; goal: number }
+  | { kind: 'versusKo'; slot: number; by: number }
+  | { kind: 'versusBack'; slot: number }
+  | { kind: 'versusStretch' }
+  | { kind: 'versusObjective'; enemy: EnemyId; team: Team | -1 }
+  | { kind: 'versusEnd'; winner: Team | null }
 
 /** A timed player buff (X Attack, X Speed, Max Repel). `left` counts down in seconds. */
 export type Buff = { id: BuffId; left: number; total: number }
@@ -877,6 +897,8 @@ export type Game = {
   legendScene: LegendScene | null
   /** Co-op rules state (`coop.ts`): held sticks, the endless vote, pause time. Null solo. */
   coop: CoopState | null
+  /** A Versus match (`versus.ts`): the map, score, goals, camps and clock. Absent in every other run (its rules never touch them). */
+  versus?: VersusState
 }
 
 /** Where a prize level-up came from: an Alpha's gem or a field mission. */

@@ -1,4 +1,7 @@
 import { COOP } from '../data/coop'
+import { VERSUS } from '../data/versus'
+import { driveBots } from './versusBots'
+import { stepVersus } from './versus'
 import { MEGAS, type MegaId } from '../data/megas'
 import { castVote, countAway, leaveRun, setAway, updateVote, worldHeld } from './coop'
 import { continueEndless } from './endlessSystem'
@@ -132,11 +135,11 @@ const updatePicks = (g: Game, dt: number) => {
   openPendingPicks(g)
   for (const p of g.players) {
     if (!onScreen(p)) {
-      p.pickLeft = COOP.pick.time
+      p.pickLeft = p.versus ? VERSUS.pickTime : COOP.pick.time
       continue
     }
-    // Away players pick at once, and so does a level-up with nothing to choose (only the Oran Berry).
-    if (p.away || (p.phase === 'levelup' && nothingToChoose(p.offers))) {
+    // Away players and Versus bots pick at once, and so does a level-up with nothing to choose (only the Oran Berry).
+    if (p.away || p.versus?.bot || (p.phase === 'levelup' && nothingToChoose(p.offers))) {
       autoPick(g, p)
       continue
     }
@@ -242,6 +245,8 @@ export const stepTick = (g: Game, entries: readonly TickEntry[]) => {
   }
   // `move` entries land in `held`; the step reads them this tick.
   for (const p of g.players) inputs[p.slot]!.move = moveOf(p.away || p.gone ? 0 : coop.held[p.slot] ?? 0)
+  // Versus: the simulation plays its bots (and the seats of humans away).
+  if (g.versus) driveBots(g, inputs)
   if (g.phase === 'gameover') return
   countAway(g)
   if (g.phase === 'victory') {
@@ -259,7 +264,9 @@ export const stepTick = (g: Game, entries: readonly TickEntry[]) => {
   updatePicks(g, TICK)
   if (g.phase !== 'playing') coop.paused += TICK
   else if (!worldHeld(g)) {
-    stepTeam(g, inputs, TICK)
+    // A Versus match runs its own step (`versus.ts`).
+    if (g.versus) stepVersus(g, inputs, TICK)
+    else stepTeam(g, inputs, TICK)
     // Screens the step opened for away players are picked at once.
     for (const p of g.players) if (p.away && onScreen(p)) autoPick(g, p)
   }

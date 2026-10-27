@@ -24,6 +24,7 @@ import { stanceStats } from './stance'
 import { awakeningDeltas } from './legend'
 import { applyDeltas, BASE_STATS, boostStats, type StatDelta } from './stats'
 import { bagDeltas } from './bag'
+import { versusStats } from './versusRules'
 import { BAG_ITEMS } from '../data/shop'
 import { ownAttack, setPhase } from './players'
 import type { Game, Offer, OwnedItem, OwnedMove, PrizeSource, Rarity } from './types'
@@ -268,7 +269,9 @@ export const recomputeStats = (g: Game) => {
     ...bagDeltas(p.bag),
   ])
   // A held evolution (no item for any branch yet) is as strong as with an Everstone.
-  p.stats = boostStats(stanceStats(deltas, p.special.stance), p.boost + (p.evoHeld ? BAG_ITEMS.everstone.effect.everstone : 0))
+  const stats = boostStats(stanceStats(deltas, p.special.stance), p.boost + (p.evoHeld ? BAG_ITEMS.everstone.effect.everstone : 0))
+  // Versus plays with more HP (`versusStats`), so a rival's moves take a moment.
+  p.stats = p.versus ? versusStats(stats) : stats
   if (p.stats.maxHp > before) p.hp += p.stats.maxHp - before
   p.hp = Math.min(p.hp, p.stats.maxHp)
 }
