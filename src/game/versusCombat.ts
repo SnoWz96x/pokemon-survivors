@@ -101,7 +101,7 @@ export const tickAvatar = (g: Game, e: Enemy, amount: number, move: DamageSource
 
 /**
  * `p` is knocked out (by the player at `by`, -1 for the wild or the spawn
- * pad): out until their respawn, half their Energy scattered where they fell,
+ * pad, which credit the last rival to hit them within `ASSIST`): out until their respawn, half their Energy scattered where they fell,
  * their body gone from the field, and EXP for the knocker's team.
  */
 export const knockOut = (g: Game, p: Player, by: number) => {
@@ -121,15 +121,20 @@ export const knockOut = (g: Game, p: Player, by: number) => {
   dropOrbs(g, p.x, p.y, Math.floor(v.energy * VERSUS.energy.dropShare))
   v.energy = 0
   removeAvatar(g, p)
-  const killer = by >= 0 ? g.players[by] : undefined
+  // Finished off by the wild or a pad: the rival who hit it last, within `ASSIST` seconds, gets the knockout.
+  const credit = by < 0 && v.lastBy >= 0 && g.now - v.hurtAt < ASSIST ? v.lastBy : by
+  const killer = credit >= 0 ? g.players[credit] : undefined
   if (killer?.versus && killer.versus.team !== v.team) {
     killer.versus.kos++
     killer.record.kills++
     shareXp(g, killer.versus.team, VERSUS.pvp.koXp * p.level, p.x, p.y)
   }
   burst(g, p.x, p.y - 10, { colors: ['#f83838', '#ffffff', '#202028'], count: 24, speed: 90, ttl: 0.5 })
-  g.events.push({ kind: 'versusKo', slot: p.slot, by })
+  g.events.push({ kind: 'versusKo', slot: p.slot, by: killer ? credit : -1 })
 }
+
+/** Seconds a rival's hit keeps the credit for a knockout the wild or a pad finishes. */
+const ASSIST = 4
 
 /** Scatters `energy` as orbs around (x, y): one orb per 5 Energy and one for the rest. */
 export const dropOrbs = (g: Game, x: number, y: number, energy: number) => {
