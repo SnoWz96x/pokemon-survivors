@@ -14,7 +14,7 @@ import { dayKey, missionStatus } from '../game/missions'
 import { pendingPicks, playsShiny } from '../game/shinyPicks'
 import { pollToVote, supporterCount, tierRank, type WallEntry } from '../game/supporters'
 import { formatNumber, locale, t } from '../i18n'
-import { bulbIcon, coinIcon, coopIcon, discordIcon, eggIcon, giftIcon, heartIcon, medalIcon, newsIcon, pawIcon, pokeballIcon, ribbonIcon, socialIcon, sparkleIcon, supporterIcon, surveyIcon } from '../render/art'
+import { arenaIcon, bulbIcon, coinIcon, coopIcon, discordIcon, eggIcon, giftIcon, heartIcon, medalIcon, newsIcon, pawIcon, pokeballIcon, ribbonIcon, socialIcon, sparkleIcon, supporterIcon, surveyIcon } from '../render/art'
 import { logoScale, titleLogo } from '../render/logo'
 import { drawPokemon, loadedSprites, loadSpecies, type Dex } from '../render/sprites'
 import type { Place } from '../render/titleScene'
@@ -66,6 +66,7 @@ export type LobbyFocus =
   | 'ranking'
   | 'ideas'
   | 'coop'
+  | 'arena'
   | 'play'
   | 'explore'
   | SocialId
@@ -152,6 +153,8 @@ export type TitleActions = {
   invites: (focus: LobbyFocus) => Screen
   /** Jogar junto (co-op): the hub. No action (no relay in this build), no tile. */
   coop?: () => void
+  /** Arena (Versus): its screen. Always there: against bots it needs no relay nor account. */
+  arena: () => void
   meadow: Meadow
 }
 
@@ -722,6 +725,32 @@ const coopTile = () => {
   return el
 }
 
+/** Set once the player opens the Arena on this device: the tile's NOVO tag goes for good. */
+const ARENA_SEEN = 'ps:arenaSeen'
+
+const arenaSeen = () => {
+  try {
+    return localStorage.getItem(ARENA_SEEN) !== null
+  } catch {
+    return true
+  }
+}
+
+const markArenaSeen = () => {
+  try {
+    localStorage.setItem(ARENA_SEEN, '1')
+  } catch {
+    // Private modes may refuse: the tag just shows again next time.
+  }
+}
+
+/** The Arena's tile, tagged NOVO until the player first opens it. */
+const arenaTile = () => {
+  const el = dockTile('arena', arenaIcon(), t().versus.entry, 'V')
+  if (!arenaSeen()) el.append(h('em', { class: 'lobby-new arena-new' }, t().versus.fresh))
+  return el
+}
+
 /* ---------------- Keyboard and gamepad ---------------- */
 
 /** The arrows (and the pad) move between the lobby's buttons; the movement keys (WASD) walk the partner instead. */
@@ -746,7 +775,7 @@ const heldMove = (input: Input, arrows: boolean): Vec => {
 }
 
 /** Shortcuts, shown as key hints on what they press (`C` belongs to the Trainer chip; P, E and Space are taken by the run's controls, and E talks to a shopkeeper the partner stands by). */
-const HOTKEYS: Readonly<Record<string, LobbyFocus>> = { KeyF: 'festival', KeyJ: 'coop', KeyG: 'gifts', KeyN: 'news', KeyX: 'pokedex', KeyO: 'eggs', KeyL: 'mart', KeyR: 'ranking', KeyI: 'ideas', KeyM: 'missions', KeyH: 'hall' }
+const HOTKEYS: Readonly<Record<string, LobbyFocus>> = { KeyF: 'festival', KeyJ: 'coop', KeyV: 'arena', KeyG: 'gifts', KeyN: 'news', KeyX: 'pokedex', KeyO: 'eggs', KeyL: 'mart', KeyR: 'ranking', KeyI: 'ideas', KeyM: 'missions', KeyH: 'hall' }
 
 /** The "Falar · E" bubble over a shopkeeper while the strolling partner stands close (a tap on it talks too). */
 const talkPrompt = (onTalk: () => void) =>
@@ -939,6 +968,7 @@ export const titleScreen = (
     ranking: () => ranking && openOver(ranking),
     ideas: () => ideas && openOver(ideas),
     coop: () => (markCoopSeen(), coop?.()),
+    arena: () => (markArenaSeen(), actions.arena()),
     play: actions.play,
     explore: () => enterExplore(),
     tiktok: () => openSocial('tiktok'),
@@ -1020,13 +1050,15 @@ export const titleScreen = (
       ...(ideas ? [pressable(dockTile('ideas', bulbIcon(), m.ideas, 'I'), 'ideas')] : []),
     ]
     // Co-op sits right of JOGAR on wide screens (the right half's first tile), last on phones (`style.css`).
-    if (coop) tiles.splice(Math.ceil((tiles.length + 1) / 2), 0, pressable(coopTile(), 'coop'))
+    // The Arena sits right of JOGAR on wide screens (the right half's first tile), Co-op after it; on phones they're the tab bar's last two (`style.css`).
+    const right = Math.ceil((tiles.length + 1 + (coop ? 1 : 0)) / 2)
+    tiles.splice(right, 0, pressable(arenaTile(), 'arena'), ...(coop ? [pressable(coopTile(), 'coop')] : []))
     const play = pressable(h('button', { class: 'lobby-play', type: 'button' }, h('span', {}, m.play), h('span', { class: 'key-hint' }, 'ENTER')), 'play')
     // JOGAR sits in the middle of the dock on wide screens, between the two halves (centered however many tiles each has); the CSS moves it above the tab bar on phones.
     const half = Math.ceil(tiles.length / 2)
     const bottom = h(
       'div',
-      { class: 'lobby-bottom', style: `--tiles:${tiles.length}` },
+      { class: 'lobby-bottom', style: `--tiles:${tiles.length};--arena-col:${tiles.length - (coop ? 1 : 0)}` },
       h('div', { class: 'lobby-dock left' }, ...tiles.slice(0, half)),
       play,
       h('div', { class: 'lobby-dock right' }, ...tiles.slice(half)),
@@ -1042,7 +1074,7 @@ export const titleScreen = (
       pressable(rails ? challengeTile() : challengeCard(), 'challenge'),
       pressable(rails ? missionsTile() : missionsCard(), 'missions'),
     )
-    const kind = ['lobby', rails ? 'rails' : '', tiles.length > 5 ? 'dock6' : ''].join(' ').trim()
+    const kind = ['lobby', rails ? 'rails' : '', tiles.length > 6 ? 'dock7' : tiles.length > 5 ? 'dock6' : ''].join(' ').trim()
     const next = h(
       'div',
       { class: kind },

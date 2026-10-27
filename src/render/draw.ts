@@ -68,6 +68,7 @@ import { detail } from './quality'
 import { localPlayer } from '../game/players'
 import { riftDomain } from '../game/rift'
 import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, showsPlain, showsStanding } from './team'
+import { drawValeAir, drawValeFloor, drawValeGround, drawValeZones, dropVale, TEAM_COLORS, warmVale } from './vale'
 import { paintAttacks, type AttackSide } from './attackLayers'
 import { drawImpacts, watchImpacts } from './impacts'
 import { drawCrunch, drawDragonBreath, drawEarthquake, drawEmber, drawPinMissile, drawFireSpin, drawWhirlpool, drawFlashCannon, drawPsyshock, drawPyroBall, drawGust, drawRazorLeaf, drawRockTombLanding, drawSludge, drawSludgeGround, drawSwift, drawThunder, drawThunderGround, drawVineWhip, drawWaterGun } from './baseMoveFx'
@@ -631,8 +632,9 @@ const drawHpBar = (ctx: Ctx, g: Game) => {
   ctx.fillRect(x - 1, y - 1, w + 2, 4)
   ctx.fillStyle = '#504848'
   ctx.fillRect(x, y, w, 2)
-  const ratio = p.hp / p.stats.maxHp
-  ctx.fillStyle = hpColor(ratio)
+  const ratio = Math.max(0, p.hp / p.stats.maxHp)
+  // Versus: everyone's bar in their team's color.
+  ctx.fillStyle = p.versus ? TEAM_COLORS[p.versus.team] : hpColor(ratio)
   ctx.fillRect(x, y, Math.ceil(w * ratio), 2)
 }
 
@@ -764,6 +766,8 @@ export const warmScenery = (g: Game | null, calm: boolean, fog: FogMode) => {
   keepTerrain(keep)
   if (!g?.rift.arena || g.rift.arena.domain) dropArenas()
   if (!g?.place.inside) dropPlaceFloor()
+  if (!g?.versus) dropVale()
+  else if (warmVale()) return true
   if (g && warmDomain(g)) return true
   if (g && !roomOf(g)) {
     const { w, h } = g.view
@@ -909,10 +913,11 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   if (g.rift.arena?.domain) drawDomainFloor(ctx, g.rift.arena, g.rift.arena.domain, camX, camY, w, h, t)
   else if (g.rift.arena) drawArena(ctx, g.rift.arena, camX, camY, w, h, t)
   else if (inside) drawPlaceFloor(ctx, inside, camX, camY, w, h, t)
+  else if (g.versus) drawValeFloor(ctx, camX, camY, w, h)
   else drawGround(ctx, camX, camY, w, h, g.biome.id, fade)
   const upcoming = biomeAt(g.time + BIOME_WARMUP)
   // Scenery warms in idle time (`warmScenery`); in case that never comes, one of the next biome's chunks per frame.
-  if (upcoming !== g.biome.id) warmGround(upcoming, camX, camY, w, h)
+  if (upcoming !== g.biome.id && !g.versus) warmGround(upcoming, camX, camY, w, h)
   if (g.rift.arena && !g.rift.arena.domain) warmArena(g.rift.arena)
   // Scenery changes outfit halfway through the dissolve, like the breakables.
   const look = fade && fade.k < 0.5 ? fade.from : g.biome.id
@@ -928,6 +933,8 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   }
 
   drawTerrainGround(ctx, g, look, camX, camY)
+  // Versus: the spawn pads and the goal zones, under everything.
+  if (g.versus) drawValeZones(ctx, g, t)
   const me = localPlayer(g)
   watchImpacts(g)
   // The moves go through see-through layers at the player's chosen opacity, your own first (`paintAttacks`).
@@ -966,12 +973,14 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   drawTraitGround(ctx, g, visible)
   drawAlphaGround(ctx, g, t, visible)
   drawPickups(ctx, g, t, visible)
+  if (g.versus) drawValeGround(ctx, g, t, visible)
   if (g.coop) drawTeamGround(ctx, g, t)
 
   drawables.length = 0
   // A wave legendary's scene draws it itself (its arrival, its capture).
   const hiddenBoss = sceneHides(g)
-  for (const e of g.enemies) if (visible(e.x, e.y) && e.id !== hiddenBoss) drawables.push(e)
+  // Versus: a Pokémon's avatar (its body for the rivals' moves) never draws; its player does.
+  for (const e of g.enemies) if (visible(e.x, e.y) && e.id !== hiddenBoss && e.behavior.kind !== 'avatar') drawables.push(e)
   drawables.push('player')
   for (let i = 0; i < mates.length; i++) {
     const mate = mates[i]!
@@ -1092,7 +1101,8 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
     drawPlayer(ctx, g, calm)
     drawPlayerAir(ctx, g, t)
   }
-  // Teammates' name tags and bubbles, over everyone.
+  // Teammates' name tags and bubbles, over everyone (in Versus, the goals' points left under them).
+  if (g.versus) drawValeAir(ctx, g)
   if (g.coop) drawTeamAir(ctx, g, me, t)
   // Roar of Time's clocks over the foes it stopped: a mark on them, not a move, so it stays opaque.
   drawStoppedFoes(ctx, g, t, visible)

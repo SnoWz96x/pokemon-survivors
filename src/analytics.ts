@@ -157,6 +157,26 @@ type AnalyticsEvents = {
   /** A co-op client diverged and was healed from the agreed snapshot: the room, the tick it was told at, and how long until it was back in step. */
   coop_heal: { room: string; tick: number; ms: number }
   /**
+   * An Arena (Versus) match's end, once per player per match (never for a match left before it ends):
+   * against bots (the in-page relay) or with friends (a room), the winner and this player's side and
+   * result, the final score, this player's knockouts, falls, points and level, their Pokémon, and how
+   * many seats humans played (the rest were bots).
+   */
+  versus_end: {
+    mode: 'bots' | 'friends'
+    winner: 'blue' | 'red' | 'draw'
+    team: 'blue' | 'red'
+    result: 'win' | 'loss' | 'draw'
+    blue: number
+    red: number
+    kos: number
+    deaths: number
+    scored: number
+    level: number
+    starter: string
+    humans: number
+  }
+  /**
    * How a co-op run's link and pacing went for this player (`coop/netStats.ts`), one per player per run,
    * flat: where the relay ran and this player met Cloudflare, round trip, frame jitter, the hold, underruns,
    * stalls, reconnects by reason, heals and syncs, the display, simulation and render times, prediction

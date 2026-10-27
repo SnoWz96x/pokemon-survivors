@@ -10,6 +10,7 @@ import { TEAM_FX, teamArrow, type TeamIcon } from './art'
 import { markerInsets, type MarkerInsets } from './mapEvents'
 import { drawPokemon, hasSheets, sprites, type SpeciesSprites } from './sprites'
 import { dashedRing } from './strokes'
+import { orbGlyph, TEAM_COLORS, TEAM_LIGHT } from './vale'
 
 /**
  * Co-op in the world, draw-only: every teammate's Pokémon with a ring at its
@@ -33,18 +34,25 @@ export const slotColor = (slot: number): string => SLOT_COLORS[slot % SLOT_COLOR
  * A name as the in-world font writes it (`textSprite`: capitals, digits and a
  * few marks): accents dropped, 8 letters at most, `P2` when nothing is left.
  */
-export const tagText = (name: string, slot: number) => {
-  const clean = name
+export const tagText = (name: string, slot: number) => cleanTag(name, 8) || `P${slot + 1}`
+
+/** `name` in the in-world font's letters, `max` of them at most. */
+const cleanTag = (name: string, max: number) =>
+  name
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
     .replace(/[^A-Z0-9 .\-_!+]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 8)
+    .slice(0, max)
     .trim()
-  return clean || `P${slot + 1}`
-}
+
+/**
+ * A Versus player's tag: a human's name as `tagText` writes it; a bot's
+ * Pokémon (its form now) and `CPU`. A human who left keeps their name.
+ */
+export const versusTag = (name: string, pokemon: string, slot: number) => (name.trim() ? tagText(name, slot) : `${cleanTag(pokemon, 10)} CPU`)
 
 /** Each slot's tag, worked out once per name. */
 const tagNames: string[] = []
@@ -58,6 +66,21 @@ const tagOf = (g: Game, slot: number) => {
   return tagTexts[slot]!
 }
 
+/** Versus tags by slot, kept while the name and form stay the same. */
+const versusTags: { name: string; form: string; text: string }[] = []
+const versusTagOf = (g: Game, p: Player) => {
+  const name = g.coop?.names[p.slot] ?? ''
+  const form = formAt(p.starter, p.branch, p.stage).name
+  const known = versusTags[p.slot]
+  if (known && known.name === name && known.form === form) return known.text
+  const text = versusTag(name, form, p.slot)
+  versusTags[p.slot] = { name, form, text }
+  return text
+}
+
+/** Knocked out in a Versus match: off the field until the respawn, drawn nowhere. */
+const benched = (p: Player) => p.versus !== undefined && p.hp <= 0
+
 /** Distances (world px / 16, a tile) as text, made once each. */
 const distances: string[] = []
 const distanceText = (px: number) => {
@@ -68,6 +91,8 @@ const distanceText = (px: number) => {
 /** What a wrapped-up player is busy with (their bubble's icon), or null while they play like everyone. */
 export const busyWith = (p: Player): TeamIcon | null => {
   if (p.mega.intro > 0) return 'mega'
+  // Versus: pick cards wait while the Pokémon plays on; only an evolution wraps it up.
+  if (p.versus) return p.phase === 'evolving' ? 'evolve' : null
   switch (p.phase) {
     case 'playing':
       return null
@@ -108,7 +133,7 @@ const AWAY_TINT = { color: '#506078', amount: 0.55 }
 export const showsStanding = (p: Player) => !p.gone && !fainted(p)
 
 /** Whether `p` draws like the solo player (`drawPlayer` on their copy of the game): standing, here and not wrapped up. */
-export const showsPlain = (p: Player) => showsStanding(p) && !p.away && busyWith(p) === null
+export const showsPlain = (p: Player) => showsStanding(p) && (!p.away || p.versus !== undefined) && busyWith(p) === null
 
 /**
  * A co-op player who doesn't draw like the solo one (`showsPlain`), in depth
@@ -117,7 +142,7 @@ export const showsPlain = (p: Player) => showsStanding(p) && !p.away && busyWith
  * the game holding `p`. `calm`: Flashes reduced.
  */
 export const drawTeammate = (ctx: Ctx, g: Game, p: Player, t: number, calm: boolean) => {
-  if (p.gone) return
+  if (p.gone || benched(p)) return
   if (fainted(p)) return drawBall(ctx, p, t)
   const s = mateSprites(g, p)
   const busy = busyWith(p)
@@ -178,6 +203,7 @@ const reviveArc = (ctx: Ctx, x: number, y: number, r: number, k: number, color: 
  * the spot to stand in, with the revive filling it.
  */
 export const drawTeamGround = (ctx: Ctx, g: Game, t: number) => {
+  if (g.versus) return drawVersusGround(ctx, g)
   for (const p of g.players) {
     if (p.gone) continue
     const color = slotColor(p.slot)
@@ -193,6 +219,17 @@ export const drawTeamGround = (ctx: Ctx, g: Game, t: number) => {
   }
 }
 
+/** Versus: a ring at every standing Pokémon's feet in its team's color (the local one's too). */
+const drawVersusGround = (ctx: Ctx, g: Game) => {
+  for (const p of g.players) {
+    if (p.gone || benched(p) || !p.versus) continue
+    const r = Math.round(mateSprites(g, p).bodyW / 2) + 2
+    const color = TEAM_COLORS[p.versus.team]
+    dashedRing(ctx, p.x, p.y + 1, r, 0, [color], 1, 0.4)
+    dashedRing(ctx, p.x, p.y + 1, r + 1, 0, [color], 1, 0.4)
+  }
+}
+
 /** GBA-style HP bar under a teammate's feet, a bit shorter than the local player's. */
 const drawMateHp = (ctx: Ctx, p: Player) => {
   const w = 16
@@ -203,7 +240,7 @@ const drawMateHp = (ctx: Ctx, p: Player) => {
   ctx.fillStyle = '#504848'
   ctx.fillRect(x, y, w, 2)
   const ratio = Math.max(0, p.hp / p.stats.maxHp)
-  ctx.fillStyle = ratio > 0.5 ? '#48d048' : ratio > 0.2 ? '#f8c830' : '#f04030'
+  ctx.fillStyle = p.versus ? TEAM_COLORS[p.versus.team] : ratio > 0.5 ? '#48d048' : ratio > 0.2 ? '#f8c830' : '#f04030'
   ctx.fillRect(x, y, Math.ceil(w * ratio), 2)
 }
 
@@ -213,6 +250,7 @@ const drawMateHp = (ctx: Ctx, p: Player) => {
  * client's own player) gets none: their HUD says it all.
  */
 export const drawTeamAir = (ctx: Ctx, g: Game, me: Player, t: number) => {
+  if (g.versus) return drawVersusAir(ctx, g, me)
   for (const p of g.players) {
     if (p.gone || p === me) continue
     const down = fainted(p)
@@ -237,6 +275,35 @@ export const drawTeamAir = (ctx: Ctx, g: Game, me: Player, t: number) => {
 }
 
 const DOTS = ['dots1', 'dots2', 'dots3'] as const
+
+/** Energy counts as text, made once each. */
+const energies: string[] = []
+const energyText = (n: number) => (energies[n] ??= String(n))
+
+/**
+ * Versus, over everyone: each other Pokémon's tag in its team's color (a
+ * bot's form and `CPU`), and over every Pokémon carrying Energy (the local
+ * one too) a badge with the orb and how much. HP bars come with `drawPlayer`.
+ */
+const drawVersusAir = (ctx: Ctx, g: Game, me: Player) => {
+  for (const p of g.players) {
+    if (p.gone || benched(p) || !p.versus) continue
+    const top = p.y - mateSprites(g, p).bodyH
+    let above = top - 5
+    if (p !== me) {
+      blitPacked(ctx, textSprite(versusTagOf(g, p), TEAM_LIGHT[p.versus.team]), p.x, above)
+      above -= 8
+    }
+    const energy = Math.floor(p.versus.energy)
+    if (energy <= 0) continue
+    const text = textSprite(energyText(energy), energy >= 30 ? '#ffffff' : '#f8d848')
+    const orb = orbGlyph()
+    const w = orb.width + 1 + text.w
+    const x0 = Math.round(p.x - w / 2)
+    ctx.drawImage(orb, x0, Math.round(above - orb.height / 2))
+    blitPacked(ctx, text, x0 + orb.width + 1 + text.w / 2, above)
+  }
+}
 
 /** Where an edge marker goes (`edgeSpot` fills it, so drawing allocates nothing). */
 export type EdgeSpot = { x: number; y: number; angle: number }
@@ -274,13 +341,16 @@ const spot: EdgeSpot = { x: 0, y: 0, angle: 0 }
 export const drawTeamMarkers = (ctx: Ctx, g: Game, me: Player, camX: number, camY: number, t: number) => {
   const { w, h } = g.view
   const insets = markerInsets()
+  const versus = me.versus
   for (const p of g.players) {
     if (p.gone || p === me) continue
+    // Versus: only teammates on their feet, in the team's color.
+    if (versus && (p.versus?.team !== versus.team || benched(p))) continue
     const sx = p.x - camX
     const sy = p.y - 8 - camY
     if (!edgeSpot(w, h, insets, sx, sy, spot)) continue
     const down = fainted(p)
-    const color = slotColor(p.slot)
+    const color = versus ? TEAM_LIGHT[versus.team] : slotColor(p.slot)
     const urgent = down && Math.floor(t * 4) % 2 === 0
     const r = down ? 9 + (Math.floor(t * 4) % 2) : 8
     const cos = Math.cos(spot.angle)
@@ -293,7 +363,7 @@ export const drawTeamMarkers = (ctx: Ctx, g: Game, me: Player, camX: number, cam
     const bob = Math.round(Math.sin(t * 6 + p.slot) * 1.5)
     blitRotated(ctx, teamArrow(urgent ? '#f84838' : color), spot.x + cos * (r + 5 + bob), spot.y + sin * (r + 5 + bob), spot.angle)
     // The tag sits on the screen's side of the disc, so it never runs off the edge.
-    const tag = textSprite(tagOf(g, p.slot), down ? (urgent ? '#f84838' : '#ffffff') : color)
+    const tag = textSprite(versus ? versusTagOf(g, p) : tagOf(g, p.slot), down ? (urgent ? '#f84838' : '#ffffff') : color)
     const ty = sin > 0.5 ? spot.y - r - 6 : spot.y + r + 6
     const tx = Math.min(w - tag.w / 2 - 2, Math.max(tag.w / 2 + 2, spot.x - cos * 4))
     blitPacked(ctx, tag, tx, ty)

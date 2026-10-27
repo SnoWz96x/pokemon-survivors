@@ -4,6 +4,7 @@ import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/
 import { createBot, botPick, type Bot } from './coop/bot'
 import { createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
 import type { VpsUrls } from './coop/relays'
+import { createLocalRelay, LOCAL_RELAY_URL, type LocalRelay } from './coop/localRelay'
 import { buildAdvice } from './coop/lobby'
 import { netSummary, type NetStats } from './coop/netStats'
 import type { Runner } from './coop/runner'
@@ -139,6 +140,43 @@ export const coopClient = (): CoopClient | null => {
   client ??= createCoopClient(browserDeps(url, local, coopToken, coopName))
   return client
 }
+
+/** Arena against bots: a client on an in-page relay (`coop/localRelay.ts`), no network and no account. Null while none runs. */
+let arena: { relay: LocalRelay; client: CoopClient } | null = null
+
+/** The Arena's in-page client, while a match against bots is up. */
+export const arenaClient = (): CoopClient | null => arena?.client ?? null
+
+/** A fresh in-page relay with a guest client on it named `name` (one at a time: the last one closes). */
+export const openArenaClient = (name: string): CoopClient => {
+  closeArenaClient()
+  const relay = createLocalRelay({ now: () => Date.now(), random: Math.random })
+  const client = createCoopClient({
+    url: LOCAL_RELAY_URL,
+    build: __SIM_BUILD__,
+    socket: relay.socket,
+    fetch: relay.fetch,
+    store: memoryStore(),
+    token: async () => null,
+    name: () => name,
+    now: () => performance.now(),
+    random: Math.random,
+  })
+  arena = { relay, client }
+  return client
+}
+
+/** Leaves the Arena's match and drops its relay (its timers and sockets with it). */
+export const closeArenaClient = () => {
+  if (!arena) return
+  const { relay, client } = arena
+  arena = null
+  client.leave()
+  relay.dispose()
+}
+
+/** The client the shell steps and shows: the Arena's in-page one while it runs, else this tab's co-op client. */
+export const activeCoopClient = (): CoopClient | null => arenaClient() ?? coopClient()
 
 /** The room code in the page's link (`?sala=K7QF2`), if any. */
 export const linkedRoom = () => parseRoomCode(new URLSearchParams(location.search).get(ROOM_PARAM))

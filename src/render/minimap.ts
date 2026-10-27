@@ -13,6 +13,9 @@ import { featureAt, type Feature } from '../game/terrain'
 import type { Game, Pickup } from '../game/types'
 import { missionSpot } from './fieldMissions'
 import { slotColor } from './team'
+import { VALE } from '../data/versus'
+import { goalOpen } from '../game/versusRules'
+import { TEAM_COLORS } from './vale'
 
 /**
  * The HUD's mini map (`ui/minimap.ts`): a pixel-art map around the local
@@ -415,6 +418,10 @@ const heading = (fx: number, fy: number) => (Math.round(Math.atan2(fy, fx) / (Ma
  * clipped to `shape`. `t` is a clock in seconds, for the blinking.
  */
 export const drawMinimap = (ctx: Ctx, g: Game, shape: MinimapShape, t: number) => {
+  if (g.versus) {
+    drawValeMap(ctx, g, shape, t)
+    return frame(ctx, shape)
+  }
   const me = localPlayer(g)
   const room = roomOf(g)
   const scale = room ? MINIMAP.roomScale : MINIMAP.scale
@@ -483,13 +490,75 @@ export const drawMinimap = (ctx: Ctx, g: Game, shape: MinimapShape, t: number) =
   }
   const arrow = ARROWS()[heading(me.facing.x, me.facing.y)]!
   ctx.drawImage(arrow, C - 4, C - 4)
+  frame(ctx, shape)
+}
 
+/** Clips the map to its shape and puts the frame and the north mark over it. */
+const frame = (ctx: Ctx, shape: MinimapShape) => {
   ctx.globalCompositeOperation = 'destination-in'
   ctx.drawImage(MASKS()[shape], 0, 0)
   ctx.globalCompositeOperation = 'source-over'
   ctx.drawImage(FRAMES()[shape], 0, 0)
   // North, on the top rim.
   blitPacked(ctx, textSprite('N', '#f8f8f8', DARK), C, 3)
+}
+
+/* ---------------- Versus ---------------- */
+
+/** World px per map px for the whole Vale (1500 × 760): it fits the round map's window. */
+const VALE_SCALE = 28
+/** The Vale's map colors. */
+const VALE_LOOK = { hedge: '#143820', edge: '#7ab060', grass: '#4f8c3e', jungle: '#356a32', path: '#a88258', base: ['#3e5c88', '#884048'] } as const
+
+const VALE_GLYPHS = lazy(() => ({
+  goal: [0, 1].map((team) => glyph(['.c.', 'cwc', '.c.'], { c: TEAM_COLORS[team as 0 | 1], w: '#ffffff' })),
+  locked: [0, 1].map((team) => glyph(['.c.', 'ckc', '.c.'], { c: TEAM_COLORS[team as 0 | 1], k: DARK })),
+  broken: glyph(['.c.', 'c.c', '.c.'], { c: '#707078' }),
+}))
+
+/**
+ * A match's map: the whole Vale at once, north up (its floor, the jungle, the
+ * lanes' paths, the bases in their team's color), the goals by team (shut
+ * ones dark, broken ones grey), every Pokémon on its feet as its team's dot,
+ * the objective in the center, and the local player as the arrow.
+ */
+const drawValeMap = (ctx: Ctx, g: Game, shape: MinimapShape, t: number) => {
+  const s = g.versus!
+  const v: View = { ox: -C, oy: -C, scale: VALE_SCALE }
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.globalAlpha = 1
+  const rect = (x0: number, y0: number, x1: number, y1: number, grow = 0) => {
+    const a = mapX(v, x0) - grow
+    const b = mapY(v, y0) - grow
+    ctx.fillRect(a, b, mapX(v, x1) - a + grow, mapY(v, y1) - b + grow)
+  }
+  ctx.fillStyle = VALE_LOOK.hedge
+  ctx.fillRect(0, 0, S, S)
+  ctx.fillStyle = VALE_LOOK.edge
+  for (const r of VALE.rects) rect(r.x0, r.y0, r.x1, r.y1, 1)
+  ctx.fillStyle = VALE_LOOK.grass
+  for (const r of VALE.rects) rect(r.x0, r.y0, r.x1, r.y1)
+  ctx.fillStyle = VALE_LOOK.jungle
+  rect(-470, -160, 470, 160)
+  ctx.fillStyle = VALE_LOOK.path
+  for (const y of [-295, 295]) rect(-540, y - 14, 540, y + 14)
+  VALE.rects.forEach((r) => {
+    if (r.x1 <= -540 || r.x0 >= 540) {
+      ctx.fillStyle = VALE_LOOK.base[r.x0 < 0 ? 0 : 1]
+      rect(r.x0, r.y0, r.x1, r.y1)
+    }
+  })
+  drawViewBox(ctx, v, g)
+  const art = VALE_GLYPHS()
+  for (const goal of s.goals) marker(ctx, v, shape, goal.broken ? art.broken : goalOpen(s, goal) ? art.goal[goal.team]! : art.locked[goal.team]!, goal.x, goal.y, true)
+  const objective = s.objective && g.enemies.find((e) => e.id === s.objective!.id && e.dying < 0)
+  if (objective) marker(ctx, v, shape, GLYPHS().boss[Math.floor(t * 4) % 2]!, objective.x, objective.y, true)
+  const me = localPlayer(g)
+  for (const p of g.players) {
+    if (p === me || p.gone || p.hp <= 0 || !p.versus) continue
+    marker(ctx, v, shape, teammate(TEAM_COLORS[p.versus.team]), p.x, p.y, true)
+  }
+  if (me.hp > 0) ctx.drawImage(ARROWS()[heading(me.facing.x, me.facing.y)]!, mapX(v, me.x) - 4, mapY(v, me.y) - 4)
 }
 
 const teammates = new Map<string, PixelSprite>()

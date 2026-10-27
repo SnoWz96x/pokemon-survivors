@@ -17972,3 +17972,906 @@ button.hall-tile:hover {
     max-height: calc(100% - var(--minimap-bottom, 160px) - 8px - var(--safe-t) - 110px);
   }
 }
+
+/* ---------- Arena (Versus): the lobby's tile, its screen, the room, a match's HUD, pick tray and end (ui/arena.ts, ui/versus*.ts) ---------- */
+
+/* The Arena's NOVO tag in the Arena's red, beside co-op's blue. */
+.lobby-new.arena-new {
+  background: #f05858;
+}
+
+@media (max-width: 759px) and (min-height: 501px), (max-width: 759px) and (orientation: portrait) {
+  .lobby-tile.arena {
+    grid-column: var(--arena-col);
+  }
+  /* Seven tiles share a phone's width: the labels take one more step down. */
+  .lobby.dock7 .lobby-tile > span:not(.key-hint) {
+    font-size: 6px;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .lobby-tile.arena {
+    grid-area: auto;
+    grid-row: 4;
+    grid-column: var(--arena-col);
+  }
+  .lobby.dock7 {
+    grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, 6.5fr);
+    grid-template-areas:
+      'logo logo logo logo logo logo logo today'
+      'stage stage stage stage stage stage stage today'
+      'stage stage stage stage stage stage stage side'
+      'd1 d2 d3 d4 d5 d6 d7 play';
+  }
+  .lobby.dock7 .lobby-tile > span:not(.key-hint) {
+    font-size: 6px;
+  }
+}
+
+/* The Arena's screen: rules, the roster as a grid of faces, the one picked, and the ways to play. */
+.dialog.arena {
+  width: min(640px, 94 * var(--vw));
+  gap: 10px;
+  padding: 16px;
+}
+
+/* The screen scrolls when it doesn't fit: no part of the dialog gets squeezed. */
+.dialog.arena > * {
+  flex: none;
+}
+
+.arena-bots {
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
+  background: linear-gradient(90deg, #4890f0 50%, #f05858 50%);
+}
+
+.arena-bots.selected,
+.arena-bots:hover {
+  filter: brightness(1.08);
+}
+
+.arena-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.arena-title img {
+  width: 26px;
+  height: 24px;
+  image-rendering: pixelated;
+}
+
+.arena-tagline {
+  margin-left: auto;
+  padding: 3px 6px 2px;
+  font-size: 8px;
+  font-style: normal;
+  color: #fff;
+  background: linear-gradient(90deg, #4890f0 50%, #f05858 50%);
+  border: 2px solid #283040;
+  border-radius: 6px;
+}
+
+.arena-intro {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 20px;
+  line-height: 1.05;
+}
+
+.arena-rules {
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.05;
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-pick-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.arena-pick-head small {
+  font-family: var(--body);
+  font-size: 16px;
+  color: var(--dk-ink-3, #707088);
+}
+
+.arena-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
+  min-height: 0;
+  max-height: 228px;
+  overflow-y: auto;
+  padding: 2px;
+  overscroll-behavior: contain;
+}
+
+.arena-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 2px 3px;
+  background: var(--dk-surface-1, #f0f0f8);
+  border: 3px solid var(--dk-line, #c8d0e0);
+  border-bottom-color: var(--role);
+  border-radius: 6px;
+}
+
+.arena-tile img {
+  width: 40px;
+  height: 40px;
+  image-rendering: pixelated;
+  border-radius: 4px;
+}
+
+.arena-tile-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.arena-tile.selected {
+  background: var(--dk-surface-0, #fff);
+  border-color: #e83838;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
+}
+
+.arena-role {
+  display: inline-block;
+  padding: 2px 5px 1px;
+  font-family: var(--title);
+  font-size: 7px;
+  font-style: normal;
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.45);
+  background: var(--role);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.arena-chosen {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.arena-chosen-face {
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+}
+
+.arena-chosen-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.arena-chosen-name {
+  font-family: var(--title);
+  font-size: 12px;
+}
+
+.arena-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.arena-buttons .btn {
+  flex: 1 1 140px;
+}
+
+@media (max-width: 480px) {
+  .arena-intro {
+    font-size: 17px;
+  }
+  .arena-rules {
+    font-size: 16px;
+  }
+  .arena-grid {
+    max-height: 200px;
+  }
+}
+
+/* Phones in landscape: the rules' first line is enough, the roster gets the room. */
+@media (max-height: 500px) {
+  .dialog.arena {
+    padding: 10px 14px;
+    gap: 6px;
+  }
+  .arena-intro {
+    font-size: 16px;
+  }
+  .arena-rules {
+    display: none;
+  }
+  .arena-grid {
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+    max-height: 132px;
+  }
+  .arena-tile img {
+    width: 32px;
+    height: 32px;
+  }
+  .arena-chosen-face {
+    width: 36px;
+    height: 36px;
+  }
+  .arena-buttons .btn {
+    min-height: 40px;
+    padding: 6px 10px;
+  }
+}
+
+/* The room in Arena mode: the side switch in the teams' colors, each seat in its team's. */
+.arena-team-seg .shell-seg-option.on {
+  background: var(--team);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.arena-seat-team {
+  font-family: var(--title);
+  font-size: 7px;
+  color: var(--slot);
+}
+
+.coop-seat .arena-role {
+  margin-left: 4px;
+}
+
+/* ---------- A match's HUD (ui/versusHud.ts) ---------- */
+
+/* The run's clock and counters give way to the score. */
+.hud.versus .timer,
+.hud.versus .counters {
+  display: none;
+}
+
+[data-versus='local'] .coop-pip {
+  display: none;
+}
+
+[data-versus='room'] .coop-pip {
+  top: calc(env(safe-area-inset-top, 0px) + 62px);
+}
+
+.versus-hud {
+  position: absolute;
+  inset: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);
+  pointer-events: none;
+  font-family: var(--title);
+  color: #fff;
+  text-shadow: 2px 2px 0 #101020;
+}
+
+.vs-score {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  border: 3px solid #101020;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+}
+
+.vs-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 78px;
+  padding: 4px 8px;
+  background: var(--team);
+}
+
+.vs-side.blue {
+  justify-content: flex-end;
+}
+
+.vs-side small {
+  font-size: 8px;
+  text-shadow: 1px 1px 0 #101020;
+}
+
+.vs-points {
+  font-size: 18px;
+}
+
+.vs-mid {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: #182030;
+}
+
+.vs-score.last .vs-clock {
+  color: #f8d030;
+  animation: coop-blink 0.5s steps(2) infinite;
+}
+
+.vs-double {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  padding: 2px 3px 1px;
+  font-size: 7px;
+  font-style: normal;
+  color: #181010;
+  text-shadow: none;
+  background: #f8d030;
+  border-radius: 0 0 0 4px;
+  animation: vs-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.versus-hud.stretch .vs-mid {
+  background: #382810;
+}
+
+@keyframes vs-pulse {
+  to {
+    filter: brightness(1.35);
+  }
+}
+
+.vs-pills {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+
+[data-versus='room'] .vs-pills {
+  top: 86px;
+}
+
+.vs-pill {
+  padding: 4px 8px 3px;
+  font-size: 8px;
+  border: 2px solid #101020;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.vs-blessing {
+  color: #181010;
+  text-shadow: none;
+  background: #f8d030;
+  animation: vs-pulse 0.6s ease-in-out infinite alternate;
+}
+
+.vs-shield {
+  background: #3870c8;
+}
+
+/* The Energy carried: an orb, n/30 and a bar. Bottom center on a computer; over the special button on touch screens. */
+.vs-energy {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 2px 6px;
+  padding: 5px 9px 6px;
+  font-size: 11px;
+  color: var(--ink);
+  text-shadow: none;
+}
+
+.vs-orb {
+  grid-row: span 2;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff 0 18%, #f8e070 19% 55%, #e8a020 56%);
+  box-shadow: 0 0 0 2px #101020;
+}
+
+.vs-energy-bar {
+  height: 4px;
+  background: #283040;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.vs-energy-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #f8c830;
+}
+
+.vs-energy.full .vs-energy-fill {
+  background: #f86838;
+}
+
+.vs-energy.full .vs-orb {
+  animation: vs-pulse 0.4s ease-in-out infinite alternate;
+}
+
+@media (pointer: coarse) {
+  .vs-energy {
+    left: auto;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 92px);
+    transform: none;
+  }
+  [data-hand='left'] .vs-energy {
+    right: auto;
+    left: max(12px, env(safe-area-inset-left));
+  }
+}
+
+/* Phones in landscape: beside the special button, clear of the mini map. */
+@media (pointer: coarse) and (max-height: 500px) {
+  .vs-energy {
+    right: calc(max(18px, env(safe-area-inset-right)) + 88px);
+    bottom: max(18px, env(safe-area-inset-bottom));
+  }
+  [data-hand='left'] .vs-energy {
+    right: auto;
+    left: calc(max(18px, env(safe-area-inset-left)) + 88px);
+  }
+}
+
+/* A phone held upright: the score sits right of the move slots, by the menu button. */
+@media (orientation: portrait) and (max-width: 700px) {
+  .vs-score {
+    left: auto;
+    right: 62px;
+    transform: none;
+  }
+  .vs-side {
+    min-width: 0;
+    gap: 4px;
+    padding: 3px 6px;
+  }
+  .vs-side small {
+    display: none;
+  }
+  .vs-points {
+    font-size: 15px;
+  }
+  .vs-mid {
+    min-width: 54px;
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+  .vs-pills {
+    left: auto;
+    right: 62px;
+    transform: none;
+    top: 58px;
+  }
+}
+
+.vs-respawn {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 10px 16px;
+  font-size: 14px;
+  background: rgba(16, 16, 32, 0.72);
+  border: 3px solid #f05858;
+  border-radius: 8px;
+}
+
+.vs-count {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 44px;
+  color: #f8d030;
+  text-shadow:
+    4px 4px 0 #101020,
+    -2px -2px 0 #101020;
+}
+
+.vs-count.beat {
+  animation: vs-beat 0.5s ease-out;
+}
+
+@keyframes vs-beat {
+  from {
+    transform: translate(-50%, -50%) scale(1.8);
+    opacity: 0.2;
+  }
+}
+
+/* The match's toasts: the scorer's team color down the side, the points big. */
+.vs-toast {
+  border-left: 6px solid var(--team);
+  padding-left: 6px;
+}
+
+.vs-toast-face {
+  width: 28px;
+  height: 28px;
+  image-rendering: pixelated;
+}
+
+.vs-toast-points {
+  font-family: var(--title);
+  font-size: 18px;
+  color: var(--team);
+  text-shadow: 2px 2px 0 #101020;
+}
+
+.vs-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vs-banner b {
+  padding: 4px 6px 3px;
+  color: #181010;
+  background: #f8d030;
+  border-radius: 6px;
+}
+
+/* ---------- The pick tray (ui/versusTray.ts): never modal, a column at the side, a strip on phones held upright ---------- */
+
+.vs-tray {
+  position: absolute;
+  left: max(10px, var(--safe-l));
+  top: 50%;
+  transform: translateY(-50%);
+  width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  pointer-events: auto;
+  touch-action: none;
+  font-family: var(--title);
+  z-index: 1;
+}
+
+.vs-tray.in {
+  animation: vs-tray-in 0.22s ease-out;
+}
+
+@keyframes vs-tray-in {
+  from {
+    opacity: 0;
+    translate: -24px 0;
+  }
+}
+
+.vs-tray-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.vs-tray-title {
+  font-size: 10px;
+}
+
+.vs-tray-head small {
+  font-family: var(--body);
+  font-size: 14px;
+  color: var(--dk-ink-3, #707088);
+}
+
+.vs-tray-bar {
+  height: 4px;
+  background: var(--dk-surface-3, #d8dce8);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.vs-tray-fill {
+  display: block;
+  height: 100%;
+  background: #f8c830;
+}
+
+.vs-tray-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.vs-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 8px 4px 6px;
+  text-align: left;
+  background: var(--dk-surface-1, #f0f0f8);
+  border: 2px solid var(--dk-line, #c8d0e0);
+  border-left: 5px solid var(--type, #a0a8c0);
+  border-radius: 6px;
+}
+
+.vs-card:active {
+  transform: translateY(1px);
+  background: var(--dk-surface-0, #fff);
+}
+
+.vs-card.evo {
+  border-color: #f8c830;
+  background: var(--dk-wash-gold, #fff8d8);
+}
+
+.vs-card img {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.vs-card-key {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 7px;
+  color: var(--dk-ink-3, #707088);
+}
+
+.vs-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vs-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+}
+
+.vs-card-tag {
+  font-family: var(--body);
+  font-size: 14px;
+  font-style: normal;
+  line-height: 1;
+  color: var(--dk-ink-2, #505870);
+}
+
+.vs-card-tag.new {
+  color: #d83838;
+}
+
+@media (pointer: coarse) {
+  .vs-card-key {
+    display: none;
+  }
+}
+
+/* A phone held upright: a strip of cards across the bottom, over the status box. */
+@media (orientation: portrait) and (max-width: 700px) {
+  .vs-tray {
+    top: auto;
+    left: max(8px, var(--safe-l));
+    right: max(8px, var(--safe-r));
+    bottom: calc(max(12px, var(--safe-b)) + 150px);
+    width: auto;
+    transform: none;
+    padding: 6px;
+  }
+  .vs-tray.in {
+    animation-name: vs-tray-up;
+  }
+  .vs-tray-cards {
+    flex-direction: row;
+  }
+  .vs-card {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    padding: 5px 3px 4px;
+    text-align: center;
+    border-left-width: 2px;
+    border-top: 4px solid var(--type, #a0a8c0);
+  }
+  .vs-card-text {
+    align-items: center;
+    max-width: 100%;
+  }
+  .vs-card-name {
+    max-width: 100%;
+    font-size: 7px;
+  }
+}
+
+@keyframes vs-tray-up {
+  from {
+    opacity: 0;
+    translate: 0 24px;
+  }
+}
+
+/* Phones in landscape: a narrower column. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .vs-tray {
+    width: 190px;
+    padding: 6px;
+    gap: 4px;
+  }
+  .vs-card {
+    min-height: 38px;
+  }
+  .vs-card img {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* ---------- The end (ui/versusEnd.ts) ---------- */
+
+.vs-end-box {
+  width: min(760px, 96 * var(--vw));
+  gap: 10px;
+  padding: 16px;
+}
+
+.vs-end-title {
+  font-family: var(--title);
+  font-size: 24px;
+  text-align: center;
+  color: var(--team);
+  text-shadow: 2px 2px 0 #101020;
+}
+
+.vs-end-box.defeat .vs-end-title {
+  color: #a0a8c0;
+}
+
+.vs-end-box.draw .vs-end-title {
+  color: #f8d030;
+}
+
+.vs-end-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-family: var(--title);
+  font-size: 22px;
+}
+
+.vs-end-score b {
+  text-shadow: 2px 2px 0 #101020;
+}
+
+.vs-end-tables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.vs-end-team {
+  min-width: 0;
+  border: 3px solid var(--team);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.vs-end-team-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 8px 4px;
+  font-family: var(--title);
+  font-size: 10px;
+  color: #fff;
+  text-shadow: 1px 1px 0 #101020;
+  background: var(--team);
+}
+
+.vs-end-team table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.vs-end-team th {
+  padding: 4px 3px;
+  font-family: var(--title);
+  font-size: 6px;
+  font-weight: normal;
+  color: var(--dk-ink-3, #707088);
+  text-align: center;
+}
+
+.vs-end-team td {
+  padding: 2px 3px;
+  text-align: center;
+  border-top: 1px solid var(--dk-line, #c8d0e0);
+}
+
+.vs-end-team tr.me td {
+  background: var(--dk-wash-gold, #fff8d8);
+}
+
+.vs-end-who {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 180px;
+  text-align: left !important;
+}
+
+.vs-end-who img {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.vs-end-who span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vs-end-points {
+  font-weight: bold;
+  color: var(--team);
+}
+
+.vs-end-status {
+  min-height: 1em;
+  margin: 0;
+  font-family: var(--body);
+  font-size: 18px;
+  text-align: center;
+}
+
+.vs-end-box .buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.vs-end-box .buttons .btn {
+  flex: 1 1 0;
+}
+
+@media (max-width: 620px) {
+  .vs-end-tables {
+    grid-template-columns: 1fr;
+  }
+  .vs-end-title {
+    font-size: 18px;
+  }
+}

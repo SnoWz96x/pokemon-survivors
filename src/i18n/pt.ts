@@ -16,6 +16,7 @@ import type { TraitId } from '../data/traits'
 import type { ConsumableId } from '../game/consumables'
 import type { FriendMilestone } from '../game/referral'
 import type { Difficulty } from '../game/difficulty'
+import type { Role } from '../data/versus'
 import type { SurveyAnswer } from '../data/survey'
 import type { BackgroundId, FrameId, StyleSlot, WallpaperId } from '../data/style'
 import type { BagItem } from '../game/bag'
@@ -230,6 +231,88 @@ export const pt = {
     stances: { shield: 'Escudo', blade: 'Lâmina', normal: 'Normal', attack: 'Ataque', defense: 'Defesa', speed: 'Velocidade' } satisfies Record<Stance, string>,
     /** Jumps left in a running chain dash. */
     jumps: (n: number) => `×${n}`,
+  },
+
+  /** Arena (Versus, `game/versus.ts`): the lobby's tile, its screen, a match's HUD, toasts and pick tray, the end screen and the room in Arena mode. */
+  versus: {
+    entry: 'Arena',
+    fresh: 'NOVO',
+    title: 'Arena',
+    tagline: 'MOBA 4v4',
+    map: 'Vale',
+    intro: 'Duas equipes de 4 no Vale. Derrote Pokémon selvagens, junte Energia e marque nos gols rivais.',
+    rules: [
+      'Carregue até 30 de Energia e fique num gol rival para marcar.',
+      'A partida dura 7:00: vence quem marcar mais.',
+      'Nos últimos 2:00 os pontos valem o dobro e Zapdos chega ao centro.',
+    ],
+    pick: 'Escolha seu Pokémon',
+    free: 'Os 27 iniciais, liberados para todos.',
+    roles: { attacker: 'Atacante', speedster: 'Velocista', allRounder: 'Equilibrado', defender: 'Defensor', supporter: 'Suporte' } satisfies Record<Role, string>,
+    bots: 'Jogar contra bots',
+    friends: 'Jogar com amigos',
+    back: 'Voltar',
+    hintKeys: '← → escolher · ENTER jogar · ESC voltar',
+    hintTouch: 'Toque num Pokémon e em Jogar',
+    /** Team names, Blue (0) then Red (1). */
+    teams: ['Azul', 'Vermelho'],
+    cpu: 'CPU',
+    you: 'Você',
+    starting: 'Preparando a partida…',
+    hud: {
+      blue: 'AZUL',
+      red: 'VERM',
+      double: 'x2',
+      energy: 'Energia',
+      respawn: (s: number) => `Volta em ${s}`,
+      blessing: (s: number) => `Bênção de Zapdos ${s}s`,
+      shield: 'Escudo',
+      go: 'Já!',
+    },
+    toast: {
+      weScored: (name: string) => `*${name}* marcou!`,
+      theyScored: (name: string) => `*${name}* marcou para os rivais`,
+      ourGoalBroke: 'Um gol nosso caiu!',
+      theirGoalBroke: 'Um gol rival caiu!',
+      youKo: (name: string) => `Você derrotou *${name}*!`,
+      koYou: (name: string) => `*${name}* derrotou você`,
+      wildKoYou: 'Você caiu',
+      allyKo: (by: string, name: string) => `*${by}* derrotou *${name}*`,
+      drednaw: 'Drednaw apareceu no centro!',
+      zapdos: 'Zapdos chegou ao centro!',
+      fellUs: (name: string) => `Nossa equipe derrotou *${name}*!`,
+      fellThem: (name: string) => `Os rivais derrotaram *${name}*`,
+      stretch: 'Reta final! Pontos em dobro',
+      back: 'De volta à luta!',
+    },
+    tray: {
+      levelup: (level: number) => `Nível ${level}!`,
+      branch: 'Evoluir para',
+      ability: 'Habilidade',
+      auto: 'escolha automática',
+    },
+    end: {
+      victory: 'Vitória!',
+      defeat: 'Derrota',
+      draw: 'Empate',
+      pokemon: 'Pokémon',
+      kos: 'KOs',
+      deaths: 'Quedas',
+      points: 'Pontos',
+      damage: 'Dano',
+      playAgain: 'Jogar de novo',
+      lobby: 'Voltar ao lobby',
+      again: 'Preparando a próxima…',
+    },
+    menu: { note: 'A partida segue com o menu aberto.', leave: 'Sair da partida', confirm: 'Sair da partida? Um CPU assume o seu lugar.' },
+    room: {
+      mode: 'Modo',
+      modes: { run: 'Horda', versus: 'Arena' },
+      team: 'Sua equipe',
+      fill: 'Vagas livres viram CPU (4 contra 4).',
+      pokemon: 'Pokémon',
+      pick: 'Escolher',
+    },
   },
 
   /** Co-op: the connection pip, the overlays and notices in a run, the lobby's entry, the hub (create or join) and the room. */

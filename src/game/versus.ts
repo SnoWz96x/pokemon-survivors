@@ -6,6 +6,7 @@ import { updateAttacks } from './attacks'
 import { updateBosses, updateHazards } from './bosses'
 import { healPlayer } from './combat'
 import { clearIdleAttacks } from './coop'
+import { updateConsumables } from './consumables'
 import { burst, floatText, updateEffects } from './effects'
 import { rebuildGrid, spawnEnemy, updateEnemies } from './enemies'
 import { createRun, EVOLUTION_TIME, openPendingPicks, stepMoves, stepPlayer, type PlayerSetup, type StepInput } from './game'
@@ -252,6 +253,8 @@ export const stepVersus = (g: Game, inputs: readonly StepInput[], dt: number) =>
   updateVerbEvolved(g, dt)
   updateTerrain(g, dt)
   updateEffects(g, dt)
+  // The screen flash fades here (no consumables in a match, but the same upkeep).
+  updateConsumables(g, dt)
   clearIdleAttacks(g)
   updateVersus(g, dt)
   syncAvatars(g)

@@ -1,4 +1,5 @@
 import { COOP } from '../data/coop'
+import { VERSUS } from '../data/versus'
 import { CURSES } from '../data/curses'
 import { evolvedFrom } from '../data/evolutions'
 import { ITEMS } from '../data/items'
@@ -13,9 +14,10 @@ import { portraitUrl } from '../render/sprites'
 import { busyWith, slotColor } from '../render/team'
 import { h, setStyle, setText } from './dom'
 import { moveCard, withMoveCard } from './moveCard'
+import { versusName } from './versusHud'
 
-/** The name the team sees for a seat: the one it joined with, or "Jogador 2". */
-export const seatName = (g: Game, slot: number) => g.coop?.names[slot]?.trim() || t().team.player(slot + 1)
+/** The name the team sees for a seat: the one it joined with, or "Jogador 2" (in Versus, a bot's Pokémon with "CPU"). */
+export const seatName = (g: Game, slot: number) => (g.versus ? versusName(g, slot) : g.coop?.names[slot]?.trim() || t().team.player(slot + 1))
 
 /** What a teammate's card says they're up to, or null while they just play. */
 type CardState = 'fainted' | 'away' | 'choosing' | 'evolving' | 'left' | null
@@ -60,7 +62,8 @@ const buildIcons = (g: Game, p: Player, big = false) => {
  * what the others run and coordinate theirs. Null solo or alone.
  */
 export const teamBuilds = (g: Game, me: Player) => {
-  const mates = g.players.filter((p) => p !== me && !p.gone)
+  // Versus: your team's builds only.
+  const mates = g.players.filter((p) => p !== me && !p.gone && (!p.versus || p.versus.team === me.versus?.team))
   if (g.coop === null || mates.length === 0) return null
   return h(
     'div',
@@ -153,7 +156,8 @@ export const createTeamHud = (root: HTMLElement) => {
   const update = (g: Game, me: Player) => {
     if (!under?.isConnected) place()
     for (const p of g.players) {
-      if (p === me) continue
+      // Versus: the cards are your team's (the rivals show on the field and the minimap).
+      if (p === me || (p.versus && p.versus.team !== me.versus?.team)) continue
       const card = cardFor(g, p)
       const dex = formAt(p.starter, p.branch, p.stage).dex
       const key = `${dex}${p.shiny}`
@@ -187,7 +191,7 @@ export const createTeamHud = (root: HTMLElement) => {
       // A pick screen's clock drains under the card while they choose.
       const choosing = state === 'choosing'
       card.clock.classList.toggle('hidden', !choosing)
-      if (choosing) setStyle(card.clock, '--left', `${Math.max(0, Math.min(1, p.pickLeft / COOP.pick.time)).toFixed(2)}`)
+      if (choosing) setStyle(card.clock, '--left', `${Math.max(0, Math.min(1, p.pickLeft / (p.versus ? VERSUS.pickTime : COOP.pick.time))).toFixed(2)}`)
     }
   }
 
