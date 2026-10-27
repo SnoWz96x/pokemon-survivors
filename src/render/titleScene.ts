@@ -56,7 +56,7 @@ import {
  * (and, rarely, a shiny). East of home stands the Kecleon plaza
  * (`render/plaza.ts`), the shop as a place, west of it the Dojo
  * (`render/dojo.ts`), Machoke's training hall, and south of it the Estádio
- * (`render/stadium.ts`), the Arena's, Slowking judging at its gate. On the lobby the partner can hop
+ * (`render/stadium.ts`), the Arena's, Ninjask judging at its gate. On the lobby the partner can hop
  * off its stage and take a walk among them (`meetPartner`, `steerPartner`):
  * bumping into one makes it react, and some tag along for a while. A trip
  * (`visitPlaza`) pans the camera to the plaza or back home, the partner
@@ -133,7 +133,7 @@ export type Partner = {
 /** Where the camera rests when nobody strolls: the partner's home, the Kecleon plaza, the Dojo or the Estádio. */
 export type Place = 'home' | 'plaza' | 'dojo' | 'stadium'
 
-/** Who the partner can talk to in the meadow: the plaza's keepers and visitors, Machoke at the Dojo, or Slowking and the boards at the Estádio. */
+/** Who the partner can talk to in the meadow: the plaza's keepers and visitors, Machoke at the Dojo, or Ninjask and the boards at the Estádio. */
 export type LobbyNpc = PlazaNpc | 'sensei' | StadiumNpc
 
 /** A camera trip to a place, eased over `time` seconds, the partner hopping from `from` to its spot there. */
@@ -180,7 +180,7 @@ export type TitleScene = {
 
 /** Every species that may roam: wild Pokémon and the starter lines (evolutions show up once a run has loaded them). */
 const POOL: readonly Dex[] = [
-  // Kecleon keeps the shop and Slowking judges the Estádio: a wild one would pass for a third shopkeeper or a second judge.
+  // Kecleon keeps the shop and Ninjask judges the Estádio: a wild one would pass for a third shopkeeper or a second judge.
   ...Object.values(ENEMIES).flatMap((e) => ('boss' in e || e.dex === KECLEON_DEX || e.dex === JUDGE.dex ? [] : [e.dex])),
   ...STARTER_IDS.flatMap(starterDex),
 ]
@@ -336,7 +336,7 @@ const restCam = (s: TitleScene, place: Place, w: number, h: number): Vec =>
 
 const easeInOut = (k: number) => (k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2)
 
-/** Where the partner ends a trip to `place`: the shop's counter, before Machoke, before Slowking, or its stage. */
+/** Where the partner ends a trip to `place`: the shop's counter, before Machoke, before Ninjask, or its stage. */
 const tripGoal = (s: TitleScene, p: Partner, place: Place) =>
   place === 'plaza' ? shopSpot(s.plaza)
   : place === 'dojo' ? senseiSpot(s.dojo)
@@ -445,7 +445,7 @@ export const talkSpot = (s: TitleScene): (Vec & { who: LobbyNpc }) | null => {
   return sensei ? { ...sensei, who: 'sensei' } : (stadiumTalk(s.stadium, p) ?? talkAnchor(s.plaza, p))
 }
 
-/** Who a tap (world px) is for: the shop (its shopkeepers, building or edge marker), Meowth or a stall (or its edge marker), the Dojo (Machoke, the hall or its marker), the Estádio (a board, Slowking, the stadium or its marker); null for none. */
+/** Who a tap (world px) is for: the shop (its shopkeepers, building or edge marker), Meowth or a stall (or its edge marker), the Dojo (Machoke, the hall or its marker), the Estádio (a board, Ninjask, the stadium or its marker); null for none. */
 export const tapsPlaza = (s: TitleScene, at: Vec): LobbyNpc | null => (dojoTapped(s.dojo, at) ? 'sensei' : (stadiumTapped(s.stadium, at) ?? plazaTapped(s.plaza, at)))
 
 /** Starts a stroll along one of the 8 sprite directions (towards `target` if given) or a short rest. */

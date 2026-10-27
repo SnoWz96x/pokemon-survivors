@@ -1003,7 +1003,7 @@ const menuSprites = (): Variant[] => [
     ...new Set([
     ...(halloweenToday() ? HAUNT_DEX : []),
     KECLEON_DEX,
-    // The Dojo's Machoke and Wobbuffet, west of home, and the Estádio's Slowking, south of it.
+    // The Dojo's Machoke and Wobbuffet, west of home, and the Estádio's Ninjask, south of it.
     ...DOJO_DEX,
     ...STADIUM_DEX,
     // The plaza's visitors today: Meowth at his caravan, a seasonal stall's keeper.
@@ -4026,7 +4026,7 @@ if (import.meta.env.DEV) {
         showTitle({ shop: 'dojo' })
       },
       /**
-       * The Estádio: `ps.stadium()` walks the lobby there, south of home, Slowking's hello included (the first visit's long one
+       * The Estádio: `ps.stadium()` walks the lobby there, south of home, Ninjask's hello included (the first visit's long one
        * after `localStorage.removeItem('ps:stadiumSeen')`), then the Arena's screen. Its boards (Jogar, Ranking, Temporada,
        * Histórico, Regras) open with E or a tap while the partner strolls by them.
        */

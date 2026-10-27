@@ -5170,12 +5170,12 @@ export const fr: Messages = {
   stadium: {
     boards: { play: 'Jouer', ranking: 'Classement', season: 'Saison', history: 'Historique', rules: 'Règles' },
     first: [
-      'Hmm... Bienvenue au Stade. Je suis le juge de l’Arène, et rien ici n’échappe à mon regard.',
+      'Bzzz ! Bienvenue au Stade ! Je suis le juge de l’Arène : bien trop rapide pour laisser filer une seule action.',
       'Deux équipes de quatre s’affrontent dans la Vallée. Battez des Pokémon sauvages, ramassez de l’Énergie et portez-la au but adverse.',
       'Partie rapide : contre des bots, tout de suite. Normale : contre des dresseurs, sans points. Classée : chaque victoire fait monter ton rang.',
       'Chaque saison dure deux semaines. Les panneaux autour du terrain montrent le classement, la saison, ton historique et les règles.',
     ],
-    hello: ['Hmm... De retour à l’Arène ? Que la meilleure équipe gagne.', 'L’Énergie gardée ne marque rien. Porte-la au but !', 'Quatre têtes valent mieux qu’une. Joue avec ton équipe.', 'Le tableau de la saison n’attend pas. On y va ?'],
+    hello: ['Bzzz ! De retour à l’Arène ? Que la meilleure équipe gagne !', 'L’Énergie gardée ne marque rien. Porte-la au but !', 'Quatre têtes valent mieux qu’une. Joue avec ton équipe.', 'Le tableau de la saison n’attend pas. On y va ?'],
   },
   traits: {
     healer: (name: string) => `*${name}* soigne ses alliés proches. Élimine-le en premier !`,

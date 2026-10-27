@@ -8,7 +8,7 @@ import { drawPokemon, loadedSprites, loadSpecies } from './sprites'
 
 /**
  * The Estádio: the lobby's Arena, a place in the meadow south of the
- * partner's home (the Kecleon plaza is east, the Dojo west). Slowking, the
+ * partner's home (the Kecleon plaza is east, the Dojo west). Ninjask, the
  * judge, keeps the gate; a chalk battle court lies on the paved forecourt, and
  * five signboards around it lead to the Arena's screens: Jogar, Ranking,
  * Temporada, Histórico and Regras. Pennants in the four ranked tiers' colors
@@ -18,7 +18,7 @@ import { drawPokemon, loadedSprites, loadSpecies } from './sprites'
  * what it paints. Pure presentation, like the rest of the lobby.
  */
 
-export const JUDGE = { dex: 199, name: 'Slowking' } as const
+export const JUDGE = { dex: 291, name: 'Ninjask' } as const
 /** The species the Estádio draws, for the menus' sprite stream to keep. */
 export const STADIUM_DEX = [JUDGE.dex] as const
 
@@ -28,7 +28,7 @@ export const STADIUM_OFFSET = { x: 0, y: 340 } as const
 /** The forecourt's signboards, each a way into the Arena: Jogar its screen, the rest a tab of its hub. */
 export const BOARD_IDS = ['play', 'ranking', 'season', 'history', 'rules'] as const
 export type BoardId = (typeof BOARD_IDS)[number]
-/** Who the partner talks to at the Estádio: Slowking or a board. */
+/** Who the partner talks to at the Estádio: Ninjask or a board. */
 export type StadiumNpc = 'judge' | BoardId
 
 export const isBoard = (who: string): who is BoardId => BOARD_IDS.some((b) => b === who)
@@ -36,7 +36,7 @@ export const isBoard = (who: string): who is BoardId => BOARD_IDS.some((b) => b 
 /** Where everyone and everything stands, relative to the stadium's feet (world px). */
 const SPOTS = {
   judge: { x: 0, y: 18, dir: 0 },
-  /** Where the partner stands to talk to Slowking: the court's center spot, facing it. */
+  /** Where the partner stands to talk to Ninjask: the court's center spot, facing it. */
   partner: { x: 0, y: 42 },
   boards: {
     play: { x: 34, y: 14 },
@@ -68,7 +68,7 @@ type Art = { img: HTMLImageElement; w: number; h: number }
 const arts = new Map<ArtId, Art>()
 let asked = false
 
-/** Starts loading the stadium's PNG and Slowking's sheets (once): they show up as they arrive. */
+/** Starts loading the stadium's PNG and Ninjask's sheets (once): they show up as they arrive. */
 const loadStadiumArt = () => {
   if (asked) return
   asked = true
@@ -84,7 +84,7 @@ const loadStadiumArt = () => {
 export type Stadium = {
   x: number
   y: number
-  /** Scene time Slowking last nodded (a greeting) and its facing. */
+  /** Scene time Ninjask last nodded (a greeting) and its facing. */
   hopAt: number
   dir: Dir8
   /** The edge marker as last drawn (world px), for taps. */
@@ -275,22 +275,22 @@ export const drawStadiumGround = (ctx: CanvasRenderingContext2D, s: Stadium, cam
   }
 }
 
-/** Height (px) of Slowking's slow nod `since` seconds in: one long, low bob. */
-const nod = (since: number) => (since < 0 || since >= 0.6 ? 0 : Math.round(Math.sin((Math.PI * since) / 0.6) * 3))
+/** Height (px) of Ninjask's greeting `since` seconds in: two quick, high darts. */
+const nod = (since: number) => (since < 0 || since >= 0.5 ? 0 : Math.round(Math.abs(Math.sin((Math.PI * since) / 0.25)) * 4))
 
-/** Slowking nods at scene time `time`, a note over its head. */
+/** Ninjask nods at scene time `time`, a note over its head. */
 export const greetJudge = (s: Stadium, time: number) => {
   s.hopAt = time
 }
 
-/** Turns Slowking to the partner when it comes close. */
+/** Turns Ninjask to the partner when it comes close. */
 export const stepStadium = (s: Stadium, partner: Vec | null) => {
   const x = s.x + SPOTS.judge.x
   const y = s.y + SPOTS.judge.y
   s.dir = partner && Math.hypot(partner.x - x, partner.y - y) < 70 ? dir8(partner.x - x, partner.y - y) : SPOTS.judge.dir
 }
 
-/** The stadium, its boards and pennants and Slowking, for the meadow to sort among the wanderers by their feet. */
+/** The stadium, its boards and pennants and Ninjask, for the meadow to sort among the wanderers by their feet. */
 export const stadiumPieces = (s: Stadium): Piece[] => {
   const pieces: Piece[] = []
   const art = arts.get('stadium')
@@ -322,26 +322,26 @@ export const stadiumPieces = (s: Stadium): Piece[] => {
       const since = time - s.hopAt
       const lift = nod(since)
       shadow(ctx, x, y, sprite.bodyW)
-      // Slowking takes its time: its idle plays slower than the meadow's.
-      drawPokemon(ctx, sprite, 'Idle', s.dir, time * 0.7, x, y - lift)
+      // Ninjask never sits still: its idle buzzes faster than the meadow's.
+      drawPokemon(ctx, sprite, 'Idle', s.dir, time * 1.4, x, y - lift)
       if (since >= 0 && since < 1.6) blitCentered(ctx, EMOTES().note, x, y - sprite.bodyH - lift - 8 - (Math.floor(since * 3) % 2))
     },
   })
   return pieces
 }
 
-/** Where the partner stands to talk to Slowking, world px, for the stadium's feet at `s`. */
+/** Where the partner stands to talk to Ninjask, world px, for the stadium's feet at `s`. */
 export const judgeSpot = (s: Vec): Vec => ({ x: s.x + SPOTS.partner.x, y: s.y + SPOTS.partner.y })
 
 /** Where a board's feet stand, world px, for the stadium's feet at `s`. */
 export const boardSpot = (s: Vec, id: BoardId): Vec => ({ x: s.x + SPOTS.boards[id].x, y: s.y + SPOTS.boards[id].y })
 
-/** How close (world px) the partner must stand to Slowking, or to a board, to talk to it or read it. */
+/** How close (world px) the partner must stand to Ninjask, or to a board, to talk to it or read it. */
 const TALK_RANGE = { judge: 26, board: 18 } as const
 
 /**
  * Who the partner (feet at `p`) stands close enough to talk to at the
- * Estádio, and above its head (world px): Slowking first, else the nearest
+ * Estádio, and above its head (world px): Ninjask first, else the nearest
  * board in reach; null for none. Pure, so it's tested (`stadium.test.ts`).
  */
 export const stadiumTalk = (at: Vec, p: Vec): (Vec & { who: StadiumNpc }) | null => {
@@ -356,7 +356,7 @@ export const stadiumTalk = (at: Vec, p: Vec): (Vec & { who: StadiumNpc }) | null
   return best && { x: best.x, y: best.y, who: best.who }
 }
 
-/** Whether a tap at `at` (world px) is for the Estádio, and whom: a board, Slowking, the stadium or its edge marker (both Slowking's). */
+/** Whether a tap at `at` (world px) is for the Estádio, and whom: a board, Ninjask, the stadium or its edge marker (both Ninjask's). */
 export const stadiumTapped = (s: Stadium, at: Vec): StadiumNpc | null => {
   const m = s.marker
   if (m.shown && Math.abs(at.x - m.x) <= 18 && Math.abs(at.y - m.y) <= 15) return 'judge'
@@ -370,10 +370,10 @@ export const stadiumTapped = (s: Stadium, at: Vec): StadiumNpc | null => {
   return arts.has('stadium') && at.x >= box.left && at.x <= box.right && at.y >= box.top && at.y <= box.bottom + 4 ? 'judge' : null
 }
 
-/** How close (world px) a walker may come to Slowking's feet or a board. */
+/** How close (world px) a walker may come to Ninjask's feet or a board. */
 const ROOM = 11
 
-/** Pushes feet at `v` off Slowking and the boards and out of the stadium's footprint (and the ground behind it), so walkers go around (mutates `v`). */
+/** Pushes feet at `v` off Ninjask and the boards and out of the stadium's footprint (and the ground behind it), so walkers go around (mutates `v`). */
 export const pushOutStadium = (s: Stadium, v: Vec) => {
   for (const k of [SPOTS.judge, ...Object.values(SPOTS.boards)]) {
     const dx = v.x - s.x - k.x
@@ -405,7 +405,7 @@ const skyline = (s: Stadium) => Math.min(stadiumBox(s).top, s.y + Math.min(...SP
 /**
  * Where the camera (its top-left, world px) frames the Estádio for a `w`×`h`
  * view: the pennants' tips near the view's top, the forecourt and its boards
- * below. A short view (a phone held sideways) drops until Slowking and the
+ * below. A short view (a phone held sideways) drops until Ninjask and the
  * partner before it stand clear of the dialogue box, the flags out of view.
  */
 export const stadiumFrame = (s: Stadium, w: number, h: number): Vec => {
@@ -420,7 +420,7 @@ const INSET = 16
 
 /**
  * A card at the edge of the view with an arrow, pointing down at the Estádio
- * (Slowking's head) while the stadium is off screen, like the plaza's and the
+ * (Ninjask's head) while the stadium is off screen, like the plaza's and the
  * Dojo's. On a phone's lobby (`inside`, the open meadow around the partner)
  * it stands at that box's lower left corner, over the Dojo's card (the
  * middle is the partner's name plate). It remembers where it was drawn

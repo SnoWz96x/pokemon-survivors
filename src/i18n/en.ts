@@ -5174,12 +5174,12 @@ export const en: Messages = {
   stadium: {
     boards: { play: 'Play', ranking: 'Ranking', season: 'Season', history: 'History', rules: 'Rules' },
     first: [
-      'Hmm... Welcome to the Stadium. I am the Arena’s judge, and nothing here escapes my eye.',
+      'Bzzz! Welcome to the Stadium! I’m the Arena’s judge: too quick to let a single play slip by.',
       'Two teams of four face off in the Vale. Defeat wild Pokémon, gather Energy and carry it to the rival goal.',
       'Quick match: against bots, starts at once. Casual: against trainers, no points. Ranked: every win climbs your tier.',
       'Each season lasts two weeks. The boards around the court show the ranking, the season, your history and the rules.',
     ],
-    hello: ['Hmm... Back to the Arena? May the best team win.', 'Energy you hold scores nothing. Take it to the goal!', 'Four heads think better than one. Play with your team.', 'The season’s scoreboard won’t wait. Shall we?'],
+    hello: ['Bzzz! Back to the Arena? May the best team win!', 'Energy you hold scores nothing. Take it to the goal!', 'Four heads think better than one. Play with your team.', 'The season’s scoreboard won’t wait. Shall we?'],
   },
   traits: {
     healer: (name: string) => `*${name}* heals nearby allies. Take it down first!`,

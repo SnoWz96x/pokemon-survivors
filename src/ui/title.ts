@@ -777,7 +777,7 @@ const markDojoSeen = () => {
   }
 }
 
-/** Set once Slowking first greets the player at the Estádio on this device: its long hello goes for good. */
+/** Set once Ninjask first greets the player at the Estádio on this device: its long hello goes for good. */
 const STADIUM_SEEN = 'ps:stadiumSeen'
 
 const stadiumSeen = () => {
@@ -845,7 +845,7 @@ const BOARD_TABS = { play: null, ranking: 'ranking', season: 'season', history: 
  * `ps.festival('open')`, a talk at the fountain) opens the Festival da Praça's
  * sheet there (`plaque`, a talk at the donors' plaque, on its plaque tab),
  * `look` (dev, `ps.plaza()`) only goes there, for a look; Esc or Enter brings it back.
- * `dojo` and `stadium` go west to the Dojo and south to the Estádio instead, where Machoke or Slowking says hello.
+ * `dojo` and `stadium` go west to the Dojo and south to the Estádio instead, where Machoke or Ninjask says hello.
  */
 export type ShopTrip = 'shop' | 'festival' | 'plaque' | 'look' | 'dojo' | 'stadium'
 
@@ -1193,7 +1193,7 @@ export const titleScreen = (
 
   /**
    * A talk at the plaza, the Dojo or the Estádio: the shop with a shopkeeper, the caravan's shelf with Meowth, a few words with a stall's keeper or Lanturn, the festival's sheet at the fountain (its plaque tab at the plaque), the Dojo with its sensei,
-   * the Arena with Slowking (its hello first) and a board's screen at an Estádio board.
+   * the Arena with Ninjask (its hello first) and a board's screen at an Estádio board.
    * `beside`: the partner stands by `who`; from afar (a tap on the stall's edge marker), the stall skips its keeper's words.
    */
   function talkTo(who: LobbyNpc, beside = true) {
@@ -1258,7 +1258,7 @@ export const titleScreen = (
     if ((visit.phase === 'going' && back) || (visit.phase === 'here' && (back || key === 'Enter' || key === 'Space'))) goHome()
   }
 
-  /** At the plaza: the shop opens, Kecleon talking beside it (a look just waits). At the Dojo, Machoke says hello and the Dojo opens; at the Estádio, Slowking and then the Arena. */
+  /** At the plaza: the shop opens, Kecleon talking beside it (a look just waits). At the Dojo, Machoke says hello and the Dojo opens; at the Estádio, Ninjask and then the Arena. */
   const arrived = () => {
     if (!visit) return
     if (visit.mode === 'look') {
@@ -1290,7 +1290,7 @@ export const titleScreen = (
     })
   }
 
-  /** Slowking's hello at the Estádio (the long one, explaining the Arena, the first time), then the Arena's screen. */
+  /** Ninjask's hello at the Estádio (the long one, explaining the Arena, the first time), then the Arena's screen. */
   function greetAtStadium() {
     const m = t().stadium
     const first = !stadiumSeen()

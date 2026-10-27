@@ -86,5 +86,5 @@ export const lanturnSpeaker = () => visitorSpeaker(LANTURN.dex, LANTURN.name, '#
 /** Machoke, the Dojo's sensei (`render/dojo.ts`). */
 export const senseiSpeaker = () => visitorSpeaker(SENSEI.dex, SENSEI.name, '#c04830')
 
-/** Slowking, the Estádio's judge (`render/stadium.ts`). */
-export const judgeSpeaker = () => visitorSpeaker(JUDGE.dex, JUDGE.name, '#c05878')
+/** Ninjask, the Estádio's judge (`render/stadium.ts`). */
+export const judgeSpeaker = () => visitorSpeaker(JUDGE.dex, JUDGE.name, '#b08818')

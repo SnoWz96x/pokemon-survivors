@@ -5175,12 +5175,12 @@ export const es: Messages = {
   stadium: {
     boards: { play: 'Jugar', ranking: 'Ranking', season: 'Temporada', history: 'Historial', rules: 'Reglas' },
     first: [
-      'Hmm... Bienvenido al Estadio. Soy el juez de la Arena, y aquí nada escapa a mi mirada.',
+      '¡Bzzz! ¡Bienvenido al Estadio! Soy el juez de la Arena: demasiado rápido para dejar pasar una sola jugada.',
       'Dos equipos de cuatro se enfrentan en el Valle. Derrota Pokémon salvajes, junta Energía y llévala a la portería rival.',
       'Partida rápida: contra bots, empieza ya. Casual: contra entrenadores, sin puntos. Clasificatoria: cada victoria sube tu nivel.',
       'Cada temporada dura dos semanas. Los tableros del patio muestran el ranking, la temporada, tu historial y las reglas.',
     ],
-    hello: ['Hmm... ¿De vuelta a la Arena? Que gane el mejor equipo.', 'La Energía guardada no suma puntos. ¡Llévala a la portería!', 'Cuatro cabezas piensan mejor que una. Juega con tu equipo.', 'El marcador de la temporada no espera. ¿Vamos?'],
+    hello: ['¡Bzzz! ¿De vuelta a la Arena? ¡Que gane el mejor equipo!', 'La Energía guardada no suma puntos. ¡Llévala a la portería!', 'Cuatro cabezas piensan mejor que una. Juega con tu equipo.', 'El marcador de la temporada no espera. ¿Vamos?'],
   },
   traits: {
     healer: (name: string) => `*${name}* cura a los aliados cercanos. ¡Derríbalo primero!`,

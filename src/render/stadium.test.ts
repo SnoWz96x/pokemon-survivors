@@ -4,7 +4,7 @@ import { BOARD_IDS, boardSpot, judgeSpot, stadiumTalk } from './stadium'
 const at = { x: 1000, y: 2000 }
 
 describe('stadiumTalk', () => {
-  it('talks to Slowking from the spot a trip leaves the partner on', () => {
+  it('talks to Ninjask from the spot a trip leaves the partner on', () => {
     expect(stadiumTalk(at, judgeSpot(at))?.who).toBe('judge')
   })
 
