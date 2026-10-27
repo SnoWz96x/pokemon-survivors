@@ -11,8 +11,12 @@ import type { Build } from './builds'
 import { spawnEnemy } from './enemies'
 import { runLearnset } from './learnsets'
 import { MAX_ITEMS, MAX_MOVES, recomputeStats } from './leveling'
-import { forkAt, maxMoveLevel, withBranch, type MoveId } from './moves'
-import { ownAttack } from './players'
+import { LEGENDARY_MOVE_OF } from '../data/legendaryMoves'
+import { AWAKEN_AT, isLegend, legendSignature, type LegendId } from '../data/legends'
+import { learnable } from './kitRules'
+import { forkAt, isLegendary, isManual, maxMoveLevel, withBranch, type MoveId } from './moves'
+import { aimScreen, ownAttack } from './players'
+import { shelfTms } from './tmShelf'
 import { createTraitState } from './traits'
 import type { DamageSource, Enemy, Game } from './types'
 
@@ -37,6 +41,10 @@ export type Training = {
   home: Vec
   /** Where the dummies stand from it: a unit direction and how far (world px), so the shell keeps them clear of its panel. */
   aim: Aim
+  /** Where the player stands on screen, from its center (world px): the middle of the field the shell's panel leaves open (`setLens`). */
+  lens: Vec
+  /** The lens the camera shows now, easing to `lens` (`trainingCamera`). */
+  shown: Vec
 }
 
 /** Which way from the player's start the dummies stand, and how far. */
@@ -74,8 +82,31 @@ const spawnDummy = (g: Game, target: TrainingTarget, at: Vec): Enemy => {
 /** Turns the run into the Dojo, with `count` dummies of `target` around the player, along `aim`. */
 export const startTraining = (g: Game, target: TrainingTarget = TRAINING.target, count: number = TRAINING.counts[0], aim: Aim = AHEAD) => {
   const p = g.player
-  g.training = { target, posts: [], home: { x: p.x, y: p.y }, aim }
+  g.training = { target, posts: [], home: { x: p.x, y: p.y }, aim, lens: { x: 0, y: 0 }, shown: { x: 0, y: 0 } }
   setDummies(g, target, count)
+}
+
+/** Sets where the player stands on screen, from its center (world px): the shell keeps them clear of its panel. */
+export const setLens = (g: Game, x: number, y: number) => {
+  const t = g.training
+  if (!t) return
+  t.lens.x = x
+  t.lens.y = y
+}
+
+/** How fast (per second) the camera eases to a new lens: quick enough to follow the panel folding. */
+const LENS_EASE = 10
+
+/** The Dojo's camera (`followPlayers`' frame): each player centered on the lens instead of the screen. */
+export const trainingCamera = (g: Game, dt: number) => {
+  const t = g.training
+  if (!t) return false
+  const k = Math.min(1, LENS_EASE * dt)
+  t.shown.x += (t.lens.x - t.shown.x) * k
+  t.shown.y += (t.lens.y - t.shown.y) * k
+  const p = g.player
+  aimScreen(g, p, p.x - g.view.w / 2 - t.shown.x, p.y - 10 - g.view.h / 2 - t.shown.y)
+  return true
 }
 
 /** Sends the dummies away and stands `count` of `target` at their posts. */
@@ -125,6 +156,40 @@ export const trainingMoves = (starter: PlayableId, branch: BranchId | null): Mov
   return out
 }
 
+/** The Dojo's shelves of moves: the family's own, every TM (the shop's too) and the legendaries' capstones. */
+export const MOVE_SHELVES = ['family', 'tms', 'legendary'] as const
+export type MoveShelf = (typeof MOVE_SHELVES)[number]
+
+/** The moves on a shelf; `legends`: the legends the game shows today (`shownLegends`), so a festival's stays secret until announced. */
+export const shelfMoves = (shelf: MoveShelf, starter: PlayableId, branch: BranchId | null, legends: readonly LegendId[]): MoveId[] => {
+  if (shelf === 'family') return trainingMoves(starter, branch)
+  if (shelf === 'tms') return [...shelfTms()]
+  return legends.map((id) => LEGENDARY_MOVE_OF[id])
+}
+
+/** The move a new one would take the slot of: its base or its evolution, when owned. */
+const twinOf = (g: Game, id: MoveId) => {
+  const twin = evolutionOf(id)?.to ?? evolvedFrom(id)?.from
+  return twin ? g.player.moves.find((m) => m.id === twin) : undefined
+}
+
+/**
+ * Why a move the player doesn't carry can't be learned now, as in a run: every
+ * slot taken, a second manual move (`learnable`) or a second legendary one (a
+ * run teaches one legendary TM; a legend's own move doesn't count). Null when it can.
+ */
+export const moveBlock = (g: Game, id: MoveId): 'full' | 'manual' | 'legendary' | null => {
+  const p = g.player
+  if (p.moves.some((m) => m.id === id)) return null
+  const slot = twinOf(g, id)
+  const others = p.moves.filter((m) => m !== slot).map((m) => m.id)
+  if (!slot && others.length >= MAX_MOVES) return 'full'
+  if (!learnable(others, id, isManual)) return 'manual'
+  const own = legendSignature(p.starter)
+  if (isLegendary(id) && id !== own && others.some((m) => isLegendary(m) && m !== own)) return 'legendary'
+  return null
+}
+
 /** Drops a move and whatever it left in play (hitboxes, timed effects, a guard). */
 const dropMove = (g: Game, id: MoveId) => {
   const p = g.player
@@ -137,7 +202,7 @@ const dropMove = (g: Game, id: MoveId) => {
 /**
  * Sets a move to `level` (0 drops it), taking a free slot when it's new.
  * A move and its evolution share a slot: setting one swaps the other out.
- * Returns false when every slot is taken.
+ * Returns false when a new move can't be learned (`moveBlock`).
  */
 export const setMove = (g: Game, id: MoveId, level: number) => {
   const p = g.player
@@ -152,9 +217,8 @@ export const setMove = (g: Game, id: MoveId, level: number) => {
     owned.level = lv
     return true
   }
-  const twin = evolutionOf(id)?.to ?? evolvedFrom(id)?.from
-  const slot = twin ? p.moves.find((m) => m.id === twin) : undefined
-  if (!slot && p.moves.length >= MAX_MOVES) return false
+  if (moveBlock(g, id)) return false
+  const slot = twinOf(g, id)
   if (slot) dropMove(g, slot.id)
   p.moves.push({ id, level: lv, cooldown: 0.2, path: 0 })
   return true
@@ -182,22 +246,33 @@ export const setItem = (g: Game, id: ItemId, level: number) => {
   return true
 }
 
-/** The forms the Dojo offers a family: each stage of its line, the stages that branch as one form per branch. */
-export type TrainingForm = { stage: number; branch: BranchId | null }
+/**
+ * The forms the Dojo offers a family: each stage of its line, the stages that
+ * branch as one form per branch. A legend has one stage and awakens instead
+ * (`game/legend.ts`): its forms are its awakenings, 0 to 2.
+ */
+export type TrainingForm = { stage: number; branch: BranchId | null; awakened: number }
 
 export const trainingForms = (starter: PlayableId): TrainingForm[] =>
-  PLAYABLE[starter].line.flatMap((_, stage): TrainingForm[] => {
-    const branches = branchesAt(starter, stage)
-    return branches.length > 0 ? branches.map((branch) => ({ stage, branch })) : [{ stage, branch: null }]
-  })
+  isLegend(starter)
+    ? Array.from({ length: AWAKEN_AT.length + 1 }, (_, awakened) => ({ stage: 0, branch: null, awakened }))
+    : PLAYABLE[starter].line.flatMap((_, stage): TrainingForm[] => {
+        const branches = branchesAt(starter, stage)
+        return branches.length > 0 ? branches.map((branch) => ({ stage, branch, awakened: 0 })) : [{ stage, branch: null, awakened: 0 }]
+      })
 
-/** Evolves (or devolves) the player into a form at once; an ability the new form can't have goes. */
-export const setForm = (g: Game, stage: number, branch: BranchId | null) => {
+/**
+ * Evolves (or devolves) the player into a form at once, a legend into its
+ * awakening; an ability the new form can't have goes, and so does a legend's
+ * before its first awakening (where a run grants it).
+ */
+export const setForm = (g: Game, stage: number, branch: BranchId | null, awakened = 0) => {
   const p = g.player
   p.stage = stage
   p.branch = branch && BRANCHES[branch].line === p.starter && BRANCHES[branch].stage <= stage ? branch : null
+  if (p.legend) p.legend.awakened = Math.max(0, Math.min(AWAKEN_AT.length, awakened))
   const id = p.ability.id
-  if (id && !abilitySet(p.starter, p.branch).includes(id)) p.ability = createAbilityState()
+  if (id && (!abilitySet(p.starter, p.branch).includes(id) || p.legend?.awakened === 0)) p.ability = createAbilityState()
   recomputeStats(g)
 }
 
@@ -212,7 +287,7 @@ export const setAbility = (g: Game, id: AbilityId | null) => {
 /** Puts a saved build on the player: its form first (the learnset follows it), then the moves and items it fits. */
 export const applyBuild = (g: Game, b: Build) => {
   const p = g.player
-  setForm(g, Math.min(b.stage, PLAYABLE[p.starter].line.length - 1), b.branch)
+  setForm(g, Math.min(b.stage, PLAYABLE[p.starter].line.length - 1), b.branch, b.awakened)
   for (const m of [...p.moves]) dropMove(g, m.id)
   p.items.length = 0
   for (const m of b.moves) {
