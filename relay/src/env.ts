@@ -1,3 +1,4 @@
+import type { Matchmaker } from './matchmakerObject'
 import type { ShardObject } from './shardObject'
 import type { Vault } from './vault'
 
@@ -22,4 +23,14 @@ export type Env = {
   ALLOW_GUESTS?: string
   /** Bearer token of the admin endpoints (desync dumps). Unset, they answer 404. */
   ADMIN_TOKEN?: string
+  /** The Arena's matchmaker (`/arena/queue`), one object. */
+  MATCHMAKER: DurableObjectNamespace<Matchmaker>
+  /** The API the Arena's match reports and MMR lookups go to (`https://api.pokemonsurvivors.com`). Unset: nothing is posted. */
+  ARENA_API_URL?: string
+  /** The secret those posts are signed with (`wrangler secret put ARENA_REPORT_SECRET`), the API's own. Unset: nothing is posted. */
+  ARENA_REPORT_SECRET?: string
+  /** `off` closes the queue (`refused: closed`). */
+  ARENA_QUEUE?: string
+  /** `any`: the queue takes every build (the dev relay, shared by Vercel previews); else only the newest (`staleBuild`). */
+  ARENA_BUILDS?: string
 }

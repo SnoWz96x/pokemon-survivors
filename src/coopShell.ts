@@ -2,8 +2,9 @@ import { accountHandle, accountsEnabled, sessionToken } from './account'
 import { track, type RunPerf } from './analytics'
 import { bank, bankKey, paysAnything, type BankDelta, type Store } from './coop/bank'
 import { createBot, botPick, type Bot } from './coop/bot'
-import { createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
-import type { VpsUrls } from './coop/relays'
+import { coopGuestId, createCoopClient, webSocket, type CoopClient, type CoopDeps } from './coop/client'
+import { measureRelay, type VpsUrls } from './coop/relays'
+import type { QueueDeps } from './arena/queue'
 import { createLocalRelay, LOCAL_RELAY_URL, type LocalRelay } from './coop/localRelay'
 import { buildAdvice } from './coop/lobby'
 import { netSummary, type NetStats } from './coop/netStats'
@@ -132,6 +133,32 @@ const browserDeps = (url: string, store: Store, token: () => Promise<string | nu
 })
 
 let client: CoopClient | null = null
+
+/**
+ * What the Arena's public queue (`arena/queue.ts`) needs from the browser:
+ * the relay's origin, co-op's token, the WebSocket, and the round trips to
+ * each relay home (Cloudflare's and the VPS relays'), measured as the ticket
+ * opens. Null without a relay.
+ */
+export const arenaQueueDeps = (): QueueDeps | null => {
+  const url = coopUrl()
+  if (!url) return null
+  const get = (u: string) => fetch(u, { signal: timeoutSignal(3000) }).then((r) => r.json() as Promise<unknown>)
+  const homes = [['cf', url] as const, ...Object.entries(coopVpsUrls())]
+  return {
+    relay: url,
+    build: __SIM_BUILD__,
+    auth: async () => {
+      const token = await coopToken().catch(() => null)
+      return token ? { kind: 'clerk', token } : { kind: 'guest', id: coopGuestId(local, Math.random) }
+    },
+    socket: webSocket,
+    rtts: async () => {
+      const probes = await Promise.all(homes.map(async ([home, u]) => [home, await measureRelay(u.replace(/\/+$/, ''), get, () => performance.now(), 3)] as const))
+      return Object.fromEntries(probes.flatMap(([home, p]) => (p ? [[home, Math.round(p.rtt)]] : [])))
+    },
+  }
+}
 
 /** This tab's co-op client (made on first use), or null without a relay. */
 export const coopClient = (): CoopClient | null => {
