@@ -113,10 +113,10 @@ export const FORMS = {
 /**
  * Form shinies SpriteCollab doesn't have yet, committed by hand at `public/assets/pokemon/<dex>/<key>/shiny/`
  * (Walk, Idle and Hurt): palette swaps of the form's own sheets, so they share its frame sizes and durations.
- * By dex and form key, the credit for CREDITS.md. Drop an entry once SpriteCollab publishes that shiny.
+ * By dex and form key, the artist to credit in CREDITS.md. Drop an entry once SpriteCollab publishes that shiny.
  */
 export const HANDMADE_SHINIES = {
-  248: { mega: 'JFain (recolor)' },
+  248: { mega: 'JFain (shared on Discord as @JaiFain)' },
 }
 
 /**
