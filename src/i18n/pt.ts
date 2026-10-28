@@ -17,6 +17,7 @@ import type { ConsumableId } from '../game/consumables'
 import type { FriendMilestone } from '../game/referral'
 import type { Difficulty } from '../game/difficulty'
 import type { Role } from '../data/versus'
+import type { MatchKind, TierId } from '../data/arenaRanked'
 import type { SurveyAnswer } from '../data/survey'
 import type { BackgroundId, FrameId, StyleSlot, WallpaperId } from '../data/style'
 import type { BagItem } from '../game/bag'
@@ -267,6 +268,10 @@ export const pt = {
       quick: { title: 'Partida rápida', text: '4v4 contra bots, sem conta. Começa na hora.' },
       room: { title: 'Com amigos', text: 'Crie uma sala e mande o código. Vagas vazias viram bots.', account: 'Precisa de conta com @' },
       offline: 'Indisponível nesta versão',
+      casual: { title: 'Casual', text: 'Fila pública com outros treinadores. Sem RP.' },
+      ranked: { title: 'Ranqueada', text: 'Vale RP na temporada. Da Poké à Master Ball.' },
+      /** The button to the Arena's hub (`ui/arenaHub.ts`). */
+      hub: 'Ranking',
     },
     pick: 'Escolha seu Pokémon',
     free: 'Os 27 iniciais, liberados para todos.',
@@ -287,6 +292,19 @@ export const pt = {
       cancel: 'Cancelar',
       hintKeys: 'ESC cancelar',
       hintTouch: 'Toque em Cancelar para voltar',
+      /** The public queue (`arena/queue.ts`): its kind, the wait and how the match came out. */
+      kinds: { casual: 'Casual', ranked: 'Ranqueada' },
+      connecting: 'Conectando à fila…',
+      players: (found: number, of: number) => `${found}/${of} treinadores`,
+      botsIn: (s: number) => `Bots completam em ${s} s`,
+      botsNow: 'Completando com bots…',
+      rankedNote: 'A Ranqueada precisa de 2 ou mais treinadores: os bots só completam as vagas.',
+      casualNote: 'Partida sem RP. Se faltar gente, os bots completam.',
+      player: 'Treinador',
+      joining: 'Entrando na partida…',
+      downgraded: 'Poucos treinadores na fila: esta partida vale como Casual.',
+      lost: 'A conexão com a fila caiu.',
+      refused: { auth: 'Entre com sua conta para jogar na fila.', duplicate: 'Você já está na fila em outra aba.', build: 'Há uma versão nova do jogo: recarregue a página.', closed: 'A fila está fechada agora. Tente mais tarde.' },
     },
     splash: {
       loading: 'Carregando o Vale…',
@@ -372,8 +390,88 @@ export const pt = {
       mvp: 'MVP',
       mvpLine: (points: number, kos: number, damage: number) => `${points} pontos · ${kos} KOs · ${damage} de dano`,
       medals: { points: 'Artilheiro', kos: 'Caçador', damage: 'Mais dano' },
+      /** What the match did to the ranking, under the score. */
+      rank: {
+        practice: 'Treino: não conta para o ranking',
+        room: 'Partida entre amigos: fica no histórico, sem RP',
+        casual: 'Casual: sem RP',
+        calculating: 'Calculando RP…',
+        late: 'O RP aparece no Histórico em instantes.',
+      },
     },
     menu: { note: 'A partida segue com o menu aberto.', leave: 'Sair da partida', confirm: 'Sair da partida? Um CPU assume o seu lugar.' },
+    /** Arena ranqueada's sign-in gate: the public queue is for accounts. */
+    gate: {
+      title: 'ARENA',
+      pitch: 'Entre para jogar na fila pública.',
+      note: 'Casual e Ranqueada usam sua conta: os outros veem o seu @ e o seu RP fica salvo nela. Entrar também cria a conta.',
+    },
+    /** The Arena's hub (`ui/arenaHub.ts`): profile, season, board, history and rules. */
+    hub: {
+      title: 'Arena ranqueada',
+      tabs: { profile: 'Perfil', season: 'Temporada', ranking: 'Ranking', history: 'Histórico', rules: 'Regras' },
+      loading: 'Carregando…',
+      offline: 'O ranking está fora de alcance agora. Tente de novo em instantes.',
+      rp: (n: number) => `${n} RP`,
+      delta: (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : '±'}${Math.abs(n)} RP`,
+      signIn: {
+        title: 'Entre para jogar ranqueada',
+        text: 'Com uma conta e um @, você entra na fila pública, ganha RP e aparece no ranking da temporada.',
+        button: 'Entrar',
+      },
+      profile: {
+        toNext: (n: number, next: string) => `Faltam ${n} RP para ${next}`,
+        top: 'No topo da escada: cada vitória soma.',
+        place: (n: number) => `#${n} na temporada`,
+        unplaced: 'Sem posição ainda',
+        totals: { matches: 'Partidas', wins: 'Vitórias', losses: 'Derrotas', draws: 'Empates', winRate: '% vitórias', kos: 'KOs', scored: 'Pontos' },
+        favorites: 'Seus Pokémon na temporada',
+        favorite: (matches: number, wins: number) => `${matches} partidas · ${wins} vitórias`,
+        none: 'Nenhuma partida ranqueada nesta temporada ainda. Jogue uma Ranqueada para entrar no ranking!',
+        device: 'Neste aparelho',
+        deviceLine: (matches: number, wins: number) => `${matches} partidas de treino · ${wins} vitórias`,
+      },
+      season: {
+        title: (n: number) => `Temporada ${n}`,
+        ends: (left: string) => `Termina em ${left}`,
+        starts: (left: string) => `Começa em ${left}`,
+        left: (d: number, h: number, m: number) => (d > 0 ? `${d}d ${h}h` : `${h}h ${m}min`),
+        ladder: 'A escada',
+        range: (from: number, to: number | null) => (to === null ? `${from}+ RP` : `${from}–${to} RP`),
+        reward: (title: string) => `Título da temporada: ${title}`,
+        rewards: { poke: 'Desafiante', great: 'Competidor', ultra: 'Elite da Arena', master: 'Mestre da Arena' } satisfies Record<TierId, string>,
+        you: 'Você',
+        divisions: 'Cada tier tem 3 divisões (III, II e I) de 100 RP. A Master Ball não tem divisões.',
+        reset: (days: number) => `Uma temporada dura ${days} dias. Na virada, seu RP volta ao começo do tier abaixo de onde você terminou e o MMR se aproxima do padrão.`,
+      },
+      ranking: {
+        title: (n: number) => `Ranking da temporada ${n}`,
+        record: (wins: number, matches: number) => `${wins}V · ${matches} partidas`,
+        empty: 'Ninguém no ranking ainda. Seja o primeiro!',
+        you: 'você',
+      },
+      history: {
+        kinds: { ranked: 'Ranqueada', casual: 'Casual', room: 'Amigos', practice: 'Treino' } satisfies Record<MatchKind, string>,
+        outcomes: { win: 'Vitória', loss: 'Derrota', draw: 'Empate' },
+        line: (kos: number, points: number) => `${kos} KOs · ${points} pts`,
+        more: 'Carregar mais',
+        empty: 'Nenhuma partida ainda. Jogue na Arena!',
+        device: 'Partidas deste aparelho. Entre para guardar o histórico na sua conta.',
+      },
+      rules: {
+        title: 'Como funciona a Ranqueada',
+        items: (r: { win: number; loss: number; perf: number; casual: number; ranked: number; humans: number; days: number }) => [
+          `MMR e RP: o MMR é escondido e decide com quem você joga. O RP aparece no ranking: vitória +${r.win}, derrota ${r.loss}, e até +${r.perf} pelo seu desempenho.`,
+          `Se faltar gente, bots completam a partida: depois de ${r.casual} s na Casual e de ${r.ranked} s na Ranqueada.`,
+          `A Ranqueada precisa de pelo menos ${r.humans} treinadores na partida. Com menos, ela vale como Casual.`,
+          'Sair no meio da partida conta como derrota: um bot assume o seu lugar.',
+          `As temporadas duram ${r.days} dias e viram à meia-noite de Brasília.`,
+          'Partidas rápidas contra bots são treino: ficam no histórico, mas não contam para o ranking. Partidas com amigos também não valem RP.',
+        ],
+      },
+      hintKeys: '← → abas · ↑ ↓ rolar · ESC voltar',
+      hintTouch: 'Toque numa aba',
+    },
     room: {
       mode: 'Modo',
       modes: { run: 'Horda', versus: 'Arena' },
@@ -5376,6 +5474,19 @@ export const pt = {
     /** Machoke, the Dojo's sensei, before the partner select opens: the first visit, then one of these in turn. */
     first: ['Bem-vindo ao Dojo! Aqui ninguém desmaia: escolha um Pokémon e teste golpes, itens e formas à vontade.', 'Gostou de uma combinação? Salve a build. Nas partidas, as cartas dela vão ter uma ★.'],
     hello: ['Pronto pra treinar? Os alvos não revidam!', 'Um bom treinador conhece o próprio DPS.', 'O Wobbuffet aguenta tudo. Pode caprichar!', 'Fogo contra Água? Troque o alvo e veja a diferença.'],
+  },
+  /** The Estádio (`render/stadium.ts`), south of home: the Arena's place in the lobby. */
+  stadium: {
+    /** Its boards' names, on the talk bubble while the partner stands by one: Jogar opens the Arena, the rest its hub's tabs. */
+    boards: { play: 'Jogar', ranking: 'Ranking', season: 'Temporada', history: 'Histórico', rules: 'Regras' },
+    /** Ninjask, the Arena's judge, before the Arena opens: the first visit, then one of these in turn. */
+    first: [
+      'Bzzz! Bem-vindo ao Estádio! Eu sou o juiz da Arena: rápido demais para deixar qualquer lance passar.',
+      'Duas equipes de quatro se enfrentam no Vale. Derrote Pokémon selvagens, junte Energia e leve-a ao gol rival.',
+      'Partida rápida: contra bots, começa na hora. Casual: contra treinadores, sem pontos. Ranqueada: cada vitória sobe seu tier.',
+      'Cada temporada dura duas semanas. Os quadros do pátio mostram o ranking, a temporada, seu histórico e as regras.',
+    ],
+    hello: ['Bzzz! De volta à Arena? Que vença o melhor time!', 'Energia guardada não marca ponto. Leve-a ao gol!', 'Quatro cabeças pensam melhor que uma. Jogue com sua equipe.', 'O placar da temporada não espera. Vamos?'],
   },
 
   /** Explainer toast the first time each enemy trait shows up in a run. */
