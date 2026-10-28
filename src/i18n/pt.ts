@@ -659,6 +659,9 @@ export const pt = {
     rejected: 'Esta partida não entrou no ranking.',
     outdated: 'O jogo foi atualizado durante esta partida, então ela não pôde entrar no ranking. A próxima já é na versão nova.',
     unranked: 'Esta partida ficou fora do ranking: começou sem conexão ou com o jogo aberto em outra aba ou aparelho.',
+    /** Play waiting on the loading screen for the run's start token (`startRanked`), and the way out. */
+    connecting: 'Conectando ao ranking…',
+    playUnranked: 'Jogar sem ranking',
     unlisted: 'Esta partida ficou fora do ranking: a conexão caiu enquanto você jogava. Ela conta no seu perfil.',
     guest: 'Entre com uma conta para aparecer no ranking.',
     noHandle: 'Crie seu perfil na tela da conta para aparecer no ranking.',

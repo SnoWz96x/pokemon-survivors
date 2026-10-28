@@ -519,6 +519,8 @@ export const es: Messages = {
     rejected: 'Esta partida no entró al ranking.',
     outdated: 'El juego se actualizó mientras jugabas, así que esta partida no pudo entrar al ranking. La próxima ya es en la versión nueva.',
     unranked: 'Esta partida quedó fuera del ranking: empezó sin conexión o con el juego abierto en otra pestaña o dispositivo.',
+    connecting: 'Conectando con el ranking…',
+    playUnranked: 'Jugar sin ranking',
     unlisted: 'Esta partida quedó fuera del ranking: la conexión se cayó mientras jugabas. Igual cuenta en tu perfil.',
     guest: 'Inicia sesión con una cuenta para aparecer en el ranking.',
     noHandle: 'Crea tu perfil en la pestaña de cuenta para aparecer en el ranking.',

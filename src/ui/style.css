@@ -210,6 +210,11 @@ button {
   font-size: 16px;
 }
 
+/* Play still waiting for the ranking's ticket (`startRanked`): the way to go on without it. */
+.btn.loading-skip {
+  color: var(--dk-ink, #303040);
+}
+
 .credits {
   position: absolute;
   bottom: max(12px, var(--safe-b));
