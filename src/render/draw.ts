@@ -21,7 +21,7 @@ import { xpTier } from '../game/pickups'
 import { isHeld } from '../game/status'
 import { inSolid, overTerrain, type Solid } from '../game/terrain'
 import { isAirborne, traitPace } from '../game/traits'
-import type { Attack, Enemy, Game, Hazard } from '../game/types'
+import type { Attack, Enemy, Game, Hazard, Player } from '../game/types'
 import { FX, HAZARD_FX, hostile, PICKUPS, SPARKLE, SPIT_FX } from './art'
 import { drawEvolvedAttack, drawEvolvedGround, drawFrost, drawShard } from './evolved'
 import { drawMapEventMarkers, drawMapEvents, markerInsets } from './mapEvents'
@@ -70,6 +70,7 @@ import { riftDomain } from '../game/rift'
 import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, showsPlain, showsStanding } from './team'
 import { drawVersusGuide } from './versusGuide'
 import { drawValeAir, drawValeFloor, drawValeGround, drawValeZones, dropVale, TEAM_COLORS, warmVale } from './vale'
+import { concealed, drawGrassFront, drawGrassPatches, grassAlpha } from './valeGrass'
 import { paintAttacks, type AttackSide } from './attackLayers'
 import { drawImpacts, watchImpacts } from './impacts'
 import { drawCrunch, drawDragonBreath, drawEarthquake, drawEmber, drawPinMissile, drawFireSpin, drawWhirlpool, drawFlashCannon, drawPsyshock, drawPyroBall, drawGust, drawRazorLeaf, drawRockTombLanding, drawSludge, drawSludgeGround, drawSwift, drawThunder, drawThunderGround, drawVineWhip, drawWaterGun } from './baseMoveFx'
@@ -615,8 +616,10 @@ const drawPlayer = (ctx: Ctx, g: Game, calm: boolean) => {
   const egg = flying ?? eggPlayerLook(g) ?? egg3PlayerLook(g)
   // Invulnerable after a hit: blinking, or a steady see-through when calm.
   const faded = calm ? p.iframes > 0 && localPlayer(g).special.active <= 0 : blink
-  const alpha = egg ? egg.alpha : p.hidden ? 0.3 : faded && mega.flash === 0 ? (calm ? 0.65 : 0.45) : 1
+  // Versus: in tall grass, the viewer's team draws see-through (`grassAlpha`).
+  const alpha = (egg ? egg.alpha : p.hidden ? 0.3 : faded && mega.flash === 0 ? (calm ? 0.65 : 0.45) : 1) * grassAlpha(viewer, p)
   if (alpha > 0) drawPokemon(ctx, s, anim, p.dir, p.animTime, p.x, p.y - (egg?.lift ?? 0), { alpha, flash, tint, outline: mega.outline })
+  if (p.versus) drawGrassFront(ctx, p.x, p.y, s.bodyW, g.now, p.moving, p.slot)
   // The shiny entrance plays shortly after the run starts.
   if (p.shiny) drawSparkles(ctx, p.x, p.y - s.bodyH / 2, Math.max(s.bodyW, s.bodyH), g.now - 0.3, 0)
   drawMegaAir(ctx, g, p.y - s.bodyH, p.animTime)
@@ -823,6 +826,9 @@ export type RenderOptions = {
   shakeOffset?: { x: number; y: number }
 }
 
+/** The Arena's viewer (this screen's player, `render` sets it; null outside Versus): who the grass hides from and shows see-through. */
+let viewer: Player | null = null
+
 /** Reused lists of this screen's player's attacks and the teammates', refilled each co-op frame. */
 const ownAttacks: Attack[] = []
 const teamAttacks: Attack[] = []
@@ -835,7 +841,12 @@ const teamAttacks: Attack[] = []
 const attackSides = (g: Game, slot: number, opts: RenderOptions): { side: AttackSide; alpha: number; game: Game }[] => {
   if (g.coop === null) return [{ side: 'own', alpha: opts.attackOpacity, game: g }]
   ownAttacks.length = teamAttacks.length = 0
-  for (const a of g.attacks) (a.owner === slot ? ownAttacks : teamAttacks).push(a)
+  const me = g.players[slot]
+  for (const a of g.attacks) {
+    if (a.owner === slot) ownAttacks.push(a)
+    // Versus: a rival hidden in the grass shows nothing of its own, its moves still out either.
+    else if (!me || !g.players[a.owner] || !concealed(me, g.players[a.owner]!)) teamAttacks.push(a)
+  }
   return [
     { side: 'own', alpha: opts.attackOpacity, game: { ...g, attacks: ownAttacks } },
     { side: 'team', alpha: opts.teamAttackOpacity, game: { ...g, attacks: teamAttacks } },
@@ -927,15 +938,21 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
 
   const visible = (x: number, y: number, m = 48) => x > camX - m && x < camX + w + m && y > camY - m && y < camY + h + m * 2
   const mates = opts.mates ?? []
+  viewer = g.versus ? localPlayer(g) : null
+  // Versus: a rival hidden in the grass draws nowhere.
+  const hiddenMate = (mate: Game) => viewer !== null && concealed(viewer, localPlayer(mate))
   // Teammates standing in view wear their own auras, as this screen's player does.
   const shown = (mate: Game) => {
     const p = localPlayer(mate)
-    return showsPlain(p) && visible(p.x, p.y)
+    return showsPlain(p) && visible(p.x, p.y) && !hiddenMate(mate)
   }
 
   drawTerrainGround(ctx, g, look, camX, camY)
   // Versus: the spawn pads and the goal zones, under everything.
-  if (g.versus) drawValeZones(ctx, g, t)
+  if (g.versus) {
+    drawValeZones(ctx, g, t)
+    drawGrassPatches(ctx, t, visible)
+  }
   const me = localPlayer(g)
   watchImpacts(g)
   // The moves go through see-through layers at the player's chosen opacity, your own first (`paintAttacks`).
@@ -986,7 +1003,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   for (let i = 0; i < mates.length; i++) {
     const mate = mates[i]!
     const p = localPlayer(mate)
-    if (p.gone || !visible(p.x, p.y)) continue
+    if (p.gone || !visible(p.x, p.y) || hiddenMate(mate)) continue
     const slot = (mateSlots[i] ??= { mate })
     slot.mate = mate
     drawables.push(slot)
@@ -1043,7 +1060,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
     } else if (!isSolid(d) && d.dying < 0 && (!lean || d.boss || d.alpha)) shadow(ctx, d.x, d.y, d.radius * 3)
   }
   drawAfterimages(ctx, g, calm)
-  for (const mate of mates) drawAfterimages(ctx, mate, calm)
+  for (const mate of mates) if (!hiddenMate(mate)) drawAfterimages(ctx, mate, calm)
   for (const d of inDepth) {
     // Co-op: a player fainted, away or wrapped up in a moment of their own draws its own way (`render/team.ts`); this one only when fainted (their screen says the rest).
     if (d === 'player') !hidden && !liftMe && (g.coop && !showsStanding(me) ? drawTeammate(ctx, g, me, t, calm) : drawPlayer(ctx, g, calm))

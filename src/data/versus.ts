@@ -81,6 +81,13 @@ export const VERSUS = {
   zapdos: { hp: 9000, damage: 0.6, energy: 20, blessing: 20 },
   /** Drednaw: the mid-match objective in the center; its faint gives its team a shield and Energy each. */
   drednaw: { first: 100, respawn: 120, hp: 2600, energy: 10, shield: 0.25 },
+  /**
+   * Tall grass (`VersusMap.grass`, `game/versusGrass.ts`): a Pokémon in a patch
+   * is hidden from the rival team and its moves hold. A rival within `near` px
+   * (or in the same patch) sees it, and so does everyone for `reveal` seconds
+   * after it hits or is hit by a rival, or uses its special.
+   */
+  grass: { near: 40, reveal: 1.5 },
 } as const
 
 /** What each role changes: damage dealt and taken in PvP, pace, and a Supporter's healing aura (share of max HP per second, px). */
@@ -158,6 +165,8 @@ export type VersusMap = {
   camps: readonly CampDef[]
   /** Where Drednaw and Zapdos stand. */
   center: { x: number; y: number }
+  /** Tall grass to hide in (`VERSUS.grass`): walkable, clear of goals, pads and camps. */
+  grass: readonly Rect[]
 }
 
 /** Mirrors a west-side point to the east side. */
@@ -181,6 +190,25 @@ const westCamps: CampDef[] = [
   // The jungle: Ludicolo, slow and stout, worth a lot.
   camp(-250, -40, 'ludicolo', 1, 1100, 12, 10, 30, 25, 60),
   camp(-160, 120, 'chewtle', 2, 320, 8, 4, 11, 15, 40),
+]
+
+/** Mirrors a west-side patch to the east side. */
+const eastRect = (r: Rect): Rect => rect(-r.x1, r.y0, -r.x0, r.y1)
+
+/** One side's tall grass, Unite style; the other side mirrors it. */
+const westGrass: Rect[] = [
+  // By each lane goal, on the lane's outer verge.
+  rect(-372, -370, -306, -330),
+  rect(-372, 330, -306, 370),
+  // Mid-lane, on the jungle's side of the path.
+  rect(-212, -250, -146, -214),
+  rect(-212, 214, -146, 250),
+  // Flanking the way in from the base to the jungle.
+  rect(-468, -114, -420, -62),
+  rect(-468, 62, -420, 114),
+  // Round the center, beside the middle passages.
+  rect(-104, -152, -54, -108),
+  rect(-104, 108, -54, 152),
 ]
 
 /**
@@ -221,6 +249,7 @@ export const VALE: VersusMap = {
   goals: [...westGoals, ...westGoals.map((g): GoalDef => ({ ...east(g), team: 1 }))],
   camps: [...westCamps, ...westCamps.map(east), camp(0, -300, 'aipom', 3, 180, 5, 2, 7, 8, 30), camp(0, 300, 'aipom', 3, 180, 5, 2, 7, 8, 30)],
   center: { x: 0, y: 0 },
+  grass: [...westGrass, ...westGrass.map(eastRect)],
 }
 
 /** The floor plan the room keeps everyone on (`game/room.ts`). */
