@@ -5183,6 +5183,16 @@ export const es: Messages = {
     first: ['¡Bienvenido al Dojo! Aquí nadie se debilita: elige un Pokémon y prueba movimientos, objetos y formas cuanto quieras.', '¿Te gustó una combinación? Guarda la build. En tus partidas, sus cartas tendrán una ★.'],
     hello: ['¿Listo para entrenar? ¡Los blancos no devuelven el golpe!', 'Un buen entrenador conoce su propio DPS.', 'Wobbuffet aguanta todo. ¡Dale con todo!', '¿Fuego contra Agua? Cambia el blanco y mira la diferencia.'],
   },
+  stadium: {
+    boards: { play: 'Jugar', ranking: 'Ranking', season: 'Temporada', history: 'Historial', rules: 'Reglas' },
+    first: [
+      '¡Bzzz! ¡Bienvenido al Estadio! Soy el juez de la Arena: demasiado rápido para dejar pasar una sola jugada.',
+      'Dos equipos de cuatro se enfrentan en el Valle. Derrota Pokémon salvajes, junta Energía y llévala a la portería rival.',
+      'Partida rápida: contra bots, empieza ya. Casual: contra entrenadores, sin puntos. Clasificatoria: cada victoria sube tu nivel.',
+      'Cada temporada dura dos semanas. Los tableros del patio muestran el ranking, la temporada, tu historial y las reglas.',
+    ],
+    hello: ['¡Bzzz! ¿De vuelta a la Arena? ¡Que gane el mejor equipo!', 'La Energía guardada no suma puntos. ¡Llévala a la portería!', 'Cuatro cabezas piensan mejor que una. Juega con tu equipo.', 'El marcador de la temporada no espera. ¿Vamos?'],
+  },
   traits: {
     healer: (name: string) => `*${name}* cura a los aliados cercanos. ¡Derríbalo primero!`,
     shield: (name: string) => `*${name}* protege a sus aliados con un _escudo_ que absorbe daño.`,

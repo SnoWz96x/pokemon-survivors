@@ -69,6 +69,7 @@ import { applyBuild, setDummies, setLens, startTraining } from './game/training'
 import { buildOf } from './game/builds'
 import { TRAINING } from './data/training'
 import { DOJO_DEX } from './render/dojo'
+import { STADIUM_DEX } from './render/stadium'
 import { trainingPanel } from './ui/training'
 import { formAt, playerForm } from './game/branch'
 import { unlockedAt } from './game/learnsets'
@@ -618,6 +619,7 @@ const showTitle = (opts: { intro?: boolean; focus?: LobbyFocus; shop?: ShopTrip;
       invites: (focus) => invitesScreen(ui, input, () => showTitle({ focus })),
       coop: coopUrl() ? () => enterCoop({ room: null, invitedBy: null }) : undefined,
       arena: () => showArena(),
+      arenaHub: (tab) => showArenaHub(tab),
       dojo: () => showDojo(),
       meadow,
     }, opts),
@@ -1001,8 +1003,9 @@ const menuSprites = (): Variant[] => [
     ...new Set([
     ...(halloweenToday() ? HAUNT_DEX : []),
     KECLEON_DEX,
-    // The Dojo's Machoke and Wobbuffet, west of home.
+    // The Dojo's Machoke and Wobbuffet, west of home, and the Estádio's Ninjask, south of it.
     ...DOJO_DEX,
+    ...STADIUM_DEX,
     // The plaza's visitors today: Meowth at his caravan, a seasonal stall's keeper.
     ...(scene.plaza.visitors.caravan ? [CARAVAN.dex] : []),
     ...(scene.plaza.visitors.stall ? [STALLS[scene.plaza.visitors.stall].dex] : []),
@@ -4026,6 +4029,12 @@ if (import.meta.env.DEV) {
         if (id) return void startDojo(id)
         showTitle({ shop: 'dojo' })
       },
+      /**
+       * The Estádio: `ps.stadium()` walks the lobby there, south of home, Ninjask's hello included (the first visit's long one
+       * after `localStorage.removeItem('ps:stadiumSeen')`), then the Arena's screen. Its boards (Jogar, Ranking, Temporada,
+       * Histórico, Regras) open with E or a tap while the partner strolls by them.
+       */
+      stadium: () => showTitle({ shop: 'stadium' }),
       /**
        * The Kecleon plaza: `ps.plaza(3)` shows the shop's building at that level (1 to 5, until the next reload; `ps.plaza(0)`
        * goes back to the save's) and the lobby pans there for a look, cards out; Esc or Enter comes back.
