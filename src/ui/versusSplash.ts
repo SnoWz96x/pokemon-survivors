@@ -14,7 +14,9 @@ import { h, setStyle } from './dom'
  * lineups face each other (portraits, names, a bot's "CPU", roles, this
  * player lit), "Vale · 7:00", a gameplay tip that changes every few seconds
  * and a bar that follows the real loading. It stays `HOLD` at least so it
- * reads; then the match's own countdown takes over.
+ * reads; then the match's own countdown takes over. `note`: a line the match
+ * needs said before it starts (a ranked ticket that plays as Casual), since
+ * the queue screen that said it is gone the moment the room starts.
  */
 
 const HOLD = 1.6
@@ -29,7 +31,7 @@ export type VersusSplash = {
   dispose: () => void
 }
 
-export const versusSplash = (root: HTMLElement, g: Game, mySlot: number): VersusSplash => {
+export const versusSplash = (root: HTMLElement, g: Game, mySlot: number, note: string | null = null): VersusSplash => {
   const m = t().versus
   const s = m.splash
   const since = performance.now()
@@ -62,6 +64,7 @@ export const versusSplash = (root: HTMLElement, g: Game, mySlot: number): Versus
       h('div', { class: 'arena-splash-head' }, h('img', { src: arenaIcon(), alt: '' }), h('b', {}, m.title), h('span', {}, `${m.map} · ${formatTime(VERSUS.length)}`)),
       // Your team on the left.
       h('div', { class: 'arena-lineups splash' }, lineup(mine), h('span', { class: 'arena-vs' }, 'VS'), lineup(mine === 0 ? 1 : 0)),
+      note ? h('p', { class: 'arena-splash-note' }, note) : null,
       tip,
       h('div', { class: 'arena-splash-bar' }, fill),
       status,

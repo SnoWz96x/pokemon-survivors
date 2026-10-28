@@ -2279,7 +2279,9 @@ const startCoopRun = async (client: CoopClient, runner: Runner, startsIn: number
   endRun()
   const g = runner.game
   // A match opens on its lineups (`ui/versusSplash.ts`), held a moment so they read; a run on the plain loading line.
-  const splash = g.versus ? versusSplash(ui, g, runner.slot) : null
+  // A ranked ticket matched as Casual says so here: its room starts at once, so the queue screen's note barely shows.
+  const downgraded = queueMatch?.room === runner.room && queueMatch.asked === 'ranked' && queueMatch.kind === 'casual'
+  const splash = g.versus ? versusSplash(ui, g, runner.slot, downgraded ? t().versus.queue.downgraded : null) : null
   const loading = splash?.el ?? loadingScreen()
   if (!splash) ui.append(loading)
   // A match's wild are its camps and objectives, not a run's waves.
