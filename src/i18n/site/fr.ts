@@ -23,6 +23,8 @@ export const siteFr: SiteMessages = {
     tierList: 'Tier list',
     legal: 'Mentions légales',
     support: 'Soutenir',
+    compare: 'Pokémon Survivors vs PokéSurvivor',
+    alternatives: 'Jeux façon Vampire Survivors',
     language: 'Langue',
   },
   footer: {
@@ -32,6 +34,9 @@ export const siteFr: SiteMessages = {
     credits: 'Crédits',
     source: 'Code source sur GitHub',
     support: 'Soutenir le projet',
+    notThem: 'Pokémon Survivors (pokemonsurvivors.com) n’est pas PokéSurvivor (pokesurvivor.com), un autre fan game au nom proche.',
+    compare: 'Voir les différences',
+    alternatives: 'D’autres jeux Pokémon façon Vampire Survivors',
   },
   home: 'Accueil',
   playCta: 'Jouer gratuitement',
@@ -924,6 +929,167 @@ export const siteFr: SiteMessages = {
     ],
     issues: 'Ouvrir une issue sur GitHub',
     source: 'Voir le code source',
+  },
+  compare: {
+    title: 'Pokémon Survivors vs PokéSurvivor : est-ce le même jeu ? Les différences',
+    description:
+      'Pokémon Survivors (pokemonsurvivors.com) et PokéSurvivor (pokesurvivor.com) sont deux fan games Pokémon gratuits façon Vampire Survivors, faits par des personnes différentes. Côte à côte : Pokémon, coop, langues, classement et code.',
+    h1: 'Pokémon Survivors et PokéSurvivor, est-ce le même jeu ?',
+    lead: [
+      "Non. Ce sont deux fan games Pokémon gratuits façon Vampire Survivors, aux noms presque identiques, faits par des personnes différentes. Pokémon Survivors (pokemonsurvivors.com, ce site) est fait par Pedro Barretto, au Brésil. PokéSurvivor (pokesurvivor.com) est fait par JPTER78.",
+      'Les deux sont sortis en octobre 2026, tournent dans le navigateur et sont gratuits, alors les moteurs de recherche et les IA les confondent parfois. Voici ce qui les distingue.',
+    ],
+    table: { title: 'Côte à côte', feature: 'Critère' },
+    rows: (f) => [
+      ['Fait par', 'Pedro Barretto (Brésil)', 'JPTER78'],
+      ['Site', 'pokemonsurvivors.com', 'pokesurvivor.com'],
+      ['Où jouer', 'Navigateur sur PC et mobile, en portrait ou en paysage. S’installe comme une app.', 'Navigateur sur PC et mobile, en paysage. S’installe comme une app.'],
+      ['Compte', 'Facultatif : le solo ne demande aucune inscription. Un compte ajoute la sauvegarde en ligne, le classement et la coop.', 'Facultatif : invité ou compte (nom et mot de passe, ou Google). Un compte ajoute la sauvegarde en ligne, le classement et la coop.'],
+      ['Comment on attaque', `Toutes les capacités attaquent seules, jusqu’à ${f.moves} à la fois.`, 'Vous choisissez la capacité active (touches 1 à 4). Chaque légendaire vaincu permet de fusionner des capacités dans un seul emplacement.'],
+      ['Pokémon jouables', `${f.starters} starters avec leur lignée d’évolution complète, plus ${f.eggs} familles qui éclosent d’œufs et ${f.legends} légendaires en mode Légende.`, '966 Pokémon des 9 générations.'],
+      ['Comment on les débloque', 'Des œufs qui éclosent avec les pas faits en partie. Les légendaires se capturent en les battant comme boss.', 'Un gacha par région, avec des tickets gagnés en jouant.'],
+      ['Une partie', `${f.minutes} minutes jusqu’à Mewtwo, avec des boss légendaires et des failles épiques en route. Ensuite, un mode sans fin jusqu’à Arceus.`, 'Des hordes chronométrées, avec des failles qui mènent à une arène contre un légendaire.'],
+      ['Coop', `En ligne, jusqu’à ${f.players} joueurs. Salon par lien, code ou liste d’amis.`, 'En ligne, jusqu’à 4 joueurs. Salon sur invitation d’amis.'],
+      ['Langues', `${f.languages} : portugais, anglais, espagnol, français et chinois traditionnel.`, '7 : espagnol, anglais, français, italien, portugais, et chinois simplifié et traditionnel.'],
+      ['Classement', 'Au temps survécu. Les parties qui apparaissent au classement sont vérifiées : le serveur rejoue chacune à partir de son replay.', 'Au temps survécu, en solo ou en groupe.'],
+      ['Code source', 'Ouvert, licence MIT.', 'Public, licence PolyForm Noncommercial (MIT jusqu’au 14/10/2026).'],
+      ['Pubs et achats', 'Aucun. Dons facultatifs.', 'Aucun. Dons facultatifs.'],
+    ],
+    names: {
+      title: 'Des noms qui se ressemblent',
+      items: [
+        { name: 'Pokémon Survivors', text: 'Ce jeu, sur pokemonsurvivors.com. « Survivors », au pluriel.' },
+        { name: 'PokéSurvivor (ou Poke Survivor)', text: 'Le jeu de JPTER78, sur pokesurvivor.com.' },
+        { name: 'Poke Survivors (Android)', text: 'Un portage Android non officiel de PokéSurvivor, fait avec Godot. Ce n’est pas ce jeu.' },
+        { name: 'pokesurvivor.games et pokesurvival.com', text: 'Des sites de fans avec des guides qui renvoient vers PokéSurvivor.' },
+        { name: 'Pokémon Survivor Burst', text: 'Un autre fan game, à télécharger sur PC, fait par ClessioTV avec Pokémon Essentials.' },
+      ],
+    },
+    pickOurs: {
+      title: 'Jouez à Pokémon Survivors si vous…',
+      items: (f) => [
+        `voulez une partie avec un début, un milieu et une fin : ${f.minutes} minutes jusqu’à Mewtwo, puis le mode sans fin contre Arceus ;`,
+        'aimez construire un build : des capacités qui bifurquent en deux voies au Nv 4 et au Nv 7, des talents, des objets, des capacités duo et la Méga-Évolution ;',
+        `voulez jouer les légendaires : capturez les ${f.legends} en les battant comme boss et jouez-les en mode Légende ;`,
+        'voulez jouer sur mobile tenu en portrait, d’une seule main ;',
+        'voulez un classement où le serveur vérifie les meilleures parties ;',
+        'voulez du code ouvert sous licence MIT, à étudier et à réutiliser.',
+      ],
+    },
+    pickTheirs: {
+      title: 'Jouez à PokéSurvivor si vous…',
+      items: [
+        'voulez collectionner : 966 Pokémon et un gacha par région ;',
+        'préférez choisir vous-même la capacité qui attaque ;',
+        'jouez en italien ou en chinois simplifié ;',
+        'voulez la plus grande communauté et plus de vidéos sur YouTube.',
+      ],
+    },
+    faq: {
+      title: 'Questions fréquentes',
+      items: (f) => [
+        {
+          q: 'Pokémon Survivors et PokéSurvivor, est-ce le même jeu ?',
+          a: 'Non. Ce sont deux fan games gratuits différents, faits par des personnes différentes, sortis le même mois avec des noms presque identiques. Pokémon Survivors est sur pokemonsurvivors.com et fait par Pedro Barretto. PokéSurvivor est sur pokesurvivor.com et fait par JPTER78.',
+        },
+        {
+          q: 'J’ai cherché « Pokémon Survivors » et je suis tombé sur PokéSurvivor. Je me suis trompé de nom ?',
+          a: 'Non. Pokémon Survivors, avec « Survivors » au pluriel, c’est ce jeu, sur pokemonsurvivors.com. Les moteurs de recherche et les IA confondent parfois les deux.',
+        },
+        {
+          q: 'Lequel est le meilleur ?',
+          a: `Ça dépend de ce que vous cherchez. PokéSurvivor a plus de Pokémon (966) et un gacha pour les collectionner. Pokémon Survivors a des parties de ${f.minutes} minutes avec des boss légendaires, des légendaires jouables, la Méga-Évolution, des capacités qui bifurquent et un classement vérifié par le serveur. Les deux sont gratuits : vous pouvez jouer aux deux.`,
+        },
+        {
+          q: 'Les deux sont-ils gratuits et officiels ?',
+          a: 'Les deux sont gratuits, sans pubs ni achats, et tournent dans le navigateur. Aucun n’est officiel : ce sont des fan games sans lien avec Nintendo, The Pokémon Company, GAME FREAK ou Creatures.',
+        },
+        {
+          q: 'Peut-on jouer à Pokémon Survivors entre amis ?',
+          a: `Oui. La coop en ligne réunit jusqu’à ${f.players} joueurs dans la même partie, chacun avec son Pokémon. Créez un salon et invitez vos amis par lien, code ou liste d’amis. Il faut un compte.`,
+        },
+      ],
+    },
+    checked: (date) => `Les informations sur PokéSurvivor ont été vérifiées le ${date} sur son site et dans son code, et ont pu changer depuis.`,
+    report: 'Une erreur ? Signalez-la sur GitHub',
+    alternatives: 'D’autres jeux Pokémon façon Vampire Survivors',
+    cta: 'Jouer gratuitement à Pokémon Survivors',
+  },
+  alternatives: {
+    title: 'Jeux Pokémon façon Vampire Survivors : les fan games gratuits (2026)',
+    description:
+      'Les fan games Pokémon gratuits façon Vampire Survivors : Pokémon Survivors, PokéSurvivor et Pokémon Survivor Burst, plus le roguelite PokeRogue. Où ils tournent, coop, combien de Pokémon et pour qui est chacun.',
+    h1: 'Jeux Pokémon façon Vampire Survivors',
+    lead: 'Il n’existe pas de Pokémon Vampire Survivors officiel, mais des fans en ont fait quelques-uns. Voici les fan games Pokémon gratuits de type survivors-like (ou bullet heaven), où vous vous déplacez seulement et votre Pokémon attaque les hordes tout seul, plus un roguelite Pokémon au tour par tour si vous voulez un autre rythme.',
+    disclosure: (date) =>
+      `Écrit par l’auteur de Pokémon Survivors, premier de la liste : gardez-le en tête. Les informations sur les autres jeux ont été vérifiées le ${date} sur leurs sites et ont pu changer.`,
+    glance: { title: 'En bref', game: 'Jeu', plays: 'Où jouer', style: 'Genre', coop: 'Coop', roster: 'Pokémon' },
+    madeBy: 'Fait par',
+    bestFor: 'Idéal pour',
+    visit: (name) => `Ouvrir ${name}`,
+    games: {
+      ours: {
+        plays: 'Navigateur, PC et mobile',
+        style: 'Survivors-like',
+        coop: 'Jusqu’à 4 en ligne',
+        roster: (f) => `${f.starters} starters, ${f.eggs} familles d’œufs, ${f.legends} légendaires`,
+        about: (f) => [
+          `Choisissez l’un des ${f.starters} starters, de Kanto à Paldea, et survivez ${f.minutes} minutes de hordes : toutes vos capacités attaquent seules, vous choisissez capacités et objets à chaque niveau et évoluez en pleine partie, jusqu’à affronter Mewtwo. Boss légendaires, failles épiques vers le domaine de chaque légendaire, Méga-Évolution et un mode sans fin contre Arceus.`,
+          `Les œufs font éclore ${f.eggs} familles de plus, les légendaires battus deviennent jouables en mode Légende, et la coop en ligne réunit jusqu’à ${f.players} joueurs. En ${f.languages} langues, en code ouvert (MIT).`,
+        ],
+        bestFor: 'des parties courtes avec des boss, des builds variés et des légendaires jouables, sur PC ou sur mobile en portrait.',
+      },
+      pokesurvivor: {
+        plays: 'Navigateur, PC et mobile (paysage)',
+        style: 'Survivors-like',
+        coop: 'Jusqu’à 4 en ligne',
+        roster: '966 Pokémon',
+        about: [
+          'Le plus grand casting du genre : 966 Pokémon des 9 générations, débloqués via un gacha par région avec des tickets gagnés en jouant. Vous choisissez la capacité qui attaque, et des failles mènent à une arène contre un légendaire. Il a des missions, des succès, un classement et une coop jusqu’à 4 joueurs, en 7 langues.',
+          'Il existe aussi un portage Android non officiel, appelé Poke Survivors, fait avec Godot.',
+        ],
+        bestFor: 'collectionner le plus de Pokémon possible.',
+      },
+      burst: {
+        plays: 'Téléchargement, Windows et Mac',
+        style: 'Survivors-like',
+        coop: 'Non',
+        roster: 'S’agrandit à chaque version',
+        about: [
+          'Fait avec Pokémon Essentials (RPG Maker XP), il se télécharge et se joue sur ordinateur. Il propose les modes Classique, Rush et Tour, des boss et un classement en ligne, en plusieurs langues. Son auteur précise que la version mobile n’est pas testée.',
+        ],
+        bestFor: 'un jeu téléchargé qui a l’allure d’un Pokémon classique.',
+      },
+      pokerogue: {
+        plays: 'Navigateur, PC et mobile',
+        style: 'Roguelite au tour par tour',
+        coop: 'Non',
+        roster: 'Toutes les générations',
+        about: [
+          'Ce n’est pas un survivors-like : les combats se font au tour par tour, comme dans la série principale, vague après vague, en capturant des Pokémon pour former son équipe. C’est le roguelite Pokémon le plus connu, gratuit et en code ouvert.',
+        ],
+        bestFor: 'un roguelite Pokémon avec des combats au tour par tour plutôt que des hordes.',
+      },
+    },
+    faq: {
+      title: 'Questions fréquentes',
+      items: (f) => [
+        {
+          q: 'Existe-t-il un Pokémon Vampire Survivors officiel ?',
+          a: 'Non. Pokémon n’a jamais sorti de jeu de ce genre. Ceux qui existent sont des fan games gratuits et non officiels, comme Pokémon Survivors, PokéSurvivor et Pokémon Survivor Burst.',
+        },
+        {
+          q: 'Quel jeu Pokémon façon Vampire Survivors a une coop ?',
+          a: `Pokémon Survivors et PokéSurvivor, tous deux avec une coop en ligne jusqu’à ${f.players} joueurs, dans le navigateur.`,
+        },
+        {
+          q: 'Lequel peut-on jouer sur mobile sans rien télécharger ?',
+          a: 'Pokémon Survivors, PokéSurvivor et PokeRogue tournent dans le navigateur du téléphone. Pokémon Survivors se joue aussi téléphone en portrait. Pokémon Survivor Burst se télécharge sur ordinateur.',
+        },
+      ],
+    },
+    compareLink: 'Pokémon Survivors et PokéSurvivor côte à côte',
+    cta: 'Jouer gratuitement à Pokémon Survivors',
   },
   notFound: {
     title: 'Page introuvable · Pokémon Survivors',

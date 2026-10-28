@@ -105,11 +105,12 @@ export const header = (locale: Locale, paths: Paths, current: RouteId | null) =>
   </header>`
 }
 
-/** The site's footer: the disclaimer and the legal, credits, source, social and support links. */
+/** The site's footer: the disclaimer, the line telling us apart from PokéSurvivor, and the legal, credits, source, social and support links. */
 export const footer = (locale: Locale) => {
   const m = SITE_MESSAGES[locale]
   return html`<footer class="site-footer">
     <p>${m.footer.disclaimer}</p>
+    <p>${m.footer.notThem} <a href="${ROUTES.compare[locale]}">${m.footer.compare}</a> · <a href="${ROUTES.alternatives[locale]}">${m.footer.alternatives}</a></p>
     <p class="footer-links">
       <a href="${ROUTES.legal[locale]}">${m.footer.legal}</a>
       <a href="${REPO_URL}/blob/main/CREDITS.md">${m.footer.credits}</a>
