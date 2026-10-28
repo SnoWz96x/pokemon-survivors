@@ -188,7 +188,7 @@ A client queues with `new WebSocket('ws://localhost:8791/arena/queue')`, sends
 `{ t: 'queue', kind: 'casual', starter: 'pikachu', party: null, build, auth: { kind: 'guest', id } }`
 (a guest id of 16 to 64 `[A-Za-z0-9_-]`; `build` the game's `__SIM_BUILD__`, which the room will
 require), waits for `matched` and joins `matched.room` on the same relay like any room (`hello`,
-then a loadout). Eight sockets match at once; fewer wait `botsAfter` (30 s casual, 90 s ranked).
+then a loadout). Eight sockets match at once; fewer wait `botsAfter` (90 s in both queues).
 
 ## Telemetry
 

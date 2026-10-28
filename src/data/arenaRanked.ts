@@ -39,7 +39,7 @@ export const ARENA_RANKED = {
     /** The MMR window a ticket matches within: `base + perSecond × waited`, at most `max`. */
     window: { base: 100, perSecond: 25, max: 600 },
     /** Seconds a ticket waits before bots fill the rest of the match. */
-    botsAfter: { casual: 30, ranked: 90 },
+    botsAfter: { casual: 90, ranked: 90 },
     /**
      * A ranked match with fewer humans plays as casual, and one whose result
      * fewer clients agreed on rates only its leavers (a lone client could forge its own end).
