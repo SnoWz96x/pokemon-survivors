@@ -8,6 +8,7 @@ import { burst, shakeScreen } from './effects'
 import { recomputeStats } from './leveling'
 import { MOVES, moveStats, type MoveDef } from './moves'
 import { enemiesInView, inSight, isAlive } from './queries'
+import { unseen } from './versusRules'
 import { spawnAttack } from './spawn'
 import { firstStance, nextStance, STANCES, STANCE_CYCLES, type Stance, type StanceSpecial } from './stance'
 import type { StatusSpec } from './status'
@@ -960,13 +961,13 @@ const arrivalCombo = (g: Game, casts = g.player.stats.comboMoves) => {
 
 /* ---------------- Chain dash ---------------- */
 
-/** Nearest living foe on screen within reach of a jump, skipping the one the last jump went for. */
+/** Nearest living foe on screen within reach of a jump, skipping the one the last jump went for (in Versus, its own team and the rivals hidden in grass too). */
 const chainTarget = (g: Game, skip: number) => {
   const p = g.player
   let best: Enemy | null = null
   let bestD = dm.sq(CHAIN_RANGE)
   for (const e of g.enemies) {
-    if (!isAlive(e) || e.id === skip || !inSight(g, e.x, e.y, -8)) continue
+    if (!isAlive(e) || e.id === skip || unseen(g, e) || !inSight(g, e.x, e.y, -8)) continue
     const d = dm.sq(e.x - p.x) + dm.sq(e.y - p.y)
     if (d < bestD) {
       bestD = d

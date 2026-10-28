@@ -4,7 +4,9 @@ import { VALE, VERSUS, type Rect, type Team } from '../data/versus'
 import { channelTime, goalOpen } from '../game/versusRules'
 import type { GoalState, VersusState } from '../game/versus'
 import type { Game, Player } from '../game/types'
+import { localPlayer } from '../game/players'
 import { dashedRing } from './strokes'
+import { concealed } from './valeGrass'
 import { bannerOf, FLOWER_PATCHES, lampOf, LOG, MUSHROOMS, TALL_GRASS, TALL_GRASS_SMALL } from './valeDecor'
 
 /**
@@ -849,9 +851,10 @@ export const drawValeGround = (ctx: Ctx, g: Game, t: number, visible: (x: number
       ctx.fillRect(Math.round(o.x) + 2, Math.round(o.y) - 5 + bob, 1, 1)
     }
   }
+  const me = localPlayer(g)
   for (const p of g.players) {
     const k = channelShare(s, g, p)
-    if (k === null || !visible(p.x, p.y)) continue
+    if (k === null || !visible(p.x, p.y) || concealed(me, p)) continue
     arc(ctx, p.x, p.y + 1, 15, 7, k, TEAM_LIGHT[p.versus!.team])
   }
 }

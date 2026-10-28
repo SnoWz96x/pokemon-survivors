@@ -16,6 +16,7 @@ import { slotColor } from './team'
 import { VALE } from '../data/versus'
 import { goalOpen } from '../game/versusRules'
 import { TEAM_COLORS } from './vale'
+import { concealed } from './valeGrass'
 
 /**
  * The HUD's mini map (`ui/minimap.ts`): a pixel-art map around the local
@@ -508,7 +509,7 @@ const frame = (ctx: Ctx, shape: MinimapShape) => {
 /** World px per map px for the whole Vale (1500 × 760): it fits the round map's window. */
 const VALE_SCALE = 28
 /** The Vale's map colors. */
-const VALE_LOOK = { hedge: '#143820', edge: '#7ab060', grass: '#4f8c3e', jungle: '#356a32', path: '#a88258', base: ['#3e5c88', '#884048'] } as const
+const VALE_LOOK = { hedge: '#143820', edge: '#7ab060', grass: '#4f8c3e', jungle: '#356a32', path: '#a88258', tall: '#1e4a20', base: ['#3e5c88', '#884048'] } as const
 
 const VALE_GLYPHS = lazy(() => ({
   goal: [0, 1].map((team) => glyph(['.c.', 'cwc', '.c.'], { c: TEAM_COLORS[team as 0 | 1], w: '#ffffff' })),
@@ -518,8 +519,9 @@ const VALE_GLYPHS = lazy(() => ({
 
 /**
  * A match's map: the whole Vale at once, north up (its floor, the jungle, the
- * lanes' paths, the bases in their team's color), the goals by team (shut
- * ones dark, broken ones grey), every Pokémon on its feet as its team's dot,
+ * lanes' paths, the bases in their team's color, the tall grass), the goals
+ * by team (shut ones dark, broken ones grey), every Pokémon on its feet as its
+ * team's dot (but rivals hidden in the grass),
  * the objective in the center, and the local player as the arrow.
  */
 const drawValeMap = (ctx: Ctx, g: Game, shape: MinimapShape, t: number) => {
@@ -548,6 +550,8 @@ const drawValeMap = (ctx: Ctx, g: Game, shape: MinimapShape, t: number) => {
       rect(r.x0, r.y0, r.x1, r.y1)
     }
   })
+  ctx.fillStyle = VALE_LOOK.tall
+  for (const r of VALE.grass) rect(r.x0, r.y0, r.x1, r.y1)
   drawViewBox(ctx, v, g)
   const art = VALE_GLYPHS()
   for (const goal of s.goals) marker(ctx, v, shape, goal.broken ? art.broken : goalOpen(s, goal) ? art.goal[goal.team]! : art.locked[goal.team]!, goal.x, goal.y, true)
@@ -555,7 +559,7 @@ const drawValeMap = (ctx: Ctx, g: Game, shape: MinimapShape, t: number) => {
   if (objective) marker(ctx, v, shape, GLYPHS().boss[Math.floor(t * 4) % 2]!, objective.x, objective.y, true)
   const me = localPlayer(g)
   for (const p of g.players) {
-    if (p === me || p.gone || p.hp <= 0 || !p.versus) continue
+    if (p === me || p.gone || p.hp <= 0 || !p.versus || concealed(me, p)) continue
     marker(ctx, v, shape, teammate(TEAM_COLORS[p.versus.team]), p.x, p.y, true)
   }
   if (me.hp > 0) ctx.drawImage(ARROWS()[heading(me.facing.x, me.facing.y)]!, mapX(v, me.x) - 4, mapY(v, me.y) - 4)
