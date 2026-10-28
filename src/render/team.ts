@@ -4,13 +4,14 @@ import { COOP } from '../data/coop'
 import { formAt } from '../game/branch'
 import { fainted } from '../game/coop'
 import { heldMega } from '../game/mega'
-import { actAs } from '../game/players'
+import { actAs, localPlayer } from '../game/players'
 import type { Game, Player } from '../game/types'
 import { TEAM_FX, teamArrow, type TeamIcon } from './art'
 import { markerInsets, type MarkerInsets } from './mapEvents'
 import { drawPokemon, hasSheets, sprites, type SpeciesSprites } from './sprites'
 import { dashedRing } from './strokes'
 import { orbGlyph, TEAM_COLORS, TEAM_LIGHT } from './vale'
+import { concealed } from './valeGrass'
 import { VERSUS } from '../data/versus'
 
 /**
@@ -220,10 +221,11 @@ export const drawTeamGround = (ctx: Ctx, g: Game, t: number) => {
   }
 }
 
-/** Versus: a ring at every standing Pokémon's feet in its team's color (the local one's too). */
+/** Versus: a ring at every standing Pokémon's feet in its team's color (the local one's too), but a rival hidden in the grass. */
 const drawVersusGround = (ctx: Ctx, g: Game) => {
+  const me = localPlayer(g)
   for (const p of g.players) {
-    if (p.gone || benched(p) || !p.versus) continue
+    if (p.gone || benched(p) || !p.versus || concealed(me, p)) continue
     const r = Math.round(mateSprites(g, p).bodyW / 2) + 2
     const color = TEAM_COLORS[p.versus.team]
     dashedRing(ctx, p.x, p.y + 1, r, 0, [color], 1, 0.4)
@@ -285,11 +287,11 @@ const energyText = (n: number) => (energies[n] ??= String(n))
  * Versus, over everyone: each other Pokémon's tag in its team's color (a
  * bot's form), and over every Pokémon carrying Energy (the local one too) a
  * dark badge with the orb and how much, gold-rimmed when full. HP bars come
- * with `drawPlayer`.
+ * with `drawPlayer`. A rival hidden in the grass shows none.
  */
 const drawVersusAir = (ctx: Ctx, g: Game, me: Player) => {
   for (const p of g.players) {
-    if (p.gone || benched(p) || !p.versus) continue
+    if (p.gone || benched(p) || !p.versus || concealed(me, p)) continue
     const top = p.y - mateSprites(g, p).bodyH
     let above = top - 5
     if (p !== me) {

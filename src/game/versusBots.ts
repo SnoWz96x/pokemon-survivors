@@ -12,7 +12,8 @@ import * as dm from '../engine/dmath'
  * bot picks where to go (retreat, score, fight, farm its lane, take the
  * objective, push) and walks there through the map's rooms (`route`). Its
  * moves fire on their own like anyone's; it presses its special when a rival
- * is close. Pure on the game state: no rng, no clock.
+ * is close. It doesn't see rivals hidden in tall grass, and slips into grass
+ * itself to shake off a stronger rival. Pure on the game state: no rng, no clock.
  */
 
 const contains = (r: Rect, x: number, y: number) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1
@@ -122,12 +123,12 @@ const d2 = (a: { x: number; y: number }, b: { x: number; y: number }) => dm.sq(a
 /** HP share left. */
 const share = (p: Player) => p.hp / Math.max(1, p.stats.maxHp)
 
-/** The rival in play nearest `p`, within `r` px. */
+/** The rival in play nearest `p`, within `r` px, that `p`'s team can see (not hidden in the grass). */
 const nearestRival = (g: Game, p: Player, team: Team, r: number) => {
   let best: Player | null = null
   let bestD = r * r
   for (const q of g.players) {
-    if (q.versus?.team !== rivalTeam(team) || !inPlay(q)) continue
+    if (q.versus?.team !== rivalTeam(team) || q.versus.hidden || !inPlay(q)) continue
     const d = d2(p, q)
     if (d < bestD) {
       bestD = d
@@ -177,6 +178,25 @@ const rivalGoal = (g: Game, p: Player, team: Team) => {
   return best
 }
 
+/** Farthest (px) a bot backing off from a rival looks for tall grass to slip into. */
+const COVER = 110
+
+/** The middle of the tall-grass patch nearest `p`, within `COVER` px, or null. */
+const nearestCover = (p: Player) => {
+  let best: { x: number; y: number } | null = null
+  let bestD = COVER * COVER
+  for (const r of VALE.grass) {
+    const x = (r.x0 + r.x1) / 2
+    const y = (r.y0 + r.y1) / 2
+    const d = dm.sq(x - p.x) + dm.sq(y - p.y)
+    if (d < bestD) {
+      bestD = d
+      best = { x, y }
+    }
+  }
+  return best
+}
+
 /** Energy a bot goes to score with: less near a goal and in the last stretch. */
 const scoreWith = (g: Game, near: boolean) => (g.versus!.stretch ? 6 : near ? 8 : 16)
 
@@ -195,9 +215,13 @@ const decide = (g: Game, p: Player): Aim => {
     const near = d2(p, goal) < 220 * 220
     if (v.energy >= scoreWith(g, near) || v.goal >= 0 || v.energy >= VERSUS.energy.cap) return spot(goal.x, goal.y, 10)
   }
-  // A rival close: fight it while about as healthy, else back off toward the pad.
+  // A rival close: fight it while about as healthy, else back off: into tall grass nearby to lose it, or (seen there, or none near) toward the pad.
   const rival = nearestRival(g, p, v.team, 140)
-  if (rival) return share(p) + 0.15 >= share(rival) ? { kind: 'player', slot: rival.slot, near: 34 } : spot(pad.x, pad.y, 12)
+  if (rival) {
+    if (share(p) + 0.15 >= share(rival)) return { kind: 'player', slot: rival.slot, near: 34 }
+    const cover = v.grass >= 0 && !v.hidden ? null : nearestCover(p)
+    return cover ? spot(cover.x, cover.y, 6) : spot(pad.x, pad.y, 12)
+  }
   // The objective: the jungler takes it, and everyone in the last stretch.
   const o = s.objective
   if (o && (v.lane === 'jungle' || s.stretch) && g.enemies.some((k) => k.id === o.id && k.dying < 0)) return { kind: 'enemy', id: o.id, near: 30 }
@@ -218,7 +242,8 @@ const aimAt = (g: Game, aim: Aim): { x: number; y: number } | null => {
   if (aim.kind === 'spot') return aim
   if (aim.kind === 'player') {
     const q = g.players[aim.slot]
-    return q && inPlay(q) ? q : null
+    // Gone into the grass: lost.
+    return q && inPlay(q) && !q.versus?.hidden ? q : null
   }
   for (const e of g.enemies) if (e.id === aim.id && e.dying < 0) return e
   return null
