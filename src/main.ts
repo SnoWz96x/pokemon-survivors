@@ -106,7 +106,7 @@ import { clearSpot, featureAt, featuresNear, footOf, inSolid } from './game/terr
 import { TERRAIN, type SolidKind } from './data/terrain'
 import type { LandmarkId } from './data/landmarks'
 import { dexNews, dexStatus, mergeDex, recordRun, type Pokedex } from './game/dex'
-import { NO_RANKS, runEarnings, wonRun, type ConvertedEggs } from './game/meta'
+import { runEarnings, wonRun, type ConvertedEggs } from './game/meta'
 import { missionStatus, type MissionStatus } from './game/missions'
 import { summarizeRun, type RunSummary } from './game/tally'
 import { parseHandle, rankable, runMode, runResult } from './game/ranking'
@@ -180,7 +180,7 @@ import { localPlayer, phaseOf } from './game/players'
 import { activeCoopClient, addBots, arenaClient, arenaQueueDeps, bankCoopRun, botStates, buildRefusal, closeArenaClient, coopClient, coopEventFor, openArenaClient, coopNetPayload, coopUrl, lastCoopNet, linkedRoom, linkRoom, markBuildReload, removeBots, reportCoopNet, reportHeal, setCoopUrl, setCoopVpsUrl, setBotRelays, surrenderBots, type CoopNetOutcome } from './coopShell'
 import { noteDraw, type NetStats } from './coop/netStats'
 import type { CloseWhy, CoopClient } from './coop/client'
-import { coopAccess, coopStarter, freshInvites } from './coop/lobby'
+import { arenaLoadout, arenaSeat, coopAccess, coopStarter, freshInvites } from './coop/lobby'
 import { REF_PARAM } from './game/referral'
 import { PROTOCOL, VPS_HOMES, parseRoomCode, type RoomView } from './net/protocol'
 import { isRecord } from './game/parse'
@@ -208,7 +208,7 @@ import { versusSplash } from './ui/versusSplash'
 import { createVersusHud, isVersusEvent, versusFeedback, type VersusHud } from './ui/versusHud'
 import { createVersusTray, type VersusTray } from './ui/versusTray'
 import { versusEnd } from './ui/versusEnd'
-import { VALE, VERSUS, VERSUS_PICKS, isVersusPick, type Team, type VersusPick } from './data/versus'
+import { VALE, VERSUS, VERSUS_PICKS, isVersusPick, type VersusPick } from './data/versus'
 import { parseLoadout, parseSettings, type CoopPick } from './coop/start'
 
 /** Fixed simulation step: the replays the ranking re-simulates count on it. */
@@ -2473,12 +2473,21 @@ const watchCoop = (client: CoopClient) => {
   })
 }
 
+/** A co-op seat's loadout from the save: the partner (`coopStarter`), its ranks and its shiny. */
+const coopLoadout = (): CoopPick => {
+  const save = loadSave()
+  const starter = coopStarter(save.partner)
+  return { starter, ranks: save.ranks, shiny: playsShiny(save, starter) }
+}
+
 /**
  * Joins a co-op room (the hub, a link, an invite, `ps.coop('join', code)`):
  * sets this player's loadout, ready unless hosting. `via` says how, for the
- * analytics (null: the room this player just created).
+ * analytics (null: the room this player just created). The loadout is
+ * `pick`, else the one the room plays: the Arena pick on Blue in an Arena
+ * room, the save's partner in a co-op one.
  */
-const joinCoop = async (code: string, via: 'code' | 'link' | 'invite' | null) => {
+const joinCoop = async (code: string, via: 'code' | 'link' | 'invite' | null, pick?: CoopPick) => {
   const client = coopClient()
   if (!client) return { ok: false as const, why: 'offline' as const }
   watchCoop(client)
@@ -2488,9 +2497,7 @@ const joinCoop = async (code: string, via: 'code' | 'link' | 'invite' | null) =>
   if (via) track('coop', { step: 'join', via })
   // The room it landed in: an old link's room may have moved (`moved`).
   linkRoom(res.room.code)
-  const save = loadSave()
-  const starter = coopStarter(save.partner)
-  client.setLoadout({ starter, ranks: save.ranks, shiny: playsShiny(save, starter) })
+  client.setLoadout(pick ?? (parseSettings(res.room.settings).mode === 'versus' ? arenaLoadout(arenaStart(), 0) : coopLoadout()))
   const me = res.room.members.find((m) => m.seat === res.seat)
   if (me && !me.host) client.setReady(true)
   return res
@@ -2775,8 +2782,7 @@ const showCoopPartner = () => {
   const pick = (id: PlayableId) => {
     const starter = coopStarter(id)
     updateSave((s) => ({ ...s, partner: starter }))
-    const save = loadSave()
-    coopClient()?.setLoadout({ starter, ranks: save.ranks, shiny: playsShiny(save, starter) })
+    coopClient()?.setLoadout(coopLoadout())
     setTimeout(showRoom, 250)
   }
   const select = starterSelect(
@@ -2831,9 +2837,6 @@ const offerInvites = (invites: readonly CoopInvite[]) => {
 }
 
 /* ---------------- Arena (Versus) ---------------- */
-
-/** An Arena seat's loadout: the Pokémon and the side it asks for (the match brings nothing from the save: no ranks, no shiny). */
-const arenaLoadout = (starter: VersusPick, team: Team): CoopPick => ({ starter, ranks: { ...NO_RANKS }, shiny: false, team })
 
 /** The Pokémon the Arena opens on: the last one taken there, else the lobby's partner when it's a starter. */
 const arenaStart = () => arenaPick(loadSave().partner)
@@ -3042,14 +3045,14 @@ const openArenaRoom = async (id: VersusPick) => {
     toast(ui, t().coop.createFailed[made.why], 4000, 'arenaFailed')
     return showArena()
   }
-  const res = await joinCoop(made.code, null)
+  // The seat takes the Arena pick as it joins, before the room turns Arena: a co-op loadout there would be swapped by `syncArenaLoadout`.
+  const res = await joinCoop(made.code, null, arenaLoadout(id, 0))
   if (!res.ok) {
     toast(ui, closedText(res.why), 4000, 'arenaFailed')
     return showArena()
   }
   track('coop', { step: 'create', relay: made.home, ...(made.overflow ? { overflow: made.overflow } : {}) })
   client.setSettings({ difficulty: loadSave().difficulty, mode: 'versus' })
-  client.setLoadout(arenaLoadout(id, 0))
   showRoom()
 }
 
@@ -3072,16 +3075,15 @@ const showArenaRoomPick = () => {
 
 /**
  * In a room playing Arena, this player's loadout must be an Arena one: a
- * starter from the roster and a side. Joining one (or the host switching to
- * Arena) with a hatched Pokémon or no side sets the Arena pick on Blue.
+ * starter from the roster and a side. A co-op one (the host switching the
+ * room to Arena) takes the Arena pick on Blue (`arenaSeat`).
  */
 const syncArenaLoadout = (client: CoopClient, room: RoomView) => {
   if (parseSettings(room.settings).mode !== 'versus') return
   const me = room.members.find((m) => m.seat === client.state().seat)
   if (!me?.loadout) return
-  const pick = parseLoadout(me.loadout)
-  if (isVersusPick(pick.starter) && pick.team !== undefined) return
-  client.setLoadout(arenaLoadout(isVersusPick(pick.starter) ? pick.starter : arenaStart(), pick.team ?? 0))
+  const next = arenaSeat(parseLoadout(me.loadout), arenaStart())
+  if (next) client.setLoadout(next)
 }
 
 /** The species a match shows besides its players: the camps' and the objectives'. */
