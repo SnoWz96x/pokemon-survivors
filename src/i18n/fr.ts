@@ -518,6 +518,8 @@ export const fr: Messages = {
     rejected: 'Cette partie n’a pas été retenue pour le classement.',
     outdated: 'Le jeu a été mis à jour pendant ta partie, elle n’a donc pas pu rejoindre le classement. Ta prochaine partie utilisera la nouvelle version.',
     unranked: 'Cette partie est hors classement : elle a commencé hors ligne, ou avec le jeu ouvert dans un autre onglet ou sur un autre appareil.',
+    connecting: 'Connexion au classement…',
+    playUnranked: 'Jouer sans classement',
     unlisted: 'Cette partie est restée hors classement : la connexion a coupé pendant que tu jouais. Elle compte quand même sur ton profil.',
     guest: 'Connecte-toi pour apparaître au classement.',
     noHandle: 'Crée ton profil sur l’écran du compte pour apparaître au classement.',

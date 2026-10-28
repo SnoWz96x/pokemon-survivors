@@ -519,6 +519,8 @@ export const en: Messages = {
     rejected: "This run didn't make it into the ranking.",
     outdated: "The game was updated while you played, so this run couldn't join the ranking. Your next run plays the new version.",
     unranked: 'This run is off the ranking: it started offline, or with the game open in another tab or device.',
+    connecting: 'Connecting to the ranking…',
+    playUnranked: 'Play without ranking',
     unlisted: 'This run stayed off the ranking: the connection dropped while you played. It still counts on your profile.',
     guest: 'Sign in to show up on the ranking.',
     noHandle: 'Create your profile on the account screen to show up on the ranking.',
