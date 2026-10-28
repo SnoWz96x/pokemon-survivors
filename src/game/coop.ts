@@ -114,7 +114,8 @@ const holdsWorld = (g: Game, p: Player) => p.away && !p.gone && p.hp > 0 && (g.c
  * dropped connection doesn't cost the run at once). Returns whether it ended.
  */
 export const checkWipe = (g: Game, foe: EnemyId | null = null, hit: HitKind = 'hazard') => {
-  if (g.coop === null || g.phase === 'gameover' || g.phase === 'victory') return false
+  // A Versus match ends on its clock only.
+  if (g.coop === null || g.versus || g.phase === 'gameover' || g.phase === 'victory') return false
   for (const p of g.players) if (!p.gone && p.hp > 0 && (!p.away || holdsWorld(g, p))) return false
   g.phase = 'gameover'
   g.events.push({ kind: 'gameover', foe, hit })
@@ -212,10 +213,18 @@ export const setAway = (g: Game, p: Player, away: boolean) => {
 /**
  * A player left the run for good: their Pokémon leaves the field (no Poké Ball
  * to revive), their open picks close, and they stop counting for the horde.
- * The run ends if nobody is left to play.
+ * The run ends if nobody is left to play. In Versus a bot takes the seat over.
  */
 export const leaveRun = (g: Game, p: Player) => {
   if (p.gone || g.coop === null) return
+  // Versus: a bot plays the seat on, so the teams stay even.
+  if (p.versus) {
+    p.versus.bot = true
+    p.away = false
+    g.coop.held[p.slot] = 0
+    g.events.push({ kind: 'left', slot: p.slot })
+    return
+  }
   p.gone = true
   p.away = false
   p.hp = 0

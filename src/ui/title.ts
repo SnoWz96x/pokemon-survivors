@@ -12,16 +12,18 @@ import { DISCORD_GIFT } from '../game/gifts'
 import { nextMilestone } from '../game/referral'
 import { dayKey, missionStatus } from '../game/missions'
 import { pendingPicks, playsShiny } from '../game/shinyPicks'
+import type { ArenaHubTab } from './arenaHub'
 import { pollToVote, supporterCount, tierRank, type WallEntry } from '../game/supporters'
 import { formatNumber, locale, t } from '../i18n'
-import { bulbIcon, coinIcon, coopIcon, discordIcon, eggIcon, giftIcon, heartIcon, itemIcon, medalIcon, newsIcon, pawIcon, pokeballIcon, ribbonIcon, socialIcon, sparkleIcon, supporterIcon, surveyIcon } from '../render/art'
+import { arenaIcon, bulbIcon, coinIcon, coopIcon, discordIcon, eggIcon, giftIcon, heartIcon, itemIcon, medalIcon, newsIcon, pawIcon, pokeballIcon, ribbonIcon, socialIcon, sparkleIcon, supporterIcon, surveyIcon } from '../render/art'
 import { logoScale, titleLogo } from '../render/logo'
 import { drawPokemon, loadedSprites, loadSpecies, type Dex } from '../render/sprites'
 import type { LobbyNpc, Place } from '../render/titleScene'
+import { isBoard, type BoardId } from '../render/stadium'
 import { stallGoods } from '../game/stalls'
 import type { VisitorShelf } from './shop'
 import { dialogue, type Dialogue, type Speaker } from './dialogue'
-import { lanturnSpeaker, senseiSpeaker, stallSpeaker, stallToday } from './visitors'
+import { judgeSpeaker, lanturnSpeaker, senseiSpeaker, stallSpeaker, stallToday } from './visitors'
 import { inviterName } from '../ranking'
 import { ROUTES, SOCIAL_IDS, SOCIALS, type SocialId } from '../site/routes'
 import { fetchWall, knownStatus } from '../supporters'
@@ -66,6 +68,7 @@ export type LobbyFocus =
   | 'ranking'
   | 'ideas'
   | 'coop'
+  | 'arena'
   | 'play'
   | 'explore'
   | SocialId
@@ -152,10 +155,15 @@ export type TitleActions = {
   invites: (focus: LobbyFocus) => Screen
   /** Jogar junto (co-op): the hub. No action (no relay in this build), no tile. */
   coop?: () => void
+  /** Arena (Versus): its screen. Always there: against bots it needs no relay nor account. */
+  arena: () => void
+  /** The Arena's hub on one of its tabs: the Estádio's boards (all but Jogar, which is `arena`). */
+  arenaHub: (tab: ArenaHubTab) => void
   /** The Dojo, once Machoke said hello: who trains (the partner select in its Dojo guise, `game/training.ts`). */
   dojo: () => void
   meadow: Meadow
 }
+
 
 /**
  * The lobby's three layouts, in sync with the media queries of the lobby's
@@ -724,6 +732,17 @@ const coopTile = () => {
   return el
 }
 
+/** Set once the player opens the Arena on this device: the tile's NOVO tag goes for good. */
+const ARENA_SEEN = 'ps:arenaSeen'
+
+const arenaSeen = () => {
+  try {
+    return localStorage.getItem(ARENA_SEEN) !== null
+  } catch {
+    return true
+  }
+}
+
 /** Set once the player first trains at the Dojo on this device: the tile's NOVO tag and Machoke's long hello go for good. */
 const DOJO_SEEN = 'ps:dojoSeen'
 
@@ -735,11 +754,45 @@ const dojoSeen = () => {
   }
 }
 
+const markArenaSeen = () => {
+  try {
+    localStorage.setItem(ARENA_SEEN, '1')
+  } catch {
+    // Private modes may refuse: the tag just shows again next time.
+  }
+}
+
+/** The Arena's tile, tagged NOVO until the player first opens it. */
+const arenaTile = () => {
+  const el = dockTile('arena', arenaIcon(), t().versus.entry, 'V')
+  if (!arenaSeen()) el.append(h('em', { class: 'lobby-new arena-new' }, t().versus.fresh))
+  return el
+}
+
 const markDojoSeen = () => {
   try {
     localStorage.setItem(DOJO_SEEN, '1')
   } catch {
     // Private modes may refuse: the tag and the long hello just show again next time.
+  }
+}
+
+/** Set once Ninjask first greets the player at the Estádio on this device: its long hello goes for good. */
+const STADIUM_SEEN = 'ps:stadiumSeen'
+
+const stadiumSeen = () => {
+  try {
+    return localStorage.getItem(STADIUM_SEEN) !== null
+  } catch {
+    return true
+  }
+}
+
+const markStadiumSeen = () => {
+  try {
+    localStorage.setItem(STADIUM_SEEN, '1')
+  } catch {
+    // Private modes may refuse: the long hello just plays again next time.
   }
 }
 
@@ -775,16 +828,16 @@ const heldMove = (input: Input, arrows: boolean): Vec => {
 }
 
 /** Shortcuts, shown as key hints on what they press (`C` belongs to the Trainer chip; P, E and Space are taken by the run's controls, and E talks to a shopkeeper the partner stands by). */
-const HOTKEYS: Readonly<Record<string, LobbyFocus>> = { KeyF: 'festival', KeyJ: 'coop', KeyG: 'gifts', KeyN: 'news', KeyX: 'pokedex', KeyO: 'eggs', KeyL: 'mart', KeyT: 'dojo', KeyR: 'ranking', KeyI: 'ideas', KeyM: 'missions', KeyH: 'hall' }
+const HOTKEYS: Readonly<Record<string, LobbyFocus>> = { KeyF: 'festival', KeyJ: 'coop', KeyV: 'arena', KeyG: 'gifts', KeyN: 'news', KeyX: 'pokedex', KeyO: 'eggs', KeyL: 'mart', KeyT: 'dojo', KeyR: 'ranking', KeyI: 'ideas', KeyM: 'missions', KeyH: 'hall' }
 
-/** The "Falar · E" bubble over a shopkeeper while the strolling partner stands close (a tap on it talks too). */
-const talkPrompt = (onTalk: () => void) =>
-  h(
-    'button',
-    { class: 'plaza-talk box hidden', type: 'button', onclick: onTalk },
-    h('b', {}, t().plaza.talk),
-    h('span', { class: 'key-hint' }, 'E'),
-  )
+/** The "Falar · E" bubble over a shopkeeper while the strolling partner stands close (a tap on it talks too); `label` holds its word (`talkLabel`). */
+const talkPrompt = (onTalk: () => void, label: HTMLElement) => h('button', { class: 'plaza-talk box hidden', type: 'button', onclick: onTalk }, label, h('span', { class: 'key-hint' }, 'E'))
+
+/** What the talk bubble says over `who`: Falar, or an Estádio board's name. */
+const talkLabel = (who: LobbyNpc) => (isBoard(who) ? t().stadium.boards[who] : t().plaza.talk)
+
+/** Where an Estádio board leads: Jogar to the Arena's screen, the rest to that tab of its hub. */
+const BOARD_TABS = { play: null, ranking: 'ranking', season: 'season', history: 'history', rules: 'rules' } as const satisfies Record<BoardId, ArenaHubTab | null>
 
 /**
  * How the lobby goes to the Kecleon's shop: `shop` (the dock's Loja, a talk,
@@ -792,8 +845,12 @@ const talkPrompt = (onTalk: () => void) =>
  * `ps.festival('open')`, a talk at the fountain) opens the Festival da Praça's
  * sheet there (`plaque`, a talk at the donors' plaque, on its plaque tab),
  * `look` (dev, `ps.plaza()`) only goes there, for a look; Esc or Enter brings it back.
+ * `dojo` and `stadium` go west to the Dojo and south to the Estádio instead, where Machoke or Ninjask says hello.
  */
-export type ShopTrip = 'shop' | 'festival' | 'plaque' | 'look' | 'dojo'
+export type ShopTrip = 'shop' | 'festival' | 'plaque' | 'look' | 'dojo' | 'stadium'
+
+/** The place a trip goes to. */
+const tripPlace = (mode: ShopTrip): Place => (mode === 'dojo' || mode === 'stadium' ? mode : 'plaza')
 
 /**
  * Title screen over the live meadow: the pixel logo and a blinking "press
@@ -870,7 +927,8 @@ export const titleScreen = (
   let wallet: HTMLElement | null = null
   /** The Noite das Bruxas card (not the rail's tile), refreshed when the shop closes: the stall spends candies. */
   let candyCard: HTMLElement | null = null
-  const talkButton = talkPrompt(() => talkTo(talkWho))
+  const talkText = h('b', {}, t().plaza.talk)
+  const talkButton = talkPrompt(() => talkTo(talkWho), talkText)
   /** Passear: the lobby's cards are away and the partner walks the meadow and the plaza; only the back button, the hint and the talk prompt stay. */
   let exploring = false
   const exploreHint = h(
@@ -969,6 +1027,7 @@ export const titleScreen = (
     ranking: () => ranking && openOver(ranking),
     ideas: () => ideas && openOver(ideas),
     coop: () => (markCoopSeen(), coop?.()),
+    arena: () => visitShop('stadium'),
     play: actions.play,
     explore: () => enterExplore(),
     tiktok: () => openSocial('tiktok'),
@@ -1053,13 +1112,15 @@ export const titleScreen = (
       ...(ideas ? [pressable(dockTile('ideas', bulbIcon(), m.ideas, 'I'), 'ideas')] : []),
     ]
     // Co-op sits right of JOGAR on wide screens (the right half's first tile), last on phones (`style.css`).
-    if (coop) tiles.splice(Math.ceil((tiles.length + 1) / 2), 0, pressable(coopTile(), 'coop'))
+    // The Arena sits right of JOGAR on wide screens (the right half's first tile), Co-op after it; on phones they're the tab bar's last two (`style.css`).
+    const right = Math.ceil((tiles.length + 1 + (coop ? 1 : 0)) / 2)
+    tiles.splice(right, 0, pressable(arenaTile(), 'arena'), ...(coop ? [pressable(coopTile(), 'coop')] : []))
     const play = pressable(h('button', { class: 'lobby-play', type: 'button' }, h('span', {}, m.play), h('span', { class: 'key-hint' }, 'ENTER')), 'play')
     // JOGAR sits in the middle of the dock on wide screens, between the two halves (centered however many tiles each has); the CSS moves it above the tab bar on phones.
     const half = Math.ceil(tiles.length / 2)
     const bottom = h(
       'div',
-      { class: 'lobby-bottom', style: `--tiles:${tiles.length}` },
+      { class: 'lobby-bottom', style: `--tiles:${tiles.length};--arena-col:${tiles.length - (coop ? 1 : 0)}` },
       h('div', { class: 'lobby-dock left' }, ...tiles.slice(0, half)),
       play,
       h('div', { class: 'lobby-dock right' }, ...tiles.slice(half)),
@@ -1127,15 +1188,18 @@ export const titleScreen = (
     tap = null
     actions.meadow.stick(null)
     actions.meadow.steer({ x: 0, y: 0 }, null, stage.feet())
-    actions.meadow.visit(visit.mode === 'dojo' ? 'dojo' : 'plaza', instant)
+    actions.meadow.visit(tripPlace(visit.mode), instant)
   }
 
   /**
-   * A talk at the plaza or the Dojo: the shop with a shopkeeper, the caravan's shelf with Meowth, a few words with a stall's keeper or Lanturn, the festival's sheet at the fountain (its plaque tab at the plaque), the Dojo with its sensei.
+   * A talk at the plaza, the Dojo or the Estádio: the shop with a shopkeeper, the caravan's shelf with Meowth, a few words with a stall's keeper or Lanturn, the festival's sheet at the fountain (its plaque tab at the plaque), the Dojo with its sensei,
+   * the Arena with Ninjask (its hello first) and a board's screen at an Estádio board.
    * `beside`: the partner stands by `who`; from afar (a tap on the stall's edge marker), the stall skips its keeper's words.
    */
   function talkTo(who: LobbyNpc, beside = true) {
     if (who === 'sensei') return visitShop('dojo')
+    if (who === 'judge') return visitShop('stadium')
+    if (isBoard(who)) return readBoard(who)
     if (who === 'stall') return talkToStall(beside)
     if (who === 'lanturn') return chatThen(lanturnSpeaker(), t().plaza.lanturn, () => visitShop('festival'))
     if (who === 'fountain') return visitShop('festival')
@@ -1178,6 +1242,15 @@ export const titleScreen = (
     })
   }
 
+  /** An Estádio board: Jogar opens the Arena's screen, the others their tab of its hub. */
+  function readBoard(id: BoardId) {
+    if (visit || chat || !stage) return
+    playSfx('select')
+    markArenaSeen()
+    const tab = BOARD_TABS[id]
+    later(() => (tab ? actions.arenaHub(tab) : actions.arena()))
+  }
+
   /** Keys during a trip: Esc or Backspace turns back on the way; for a look, Enter or Space too once there. */
   function visitKey(key: string) {
     if (!visit) return
@@ -1185,7 +1258,7 @@ export const titleScreen = (
     if ((visit.phase === 'going' && back) || (visit.phase === 'here' && (back || key === 'Enter' || key === 'Space'))) goHome()
   }
 
-  /** At the plaza: the shop opens, Kecleon talking beside it (a look just waits). At the Dojo, Machoke says hello and the Dojo opens. */
+  /** At the plaza: the shop opens, Kecleon talking beside it (a look just waits). At the Dojo, Machoke says hello and the Dojo opens; at the Estádio, Ninjask and then the Arena. */
   const arrived = () => {
     if (!visit) return
     if (visit.mode === 'look') {
@@ -1194,6 +1267,7 @@ export const titleScreen = (
     }
     visit.phase = 'shop'
     if (visit.mode === 'dojo') return greetAtDojo()
+    if (visit.mode === 'stadium') return greetAtStadium()
     if (visit.mode === 'festival' || visit.mode === 'plaque') overScreen = actions.festival(goHome, visit.mode === 'plaque' ? 'plaque' : 'fountain')
     else openShop(visit.shelf)
   }
@@ -1212,6 +1286,25 @@ export const titleScreen = (
           chat = null
           markDojoSeen()
           actions.dojo()
+        }),
+    })
+  }
+
+  /** Ninjask's hello at the Estádio (the long one, explaining the Arena, the first time), then the Arena's screen. */
+  function greetAtStadium() {
+    const m = t().stadium
+    const first = !stadiumSeen()
+    const lines = first ? m.first : [m.hello[Math.floor(Math.random() * m.hello.length)]!]
+    chat = dialogue(root, input, {
+      speaker: judgeSpeaker(),
+      lines: lines.map((text, i) => ({ text, emotion: i === 0 ? 'Happy' : i === lines.length - 1 ? 'Joyous' : 'Normal' })),
+      onDone: () =>
+        later(() => {
+          chat?.dispose()
+          chat = null
+          markStadiumSeen()
+          markArenaSeen()
+          actions.arena()
         }),
     })
   }
@@ -1264,7 +1357,7 @@ export const titleScreen = (
     meadow.steer({ x: 0, y: 0 }, null, stage.feet())
     stage.setOut(meadow.out())
     const at = meadow.at()
-    if (visit.phase === 'going' && at === (visit.mode === 'dojo' ? 'dojo' : 'plaza')) arrived()
+    if (visit.phase === 'going' && at === tripPlace(visit.mode)) arrived()
     else if (visit.phase === 'back' && at === 'home') landed()
   }
 
@@ -1359,7 +1452,11 @@ export const titleScreen = (
     // By a shopkeeper, the talk prompt floats over its head.
     const spot = meadow.talkSpot()
     talkButton.classList.toggle('hidden', !spot)
-    if (spot) talkWho = spot.who
+    if (spot) {
+      talkWho = spot.who
+      const label = talkLabel(spot.who)
+      if (talkText.textContent !== label) talkText.textContent = label
+    }
     if (spot) talkButton.style.cssText = `left:${Math.round(spot.x / uiZoom())}px;top:${Math.round(spot.y / uiZoom())}px`
   }
 

@@ -51,6 +51,12 @@ The merge rules are not here: `mergeSaves` and `applyPush` live in `src/game/syn
 | `PUT /suggestions/:id/vote` | Body `{ vote }`: 1, -1, or 0 to take it back. `{ score, vote }`. 404 unknown or hidden, 409 shipped |
 | `POST /bug-reports` | Body `{ text, tech? }` (`parseBugReport` in `src/game/bugReport.ts`): what the player wrote and, unless they turned it off, the technical info the game gathered. Guests too; with a token the thread shows the player's handle. 201 `{ id }`: stored, and posted to Discord in the background (see [Bug reports](#bug-reports)). 400 invalid, 429 past 5 reports in an hour from the IP or the account |
 | `POST /reports` | Body `{ target, run?, reason, note? }` (`parseReport` in `src/game/reports.ts`): a player's handle, the id of their run on a board when it's about one, `cheating`, `name` or `other`, and up to 200 characters. 202 `{ received: true }` whatever became of it (see [Reports and bans](#reports-and-bans)). 400 invalid or `self`, 429 past 10 reports in 24 hours |
+| `POST /arena/report` | The relay's report of a finished Arena match (`ArenaReport` in `../src/net/arena.ts`), signed: `x-arena-signature` is the hex HMAC-SHA256 of the raw body with `ARENA_REPORT_SECRET`. Stored once per (`room`, `run`); a retry gets the stored match back. `ArenaReportResponse` `{ match, rated, duplicate }` (see [Arena](#arena)). 400 invalid (or `endedAt` more than 5 minutes ahead), 401 bad signature, 503 without the secret |
+| `POST /arena/tickets` | The matchmaker's lookup, signed the same way. Body `{ userIds }` (up to 64). `ArenaTicketsResponse` `{ season, ratings }`: each player's current-season `{ mmr, rp, games }`, a fresh rating (or the last season's reset) for anyone not rated yet |
+| `POST /arena/practice` | Body `ArenaPracticeRequest` `{ result, slot, key? }`: a quick match against bots on the device, for the player's history and totals only (never rated, never on the board). `slot` must be a human seat of the result; a retry with the same `key` lands once. 201 `{ match }` (200 `{ duplicate: true }` for a retry), 400 invalid or a bot's slot, 429 past 12 an hour |
+| `GET /arena/me` | `ArenaProfile`: the shown season (the running one, the first before it starts), the player's rating, tier and place on the board (null until rated, or without a handle), the season's totals (practice included) and their 3 most played Pokémon |
+| `GET /arena/history` | `?before=<ms>&limit=` (default 20, at most 50). `ArenaHistoryEntry[]`: the player's own matches, every kind, newest first; `rp` null when it wasn't rated |
+| `GET /arena/leaderboard` | `?season=N&limit=` (default the shown season and 50, at most 100). `ArenaLeaderboard` `{ season, rows, me }`: rated players with a handle, never banned ones, by RP, then peak, then who got there first; with a token, `me` is the asker's row with their place. Public, cached 30 s for guests |
 | `GET /admin` | `{ admin: true }` for an admin (see [Admin gift desk](#admin-gift-desk)), 403 for anyone else, like every `/admin` route |
 | `GET /admin/users` | `?q=` a handle (with or without `@`, in part) or an email (in part, asked of Clerk). `{ users }`: up to 10 `AdminUser` with their email and when they were last seen |
 | `POST /admin/gifts` | Body `{ userId, content, request }`: sends a Mystery Gift (`parseAdminGift`: any `GiftContent` but a ribbon). `request` is a uuid per send, so a retry sends nothing twice: `{ sent }`, false when it already went. 404 for an unknown player |
@@ -192,6 +198,15 @@ A community ₽ pot at the plaza's fountain (`src/festival.ts`, festivals as dat
 - **Held:** a save whose wallet is above ₽20M (`FESTIVAL.heldWallet`) donates `held`: it's spent at once but counts in the pot (and for the Mecenas title) only once the admin approves it (`POST /admin/festival/:id/approve`). The admin may also void any donation (`/void`): it never counts and its ₽ stays spent. Both are logged. Voiding below a milestone takes that milestone's frame or title back at the players' next push.
 - **The board** (`GET /festival`): every festival's pot, the shown festival's top 10 donors by @handle (counted donations, players who show their name: `PUT /festival/public`, `users.donor_public`), how many gave, and with a token the player's own (with their place among all the festival's donors, `rank`). The public part is cached 30 s per instance (dropped on a donation that counts, a review or a plaque setting).
 
+### Arena
+
+The Arena's ranked layer (`src/arena.ts`; the rules, seasons, MMR, RP and tiers, are `../src/game/arenaRank.ts` and `../src/data/arenaRanked.ts`). The co-op relay's matchmaker posts every finished matchmade match, and the client posts its quick matches against bots.
+
+- **Reports** come from the relay, signed with `ARENA_REPORT_SECRET` (`verifyArenaSignature`, constant time). Each (`room`, `run`) lands once (a unique key; two reports at once leave one `duplicate`). The seats map slots to accounts (null for bots); a human who left keeps their seat with `left`.
+- **Rated** only when `countsForRank` says so (a `ranked` queue's match with at least `minHumansRanked` humans, leavers included) and a season runs at `endedAt`. Casual, friends' rooms and practice are history only. In one transaction the players' season rows are created on first touch (from the previous season's with `seasonReset`, else `freshRating`), locked in id order so concurrent reports take turns, rated with `rateMatch` and written with each line's MMR and RP change. A leaver is rated (and shown) as a loss, whatever the score. A report with `confirmed: false` (fewer than `minHumansRanked` clients agreed on its result: the others left) rates only its leavers, as a loss; the stayers' lines are stored unrated, since nobody can confirm the result.
+- **Season titles**: an hour after a season ends, every player with `ARENA_REWARDS.minGames` rated matches gets the gift title of their peak tier (Poké Ball, Great Ball, Ultra Ball or Master Ball of the Arena; `../src/game/arenaRewards.ts`) as a Mystery Gift keyed `arena:season:<n>`, so it's sent once whatever the instances. The job runs on boot and every hour (`createArenaRewards`).
+- **Tests** against a real database (a throwaway one: it's wiped), skipped without it: `docker exec survivors-pg createdb -U postgres arena_test`, then from the repository root `ARENA_TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5433/arena_test npx vitest run server/src/arena.db.test.ts`.
+
 ### Admin gift desk
 
 For gifting players by hand (someone who talked about the game on social media, say). The desk lives in the game's account dialog ("Painel admin", `src/ui/admin.ts`), shown only when `GET /admin` answers 200.
@@ -289,6 +304,7 @@ The player's device still holds the edited save. Its next push comes on top of a
 | `ROLE` | Optional. `checks` runs the verifier alone (`src/verifier.ts`): only `DATABASE_URL` is needed (and `PORT`, `CHECKS`), and it serves only `GET /health`. Unset, the API |
 | `CHECKS` | Optional, for the verifier. `off` pauses the re-simulation of ranked runs: they stay pending with their replays until a start without it |
 | `STREAM_ENFORCE` | Optional. `1` keeps ranked runs whose replay wasn't streamed in time off the public boards (see [Replay streaming](#replay-streaming)). Unset, the API only measures and logs the lag |
+| `ARENA_REPORT_SECRET` | Optional. The secret the co-op relay signs Arena reports and ticket lookups with (the relay's own `ARENA_REPORT_SECRET`, `openssl rand -hex 32`). Without it `POST /arena/report` and `/arena/tickets` answer 503 |
 | `PORT` | Default `3000` |
 
 ## Database
@@ -318,6 +334,7 @@ Migrations are plain SQL files in `migrations/`, run in name order at boot (each
 - `users.banned_at`, `banned_reason`: a ban, since when and why (null for everyone else). `reports`: each report (`reporter_id`, `target_id`, `run_id` when it's about a run, `reason`, `note`), unique per reporter and run (or player, without a run), and how it was resolved (`resolved_at`, `resolved_by`, `resolution`: the `ModerationAction`).
 - `runs.issued_at`: when the token and its seed were dealt (`started_at` moves with `/start`, this doesn't). `runs.stream_seq`, `stream_ticks`, `stream_at`, `stream_lag`: the replay stream so far (the next chunk's `seq` and first tick, when the last commitment came, the worst lag in seconds). `runs.stream_base`, `stream_digest`: the ticks the last report pinned and their sha256. `runs.stream_ok`: whether the last report was streamed in time (null before streaming). `runs.unlisted`: kept off the public boards for its stream (only with `STREAM_ENFORCE`). `run_chunks`: each chunk waiting for its run's report (`seq`, `from_tick`, `to_tick`, `moves`, `events`, `received_at`).
 - `festival_donations`: each Festival da Praça donation (`festival`, `user_id`, `amount`, the Brasília `day`, `held` until the admin approves it, `voided`). `users.donor_public`: the plaque shows the player's @handle.
+- `arena_matches`: each finished Arena match (`room`, `run` unique; a practice's `practice:<user>:<key>` or null), its `kind`, `region`, `season`, whether it was `rated`, score, winner, length and the parsed `result`. `arena_lines`: each human's line (slot, team, Pokémon, stats, `left`, `outcome`, the match's `kind`, `season` and `at`, and the `mmr_change`, `rp_change` of a rated one). `arena_ratings`: each player's rating per season (`mmr`, `rp`, `peak`, `games`, `wins`, `losses`, `draws`, `updated_at` the board's tie break).
 - `discord_posts`: what the Discord bot already did, by key (`patch:<date>`, `challenge:<day>`, `podium:<day>`, `outbreak:<day>`, `welcome:<user>`, `short:<message>`, `take:<message>` for a staff tag, `slash:<interaction>`), with the message a patch note became so it can be edited.
 
 ## Local development
@@ -373,6 +390,7 @@ New versions roll out with no downtime:
 | `POSTHOG_KEY` | Dokploy (`api`) | PostHog (US cloud) project token, public |
 | `POSTHOG_PERSONAL_API_KEY` | Dokploy (`api`) | PostHog personal API key, `feature_flag:write` on the game's project, for `/coop-beta` (optional) |
 | `DISCORD_BUG_FORUM_ID` | Dokploy (`api`) | The #bug-reports forum's channel id (optional: found by name without it) |
+| `ARENA_REPORT_SECRET` | Dokploy (`api`) and the relay | The same random secret on both (unset until the ranked Arena ships) |
 | `STREAM_ENFORCE` | Dokploy (`api`) | Unset (observe only) until the lag is measured; `1` to enforce |
 | `ROLE` | Dokploy (`checks`) | `checks` |
 | `DATABASE_URL` | Dokploy (`checks`) | The same as `api`'s |

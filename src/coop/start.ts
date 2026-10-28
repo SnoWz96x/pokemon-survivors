@@ -6,6 +6,8 @@ import { NO_RANKS, UPGRADE_IDS, UPGRADES, type Ranks, type UpgradeId } from '../
 import { isRecord } from '../game/parse'
 import type { Game } from '../game/types'
 import type { Loadout, RunStart, Settings } from '../net/protocol'
+import { isVersusPick, VERSUS_PICKS, type Team } from '../data/versus'
+import { createVersusGame } from '../game/versus'
 
 /**
  * A co-op run's tick 0 from what the relay sends (`RunStart`): the seed, the
@@ -16,16 +18,22 @@ import type { Loadout, RunStart, Settings } from '../net/protocol'
 /**
  * What a player sends as their loadout: their Pokémon (a starter or a hatched
  * family, `PLAYABLE_IDS`: the Legend mode stays solo, `COOP_LOCKS`), Poké Mart
- * ranks and whether it plays shiny.
+ * ranks, whether it plays shiny and, in a Versus room, the team they asked for.
  */
-export type CoopPick = { starter: (typeof PLAYABLE_IDS)[number]; ranks: Ranks; shiny: boolean }
+export type CoopPick = { starter: (typeof PLAYABLE_IDS)[number]; ranks: Ranks; shiny: boolean; team?: Team }
+
+/**
+ * What a room plays: a co-op run against the horde, or a Versus match (`game/versus.ts`):
+ * two teams on one map, the seats nobody takes played by bots.
+ */
+export type RoomMode = 'run' | 'versus'
 
 /** The room's settings as the host sets them. */
-export type CoopSettings = { difficulty: Difficulty }
+export type CoopSettings = { difficulty: Difficulty; mode?: RoomMode }
 
-export const loadoutOf = (pick: CoopPick): Loadout => ({ starter: pick.starter, ranks: { ...pick.ranks }, shiny: pick.shiny })
+export const loadoutOf = (pick: CoopPick): Loadout => ({ starter: pick.starter, ranks: { ...pick.ranks }, shiny: pick.shiny, ...(pick.team !== undefined && { team: pick.team }) })
 
-export const settingsOf = (s: CoopSettings): Settings => ({ difficulty: s.difficulty })
+export const settingsOf = (s: CoopSettings): Settings => ({ difficulty: s.difficulty, ...(s.mode === 'versus' && { mode: 'versus' }) })
 
 const rankOf = (raw: unknown, max: number) => (typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 ? Math.min(raw, max) : 0)
 
@@ -35,14 +43,28 @@ export const parseLoadout = (raw: Loadout): CoopPick => {
   const r = raw.ranks
   const ranks: Record<UpgradeId, number> = { ...NO_RANKS }
   if (isRecord(r)) for (const id of UPGRADE_IDS) ranks[id] = rankOf(r[id], UPGRADES[id].maxRank)
-  return { starter, ranks, shiny: raw.shiny === true }
+  const team = raw.team === 0 || raw.team === 1 ? raw.team : undefined
+  return { starter, ranks, shiny: raw.shiny === true, ...(team !== undefined && { team }) }
 }
 
-export const parseSettings = (raw: Settings): CoopSettings => ({ difficulty: parseDifficulty(raw.difficulty) })
+export const parseSettings = (raw: Settings): CoopSettings => ({ difficulty: parseDifficulty(raw.difficulty), mode: raw.mode === 'versus' ? 'versus' : 'run' })
 
 /** The loadouts of a run, by slot (`RunStart.players` order), with each player's name. */
 export const runLoadouts = (start: RunStart): CoopLoadout[] => start.players.map((p) => ({ ...parseLoadout(p.loadout), name: p.name }))
 
-/** The run's game at tick 0: every client builds the same one. */
-export const startGame = (start: RunStart): Game =>
-  createCoopGame(start.seed, runLoadouts(start), { difficulty: parseSettings(start.settings).difficulty, view: { ...COOP.view } })
+/**
+ * The run's game at tick 0: every client builds the same one. A Versus room
+ * starts a match: each seat plays its Pokémon if Versus offers it (else the
+ * first of the roster) on the team it asked for.
+ */
+export const startGame = (start: RunStart): Game => {
+  const settings = parseSettings(start.settings)
+  if (settings.mode === 'versus') {
+    const humans = start.players.map((p) => {
+      const pick = parseLoadout(p.loadout)
+      return { starter: isVersusPick(pick.starter) ? pick.starter : VERSUS_PICKS[0]!, name: p.name, ...(pick.team !== undefined && { team: pick.team }) }
+    })
+    return createVersusGame(start.seed, humans)
+  }
+  return createCoopGame(start.seed, runLoadouts(start), { difficulty: settings.difficulty, view: { ...COOP.view } })
+}

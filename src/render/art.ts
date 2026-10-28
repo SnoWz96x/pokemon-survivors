@@ -1113,6 +1113,24 @@ const COOP_BALLS = [
 
 export const coopIcon = () => toIconUrl('coop', () => art(COOP_BALLS, { 1: '#202030', 2: '#e83850', 3: '#f8f8f8', 4: '#4898e8', 5: '#f8f8f8' }))
 
+/** Arena (Versus): a shield split Blue and Red with an Energy orb on the seam. 1 outline, 2 blue, 3 red, 4 the orb, 5 its shine. */
+const ARENA_SHIELD = [
+  '1111111111111',
+  '1222221333331',
+  '1222221333331',
+  '1222221333331',
+  '1222245433331',
+  '1222244433331',
+  '1222244433331',
+  '.12222133331.',
+  '..122213331..',
+  '...1221331...',
+  '....12131....',
+  '.....111.....',
+]
+
+export const arenaIcon = () => toIconUrl('arena', () => art(ARENA_SHIELD, { 1: '#202030', 2: '#4890f0', 3: '#f05858', 4: '#f8d030', 5: '#ffffff' }))
+
 /** The room's host: a small gold crown. 1 outline, 2 gold, 3 shine, 4 the gem. */
 const CROWN = [
   '1...1...1',
@@ -1272,3 +1290,4 @@ export const teamArrow = (color: string) => {
 export const teamBallIcon = () => toIconUrl('teamBall', TEAM_FX.ball)
 /** The "Zz" as a HUD icon. */
 export const teamAwayIcon = () => toIconUrl('teamZz', TEAM_FX.zz)
+

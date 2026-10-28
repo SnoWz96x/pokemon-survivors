@@ -11,6 +11,7 @@ import { inDoorway } from './rift'
 import { spawnAttack } from './spawn'
 import { typeEvolvedTrail } from './typeEvolutions'
 import { ownerOf } from './players'
+import { isAlly } from './versusRules'
 import type { Attack, Enemy, Game, Motion, Trailer, Turret } from './types'
 import * as dm from '../engine/dmath'
 
@@ -151,7 +152,7 @@ const PULL_BOSS = 0.25
 const pullFoes = (g: Game, a: Attack, dt: number) => {
   for (const i of query(g.grid, a.x, a.y, reach(a) + 40, neighbors)) {
     const e = g.enemies[i]
-    if (!e || e.dying >= 0 || !overlaps(a, e)) continue
+    if (!e || e.dying >= 0 || e.behavior.kind === 'avatar' || !overlaps(a, e)) continue
     const dx = a.x - e.x
     const dy = a.y - (e.y - e.radius)
     const d = dm.hypot(dx, dy)
@@ -227,7 +228,7 @@ const reach = (a: Attack) => (a.shape.kind === 'circle' ? a.shape.r : dm.hypot(a
 const collide = (g: Game, a: Attack) => {
   for (const i of query(g.grid, a.x, a.y, reach(a) + 40, neighbors)) {
     const e = g.enemies[i]
-    if (!e || e.dying >= 0 || !overlaps(a, e)) continue
+    if (!e || e.dying >= 0 || isAlly(g, e) || !overlaps(a, e)) continue
     if ((a.hits.get(e.id) ?? -1) > g.now) continue
     if (a.blast > 0) return detonate(g, a, false)
     a.hits.set(e.id, g.now + a.hitInterval)

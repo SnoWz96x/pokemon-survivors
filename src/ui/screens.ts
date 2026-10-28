@@ -211,7 +211,8 @@ const stepLine = (id: MoveId, level: number) => {
   return typeof text === 'string' ? text : t().levelUp.forkHint(text.fork[0].name, text.fork[1].name)
 }
 
-const offerView = (g: Game, offer: Offer) => {
+/** What a card shows for an offer: its icon, name, tag (NEW, Lv, MAX…), line, type and the fork's mods. Versus's pick tray reads it too (`ui/versusTray.ts`). */
+export const offerView = (g: Game, offer: Offer) => {
   const m = t()
   const rare = rarityOf(offer) === 'rare'
   switch (offer.kind) {
@@ -705,7 +706,7 @@ export const pauseMenu = (root: HTMLElement, input: Input, g: Game, actions: Pau
   const confirmLeave = (focus: number) => {
     const m = t().team.menu
     openSub((back) => {
-      const dialog = confirmDialog(root, input, m.confirm, (yes) => (dialog.dispose(), yes ? actions.quit() : back()), { yes: m.yes, no: m.no })
+      const dialog = confirmDialog(root, input, g.versus ? t().versus.menu.confirm : m.confirm, (yes) => (dialog.dispose(), yes ? actions.quit() : back()), { yes: m.yes, no: m.no })
       return dialog
     }, focus)
   }
@@ -719,7 +720,7 @@ export const pauseMenu = (root: HTMLElement, input: Input, g: Game, actions: Pau
     const settingsButton = h('button', { class: 'btn' }, m.settings)
     const report = actions.report
     const reportButton = report && h('button', { class: 'btn' }, m.reportBug)
-    const quit = h('button', { class: 'btn' }, coop ? cm.leave : m.quit)
+    const quit = h('button', { class: 'btn' }, g.versus ? t().versus.menu.leave : coop ? cm.leave : m.quit)
     const buttons = [resume, ...(sound ? [sound] : []), settingsButton, ...(reportButton ? [reportButton] : []), quit]
     // Co-op: the teammates' builds, to read and coordinate while the run goes on.
     const builds = coop && teamBuilds(g, localPlayer(g))
@@ -742,22 +743,26 @@ export const pauseMenu = (root: HTMLElement, input: Input, g: Game, actions: Pau
         'div',
         { class: opening ? 'dialog box pop wide pause' : 'dialog box wide pause' },
         h('div', { class: 'dialog-title' }, coop ? cm.title : m.title),
-        coop && h('p', { class: 'pause-note' }, cm.note),
-        difficultyTag(g.difficulty),
+        coop && h('p', { class: 'pause-note' }, g.versus ? t().versus.menu.note : cm.note),
+        // A match has no difficulty: everyone plays the same.
+        !g.versus && difficultyTag(g.difficulty),
         abilityPanel(g),
         h(
           'div',
           { class: 'pause-body' },
-          h(
-            'div',
-            { class: 'pause-grid' },
-            pauseSection(m.statsTitle, statTable(g)),
-            h('div', { class: 'pause-column' }, pauseSection(m.movesTitle, moveList(g)), pauseSection(m.itemsTitle, itemList(g))),
-          ),
-          pauseSection(m.damageTitle, damagePanel(g)),
+          // A match keeps running behind the menu: your moves and your team's builds, not the run's whole sheet.
+          g.versus
+            ? pauseSection(m.movesTitle, moveList(g))
+            : h(
+                'div',
+                { class: 'pause-grid' },
+                pauseSection(m.statsTitle, statTable(g)),
+                h('div', { class: 'pause-column' }, pauseSection(m.movesTitle, moveList(g)), pauseSection(m.itemsTitle, itemList(g))),
+              ),
+          !g.versus && pauseSection(m.damageTitle, damagePanel(g)),
           builds && pauseSection(cm.builds, builds),
-          duoPanel(g),
-          h('p', { class: 'evo-legend' }, m.evoLegend),
+          !g.versus && duoPanel(g),
+          !g.versus && h('p', { class: 'evo-legend' }, m.evoLegend),
           hint(m.cardHintKeys, m.cardHintTouch),
         ),
         h('div', { class: 'buttons' }, ...buttons),

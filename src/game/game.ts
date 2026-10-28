@@ -64,6 +64,7 @@ import { SKY } from '../data/places'
 import { updateArena, updateArenaFall } from './riftArena'
 import { domainCamera, updateDomainScene } from './domain'
 import { isAsleep, tickSleep } from './playerSleep'
+import { inGrass } from './versusGrass'
 import { updateLegendScene } from './legendScene'
 import { updateRiftPortal } from './riftPortal'
 import { updateSightings } from './sightings'
@@ -220,7 +221,7 @@ export const createPlayer = (slot: number, setup: PlayerSetup, lucky: boolean, x
  * cast unless the shell drew it ahead (`drawRoster`). The team's best Shiny
  * Charm counts (solo, the player's).
  */
-const createRun = (view: Game['view'], seed: number, setups: readonly PlayerSetup[], roster: Roster | undefined, options: RunOptions, coop: boolean): Game => {
+export const createRun = (view: Game['view'], seed: number, setups: readonly PlayerSetup[], roster: Roster | undefined, options: RunOptions, coop: boolean): Game => {
   const bag = options.bag ?? []
   const rng = createRng(seed)
   // Every slot rolls, so the rng moves the same whoever plays.
@@ -397,7 +398,8 @@ export const walkPlayer = (g: Game, input: Vec, dt: number) => {
   p.moving = moving || slow === 0
   const ground = groundAt(g, p.x, p.y)
   const tailwind = g.place.inside?.id === 'sky' ? SKY.tailwind : 1
-  const pace = p.stats.speed * slow * tailwind * (ground === 'water' ? playerWaterPace(g) : 1)
+  // Versus: the role's pace, a slow on the Pokémon's avatar, its own goal's boost (`VersusSeat.pace`).
+  const pace = p.stats.speed * slow * tailwind * (ground === 'water' ? playerWaterPace(g) : 1) * (p.versus?.pace ?? 1)
   const vx = moving ? input.x * pace : 0
   const vy = moving ? input.y * pace : 0
   // On ice the player's speed only slowly follows the stick, so they slide.
@@ -772,7 +774,7 @@ const updateMegaIntros = (g: Game, dt: number) => {
  * The first half of a player's tick: walking (or a tunnel carrying them),
  * cursed items, a legend's presence, the Mega form, the ability and the special.
  */
-const stepPlayer = (g: Game, input: StepInput, dt: number) => {
+export const stepPlayer = (g: Game, input: StepInput, dt: number) => {
   // Asleep (Dark Void): the stick and the buttons do nothing until they wake.
   const asleep = isAsleep(g.player)
   tickSleep(g.player, dt)
@@ -786,13 +788,13 @@ const stepPlayer = (g: Game, input: StepInput, dt: number) => {
 }
 
 /** A player's moves: their kit's running state, signatures, shop TMs, legendary move, the casts and duo moves. */
-const stepMoves = (g: Game, input: StepInput, dt: number) => {
+export const stepMoves = (g: Game, input: StepInput, dt: number) => {
   updateMoveKit(g, dt)
   updateSignatures(g, dt)
   updateShopTms(g, dt)
   updateLegendary(g)
-  // Asleep (Dark Void), no move is cast: their cooldowns wait until the player wakes.
-  if (isAsleep(g.player)) return
+  // Asleep (Dark Void), or in the Arena's tall grass, no move is cast: their cooldowns wait.
+  if (isAsleep(g.player) || inGrass(g.player)) return
   updateMoves(g, input.lunge === true, dt)
   updateDuos(g, dt)
 }

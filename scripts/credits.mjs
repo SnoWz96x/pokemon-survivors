@@ -75,9 +75,10 @@ ${rows.join('\n')}
 
 The Kecleon shop's buildings, props, its own icons (the daily gift, the expansion, the wishlist, the loyalty
 stamp and the Kecleon Egg), Meowth's caravan and the seasonal stalls in the lobby
-(\`public/assets/shop/\`), and the Dojo's hall, training posts and banners (\`public/assets/dojo/\`), were
-generated for this project with [PixelLab](https://www.pixellab.ai). The emotion portraits in the dialogue
-box (Kecleon, Meowth, Duskull, Delibird, Lanturn and Machoke) are SpriteCollab portraits,
+(\`public/assets/shop/\`), the Dojo's hall, training posts and banners (\`public/assets/dojo/\`) and the
+Estádio (\`public/assets/stadium/\`), were generated for this project with [PixelLab](https://www.pixellab.ai).
+The emotion portraits in the dialogue box (Kecleon, Meowth, Duskull, Delibird, Lanturn, Machoke and Ninjask)
+are SpriteCollab portraits,
 credited in their rows above.
 
 ## Cries
@@ -91,6 +92,9 @@ Bottle Caps and TMs) are the official item sprites from [PokéAPI/sprites](https
 Loaded Dice, Fairy Feather, Black Augurite, Auspicious Armor and Malicious Armor only exist there as HD art,
 so they were converted to pixel art with [PixelLab](https://www.pixellab.ai).
 Towers, trees, rocks, bushes and other painted scenery were made for this game with [PixelLab](https://www.pixellab.ai).
+The Arena's goal posts, spawn pads, banner pillars, gates, tall grass and its role, Energy, MVP, medal, queue and
+tab icons (\`public/assets/arena/\`) were made for this game with [PixelLab](https://www.pixellab.ai); its ranked
+tier badges are the official Poké Ball item sprites from [PokéAPI/sprites](https://github.com/PokeAPI/sprites).
 
 ## Translations
 
