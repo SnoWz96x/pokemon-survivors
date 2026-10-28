@@ -1290,3 +1290,4 @@ export const teamArrow = (color: string) => {
 export const teamBallIcon = () => toIconUrl('teamBall', TEAM_FX.ball)
 /** The "Zz" as a HUD icon. */
 export const teamAwayIcon = () => toIconUrl('teamZz', TEAM_FX.zz)
+

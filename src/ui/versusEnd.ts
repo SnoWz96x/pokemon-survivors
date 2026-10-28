@@ -11,6 +11,9 @@ import { h, later } from './dom'
 import { menu, type Screen } from './screens'
 import { versusName } from './versusHud'
 import { countArenaMatch } from './versusCoach'
+import type { MatchKind } from '../data/arenaRanked'
+import type { RpChange } from '../arenaApi'
+import { tierBadge, tierName } from './arenaHub'
 
 /**
  * A Versus match's end: Vitória, Derrota or Empate from this player's team,
@@ -21,6 +24,34 @@ import { countArenaMatch } from './versusCoach'
  */
 
 export type VersusEndActions = { again: () => void; lobby: () => void }
+
+/**
+ * What the match did to the ranking: a quick match against bots is practice,
+ * a friends' room and Casual move no RP, and Ranqueada waits on the API's
+ * rating (`rp`, "Calculando…" until it answers).
+ */
+export type EndRank = { kind: MatchKind; rp: Promise<RpChange | null> | null }
+
+/** The ranking line under the score. */
+const rankLine = (rank: EndRank) => {
+  const m = t().versus.end.rank
+  if (rank.kind !== 'ranked' || !rank.rp) return h('p', { class: `vs-end-rank ${rank.kind}` }, rank.kind === 'ranked' ? m.late : m[rank.kind])
+  const el = h('p', { class: 'vs-end-rank ranked waiting' }, h('span', { class: 'blink' }, m.calculating))
+  void rank.rp.then((change) => {
+    el.classList.remove('waiting')
+    if (!change) return el.replaceChildren(m.late)
+    const hub = t().versus.hub
+    const view = change.profile?.tier ?? null
+    el.classList.add(change.rp >= 0 ? 'up' : 'down')
+    el.replaceChildren(
+      ...(view ? [tierBadge(view)] : []),
+      h('b', { class: 'vs-end-rp' }, hub.delta(change.rp)),
+      ...(view && change.profile ? [h('span', {}, `${tierName(view)} · ${hub.rp(change.profile.rating.rp)}`)] : []),
+    )
+    if (change.rp > 0) playSfx('levelUp')
+  })
+  return el
+}
 
 /** Damage a player dealt in the match (the wild's and the rivals'). */
 const damageOf = (p: Player) => Math.round(Object.values(p.damageByMove).reduce((a, b) => a + (b ?? 0), 0))
@@ -97,7 +128,7 @@ const teamTable = (g: Game, me: Player, team: Team, medals: ReadonlyMap<Player, 
   )
 }
 
-export const versusEnd = (root: HTMLElement, input: Input, g: Game, me: Player, actions: VersusEndActions): Screen => {
+export const versusEnd = (root: HTMLElement, input: Input, g: Game, me: Player, actions: VersusEndActions, rank: EndRank | null = null): Screen => {
   const m = t().versus.end
   const s = g.versus
   const mine = me.versus?.team ?? 0
@@ -139,6 +170,7 @@ export const versusEnd = (root: HTMLElement, input: Input, g: Game, me: Player, 
         h('span', {}, ':'),
         h('b', { style: `color:${teamColor(1)}` }, String(s?.score[1] ?? 0)),
       ),
+      rank && rankLine(rank),
       mvp && mvpCard(g, me, mvp),
       h('div', { class: 'vs-end-tables' }, ...teams.map((team) => teamTable(g, me, team, medals))),
       status,
