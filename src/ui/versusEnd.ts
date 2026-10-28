@@ -4,6 +4,7 @@ import type { Team } from '../data/versus'
 import { formAt } from '../game/branch'
 import type { Game, Player } from '../game/types'
 import { t } from '../i18n'
+import { arenaIconUrl, type ArenaIcon } from '../render/arenaArt'
 import { portraitUrl } from '../render/sprites'
 import { teamColor } from './arena'
 import { h, later } from './dom'
@@ -72,7 +73,9 @@ const medalsOf = (g: Game) => {
   return { mvp: ranked[0] ?? null, medals }
 }
 
-const medalChip = (medal: Medal) => h('em', { class: `vs-medal ${medal}` }, t().versus.end.medals[medal])
+const MEDAL_ICONS = { points: 'medalPoints', kos: 'medalKos', damage: 'medalDamage' } as const satisfies Record<Medal, ArenaIcon>
+
+const medalChip = (medal: Medal) => h('em', { class: `vs-medal ${medal}` }, h('img', { src: arenaIconUrl(MEDAL_ICONS[medal]), alt: '' }), t().versus.end.medals[medal])
 
 /** A seat's name on this screen, "(Você)" after this player's own. */
 const endName = (g: Game, me: Player, p: Player) => (p === me && versusName(g, p.slot) !== t().versus.you ? `${versusName(g, p.slot)} (${t().versus.you})` : versusName(g, p.slot))
@@ -85,7 +88,7 @@ const mvpCard = (g: Game, me: Player, p: Player) => {
     'div',
     { class: 'vs-mvp', style: `--team:${teamColor(v.team)}` },
     h('img', { src: portraitUrl(formAt(p.starter, p.branch, p.stage).dex), alt: '' }),
-    h('div', { class: 'vs-mvp-text' }, h('b', { class: 'vs-mvp-tag' }, m.mvp), h('span', { class: 'vs-mvp-name' }, endName(g, me, p)), h('small', {}, m.mvpLine(v.scored, v.kos, damageOf(p)))),
+    h('div', { class: 'vs-mvp-text' }, h('b', { class: 'vs-mvp-tag' }, h('img', { src: arenaIconUrl('mvp'), alt: '' }), m.mvp), h('span', { class: 'vs-mvp-name' }, endName(g, me, p)), h('small', {}, m.mvpLine(v.scored, v.kos, damageOf(p)))),
   )
 }
 

@@ -5,7 +5,8 @@ import { VERSUS, VERSUS_ROSTER, type Team, type VersusPick } from '../data/versu
 import { t } from '../i18n'
 import type { QueueKind } from '../data/arenaRanked'
 import type { QueueServerMessage } from '../net/arena'
-import { arenaIcon, pokeballIcon, tierBallIcon } from '../render/art'
+import { arenaIcon, pokeballIcon } from '../render/art'
+import { arenaIconUrl } from '../render/arenaArt'
 import { portraitUrl } from '../render/sprites'
 import { firstForm, roleChip, teamColor } from './arena'
 import { h, later } from './dom'
@@ -163,7 +164,7 @@ export const arenaQueueLive = (root: HTMLElement, input: Input, me: { name: stri
   let matched = false
   const title = h('b', { class: 'arena-queue-title' }, q.connecting)
   const clock = h('span', { class: 'arena-queue-clock' }, formatTime(0))
-  const chip = h('span', { class: `arena-queue-kind ${kind}` }, h('img', { src: tierBallIcon(kind === 'ranked' ? 'master' : 'poke'), alt: '' }), q.kinds[kind])
+  const chip = h('span', { class: `arena-queue-kind ${kind}` }, h('img', { src: arenaIconUrl(kind === 'ranked' ? 'queueRanked' : 'queueCasual'), alt: '' }), q.kinds[kind])
   const count = h('b', { class: 'arena-queue-count' })
   const bots = h('span', { class: 'arena-queue-bots' })
   const note = h('p', { class: 'arena-queue-honest' }, kind === 'ranked' ? q.rankedNote : q.casualNote)
@@ -254,7 +255,7 @@ export const arenaQueueLive = (root: HTMLElement, input: Input, me: { name: stri
       note.textContent = q.downgraded
       note.classList.add('downgraded')
       chip.className = 'arena-queue-kind casual'
-      chip.replaceChildren(h('img', { src: tierBallIcon('poke'), alt: '' }), q.kinds.casual)
+      chip.replaceChildren(h('img', { src: arenaIconUrl('queueCasual'), alt: '' }), q.kinds.casual)
     }
     playSfx('levelUp')
   }

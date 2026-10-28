@@ -18869,6 +18869,9 @@ button.hall-tile:hover {
 }
 
 .arena-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   padding: 4px 7px 3px;
   font-family: var(--title);
   font-size: 7px;
@@ -18933,8 +18936,10 @@ button.hall-tile:hover {
 }
 
 .arena-role {
-  display: inline-block;
-  padding: 2px 5px 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 5px 1px 2px;
   font-family: var(--title);
   font-size: 7px;
   font-style: normal;
@@ -18943,6 +18948,30 @@ button.hall-tile:hover {
   background: var(--role);
   border-radius: 4px;
   vertical-align: middle;
+}
+
+/* A role's PixelLab icon (render/arenaArt.ts), in its chip and in the filter. */
+.arena-role-icon {
+  width: 16px;
+  height: 16px;
+  margin: -3px 0;
+  image-rendering: pixelated;
+  filter: drop-shadow(1px 1px 0 rgba(0, 0, 0, 0.3));
+}
+
+.arena-filter .arena-role-icon {
+  margin: -4px 0 -4px -3px;
+}
+
+.arena-hero-role .arena-role {
+  padding: 3px 7px 2px 3px;
+  font-size: 8px;
+}
+
+.arena-hero-role .arena-role-icon {
+  width: 24px;
+  height: 24px;
+  margin: -6px 0;
 }
 
 /* Como jogar: four numbered steps, each with its picture. */
@@ -19911,11 +19940,9 @@ button.hall-tile:hover {
 
 .vs-orb {
   grid-row: span 2;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #fff 0 18%, #f8e070 19% 55%, #e8a020 56%);
-  box-shadow: 0 0 0 2px #101020;
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;
 }
 
 .vs-energy-bar {
@@ -20401,14 +20428,26 @@ button.hall-tile:hover {
 }
 
 .vs-mvp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   align-self: flex-start;
-  padding: 2px 5px 1px;
+  padding: 2px 5px 1px 2px;
   font-family: var(--title);
   font-size: 8px;
   color: #181010;
   text-shadow: none;
   background: #f8d030;
   border-radius: 3px;
+}
+
+.vs-mvp .vs-mvp-tag img {
+  width: 20px;
+  height: 20px;
+  margin: -7px 0 -6px;
+  background: none;
+  border: 0;
+  border-radius: 0;
 }
 
 .vs-mvp-name {
@@ -20438,7 +20477,10 @@ button.hall-tile:hover {
 }
 
 .vs-medal {
-  padding: 1px 3px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px 3px 0 1px;
   font-family: var(--title);
   font-size: 6px;
   font-style: normal;
@@ -20446,6 +20488,13 @@ button.hall-tile:hover {
   color: #181010;
   background: #f8d030;
   border-radius: 2px;
+}
+
+.vs-end-who .vs-medal img {
+  width: 14px;
+  height: 14px;
+  margin: -4px 0 -3px;
+  image-rendering: pixelated;
 }
 
 .vs-medal.kos {
@@ -20854,17 +20903,56 @@ button.hall-tile:hover {
   box-shadow: 0 0 0 3px #e83838;
 }
 
-/* The tier badges: drawn at whole multiples of their 17 px. */
+/* The tier badges: the official ball (18 px, drawn at whole multiples) and the division on a plate under it. */
 .tier-badge {
-  width: 34px;
-  height: 34px;
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 36px;
   flex: none;
+}
+
+.tier-badge > img {
+  width: 100%;
+  height: 100%;
   image-rendering: pixelated;
 }
 
+.tier-badge-division {
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  transform: translateX(-50%);
+  padding: 1px 4px 0;
+  border-radius: 3px;
+  background: #202030;
+  color: #f8e070;
+  font: 7px/1.4 var(--title);
+  letter-spacing: 1px;
+}
+
 .tier-badge.big {
-  width: 68px;
-  height: 68px;
+  width: 72px;
+  height: 72px;
+}
+
+.tier-badge.big .tier-badge-division {
+  font-size: 10px;
+  bottom: -6px;
+}
+
+/* The hub's tab icons. */
+.arena-hub-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.arena-hub-tab-icon {
+  width: 20px;
+  height: 20px;
+  image-rendering: pixelated;
 }
 
 /* The public queue: its kind beside the title, the trainers found and the bots' countdown. */
@@ -21567,8 +21655,15 @@ span.arena-hub-face {
     min-height: 30px;
   }
   .tier-badge.big {
-    width: 51px;
-    height: 51px;
+    width: 54px;
+    height: 54px;
+  }
+  .arena-hub-tab > span {
+    display: none;
+  }
+  .arena-hub-tab-icon {
+    width: 24px;
+    height: 24px;
   }
   .arena-hub-standing {
     padding: 6px 10px;

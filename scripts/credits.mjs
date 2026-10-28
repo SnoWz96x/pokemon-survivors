@@ -86,6 +86,9 @@ Bottle Caps and TMs) are the official item sprites from [PokéAPI/sprites](https
 Loaded Dice, Fairy Feather, Black Augurite, Auspicious Armor and Malicious Armor only exist there as HD art,
 so they were converted to pixel art with [PixelLab](https://www.pixellab.ai).
 Towers, trees, rocks, bushes and other painted scenery were made for this game with [PixelLab](https://www.pixellab.ai).
+The Arena's goal posts, spawn pads, banner pillars, gates, tall grass and its role, Energy, MVP, medal, queue and
+tab icons (\`public/assets/arena/\`) were made for this game with [PixelLab](https://www.pixellab.ai); its ranked
+tier badges are the official Poké Ball item sprites from [PokéAPI/sprites](https://github.com/PokeAPI/sprites).
 
 ## Translations
 

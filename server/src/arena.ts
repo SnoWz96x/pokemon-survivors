@@ -55,8 +55,8 @@ export const verifyArenaSignature = (body: string, header: string | undefined, s
 /** A report's seat: the slot's account (null for a bot) and whether that human left. */
 export type ReportSeat = { slot: number; userId: string | null; left: boolean }
 
-/** A report checked field by field, its result parsed (`parseArenaResult`). */
-export type ParsedReport = Omit<ArenaReport, 'seats' | 'result'> & { seats: ReportSeat[]; result: ArenaResult }
+/** A report checked field by field, its result parsed (`parseArenaResult`), `confirmed` read as true when absent. */
+export type ParsedReport = Omit<ArenaReport, 'seats' | 'result' | 'confirmed'> & { seats: ReportSeat[]; result: ArenaResult; confirmed: boolean }
 
 const REPORT_KINDS = ['casual', 'ranked', 'room'] as const
 
@@ -74,7 +74,8 @@ export const parseArenaReport = (raw: unknown): ParsedReport | null => {
   const region = text(raw.region, 16)
   const kind = REPORT_KINDS.find((k) => k === raw.kind)
   const { run, endedAt } = raw
-  if (!room || !region || !kind || typeof run !== 'number' || !Number.isSafeInteger(run) || run < 0) return null
+  const confirmed = raw.confirmed === undefined ? true : raw.confirmed
+  if (!room || !region || !kind || typeof run !== 'number' || !Number.isSafeInteger(run) || run < 0 || typeof confirmed !== 'boolean') return null
   if (typeof endedAt !== 'number' || !Number.isFinite(endedAt) || endedAt <= 0) return null
   const result = parseArenaResult(raw.result)
   if (!result) return null
@@ -88,7 +89,7 @@ export const parseArenaReport = (raw: unknown): ParsedReport | null => {
   const users = seats.flatMap((s) => (s.userId ? [s.userId] : []))
   if (slots.size !== result.seats.length || seats.some((s) => !slots.has(s.slot))) return null
   if (new Set(seats.map((s) => s.slot)).size !== seats.length || new Set(users).size !== users.length) return null
-  return { v: 1, room, run, kind, region, endedAt, seats, result }
+  return { v: 1, room, run, kind, region, endedAt, seats, result, confirmed }
 }
 
 /* ---------------- Rating a match ---------------- */
@@ -120,9 +121,11 @@ export type ArenaLine = {
  * Every human's line of a match. With `ratings` (the humans' current ones,
  * by user id) the match is rated with `rateMatch`: seats without an account
  * are bots, and a human who left is rated as if their team lost (the rest
- * keep the real result). Without, nothing moves.
+ * keep the real result). An unconfirmed result (`ArenaReport.confirmed`)
+ * rates only the leavers: the stayers' lines go to history unrated. Without
+ * `ratings`, nothing moves.
  */
-export const planMatch = (result: ArenaResult, seats: readonly ReportSeat[], ratings: ReadonlyMap<string, Rating> | null): ArenaLine[] => {
+export const planMatch = (result: ArenaResult, seats: readonly ReportSeat[], ratings: ReadonlyMap<string, Rating> | null, confirmed = true): ArenaLine[] => {
   const human = new Map(seats.flatMap((s) => (s.userId ? [[s.slot, { userId: s.userId, left: s.left }] as const] : [])))
   const rated = ratings
     ? result.seats.map((s): RatedSeat => {
@@ -131,10 +134,16 @@ export const planMatch = (result: ArenaResult, seats: readonly ReportSeat[], rat
       })
     : null
   const changes = rated ? rateMatch(rated, result.winner) : null
+  /** Seat `i`'s change: a leaver's as if their team lost, a stayer's by the result when it's confirmed. */
+  const changeOf = (i: number, team: Team, left: boolean) => {
+    if (!rated) return null
+    if (left) return (result.winner === rival(team) ? changes : rateMatch(rated, rival(team)))?.[i] ?? null
+    return confirmed ? (changes?.[i] ?? null) : null
+  }
   return result.seats.flatMap((s, i) => {
     const h = human.get(s.slot)
     if (!h) return []
-    const change = (rated && h.left && result.winner !== rival(s.team) ? rateMatch(rated, rival(s.team))[i] : changes?.[i]) ?? null
+    const change = changeOf(i, s.team, h.left)
     const { slot, team, starter, form, kos, deaths, scored, damage } = s
     return [{ userId: h.userId, slot, team, starter, form, kos, deaths, scored, damage, left: h.left, outcome: outcomeOf(team, result.winner, h.left), change }]
   })
@@ -143,10 +152,15 @@ export const planMatch = (result: ArenaResult, seats: readonly ReportSeat[], rat
 /** The humans of a report (accounts on its seats, leavers included), each once, in id order. */
 export const reportUsers = (r: Pick<ParsedReport, 'seats'>) => [...new Set(r.seats.flatMap((s) => (s.userId ? [s.userId] : [])))].sort()
 
-/** The season a report rates, or null when it doesn't count (`countsForRank`) or ended before the first season. */
-export const ratingSeason = (r: Pick<ParsedReport, 'seats' | 'kind' | 'endedAt'>) => {
+/**
+ * The season a report rates, or null when it doesn't count (`countsForRank`),
+ * ended before the first season, or is unconfirmed with no account that left
+ * (then nobody moves).
+ */
+export const ratingSeason = (r: Pick<ParsedReport, 'seats' | 'kind' | 'endedAt' | 'confirmed'>) => {
   const season = seasonAt(r.endedAt)
-  return season && countsForRank(r.kind, reportUsers(r).length) ? season : null
+  const anyone = r.confirmed || r.seats.some((s) => s.left && s.userId !== null)
+  return season && anyone && countsForRank(r.kind, reportUsers(r).length) ? season : null
 }
 
 /** A player's starting rating in a season: reset from the previous season's when they had one, else fresh. */
@@ -262,8 +276,8 @@ export const arenaStore = (sql: Sql) => {
   return {
     /**
      * Stores a relay's report once per (room, run): a retry gets the stored
-     * match back (`duplicate`). Rated when `countsForRank` says so and a
-     * season runs at its end, in one transaction that locks the players'
+     * match back (`duplicate`). Rated when `ratingSeason` says so (only the
+     * leavers when unconfirmed), in one transaction that locks the players'
      * season rows first. Lines are stored for history either way.
      */
     report: (r: ParsedReport): Promise<ArenaReportResponse> =>
@@ -285,7 +299,7 @@ export const arenaStore = (sql: Sql) => {
         }
         if (users.length > 0) await tx`insert into users (id) select unnest(${users}::text[]) on conflict (id) do nothing`
         const ratings = rating ? await lockRatings(tx, users, rating.id) : null
-        await writeLines(tx, match.id, r.kind, season?.id ?? null, at, planMatch(r.result, r.seats, ratings))
+        await writeLines(tx, match.id, r.kind, season?.id ?? null, at, planMatch(r.result, r.seats, ratings, r.confirmed))
         return { match: match.id, rated, duplicate: false }
       }),
 

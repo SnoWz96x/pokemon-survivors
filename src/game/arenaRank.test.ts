@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ARENA_RANKED } from '../data/arenaRanked'
 import { createVersusGame } from './versus'
-import { arenaResult, clampToFloor, countsForRank, freshRating, parseArenaResult, rateMatch, seasonAt, seasonById, seasonReset, splitTeams, tierOf, type RatedSeat } from './arenaRank'
+import { arenaResult, clampToFloor, countsForRank, freshRating, parseArenaResult, rateMatch, seasonAt, seasonById, seasonReset, splitTeams, tierOf, type QueueGroup, type RatedSeat } from './arenaRank'
 
 const human = (team: 0 | 1, mmr = 1000, extra: Partial<RatedSeat> = {}): RatedSeat => ({ rating: { ...freshRating(), mmr }, team, scored: 0, kos: 0, objective: false, ...extra })
 const bot = (team: 0 | 1): RatedSeat => ({ rating: null, team, scored: 0, kos: 0, objective: false })
@@ -63,6 +63,13 @@ describe('rateMatch', () => {
 })
 
 describe('the queue', () => {
+  const solos = (...mmrs: number[]) => mmrs.map((mmr, i) => ({ id: String(i), mmrs: [mmr] }))
+  /** Humans on Blue and on Red. */
+  const sides = (groups: readonly QueueGroup[]) => {
+    const { teams } = splitTeams(groups)!
+    return [0, 1].map((t) => groups.reduce((n, g, i) => (teams[i] === t ? n + g.mmrs.length : n), 0))
+  }
+
   it('keeps parties together and balances the teams', () => {
     const split = splitTeams([
       { id: 'a', mmrs: [1500, 1500] },
@@ -70,7 +77,26 @@ describe('the queue', () => {
       { id: 'c', mmrs: [1000] },
       { id: 'd', mmrs: [1500, 1500] },
     ])
-    expect(split!.teams).toEqual([0, 0, 0, 1])
+    expect(split).toEqual({ teams: [0, 1, 0, 1], gap: 0, score: 0 })
+  })
+
+  it('splits two solo players across the teams instead of against bots together', () => {
+    expect(splitTeams(solos(1000, 1000))!.teams).toEqual([0, 1])
+    // Together would balance these exactly (2000 against two bots); apart still wins.
+    expect(splitTeams(solos(900, 1100))!.teams).toEqual([0, 1])
+    // As far apart as the queue ever matches them.
+    expect(splitTeams(solos(700, 1300))!.teams).toEqual([0, 1])
+  })
+
+  it('never separates a party, even to spread its humans', () => {
+    expect(splitTeams([{ id: 'p', mmrs: [1000, 1000] }])!.teams).toEqual([0])
+    expect(sides([{ id: 'p', mmrs: [1000, 1000] }, ...solos(1000)])).toEqual([2, 1])
+  })
+
+  it('splits four humans two and two', () => {
+    expect(sides(solos(1000, 1000, 1000, 1000))).toEqual([2, 2])
+    expect(sides(solos(1300, 1200, 800, 700))).toEqual([2, 2])
+    expect(sides([{ id: 'p', mmrs: [1000, 1000] }, ...solos(1100, 900)])).toEqual([2, 2])
   })
 
   it('refuses a split that can’t fit', () => {

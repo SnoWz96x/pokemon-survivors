@@ -12,7 +12,7 @@ import type { Game, GameEvent, Player } from '../game/types'
 import { timeLeft } from '../game/versus'
 import { t } from '../i18n'
 import { cryUrl, portraitUrl } from '../render/sprites'
-import { teamColor } from './arena'
+import { energyIcon, teamColor } from './arena'
 import { h, rich, setStyle, setText } from './dom'
 import { banner, runToast } from './toasts'
 
@@ -95,7 +95,7 @@ export const createVersusHud = (root: HTMLElement, local: boolean, goAt: number 
   const energy = h(
     'div',
     { class: 'vs-energy box', title: m.hud.energy },
-    h('span', { class: 'vs-orb', 'aria-hidden': 'true' }),
+    h('img', { class: 'vs-orb', src: energyIcon(), alt: '' }),
     energyText,
     h('span', { class: 'vs-energy-bar' }, energyFill),
     h('em', { class: 'vs-energy-cue' }, m.hud.full),

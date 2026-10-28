@@ -40,8 +40,19 @@ export const ARENA_RANKED = {
     window: { base: 100, perSecond: 25, max: 600 },
     /** Seconds a ticket waits before bots fill the rest of the match. */
     botsAfter: { casual: 30, ranked: 90 },
-    /** A ranked match with fewer humans plays as casual (a lone client could forge its own end). */
+    /**
+     * A ranked match with fewer humans plays as casual, and one whose result
+     * fewer clients agreed on rates only its leavers (a lone client could forge its own end).
+     */
     minHumansRanked: 2,
+    /**
+     * What `splitTeams` charges per human one side has over the other, in
+     * summed MMR, so humans spread across the teams instead of farming bots
+     * together. Above half the widest window (`window.max`), so two solos
+     * the queue matches always split; a lopsided split wins only against a
+     * balanced one off by more than 2× this.
+     */
+    humanSplitPenalty: 400,
     /** Seconds the matched players have to join the room; who's missing plays as a bot. */
     joinTimeout: 20,
     /** Most humans in one match (the Arena's room size). */
