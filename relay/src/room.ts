@@ -874,12 +874,16 @@ export const arenaReport = (room: Room, run: Run, agreed: { result: string; vote
  * Ends the run once a majority of the connected players report the same end
  * (tick and hash), and at least two of them while two are still in the run:
  * a lone client can't end it for everyone. An Arena match whose voters agree
- * on its result too is reported (`arenaReport`), once.
+ * on its result too is reported (`arenaReport`), once. An Arena match ends on
+ * its clock, so a seat gone silent (`away`: tab closed, connection lost)
+ * without voting has abandoned it: it doesn't hold the end, and it's
+ * reported as having left.
  */
 const evaluateOver = (state: State, room: Room, now: number): Effect[] => {
   const run = room.run
   if (room.phase !== 'playing' || !run || run.ended) return []
-  const remaining = run.start.players.map((p) => p.seat).filter((seat) => !run.left.includes(seat))
+  const gone = isArena(room) ? run.start.players.map((p) => p.seat).filter((seat) => !run.left.includes(seat) && !run.overs[seat] && room.seats.find((x) => x.seat === seat)?.away) : []
+  const remaining = run.start.players.map((p) => p.seat).filter((seat) => !run.left.includes(seat) && !gone.includes(seat))
   const connected = remaining.filter((seat) => {
     const s = room.seats.find((x) => x.seat === seat)
     return !!s && online(state, s)
@@ -897,6 +901,7 @@ const evaluateOver = (state: State, room: Room, now: number): Effect[] => {
     return !!o && `${o.tick}:${o.h}` === best[0]
   })
   const agreed = isArena(room) ? agreedResult(run, voters) : null
+  run.left.push(...gone)
   run.ended = { tick: Number(tick), h, result: agreed?.result ?? null }
   const report = agreed ? arenaReport(room, run, agreed, now) : null
   room.phase = 'ended'
@@ -1111,7 +1116,8 @@ export const tick = (state: State, now: number): Effect[] => {
       stamp(state, [seat, 'away'])
       changed = true
     }
-    if (changed) out.push({ k: 'save' }, ...broadcastRoom(state, room), ...updateUploader(state, room))
+    // An Arena match waiting on a seat that just went away may end now (`evaluateOver`).
+    if (changed) out.push({ k: 'save' }, ...broadcastRoom(state, room), ...updateUploader(state, room), ...evaluateOver(state, room, now))
     for (const [t, first] of [...state.live.firstReport]) if (now - first >= TIMES.hashWait) out.push(...decide(state, room, run, t))
     for (const t of state.live.reports.keys()) {
       if (t < run.next - HASH_WINDOW) {

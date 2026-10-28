@@ -19659,6 +19659,18 @@ button.hall-tile:hover {
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
 }
 
+.arena-splash-note {
+  align-self: center;
+  margin: 0;
+  padding: 4px 10px 3px;
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
+  background: #c03040;
+  border-radius: 4px;
+}
+
 .arena-splash-tip b {
   flex: none;
   padding: 3px 6px 2px;
