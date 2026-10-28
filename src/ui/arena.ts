@@ -4,9 +4,9 @@ import { ENEMIES } from '../data/enemies'
 import { STARTERS } from '../data/starters'
 import { isVersusPick, ROLES, VERSUS_PICKS, VERSUS_ROSTER, type Role, type VersusPick } from '../data/versus'
 import { t } from '../i18n'
-import { arenaIcon, coopIcon, toIconUrl } from '../render/art'
+import { arenaIcon, coopIcon } from '../render/art'
+import { arenaIconUrl, loadValeArt, ROLE_ICONS } from '../render/arenaArt'
 import { portraitUrl } from '../render/sprites'
-import { orbGlyph } from '../render/vale'
 import { h, later } from './dom'
 import { stepGrid } from './gridNav'
 import { hint, type Screen } from './screens'
@@ -35,8 +35,11 @@ export const ROLE_COLORS = {
 
 const ROLE_IDS = Object.keys(ROLE_COLORS) as Role[]
 
-/** A role as a colored chip (its name in this language). */
-export const roleChip = (role: Role) => h('span', { class: 'arena-role', style: `--role:${ROLE_COLORS[role]}` }, t().versus.roles[role])
+/** A role's icon, for an `<img>` beside its name. */
+export const roleIcon = (role: Role, cls = 'arena-role-icon') => h('img', { class: cls, src: arenaIconUrl(ROLE_ICONS[role]), alt: '' })
+
+/** A role as a colored chip: its icon and its name in this language. */
+export const roleChip = (role: Role) => h('span', { class: 'arena-role', style: `--role:${ROLE_COLORS[role]}` }, roleIcon(role), t().versus.roles[role])
 
 const PICK_KEY = 'ps:arenaPick'
 
@@ -63,7 +66,7 @@ export const keepArenaPick = (id: VersusPick) => {
 export const firstForm = (id: VersusPick) => STARTERS[id].line[0]!
 
 /** The Energy orb the world drops, as a DOM icon. */
-export const energyIcon = () => toIconUrl('versusOrb', () => orbGlyph())
+export const energyIcon = () => arenaIconUrl('energy')
 
 /* ---------------- The roles' numbers ---------------- */
 
@@ -260,7 +263,7 @@ export const arenaScreen = (root: HTMLElement, input: Input, pick: VersusPick, a
       const chip = h(
         'button',
         { class: `arena-filter${r === filter ? ' on' : ''}`, type: 'button', style: r ? `--role:${ROLE_COLORS[r]}` : '', 'aria-pressed': String(r === filter) },
-        r ? m.roles[r] : l.all,
+        ...(r ? [roleIcon(r), m.roles[r]] : [l.all]),
       )
       chip.addEventListener('click', () => {
         playSfx('move')
@@ -344,6 +347,8 @@ export const arenaScreen = (root: HTMLElement, input: Input, pick: VersusPick, a
     } else if (key === 'Escape' || key === 'Backspace') back()
   })
   root.append(el)
+  // The Vale's pictures start loading here, so a match opens with them.
+  loadValeArt()
   select(selected, false)
   later(() => tiles[selected]?.scrollIntoView({ block: 'nearest' }))
   return { el, dim: 0.5, dispose: () => (off(), el.remove()) }
