@@ -13,13 +13,13 @@ import { h, rich } from './dom'
  * After a few matches on this device (`ps:arenaMatches`) the basics go quiet.
  */
 
-export type CoachTip = 'locked' | 'channel' | 'lowHp' | 'defend' | 'full' | 'zapdos' | 'drednaw' | 'stretch' | 'carry' | 'farm'
+export type CoachTip = 'locked' | 'channel' | 'lowHp' | 'defend' | 'grass' | 'full' | 'zapdos' | 'drednaw' | 'stretch' | 'carry' | 'farm'
 
 /** Most urgent first: a more urgent line replaces the one shown at once. */
-const ORDER: readonly CoachTip[] = ['locked', 'channel', 'lowHp', 'defend', 'full', 'zapdos', 'drednaw', 'stretch', 'carry', 'farm']
+const ORDER: readonly CoachTip[] = ['locked', 'channel', 'lowHp', 'defend', 'grass', 'full', 'zapdos', 'drednaw', 'stretch', 'carry', 'farm']
 
 /** What a new player needs and a veteran doesn't. */
-const BASICS: ReadonlySet<CoachTip> = new Set<CoachTip>(['farm', 'carry', 'channel'])
+const BASICS: ReadonlySet<CoachTip> = new Set<CoachTip>(['farm', 'carry', 'channel', 'grass'])
 
 /** The line for `me` now, most urgent first; null on the bench or when nothing needs saying. `quiet`: the basics left out. */
 export const coachTip = (g: Game, me: Player, quiet = false): CoachTip | null => {
@@ -36,6 +36,8 @@ export const coachTip = (g: Game, me: Player, quiet = false): CoachTip | null =>
   }
   const mine = v.team
   if (g.players.some((p) => p.versus && p.versus.team !== mine && p.hp > 0 && p.versus.goal >= 0 && p.versus.channel > 0 && s.goals[p.versus.goal]?.team === mine)) tips.push('defend')
+  // In tall grass: what it does, the first times (a basic).
+  if (v.grass >= 0) tips.push('grass')
   if (v.energy >= VERSUS.energy.cap) tips.push('full')
   const objective = objectiveOf(g)
   if (objective?.kind === 'zapdos') tips.push('zapdos')
@@ -72,7 +74,7 @@ export const countArenaMatch = () => {
 const HOLD = 2.4
 const SETTLE = 0.35
 /** How long a line can stay before it fades (s): a state that lasts (an objective up, carrying across the map) is said once. */
-const TTL: Record<CoachTip, number> = { lowHp: 8, locked: 6, channel: 30, defend: 6, full: 8, zapdos: 7, drednaw: 7, stretch: 6, carry: 10, farm: 12 }
+const TTL: Record<CoachTip, number> = { lowHp: 8, locked: 6, channel: 30, defend: 6, grass: 5, full: 8, zapdos: 7, drednaw: 7, stretch: 6, carry: 10, farm: 12 }
 /** A faded line comes back only after it stopped being wanted this long (s). */
 const REST = 4
 

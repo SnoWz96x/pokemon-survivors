@@ -51,6 +51,17 @@ export const xpShareOf = (xp: number, d2: number) => (d2 <= VERSUS.xpShare.radiu
  */
 export const isAlly = (g: Game, e: Enemy) => e.behavior.kind === 'avatar' && e.behavior.team === g.player.versus?.team
 
+/**
+ * Whether the acting player's moves can't aim at `e` in Versus: a teammate's
+ * avatar (`isAlly`), or a rival's hidden in tall grass (`VersusSeat.hidden`).
+ * A hitbox that reaches a hidden rival still lands (`collide` skips only
+ * allies). Always false outside Versus.
+ */
+export const unseen = (g: Game, e: Enemy) => {
+  const b = e.behavior
+  return b.kind === 'avatar' && (b.team === g.player.versus?.team || g.players[b.slot]?.versus?.hidden === true)
+}
+
 /** Whether `goal` takes scores now: not broken, and a base goal only once a lane goal of its team is gone. */
 export const goalOpen = (s: VersusState, goal: GoalState) =>
   !goal.broken && (!goal.base || s.goals.some((o) => o.team === goal.team && !o.base && o.broken))
