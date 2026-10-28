@@ -41,7 +41,11 @@ export type MatchedSettings = { difficulty: 'normal'; mode: 'versus'; queue: 'ca
  * HMAC-SHA256 of the raw body with `ARENA_REPORT_SECRET`. `result` is the
  * clients' agreed `ArenaResult` as they sent it (the API parses it with
  * `parseArenaResult`); `seats` maps each slot to its account (null for a bot
- * seat; a human who left keeps theirs and `left: true`).
+ * seat; a human who left keeps theirs and `left: true`). `confirmed`: whether
+ * at least `minHumansRanked` clients agreed on the result. A ranked match its
+ * humans left until one was alone is still reported as ranked, unconfirmed:
+ * the API then rates only the leavers (as a loss), since who left is the
+ * relay's word and the lone client's result isn't. Absent reads as true.
  */
 export type ArenaReport = {
   v: 1
@@ -52,6 +56,7 @@ export type ArenaReport = {
   endedAt: number
   seats: { slot: number; userId: string | null; handle: string | null; left: boolean }[]
   result: unknown
+  confirmed?: boolean
 }
 
 /** What `POST /arena/report` answers: the stored match, whether it moved ratings, and whether it was already in (a retry). */

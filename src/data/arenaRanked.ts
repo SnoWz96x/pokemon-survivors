@@ -40,7 +40,10 @@ export const ARENA_RANKED = {
     window: { base: 100, perSecond: 25, max: 600 },
     /** Seconds a ticket waits before bots fill the rest of the match. */
     botsAfter: { casual: 30, ranked: 90 },
-    /** A ranked match with fewer humans plays as casual (a lone client could forge its own end). */
+    /**
+     * A ranked match with fewer humans plays as casual, and one whose result
+     * fewer clients agreed on rates only its leavers (a lone client could forge its own end).
+     */
     minHumansRanked: 2,
     /** Seconds the matched players have to join the room; who's missing plays as a bot. */
     joinTimeout: 20,

@@ -63,6 +63,12 @@ describe('parseArenaReport', () => {
     expect(parseArenaReport(report({ kind: 'practice' }))).toBeNull()
     expect(parseArenaReport(report({ result: { ...result, v: 2 } }))).toBeNull()
   })
+
+  it('reads a report without `confirmed` as confirmed, and refuses one that isn’t a boolean', () => {
+    expect(parseArenaReport(report())?.confirmed).toBe(true)
+    expect(parseArenaReport(report({ confirmed: false }))?.confirmed).toBe(false)
+    expect(parseArenaReport(report({ confirmed: 'no' }))).toBeNull()
+  })
 })
 
 describe('ratingSeason', () => {
@@ -78,6 +84,15 @@ describe('ratingSeason', () => {
     expect(ratingSeason(parsed({ kind: 'room' }))).toBeNull()
     expect(ratingSeason(parsed({ seats: [{ slot: 0, userId: 'u_a', handle: 'a', left: false }] }))).toBeNull()
     expect(ratingSeason(parsed({ endedAt: seasonById(1).startMs - 1 }))).toBeNull()
+  })
+
+  it('rates an unconfirmed match only when an account left it', () => {
+    const left = [
+      { slot: 0, userId: 'u_a', handle: 'a', left: false },
+      { slot: 2, userId: 'u_b', handle: 'b', left: true },
+    ]
+    expect(ratingSeason(parsed({ confirmed: false, seats: left }))?.id).toBe(1)
+    expect(ratingSeason(parsed({ confirmed: false }))).toBeNull()
   })
 })
 
@@ -119,6 +134,25 @@ describe('planMatch', () => {
     const [, left] = planMatch({ ...result, winner: null }, seats, ratings)
     expect(left?.outcome).toBe('loss')
     expect(left?.change?.mmr).toBeLessThan(0)
+  })
+
+  it('rates only the leavers of an unconfirmed match, each as a loss, the stayers unrated', () => {
+    // Red's c left; Blue's a reported a loss nobody can confirm.
+    const seats: ReportSeat[] = [
+      { slot: 0, userId: 'a', left: false },
+      { slot: 2, userId: 'c', left: true },
+    ]
+    const lost = { ...result, winner: 1 as const }
+    const [a, c] = planMatch(lost, seats, ratings, false)
+    expect(a).toMatchObject({ outcome: 'loss', change: null })
+    expect(c?.outcome).toBe('loss')
+    // The same change a confirmed match gives a leaver: human share and tier floor included.
+    expect(c?.change).toEqual(planMatch(result, seats, ratings)[1]?.change)
+    expect(c?.change?.mmr).toBeLessThan(0)
+    expect(c?.change?.after.games).toBe(1)
+    // A leaver at their tier's floor stays there.
+    const floored = new Map([['c', { mmr: 1000, rp: 300, peak: 300, games: 20 }]])
+    expect(planMatch(lost, seats, floored, false)[1]?.change?.after.rp).toBe(300)
   })
 })
 
