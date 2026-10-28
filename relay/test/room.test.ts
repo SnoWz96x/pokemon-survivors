@@ -602,6 +602,17 @@ describe('arena rooms', () => {
     expect(report?.seats[1]).toMatchObject({ slot: 1, left: true })
   })
 
+  it('ends a match a player abandoned (tab closed) once their seat goes away, and reports them as having left', () => {
+    const state = matchedPlaying(2, false)
+    disconnect(state, 'c1', T0 + 4000)
+    say(state, 'c0', { t: 'ping', at: 1 }, T0 + 8000)
+    expect(reports(say(state, 'c0', { t: 'over', tick: 300, h: 'end', result: result(0) }, T0 + 8000))).toHaveLength(0)
+    const [report] = reports(tick(state, T0 + 8000))
+    expect(roomOf(state).phase).toBe('ended')
+    expect(report?.kind).toBe('casual')
+    expect(report?.seats.slice(0, 2)).toMatchObject([{ slot: 0, left: false }, { slot: 1, left: true }])
+  })
+
   it("reports a friends' Arena room as a room, and an account by its Clerk id and handle", () => {
     const state = newState()
     connect(state, 'a', 'ua', T0)
