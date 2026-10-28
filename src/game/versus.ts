@@ -18,6 +18,7 @@ import { updateStatuses } from './statusSystem'
 import { footOf, updateTerrain } from './terrain'
 import { updateVerbEvolved } from './verbEvolutions'
 import { addAvatar, knockOut, roleOf, syncAvatars } from './versusCombat'
+import { reveal, updateGrass, usedSpecial } from './versusGrass'
 import { channelTime, goalOpen, rivalTeam, scoreValue, winnerOf } from './versusRules'
 import type { Enemy, Game, Player } from './types'
 import type { Aim } from './versusBots'
@@ -29,7 +30,7 @@ import * as dm from '../engine/dmath'
  * by seat; the rest are bots the simulation drives, `versusBots.ts`). The map
  * is a room (`room.ts`), so the world's spawns, weather and map events stay
  * out; `stepVersus` runs only what a match needs. PvP goes through each
- * Pokémon's avatar (`versusCombat.ts`).
+ * Pokémon's avatar (`versusCombat.ts`); tall grass hides (`versusGrass.ts`).
  */
 
 /** The lane a seat plays by default (bots follow it, `versusBots.ts`). */
@@ -63,6 +64,10 @@ export type VersusSeat = {
   /** A bot's aim (`versusBots.ts`) and the ticks until it thinks again. */
   aim: Aim | null
   think: number
+  /** Tall grass (`versusGrass.ts`): the patch it stands in (-1 none), whether the rival team can't see it there, and seconds left of a reveal (a hit, its special). */
+  grass: number
+  hidden: boolean
+  reveal: number
   /** Match stats: knockouts dealt, times knocked out, points scored. */
   kos: number
   deaths: number
@@ -133,7 +138,7 @@ export const seatMatch = (seed: number, humans: readonly VersusLoadout[]) => {
 }
 
 const createSeat = (team: Team, bot: boolean, lane: Lane): VersusSeat => ({
-  team, bot, lane, energy: 0, respawn: 0, safe: 0, channel: 0, goal: -1, hurtAt: -99, lastBy: -1, shield: 0, avatar: -1, slow: 1, pace: 1, aim: null, think: 0, kos: 0, deaths: 0, scored: 0,
+  team, bot, lane, energy: 0, respawn: 0, safe: 0, channel: 0, goal: -1, hurtAt: -99, lastBy: -1, shield: 0, avatar: -1, slow: 1, pace: 1, aim: null, think: 0, grass: -1, hidden: false, reveal: 0, kos: 0, deaths: 0, scored: 0,
 })
 
 const createRoom = (): Room => ({
@@ -217,8 +222,8 @@ const hurryEvolutions = (g: Game) => {
 
 /**
  * One tick of a match, in place of `stepTeam`'s: the players walk, the camps
- * and the objective act, everyone's moves fire and land, and the match's rules
- * run (`updateVersus`). The world's spawns, biomes, weather, map events,
+ * and the objective act, the grass hides who stands in it, everyone's moves
+ * fire (held in the grass) and land, and the match's rules run (`updateVersus`). The world's spawns, biomes, weather, map events,
  * places, rifts and pickups never run here.
  */
 export const stepVersus = (g: Game, inputs: readonly StepInput[], dt: number) => {
@@ -231,7 +236,10 @@ export const stepVersus = (g: Game, inputs: readonly StepInput[], dt: number) =>
   for (const p of g.players) {
     if (!inPlay(p)) continue
     g.player = p
+    const cooldown = p.special.cooldown
     stepPlayer(g, inputs[p.slot] ?? STILL, dt)
+    // A special shows its user, grass or not.
+    if (p.versus && usedSpecial(p.special, cooldown)) reveal(p.versus)
   }
   g.player = actor
   syncAvatars(g)
@@ -243,6 +251,7 @@ export const stepVersus = (g: Game, inputs: readonly StepInput[], dt: number) =>
   updateStatuses(g, dt)
   keepEveryoneOn(g, s.room)
   rebuildGrid(g)
+  updateGrass(g, dt)
   for (const p of g.players) {
     if (!inPlay(p)) continue
     g.player = p
