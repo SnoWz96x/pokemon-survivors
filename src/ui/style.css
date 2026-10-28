@@ -210,6 +210,11 @@ button {
   font-size: 16px;
 }
 
+/* Play still waiting for the ranking's ticket (`startRanked`): the way to go on without it. */
+.btn.loading-skip {
+  color: var(--dk-ink, #303040);
+}
+
 .credits {
   position: absolute;
   bottom: max(12px, var(--safe-b));
@@ -930,10 +935,30 @@ button {
   padding: 8px 12px;
 }
 
+/* The difficulty and Começar keep their room; a Bag with many items and TMs scrolls sideways. */
 .partner-bag {
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
+  /* Room for the count badges and key hints, which hang off the slots; the right keeps the bar's gap. */
+  margin: -8px 0 -8px -8px;
+  padding: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #56607e transparent;
+}
+
+.partner-bag .partner-slot,
+.partner-bag-label {
+  flex: none;
+}
+
+@media (pointer: coarse) {
+  .partner-bag {
+    scrollbar-width: none;
+  }
 }
 
 .partner-bag-label {
@@ -1021,8 +1046,7 @@ button {
 }
 
 .partner-diff {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -1461,21 +1485,15 @@ button {
   .partner-bag {
     grid-area: bag;
     gap: 8px;
-    min-width: 0;
-    /* Room for the count badges, which hang off the slots. */
     margin: -8px -4px;
     padding: 8px 10px 8px 4px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .partner-bag .partner-slot {
-    flex: none;
   }
   .partner-bag-label {
     display: none;
   }
   .partner-diff {
     grid-area: diff;
+    min-width: 0;
     align-items: stretch;
     margin: 0;
   }
@@ -18064,7 +18082,7 @@ button.hall-tile:hover {
   height: 32px;
   image-rendering: pixelated;
   border-radius: 4px;
-  background: #dce0ec;
+  background: var(--dk-surface-3, #dce0ec);
 }
 
 .dojo-who b {
@@ -18079,7 +18097,7 @@ button.hall-tile:hover {
 .dojo-who small {
   font-size: 16px;
   line-height: 1;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .btn.dojo-reset,
@@ -18177,7 +18195,7 @@ button.hall-tile:hover {
 }
 
 .dojo-body .dojo-empty {
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-tabs {
@@ -18229,14 +18247,14 @@ button.hall-tile:hover {
   margin: 0 0 2px;
   font-size: 15px;
   line-height: 1.05;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-slots {
   margin: 0;
   font-family: var(--title);
   font-size: 8px;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-row {
@@ -18245,14 +18263,14 @@ button.hall-tile:hover {
   align-items: center;
   gap: 8px;
   padding: 5px 6px;
-  background: #eef0f6;
+  background: var(--dk-surface-2, #eef0f6);
   border: 2px solid transparent;
   border-radius: 6px;
 }
 
 .dojo-row.on {
-  background: #fff;
-  border-color: #6878a8;
+  background: var(--dk-surface-0, #fff);
+  border-color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-row.evolved {
@@ -18289,7 +18307,7 @@ button.hall-tile:hover {
 .dojo-row-note {
   font-size: 15px;
   line-height: 1;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-row-full {
@@ -18297,7 +18315,7 @@ button.hall-tile:hover {
   font-size: 15px;
   line-height: 1;
   text-align: right;
-  color: #a8a8b8;
+  color: var(--dk-ink-3, #a8a8b8);
 }
 
 .dojo-learn {
@@ -18323,7 +18341,7 @@ button.hall-tile:hover {
   font-family: var(--title);
   font-size: 12px;
   color: var(--ink);
-  background: #dce0ec;
+  background: var(--dk-surface-3, #dce0ec);
   border: 0;
   border-radius: 5px;
 }
@@ -18356,7 +18374,7 @@ button.hall-tile:hover {
   align-self: center;
   font-family: var(--title);
   font-size: 7px;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-chips {
@@ -18375,7 +18393,7 @@ button.hall-tile:hover {
   font-size: 17px;
   line-height: 1;
   color: var(--ink);
-  background: #dce0ec;
+  background: var(--dk-surface-3, #dce0ec);
   border: 2px solid transparent;
   border-radius: 5px;
 }
@@ -18396,7 +18414,7 @@ button.hall-tile:hover {
   font-family: var(--title);
   font-size: 8px;
   font-weight: 400;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-forms,
@@ -18417,14 +18435,14 @@ button.hall-tile:hover {
   font-size: 17px;
   line-height: 1;
   color: var(--ink);
-  background: #eef0f6;
+  background: var(--dk-surface-2, #eef0f6);
   border: 2px solid transparent;
   border-radius: 6px;
 }
 
 .dojo-form.on,
 .dojo-target.on {
-  background: #fff;
+  background: var(--dk-surface-0, #fff);
   border-color: #e83838;
 }
 
@@ -18438,7 +18456,7 @@ button.hall-tile:hover {
 .dojo-form-at {
   font-family: var(--title);
   font-size: 7px;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-innate {
@@ -18448,7 +18466,7 @@ button.hall-tile:hover {
   margin: 0 0 2px;
   font-size: 15px;
   line-height: 1;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-innate img {
@@ -18461,7 +18479,7 @@ button.hall-tile:hover {
   display: block;
   font-style: normal;
   font-size: 14px;
-  color: #c04830;
+  color: color-mix(in srgb, #c04830 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-target .types {

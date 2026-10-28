@@ -40,6 +40,21 @@ export const ROUTES = {
   changelog: { pt: '/novidades/', en: '/en/changelog/', es: '/es/novedades/', fr: '/fr/nouveautes/', zh: '/zh-tw/changelog/' },
   legal: { pt: '/legal/', en: '/en/legal/', es: '/es/legal/', fr: '/fr/legal/', zh: '/zh-tw/legal/' },
   support: { pt: '/apoie/', en: '/en/support/', es: '/es/apoya/', fr: '/fr/soutenir/', zh: '/zh-tw/support/' },
+  // The two pages that answer searches for the other games (`src/site/rivals.ts`): their paths carry the names people type.
+  compare: {
+    pt: '/pokemon-survivors-vs-pokesurvivor/',
+    en: '/en/pokemon-survivors-vs-pokesurvivor/',
+    es: '/es/pokemon-survivors-vs-pokesurvivor/',
+    fr: '/fr/pokemon-survivors-vs-pokesurvivor/',
+    zh: '/zh-tw/pokemon-survivors-vs-pokesurvivor/',
+  },
+  alternatives: {
+    pt: '/jogos-pokemon-estilo-vampire-survivors/',
+    en: '/en/pokemon-games-like-vampire-survivors/',
+    es: '/es/juegos-pokemon-como-vampire-survivors/',
+    fr: '/fr/jeux-pokemon-comme-vampire-survivors/',
+    zh: '/zh-tw/pokemon-games-like-vampire-survivors/',
+  },
 } as const satisfies Record<string, Record<Locale, string>>
 
 export type RouteId = keyof typeof ROUTES

@@ -1098,8 +1098,13 @@ const launchRun =async (starter: PlayableId, daily: ChallengeRun | null) => {
   if (!c) updateSave((s) => ({ ...s, partner: starter }))
   const loading = loadingScreen()
   ui.append(loading)
-  // The ticket asked for ahead (or, still on its way, waited for briefly): its clock restarts now, while the sprites load. Without one the run is unranked.
-  const ranked = await startRanked(c?.day ?? null)
+  // The ticket asked for ahead (or, still on its way, waited for): its clock restarts now, while the sprites load. Without one the run is unranked.
+  const ranked = await startRanked(c?.day ?? null, (skip) => {
+    const m = t().ranking
+    const play = h('button', { class: 'btn selected loading-skip', type: 'button', onclick: skip }, m.playUnranked)
+    loading.append(h('p', { class: 'hint' }, m.connecting), play)
+    play.focus()
+  })
   // A ranked run plays the seed the API dealt (a challenge's is the day's); the replay starts from it and the cast is drawn from it.
   const seed = c ? c.seed : (ranked?.seed ?? upcoming.seed)
   // And the outbreak and haunting it dealt with the ticket (the API checks them by its own clock); without one, the device's day.

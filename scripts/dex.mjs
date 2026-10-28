@@ -111,6 +111,15 @@ export const FORMS = {
 }
 
 /**
+ * Form shinies SpriteCollab doesn't have yet, committed by hand at `public/assets/pokemon/<dex>/<key>/shiny/`
+ * (Walk, Idle and Hurt): palette swaps of the form's own sheets, so they share its frame sizes and durations.
+ * By dex and form key, the artist to credit in CREDITS.md. Drop an entry once SpriteCollab publishes that shiny.
+ */
+export const HANDMADE_SHINIES = {
+  248: { mega: 'JFain (shared on Discord as @JaiFain)' },
+}
+
+/**
  * Forms that ship their portrait too (`<dex>/<key>/portrait.png`, `portrait` in the manifest's form), for the
  * screens that show one: Mega Darkrai, the Noite das Bruxas' Meta da comunidade (`ui/halloween.ts`).
  */

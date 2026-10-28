@@ -1,7 +1,9 @@
 import { TIER_SNAPSHOT } from '../data/tierRuns'
 import { LOCALE_IDS, type Locale } from '../i18n'
 import { CHANGELOG } from './changelog'
+import { alternativesPage } from './pages/alternatives'
 import { changelogPage } from './pages/changelog'
+import { comparePage } from './pages/compare'
 import { dexPage } from './pages/dexPage'
 import { guidePage } from './pages/guide'
 import { legalPage } from './pages/legal'
@@ -19,6 +21,8 @@ const RENDER: Record<PageId, (locale: Locale) => string> = {
   changelog: changelogPage,
   legal: legalPage,
   support: supportPage,
+  compare: comparePage,
+  alternatives: alternativesPage,
 }
 
 export type SitePage = {
