@@ -24,6 +24,23 @@ export type ChangelogUpdate = {
  */
 export const CHANGELOG: readonly ChangelogUpdate[] = [
   {
+    date: '2026-10-28',
+    title: { pt: 'Desafio do dia sem Pesadelo', en: 'No more Nightmare in the Daily Challenge', es: 'Desafío del día sin Pesadilla', fr: 'Plus de Cauchemar au Défi du jour', zh: '每日挑戰不再出現惡夢' },
+    highlights: [
+      { pt: 'A partir de 29/10, o Desafio do dia não cai mais no Pesadelo: quando o sorteio cair nele, o desafio é no Difícil.', en: 'From Oct 29 on, the Daily Challenge no longer lands on Nightmare: when the draw picks it, the challenge plays on Hard.', es: 'Desde el 29/10, el Desafío del día ya no cae en Pesadilla: cuando el sorteo la elige, el desafío se juega en Difícil.', fr: 'À partir du 29/10, le Défi du jour ne tombe plus sur Cauchemar : quand le tirage le choisit, le défi se joue en Difficile.', zh: '從 10 月 29 日起，每日挑戰不會再抽到惡夢：抽到時，挑戰改用困難難度。' },
+      { pt: 'Sem as melhorias da loja, ninguém venceu os desafios no Pesadelo (Slakoth e Gastly, 0 vitórias em umas 4.800 partidas). Valeu a todo mundo que tentou!', en: 'With the shop’s upgrades off, no one beat the Nightmare challenges (Slakoth and Gastly, 0 wins in about 4,800 runs). Thanks to everyone who tried!', es: 'Sin las mejoras de la tienda, nadie ganó los desafíos en Pesadilla (Slakoth y Gastly, 0 victorias en unas 4.800 partidas). ¡Gracias a todos los que lo intentaron!', fr: 'Sans les améliorations de la boutique, personne n’a gagné les défis en Cauchemar (Slakoth et Gastly, 0 victoire sur environ 4 800 parties). Merci à tous ceux qui ont essayé !', zh: '在商店升級全部關閉的情況下，沒有人贏過惡夢難度的挑戰（Slakoth 和 Gastly，約 4,800 局 0 勝）。感謝所有挑戰過的玩家！' },
+      { pt: 'Os rankings e as fitas dos dias já jogados continuam como estão.', en: 'The boards and ribbons of the days already played stay as they are.', es: 'Los rankings y las cintas de los días ya jugados quedan como están.', fr: 'Les classements et les rubans des jours déjà joués restent tels quels.', zh: '已經進行過的日子，排行榜和緞帶都維持原樣。' },
+    ],
+    changes: [
+      {
+        title: { pt: 'Desafio do dia', en: 'Daily Challenge', es: 'Desafío del día', fr: 'Défi du jour', zh: '每日挑戰' },
+        notes: [
+          { pt: 'O desafio desliga todas as melhorias e itens para que todos joguem igual, e no Pesadelo isso deixava a partida impossível. Do dia 29/10 em diante, um dia que sortearia Pesadelo é jogado no Difícil, com o mesmo Pokémon e o mesmo mapa; os outros dias seguem iguais.', en: 'The challenge turns every upgrade and item off so everyone plays the same, and on Nightmare that made the run impossible. From Oct 29 on, a day that would draw Nightmare plays on Hard, with the same Pokémon and the same map; every other day stays the same.', es: 'El desafío apaga todas las mejoras y objetos para que todos jueguen igual, y en Pesadilla eso hacía la partida imposible. Desde el 29/10, un día que sortearía Pesadilla se juega en Difícil, con el mismo Pokémon y el mismo mapa; los demás días siguen iguales.', fr: 'Le défi désactive toutes les améliorations et tous les objets pour que tout le monde joue pareil, et en Cauchemar ça rendait la partie impossible. À partir du 29/10, un jour qui tirerait Cauchemar se joue en Difficile, avec le même Pokémon et la même carte ; les autres jours ne changent pas.', zh: '挑戰會關閉所有升級和道具，讓大家在相同條件下遊玩，但在惡夢難度下這讓對局變得不可能。從 10 月 29 日起，原本會抽到惡夢的日子改用困難難度，寶可夢和地圖都不變；其他日子維持原樣。' },
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-10-27',
     title: { pt: 'Dojo', en: 'Dojo', es: 'Dojo', fr: 'Dojo', zh: '道場' },
     highlights: [
