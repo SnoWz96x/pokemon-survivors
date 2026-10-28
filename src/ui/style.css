@@ -935,10 +935,30 @@ button {
   padding: 8px 12px;
 }
 
+/* The difficulty and Começar keep their room; a Bag with many items and TMs scrolls sideways. */
 .partner-bag {
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
+  /* Room for the count badges and key hints, which hang off the slots; the right keeps the bar's gap. */
+  margin: -8px 0 -8px -8px;
+  padding: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #56607e transparent;
+}
+
+.partner-bag .partner-slot,
+.partner-bag-label {
+  flex: none;
+}
+
+@media (pointer: coarse) {
+  .partner-bag {
+    scrollbar-width: none;
+  }
 }
 
 .partner-bag-label {
@@ -1026,8 +1046,7 @@ button {
 }
 
 .partner-diff {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -1466,21 +1485,15 @@ button {
   .partner-bag {
     grid-area: bag;
     gap: 8px;
-    min-width: 0;
-    /* Room for the count badges, which hang off the slots. */
     margin: -8px -4px;
     padding: 8px 10px 8px 4px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .partner-bag .partner-slot {
-    flex: none;
   }
   .partner-bag-label {
     display: none;
   }
   .partner-diff {
     grid-area: diff;
+    min-width: 0;
     align-items: stretch;
     margin: 0;
   }
