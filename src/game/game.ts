@@ -64,6 +64,7 @@ import { SKY } from '../data/places'
 import { updateArena, updateArenaFall } from './riftArena'
 import { domainCamera, updateDomainScene } from './domain'
 import { isAsleep, tickSleep } from './playerSleep'
+import { inGrass } from './versusGrass'
 import { updateLegendScene } from './legendScene'
 import { updateRiftPortal } from './riftPortal'
 import { updateSightings } from './sightings'
@@ -792,8 +793,8 @@ export const stepMoves = (g: Game, input: StepInput, dt: number) => {
   updateSignatures(g, dt)
   updateShopTms(g, dt)
   updateLegendary(g)
-  // Asleep (Dark Void), no move is cast: their cooldowns wait until the player wakes.
-  if (isAsleep(g.player)) return
+  // Asleep (Dark Void), or in the Arena's tall grass, no move is cast: their cooldowns wait.
+  if (isAsleep(g.player) || inGrass(g.player)) return
   updateMoves(g, input.lunge === true, dt)
   updateDuos(g, dt)
 }

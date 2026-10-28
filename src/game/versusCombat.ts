@@ -10,6 +10,7 @@ import { applyStatus, hitTakenMult, statusPace } from './status'
 import { playerTypes } from './terrain'
 import { gainXp } from './leveling'
 import { isAlly, pvpDamage, respawnTime } from './versusRules'
+import { reveal } from './versusGrass'
 import type { Attack, DamageSource, Enemy, Game, Player } from './types'
 import type { Objective } from './versus'
 import * as dm from '../engine/dmath'
@@ -37,7 +38,8 @@ export const avatarPlayer = (g: Game, e: Enemy): Player | null => (e.behavior.ki
 /**
  * `amount` of damage from the acting player's move `move` to `target`, a
  * rival: cut to PvP scale and armor, soaked by a Drednaw shield first. Stops
- * the target's channel and marks who hit it (`hurtAt`, `lastBy`). Returns the
+ * the target's channel, shows it in the grass (`reveal`) and marks who hit it
+ * (`hurtAt`, `lastBy`). Returns the
  * HP taken. A knockout goes through `knockOut`.
  */
 export const pvpHit = (g: Game, target: Player, amount: number, move: DamageSource | null) => {
@@ -54,6 +56,8 @@ export const pvpHit = (g: Game, target: Player, amount: number, move: DamageSour
   tv.hurtAt = g.now
   tv.lastBy = by.slot
   tv.channel = 0
+  // Taking a hit shows a Pokémon, in the grass or not.
+  reveal(tv)
   target.hurt = 0.3
   if (dmg <= 0) return 0
   target.hp -= dmg
@@ -67,7 +71,7 @@ export const pvpHit = (g: Game, target: Player, amount: number, move: DamageSour
  * A rival's hitbox landed on `e`, an avatar (`damageEnemy`): the hit as it
  * would land on a foe (type effectiveness against the Pokémon's types, a
  * freeze's or a mark's bonus), its status, a shove and its drain, all on the
- * player behind it.
+ * player behind it. Both ends of the hit show for a moment, grass or not.
  */
 export const strikeAvatar = (g: Game, e: Enemy, attack: Attack) => {
   const target = avatarPlayer(g, e)
@@ -75,6 +79,9 @@ export const strikeAvatar = (g: Game, e: Enemy, attack: Attack) => {
   const eff = attack.sure ? Math.max(1, effectiveness(attack.type, e.types)) : effectiveness(attack.type, e.types)
   const base = attack.damage * hitTakenMult(e.status)
   const dmg = pvpHit(g, target, base * eff * range(g.rng, 0.9, 1.1), attack.move)
+  // Landing a hit shows its owner too (a move cast before it stepped into the grass).
+  const own = g.player.versus
+  if (own) reveal(own)
   if (dmg <= 0) return
   e.flash = 0.16
   const status = attack.status
