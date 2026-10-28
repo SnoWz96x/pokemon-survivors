@@ -38,6 +38,12 @@ export const CHANGELOG: readonly ChangelogUpdate[] = [
           { pt: 'O desafio desliga todas as melhorias e itens para que todos joguem igual, e no Pesadelo isso deixava a partida impossível. Do dia 29/10 em diante, um dia que sortearia Pesadelo é jogado no Difícil, com o mesmo Pokémon e o mesmo mapa; os outros dias seguem iguais.', en: 'The challenge turns every upgrade and item off so everyone plays the same, and on Nightmare that made the run impossible. From Oct 29 on, a day that would draw Nightmare plays on Hard, with the same Pokémon and the same map; every other day stays the same.', es: 'El desafío apaga todas las mejoras y objetos para que todos jueguen igual, y en Pesadilla eso hacía la partida imposible. Desde el 29/10, un día que sortearía Pesadilla se juega en Difícil, con el mismo Pokémon y el mismo mapa; los demás días siguen iguales.', fr: 'Le défi désactive toutes les améliorations et tous les objets pour que tout le monde joue pareil, et en Cauchemar ça rendait la partie impossible. À partir du 29/10, un jour qui tirerait Cauchemar se joue en Difficile, avec le même Pokémon et la même carte ; les autres jours ne changent pas.', zh: '挑戰會關閉所有升級和道具，讓大家在相同條件下遊玩，但在惡夢難度下這讓對局變得不可能。從 10 月 29 日起，原本會抽到惡夢的日子改用困難難度，寶可夢和地圖都不變；其他日子維持原樣。' },
         ],
       },
+      {
+        title: { pt: 'Dojo', en: 'Dojo', es: 'Dojo', fr: 'Dojo', zh: '道場' },
+        notes: [
+          { pt: 'No tema escuro, os nomes dos golpes, itens, formas e alvos no painel do Dojo voltaram a aparecer.', en: 'On the dark theme, the names of moves, items, forms and targets in the Dojo’s panel show up again.', es: 'En el tema oscuro, los nombres de movimientos, objetos, formas y blancos en el panel del Dojo vuelven a verse.', fr: 'Avec le thème sombre, les noms des capacités, objets, formes et cibles du panneau du Dojo s’affichent de nouveau.', zh: '深色主題下，道場面板中的招式、道具、型態和靶子名稱又能正常顯示了。' },
+        ],
+      },
     ],
   },
   {
