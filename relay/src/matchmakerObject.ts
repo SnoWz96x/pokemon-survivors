@@ -3,7 +3,7 @@ import { ARENA_RANKED } from '../../src/data/arenaRanked'
 import type { ArenaTicketsRequest, ArenaTicketsResponse, QueueServerMessage } from '../../src/net/arena'
 import { LIMITS } from '../../src/net/protocol'
 import type { Env } from './env'
-import { formMatches, noteBuild, parseQueueMessage, parseTickets, staleBuild, type Builds, type Match, type Ticket } from './matchmaker'
+import { formMatches, parseQueueMessage, parseTickets, type Match, type Ticket } from './matchmaker'
 import { arenaApiOf, postSigned } from './report'
 import { HINT_HEADER, identify, isRecord, log, shardStub } from './shell'
 import { SHARD_INDEXES, SHARD_REGIONS, shardName, type Shard } from './shards'
@@ -32,6 +32,12 @@ const QUEUE_TIMEOUT_MS = 10_000
 /** Messages a socket may send per `RATE.window` ms before it is closed. */
 const RATE = { max: 40, window: 10_000 } as const
 
+/**
+ * The site's build (`SIM_BUILD_URL`) is trusted this long, or only `recheck`
+ * long against a ticket on another build (a deploy may have just landed).
+ */
+const SITE_BUILD_MS = { trust: 60_000, recheck: 5_000 } as const
+
 /** The close code after `matched` (normal: the client goes to its room) and after a refusal (`CLOSE_CODES.refused`). */
 const CLOSE_MATCHED = 1000
 const CLOSE_REFUSED = 4004
@@ -52,7 +58,9 @@ export class Matchmaker extends DurableObject<Env> {
   private readonly placing = new Set<string>()
   private readonly authing = new Set<string>()
   private readonly rates = new Map<string, { since: number; n: number }>()
-  private readonly builds: Builds = new Map()
+  /** The site's build as last read, and when: null while unknown (every build is taken). */
+  private site: { build: string | null; at: number } = { build: null, at: 0 }
+  private siteAsk: Promise<string | null> | null = null
   private timer: ReturnType<typeof setTimeout> | null = null
   private fetching = false
 
@@ -90,14 +98,13 @@ export class Matchmaker extends DurableObject<Env> {
     if (this.env.ARENA_QUEUE === 'off') return this.refuse(a.id, 'closed')
     if (msg.auth.kind === 'guest' && this.env.ALLOW_GUESTS !== 'on') return this.refuse(a.id, 'auth')
     this.authing.add(a.id)
-    const identity = await identify(this.env, msg.auth).catch(() => null)
+    const [identity, site] = await Promise.all([identify(this.env, msg.auth).catch(() => null), this.siteBuild(msg.build)])
     this.authing.delete(a.id)
     if (!this.sockets.has(a.id)) return
     if (!identity) return this.refuse(a.id, 'auth')
     if ([...this.tickets.values()].some((t) => t.user === identity.id)) return this.refuse(a.id, 'duplicate')
+    if (site !== null && msg.build !== site) return this.refuse(a.id, 'build')
     const now = Date.now()
-    noteBuild(this.builds, msg.build, now)
-    if (this.env.ARENA_BUILDS !== 'any' && staleBuild(this.builds, msg.build, now)) return this.refuse(a.id, 'build')
     // Guests (a dev relay) have no rating: they match at the start.
     const mmr = identity.account ? null : ARENA_RANKED.mmr.start
     this.tickets.set(a.id, { conn: a.id, user: identity.id, kind: msg.kind, party: msg.party, build: msg.build, since: now, mmr, hint: a.hint })
@@ -173,11 +180,41 @@ export class Matchmaker extends DurableObject<Env> {
     }, TICK_MS)
   }
 
-  /** One second of the queue: MMRs asked, stale builds told, matches made, the rest told how theirs is forming. */
+  /**
+   * The build the site serves now (`/sim-build.json` at `SIM_BUILD_URL`):
+   * read at most once a minute, or after 5 s when `against` isn't it. Null
+   * without the var or before a first answer, and then every build is taken;
+   * a failed read keeps the last answer. Only the site knows which build is
+   * newest: the order builds reach the queue says nothing (a tab left open
+   * since yesterday can be the first to queue after a restart).
+   */
+  private siteBuild(against?: string): Promise<string | null> {
+    const url = this.env.SIM_BUILD_URL
+    if (!url) return Promise.resolve(null)
+    const age = Date.now() - this.site.at
+    if (age < SITE_BUILD_MS.trust && (against === undefined || against === this.site.build || age < SITE_BUILD_MS.recheck)) return Promise.resolve(this.site.build)
+    this.siteAsk ??= fetch(url, { cache: 'no-store' })
+      .then(async (res) => {
+        const raw: unknown = res.ok ? await res.json() : null
+        return isRecord(raw) && typeof raw.build === 'string' && raw.build !== '' ? raw.build : null
+      })
+      .catch(() => null)
+      .then((build) => {
+        if (build === null) log({ ev: 'queue.siteBuildFailed' })
+        this.site = { build: build ?? this.site.build, at: Date.now() }
+        this.siteAsk = null
+        return this.site.build
+      })
+    return this.siteAsk
+  }
+
+  /** One second of the queue: MMRs asked, old builds told, matches made, the rest told how theirs is forming. */
   private step() {
     const now = Date.now()
     this.lookUpMmr()
-    if (this.env.ARENA_BUILDS !== 'any') for (const t of [...this.tickets.values()]) if (staleBuild(this.builds, t.build, now)) this.refuse(t.conn, 'build')
+    if (now - this.site.at >= SITE_BUILD_MS.trust) void this.siteBuild()
+    const site = this.site.build
+    if (site !== null) for (const t of [...this.tickets.values()]) if (t.build !== site) this.refuse(t.conn, 'build')
     const open = [...this.tickets.values()].filter((t) => !this.placing.has(t.conn))
     const { matches, waiting } = formMatches(open, now)
     for (const m of matches) this.ctx.waitUntil(this.place(m))

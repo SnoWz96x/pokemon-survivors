@@ -28,14 +28,14 @@
   ],
   // ALLOW_GUESTS: the dev relay and local `wrangler dev` seat guests (the soak, in-tab bots, dev builds); production doesn't.
   // ROOMS_PER_SHARD: the rooms one ShardObject holds at most (README, "Limits and costs").
-  // Matchmaker (v4): the Arena's queue. ARENA_BUILDS any: the dev relay's queue takes every build (Vercel previews share it).
+  // Matchmaker (v4): the Arena's queue. SIM_BUILD_URL (production only): the site's current build, the only one it takes;
+  // without it the dev relay's queue takes every build (Vercel previews share it).
   // ARENA_API_URL (production only): where Arena reports and MMR lookups go, signed with the ARENA_REPORT_SECRET secret.
   "vars": {
     "CLERK_ISSUER": "https://clerk.pokemonsurvivors.com",
     "ALLOWED_ORIGINS": "https://www.pokemonsurvivors.com,https://pokemonsurvivors.com,https://*.vercel.app",
     "ALLOW_GUESTS": "on",
-    "ROOMS_PER_SHARD": "24",
-    "ARENA_BUILDS": "any"
+    "ROOMS_PER_SHARD": "24"
   },
   // Bindings, rate limits and vars don't inherit into an environment, so they repeat here.
   // Production serves only the live site; Vercel previews use the dev relay.
@@ -66,7 +66,8 @@
         "ALLOWED_ORIGINS": "https://www.pokemonsurvivors.com,https://pokemonsurvivors.com",
         "ALLOW_GUESTS": "off",
         "ROOMS_PER_SHARD": "24",
-        "ARENA_API_URL": "https://api.pokemonsurvivors.com"
+        "ARENA_API_URL": "https://api.pokemonsurvivors.com",
+        "SIM_BUILD_URL": "https://www.pokemonsurvivors.com/sim-build.json"
       }
     }
   }

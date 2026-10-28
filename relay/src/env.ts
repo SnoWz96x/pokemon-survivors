@@ -31,6 +31,9 @@ export type Env = {
   ARENA_REPORT_SECRET?: string
   /** `off` closes the queue (`refused: closed`). */
   ARENA_QUEUE?: string
-  /** `any`: the queue takes every build (the dev relay, shared by Vercel previews); else only the newest (`staleBuild`). */
-  ARENA_BUILDS?: string
+  /**
+   * The site's `/sim-build.json` (`https://www.pokemonsurvivors.com/sim-build.json`): the queue refuses
+   * any other build (`refused: build`). Unset (the dev relay, shared by Vercel previews): every build.
+   */
+  SIM_BUILD_URL?: string
 }
