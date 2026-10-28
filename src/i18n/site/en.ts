@@ -22,6 +22,8 @@ export const siteEn: SiteMessages = {
     tierList: 'Tier list',
     legal: 'Legal',
     support: 'Support',
+    compare: 'Pokémon Survivors vs PokéSurvivor',
+    alternatives: 'Games like Vampire Survivors',
     language: 'Language',
   },
   footer: {
@@ -31,6 +33,9 @@ export const siteEn: SiteMessages = {
     credits: 'Credits',
     source: 'Source on GitHub',
     support: 'Support the project',
+    notThem: 'Pokémon Survivors (pokemonsurvivors.com) is not PokéSurvivor (pokesurvivor.com), another fan game with a similar name.',
+    compare: 'See the differences',
+    alternatives: 'More Pokémon games like Vampire Survivors',
   },
   home: 'Home',
   playCta: 'Play for free',
@@ -923,6 +928,167 @@ export const siteEn: SiteMessages = {
     ],
     issues: 'Open an issue on GitHub',
     source: 'View the source code',
+  },
+  compare: {
+    title: 'Pokémon Survivors vs PokéSurvivor: are they the same game? The differences',
+    description:
+      'Pokémon Survivors (pokemonsurvivors.com) and PokéSurvivor (pokesurvivor.com) are two free Vampire Survivors-style Pokémon fan games by different people. Side by side: Pokémon, co-op, languages, rankings and source code.',
+    h1: 'Are Pokémon Survivors and PokéSurvivor the same game?',
+    lead: [
+      'No. They are two free Vampire Survivors-style Pokémon fan games with almost the same name, made by different people. Pokémon Survivors (pokemonsurvivors.com, this site) is made by Pedro Barretto in Brazil. PokéSurvivor (pokesurvivor.com) is made by JPTER78.',
+      'Both came out in October 2026, run in the browser and are free, so search engines and AI chats sometimes mix them up. Here is what sets them apart.',
+    ],
+    table: { title: 'Side by side', feature: 'Feature' },
+    rows: (f) => [
+      ['Made by', 'Pedro Barretto (Brazil)', 'JPTER78'],
+      ['Website', 'pokemonsurvivors.com', 'pokesurvivor.com'],
+      ['Where to play', 'Browser on PC and phone, portrait or landscape. Installs as an app.', 'Browser on PC and phone, landscape. Installs as an app.'],
+      ['Account', 'Optional: solo play needs no sign-up. An account adds cloud saves, the rankings and co-op.', 'Optional: guest or account (name and password, or Google). An account adds cloud saves, the rankings and co-op.'],
+      ['How you attack', `Every move fires on its own, up to ${f.moves} at once.`, 'You pick the active move (keys 1 to 4). Each legendary beaten lets you fuse moves into one slot.'],
+      ['Playable Pokémon', `${f.starters} starters with their full evolution lines, plus ${f.eggs} families that hatch from eggs and ${f.legends} legendaries in Legend Mode.`, '966 Pokémon from all 9 generations.'],
+      ['How you unlock Pokémon', 'Eggs that hatch with the steps you take in runs. Legendaries are caught by beating them as bosses.', 'A gacha per region, with tickets earned by playing.'],
+      ['A run', `${f.minutes} minutes up to Mewtwo, with legendary bosses and epic rifts on the way. Then an endless mode until Arceus.`, 'Timed hordes, with rifts that lead to an arena against a legendary.'],
+      ['Co-op', `Online, up to ${f.players} players. Rooms by link, code or friends list.`, 'Online, up to 4 players. Rooms by inviting friends.'],
+      ['Languages', `${f.languages}: Portuguese, English, Spanish, French and Traditional Chinese.`, '7: Spanish, English, French, Italian, Portuguese, and Simplified and Traditional Chinese.'],
+      ['Rankings', 'By time survived. Runs on the boards are checked: the server re-simulates each one from its replay.', 'By time survived, solo or as a group.'],
+      ['Source code', 'Open source, MIT license.', 'Public, PolyForm Noncommercial license (MIT until 2026-10-14).'],
+      ['Ads and purchases', 'None. Optional donations.', 'None. Optional donations.'],
+    ],
+    names: {
+      title: 'Similar names',
+      items: [
+        { name: 'Pokémon Survivors', text: 'This game, at pokemonsurvivors.com. "Survivors", plural.' },
+        { name: 'PokéSurvivor (or Poke Survivor)', text: "JPTER78's game, at pokesurvivor.com." },
+        { name: 'Poke Survivors (Android)', text: 'An unofficial Android port of PokéSurvivor, made in Godot. Not this game.' },
+        { name: 'pokesurvivor.games and pokesurvival.com', text: 'Fan sites with guides that send you to PokéSurvivor.' },
+        { name: 'Pokémon Survivor Burst', text: 'Another fan game, downloaded on PC, made by ClessioTV with Pokémon Essentials.' },
+      ],
+    },
+    pickOurs: {
+      title: 'Play Pokémon Survivors if you…',
+      items: (f) => [
+        `want a run with a beginning, middle and end: ${f.minutes} minutes up to Mewtwo, then the endless mode against Arceus;`,
+        'like theorycrafting: moves that fork into two paths at Lv 4 and Lv 7, Abilities, items, duo moves and Mega Evolution;',
+        `want to play as the legendaries: catch all ${f.legends} by beating them as bosses and play them in Legend Mode;`,
+        'want to play on your phone held upright, one-handed;',
+        'want a ranking where the top runs are checked by the server;',
+        'want open source under the MIT license, to study and reuse.',
+      ],
+    },
+    pickTheirs: {
+      title: 'Play PokéSurvivor if you…',
+      items: [
+        'want to collect: 966 Pokémon and a gacha per region;',
+        'would rather pick the attacking move yourself;',
+        'play in Italian or Simplified Chinese;',
+        'want the bigger community and more YouTube videos.',
+      ],
+    },
+    faq: {
+      title: 'FAQ',
+      items: (f) => [
+        {
+          q: 'Are Pokémon Survivors and PokéSurvivor the same game?',
+          a: 'No. They are two different free fan games by different people, released the same month with almost the same name. Pokémon Survivors is at pokemonsurvivors.com and made by Pedro Barretto. PokéSurvivor is at pokesurvivor.com and made by JPTER78.',
+        },
+        {
+          q: 'I searched for "Pokémon Survivors" and got PokéSurvivor. Did I get the name wrong?',
+          a: 'No. Pokémon Survivors, with "Survivors" in the plural, is this game, at pokemonsurvivors.com. Search engines and AI chats sometimes mix the two up.',
+        },
+        {
+          q: 'Which one is better?',
+          a: `It depends on what you want. PokéSurvivor has more Pokémon (966) and a gacha to collect them. Pokémon Survivors has ${f.minutes}-minute runs with legendary bosses, playable legendaries, Mega Evolution, moves that fork into paths and a server-checked ranking. Both are free, so you can play both.`,
+        },
+        {
+          q: 'Are both free and official?',
+          a: 'Both are free, with no ads or purchases, and run in the browser. Neither is official: they are fan games with no ties to Nintendo, The Pokémon Company, GAME FREAK or Creatures.',
+        },
+        {
+          q: 'Can I play Pokémon Survivors with friends?',
+          a: `Yes. Online co-op brings up to ${f.players} players into the same run, each with their own Pokémon. Create a room and invite friends by link, code or friends list. It needs an account.`,
+        },
+      ],
+    },
+    checked: (date) => `The facts about PokéSurvivor were checked on ${date} on its website and in its source code, and may have changed since.`,
+    report: 'Spotted something wrong? Tell us on GitHub',
+    alternatives: 'More Pokémon games like Vampire Survivors',
+    cta: 'Play Pokémon Survivors free',
+  },
+  alternatives: {
+    title: 'Pokémon games like Vampire Survivors: the free fan games (2026)',
+    description:
+      'The free Vampire Survivors-style Pokémon fan games: Pokémon Survivors, PokéSurvivor and Pokémon Survivor Burst, plus the roguelite PokeRogue. Where they run, co-op, how many Pokémon and who each one is for.',
+    h1: 'Pokémon games like Vampire Survivors',
+    lead: "There is no official Pokémon Vampire Survivors, but fans have made a few. These are the free Pokémon survivors-like (or bullet heaven) fan games, where you only move and your Pokémon attacks hordes on its own, plus a turn-based Pokémon roguelite if you'd like a different pace.",
+    disclosure: (date) =>
+      `Written by the maker of Pokémon Survivors, first on the list, so keep that in mind. The other games' facts were checked on ${date} on their own sites and may have changed.`,
+    glance: { title: 'At a glance', game: 'Game', plays: 'Where to play', style: 'Style', coop: 'Co-op', roster: 'Pokémon' },
+    madeBy: 'Made by',
+    bestFor: 'Best for',
+    visit: (name) => `Open ${name}`,
+    games: {
+      ours: {
+        plays: 'Browser, PC and phone',
+        style: 'Survivors-like',
+        coop: 'Up to 4 online',
+        roster: (f) => `${f.starters} starters, ${f.eggs} egg families, ${f.legends} legendaries`,
+        about: (f) => [
+          `Pick one of ${f.starters} starters from Kanto to Paldea and survive ${f.minutes} minutes of hordes: every move attacks on its own, you pick moves and items each level and evolve mid-run, until you face Mewtwo. Legendary bosses, epic rifts into each legendary's domain, Mega Evolution and an endless mode against Arceus.`,
+          `Eggs hatch ${f.eggs} more families, the legendaries you beat become playable in Legend Mode, and online co-op brings up to ${f.players} players together. In ${f.languages} languages, open source (MIT).`,
+        ],
+        bestFor: 'short runs with bosses, varied builds and playable legendaries, on PC or on a phone held upright.',
+      },
+      pokesurvivor: {
+        plays: 'Browser, PC and phone (landscape)',
+        style: 'Survivors-like',
+        coop: 'Up to 4 online',
+        roster: '966 Pokémon',
+        about: [
+          'The biggest cast in the genre: 966 Pokémon from all 9 generations, unlocked through a gacha per region with tickets earned by playing. You pick the attacking move, and rifts lead to an arena against a legendary. It has missions, achievements, rankings and co-op for up to 4 players, in 7 languages.',
+          'There is also an unofficial Android port called Poke Survivors, made in Godot.',
+        ],
+        bestFor: 'collecting as many Pokémon as possible.',
+      },
+      burst: {
+        plays: 'Download, Windows and Mac',
+        style: 'Survivors-like',
+        coop: 'No',
+        roster: 'Grows with each version',
+        about: [
+          'Made in Pokémon Essentials (RPG Maker XP), you download it and play on a computer. It has Classic, Rush and Tower modes, bosses and online leaderboards, in several languages. Its maker notes the phone version is untested.',
+        ],
+        bestFor: 'a downloaded game that looks like a classic Pokémon game.',
+      },
+      pokerogue: {
+        plays: 'Browser, PC and phone',
+        style: 'Turn-based roguelite',
+        coop: 'No',
+        roster: 'Every generation',
+        about: [
+          "Not a survivors-like: battles are turn-based, like the main series, wave after wave, catching Pokémon to build your team. It's the best-known Pokémon roguelite, free and open source.",
+        ],
+        bestFor: 'a Pokémon roguelite with turn-based battles instead of hordes.',
+      },
+    },
+    faq: {
+      title: 'FAQ',
+      items: (f) => [
+        {
+          q: 'Is there an official Pokémon Vampire Survivors?',
+          a: 'No. Pokémon has never released a game in this style. The ones that exist are free, unofficial fan games, like Pokémon Survivors, PokéSurvivor and Pokémon Survivor Burst.',
+        },
+        {
+          q: 'Which Pokémon game like Vampire Survivors has co-op?',
+          a: `Pokémon Survivors and PokéSurvivor, both with online co-op for up to ${f.players} players, in the browser.`,
+        },
+        {
+          q: 'Which one can I play on my phone without downloading anything?',
+          a: 'Pokémon Survivors, PokéSurvivor and PokeRogue run in the phone browser. Pokémon Survivors also plays with the phone held upright. Pokémon Survivor Burst is a download for computers.',
+        },
+      ],
+    },
+    compareLink: 'Pokémon Survivors and PokéSurvivor side by side',
+    cta: 'Play Pokémon Survivors free',
   },
   notFound: {
     title: 'Page not found · Pokémon Survivors',

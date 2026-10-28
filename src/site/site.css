@@ -905,6 +905,45 @@ td small {
   color: var(--muted);
 }
 
+/*
+ * Tables that stack on a phone (the comparison, the games at a glance): each row's header becomes a
+ * full-width line and its cells pair up under it; a cell with `data-label` shows it above its text.
+ */
+@media (max-width: 600px) {
+  .stack-table table,
+  .stack-table thead,
+  .stack-table tbody {
+    display: block;
+  }
+
+  .stack-table tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stack-table thead th:first-child,
+  .stack-table thead:has(+ tbody td[data-label]) {
+    display: none;
+  }
+
+  .stack-table tbody th {
+    grid-column: 1 / -1;
+    padding-bottom: 0;
+    white-space: normal;
+  }
+
+  .stack-table td {
+    overflow-wrap: anywhere;
+  }
+
+  .stack-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 16px;
+  }
+}
+
 .with-mini {
   display: inline-flex;
   align-items: center;
