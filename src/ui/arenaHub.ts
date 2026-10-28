@@ -6,7 +6,7 @@ import { playSfx } from '../engine/audio'
 import type { Input } from '../engine/input'
 import { seasonAt, seasonById, tierOf, type ArenaHistoryEntry, type ArenaLeaderboardRow, type ArenaProfile, type Season, type TierView } from '../game/arenaRank'
 import { formatNumber, locale, LOCALES, t } from '../i18n'
-import { tierBallIcon, tierIcon } from '../render/art'
+import { arenaIconUrl, tierBallUrl, type ArenaIcon } from '../render/arenaArt'
 import { portraitUrl } from '../render/sprites'
 import { firstForm, teamColor } from './arena'
 import { h, later } from './dom'
@@ -36,8 +36,17 @@ const ROMAN = { 1: 'I', 2: 'II', 3: 'III' } as const
 /** "Great Ball II", "Master Ball". */
 export const tierName = (view: Pick<TierView, 'tier' | 'division'>) => `${TIER_NAMES[view.tier]}${view.division ? ` ${ROMAN[view.division]}` : ''}`
 
-/** A tier's badge (`render/art.ts`), named for screen readers. */
-export const tierBadge = (view: Pick<TierView, 'tier' | 'division'>, cls = '') => h('img', { class: `tier-badge ${cls}`, src: tierIcon(view.tier, view.division), alt: tierName(view), title: tierName(view) })
+/** A tier's badge: its official ball with the division (III, II, I) on a plate under it, named for screen readers. */
+export const tierBadge = (view: Pick<TierView, 'tier' | 'division'>, cls = '') =>
+  h(
+    'span',
+    { class: `tier-badge ${cls}`, role: 'img', 'aria-label': tierName(view), title: tierName(view) },
+    h('img', { src: tierBallUrl(view.tier), alt: '' }),
+    view.division ? h('b', { class: 'tier-badge-division' }, ROMAN[view.division]) : null,
+  )
+
+/** Each tab's icon (`render/arenaArt.ts`). */
+const TAB_ICONS = { profile: 'tabProfile', season: 'tabSeason', ranking: 'tabRanking', history: 'tabHistory', rules: 'tabRules' } as const satisfies Record<ArenaHubTab, ArenaIcon>
 
 /** The tier above `view`'s division: the next division's, or the next tier's III. */
 const nextName = (view: TierView) => (view.next === null ? null : tierName(tierOf(view.next)))
@@ -68,7 +77,7 @@ export const arenaHub = (root: HTMLElement, input: Input, tab: ArenaHubTab, acti
   const seasonChip = h('span', { class: 'arena-hub-season' })
   const headBadge = h('span', { class: 'arena-hub-badge' })
   const tabs = ARENA_HUB_TABS.map((id) =>
-    h('button', { class: 'shell-tab arena-hub-tab', type: 'button', role: 'tab', onclick: () => switchTab(id) }, m.tabs[id]),
+    h('button', { class: 'shell-tab arena-hub-tab', type: 'button', role: 'tab', onclick: () => switchTab(id) }, h('img', { class: 'arena-hub-tab-icon', src: arenaIconUrl(TAB_ICONS[id]), alt: '' }), h('span', {}, m.tabs[id])),
   )
 
   /** The button Enter presses on the tab shown (sign in, load more), if any. */
@@ -79,7 +88,7 @@ export const arenaHub = (root: HTMLElement, input: Input, tab: ArenaHubTab, acti
     if (!signIn) return null
     const button = h('button', { class: 'btn confirm', type: 'button', onclick: () => (playSfx('select'), later(signIn)) }, m.signIn.button)
     primary = button
-    return h('div', { class: 'arena-hub-card arena-hub-cta' }, h('img', { src: tierBallIcon('master'), alt: '' }), h('div', {}, h('b', {}, m.signIn.title), h('p', {}, m.signIn.text)), button)
+    return h('div', { class: 'arena-hub-card arena-hub-cta' }, h('img', { src: tierBallUrl('master'), alt: '' }), h('div', {}, h('b', {}, m.signIn.title), h('p', {}, m.signIn.text)), button)
   }
 
   const deviceCard = () => {
@@ -165,7 +174,7 @@ export const arenaHub = (root: HTMLElement, input: Input, tab: ArenaHubTab, acti
             h(
               'li',
               { class: `arena-hub-rung tier-${rung.tier}${rung.tier === mine ? ' mine' : ''}` },
-              h('img', { src: tierBallIcon(rung.tier), alt: '' }),
+              h('img', { src: tierBallUrl(rung.tier), alt: '' }),
               h('span', { class: 'arena-hub-rung-text' }, h('b', {}, TIER_NAMES[rung.tier]), h('small', {}, m.season.range(rung.from, rung.to))),
               h('span', { class: 'arena-hub-reward' }, m.season.reward(m.season.rewards[rung.tier])),
               rung.tier === mine ? h('em', { class: 'arena-hub-you' }, m.season.you) : null,
@@ -260,7 +269,7 @@ export const arenaHub = (root: HTMLElement, input: Input, tab: ArenaHubTab, acti
     const s = season()
     const now = Date.now()
     seasonChip.textContent = `${m.season.title(s.id)} · ${now < s.startMs ? m.season.starts(countdown(now, s.startMs)) : m.season.ends(countdown(now, s.endMs))}`
-    headBadge.replaceChildren(profile && profile !== 'loading' ? tierBadge(profile.tier) : h('img', { src: tierBallIcon('ultra'), alt: '' }))
+    headBadge.replaceChildren(profile && profile !== 'loading' ? tierBadge(profile.tier) : h('img', { src: tierBallUrl('ultra'), alt: '' }))
     const scroll = body.scrollTop
     const content = { profile: profileTab, season: seasonTab, ranking: rankingTab, history: historyTab, rules: rulesTab }[current]()
     body.replaceChildren(...content.filter((c): c is HTMLElement => c !== null))

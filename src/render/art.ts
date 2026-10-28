@@ -8,7 +8,6 @@ import type { PokeType } from '../data/types'
 import type { SupporterTier } from '../game/supporters'
 import type { EggTier } from '../game/eggs'
 import type { Difficulty } from '../game/difficulty'
-import { TIER_COLORS, type TierId } from '../data/arenaRanked'
 import type { RibbonTier } from '../game/ribbons'
 import type { UpgradeId } from '../game/meta'
 import type { MoveId } from '../game/moves'
@@ -1292,46 +1291,3 @@ export const teamBallIcon = () => toIconUrl('teamBall', TEAM_FX.ball)
 /** The "Zz" as a HUD icon. */
 export const teamAwayIcon = () => toIconUrl('teamZz', TEAM_FX.zz)
 
-/* ---------------- Arena tiers ---------------- */
-
-/**
- * The ranked tiers' balls (`TIER_COLORS`), 13 px wide. Each tier paints its
- * top half (rows 1 to 4) its own way: 1 outline, 2 the top's color, 3 the
- * white half, 4 white (the button, Master's M), 5 shine, 6 the tier's marks
- * (Great's red patches, Ultra's yellow H, Master's pink dots).
- */
-const BALL_TOPS = {
-  poke: ['..112222211..', '.15522222221.', '.15222222221.', '.12221112221.'],
-  great: ['..112222211..', '.15622222621.', '.15622222621.', '.12221112221.'],
-  ultra: ['..116222611..', '.15262226221.', '.15266666221.', '.12261116221.'],
-  master: ['..114222411..', '.15644244621.', '.15242424221.', '.12221112221.'],
-} as const satisfies Record<TierId, readonly string[]>
-
-const BALL_BOTTOM = ['1222144412221', '1111144411111', '1333144413331', '.13331113331.', '.13333333331.', '..113333311..', '....11111....']
-
-/** The division under the ball on a dark plate (7 = plate, 8 = numeral); Master has none, its rows left clear so every badge is the same size. */
-const DIVISION_PLATE = { 3: '.8.8.8.', 2: '..8.8..', 1: '...8...' } as const
-
-const ballRows = (tier: TierId) => ['....11111....', ...BALL_TOPS[tier], ...BALL_BOTTOM]
-
-const tierRows = (tier: TierId, division: 1 | 2 | 3 | null) => {
-  const plate = division === null ? [] : [DIVISION_PLATE[division]]
-  const numeral = plate.map((inner) => `..7${inner.replaceAll('.', '7')}7..`)
-  return [
-    ...ballRows(tier),
-    ...(division === null ? ['', '', '', '', ''] : ['..777777777..', ...numeral, ...numeral, ...numeral, '..777777777..']),
-  ]
-}
-
-/** A tier's colors on the ball: Ultra paints its top in the rim's black with the H in its yellow; the rest the other way round. */
-const tierPalette = (tier: TierId) => {
-  const c = TIER_COLORS[tier]
-  const marks = tier === 'great' ? '#e83838' : tier === 'ultra' ? c.top : '#f878c0'
-  return { 1: '#202028', 2: tier === 'ultra' ? c.rim : c.top, 3: '#f0f0f0', 4: '#ffffff', 5: '#ffffff', 6: marks, 7: '#202030', 8: '#f8e070' }
-}
-
-/** A ranked tier's badge: its ball and, below, the division (III, II, I) on a plate. */
-export const tierIcon = (tier: TierId, division: 1 | 2 | 3 | null) => toIconUrl(`tier:${tier}:${division ?? 0}`, () => art(tierRows(tier, division), tierPalette(tier), '#181818'))
-
-/** A tier's ball alone (the Arena's Casual and Ranqueada cards). */
-export const tierBallIcon = (tier: TierId) => toIconUrl(`tierBall:${tier}`, () => art(ballRows(tier), tierPalette(tier), '#181818'))
