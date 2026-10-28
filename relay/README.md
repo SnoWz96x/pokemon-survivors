@@ -153,9 +153,10 @@ four things, all additive (no `PROTOCOL` bump: a client or relay before them wor
 - **The matchmaker** (`GET /arena/queue`, one `Matchmaker` Durable Object for everyone, created on
   the US east coast): the first message is `queue` (`QueueClientMessage` in `src/net/arena.ts`)
   with its auth, checked like a room's hello (a guest only where `ALLOW_GUESTS` is `on`). One ticket
-  per account (`refused: duplicate`); an old build is refused (`build`) once a newer one was queued
-  with in the last 30 minutes (not on the dev relay, `ARENA_BUILDS=any`, which Vercel previews
-  share); `ARENA_QUEUE=off` closes it (`closed`). New accounts' MMR comes from `POST
+  per account (`refused: duplicate`); a build other than the site's (`SIM_BUILD_URL`, its
+  `/sim-build.json`, read at most once a minute) is refused (`build`), and so are tickets waiting
+  on one after a deploy (not on the dev relay, which has no `SIM_BUILD_URL`: Vercel previews share
+  it); `ARENA_QUEUE=off` closes it (`closed`). New accounts' MMR comes from `POST
   <ARENA_API_URL>/arena/tickets` (`{ userIds }`, signed the same way; no answer: `mmr.start`). Every
   second (`formMatches`): pools by kind and build, the oldest party anchors a match within its MMR
   window (`mmrWindow`), parties stay on one team and solo humans spread across both

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ARENA_RANKED } from '../../src/data/arenaRanked'
-import { BUILD_FRESH_MS, formMatches, noteBuild, parseQueueMessage, parseTickets, staleBuild, type Builds, type Ticket } from '../src/matchmaker'
+import { formMatches, parseQueueMessage, parseTickets, type Ticket } from '../src/matchmaker'
 
 const T0 = 1_000_000
 const { players: SIZE, botsAfter } = ARENA_RANKED.queue
@@ -53,15 +53,6 @@ describe('matchmaking', () => {
     expect(formMatches([...many(4), ...many(4, { kind: 'ranked' })], T0).matches).toHaveLength(0)
     const waitingForMmr = formMatches([...many(7), ticket({ mmr: null })], T0)
     expect(waitingForMmr.matches).toHaveLength(0)
-  })
-
-  it('calls an older build stale once a newer one is queued with, until the newer one goes quiet', () => {
-    const builds: Builds = new Map()
-    noteBuild(builds, 'old', T0)
-    noteBuild(builds, 'new', T0 + 1000)
-    expect(staleBuild(builds, 'old', T0 + 2000)).toBe(true)
-    expect(staleBuild(builds, 'new', T0 + 2000)).toBe(false)
-    expect(staleBuild(builds, 'old', T0 + 1000 + BUILD_FRESH_MS + 1)).toBe(false)
   })
 
   it('reads only well-formed queue messages and ratings', () => {

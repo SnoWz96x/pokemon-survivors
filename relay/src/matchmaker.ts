@@ -5,8 +5,8 @@ import { LIMITS, parseAuth } from '../../src/net/protocol'
 
 /**
  * The Arena's matchmaker as pure rules (`matchmakerObject.ts` is its Durable
- * Object): who may queue, which builds are current, and every second which
- * tickets make a match. No sockets, clock or I/O: the caller passes `now`.
+ * Object): who may queue, and every second which tickets make a match. No
+ * sockets, clock or I/O: the caller passes `now`.
  */
 
 /** A player waiting in the queue. */
@@ -79,33 +79,6 @@ export const parseTickets = (v: unknown): ArenaTicketsResponse['ratings'] => {
     if (isRecord(r) && typeof r.mmr === 'number' && Number.isFinite(r.mmr)) out[id] = { mmr: r.mmr, rp: typeof r.rp === 'number' ? r.rp : 0, games: typeof r.games === 'number' ? r.games : 0 }
   }
   return out
-}
-
-/* ---------------- Builds ---------------- */
-
-/** Each build the queue has seen: when first and last. */
-export type Builds = Map<string, { first: number; last: number }>
-
-/** A build seen this recently counts as current: an older one is stale while a newer one is this fresh. */
-export const BUILD_FRESH_MS = 30 * 60_000
-
-/** Notes a ticket's build at `now`; builds unseen for a day are forgotten. */
-export const noteBuild = (builds: Builds, build: string, now: number) => {
-  const b = builds.get(build)
-  builds.set(build, { first: b?.first ?? now, last: now })
-  for (const [k, v] of builds) if (now - v.last > 86_400_000) builds.delete(k)
-}
-
-/**
- * Whether `build` is out of date: a build first seen after it was queued with
- * in the last `BUILD_FRESH_MS` (a deploy came; this tab never reloaded). Its
- * players are told to update rather than wait alone in a pool of their own.
- */
-export const staleBuild = (builds: Builds, build: string, now: number) => {
-  const mine = builds.get(build)
-  if (!mine) return false
-  for (const [k, v] of builds) if (k !== build && v.first > mine.first && now - v.last <= BUILD_FRESH_MS) return true
-  return false
 }
 
 /* ---------------- Matching ---------------- */
