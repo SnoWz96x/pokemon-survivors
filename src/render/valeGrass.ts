@@ -2,16 +2,19 @@ import { canvasCache, context2d, createCanvas, type PixelSprite } from '../engin
 import { hash2 } from '../engine/rng'
 import { VALE, type Rect } from '../data/versus'
 import { patchAt } from '../game/versusGrass'
-import type { Player } from '../game/types'
+import type { Game, Player } from '../game/types'
+import { localPlayer } from '../game/players'
+import { CLUMPS, valeArt, valeArtMirrored, type Clump, type ClumpFrame } from './arenaArt'
 
 /**
  * The Arena's tall grass on screen, draw-only (`game/versusGrass.ts` hides
- * who stands in it): each patch as code-authored pixel blades that sway, a
- * row of blades over the lower body of whoever stands in one (the viewer's
- * team see-through, more while hidden), leaves flicking off a Pokémon walking
- * through, and the rule that a rival hidden there isn't drawn at all
- * (`concealed`). The art lives in `bakePatch` and `bakeFront` alone, so a
- * painted pass can replace it.
+ * who stands in it): each patch tiled with painted clumps (PixelLab,
+ * `render/arenaArt.ts`) that sway, a clump rustling where a Pokémon the
+ * viewer sees walks through it, a row of code blades over the lower body of
+ * whoever stands in one (the viewer's team see-through, more while hidden),
+ * leaves flicking off them, and the rule that a rival hidden there isn't
+ * drawn at all (`concealed`). Until the clumps load, each patch is the code's
+ * blades (`bakePatch`).
  */
 
 type Ctx = CanvasRenderingContext2D
@@ -90,10 +93,58 @@ const fronts = canvasCache<string, PixelSprite>()
 
 const frameAt = (t: number, seed: number) => Math.floor(t * FPS + seed * 0.37) % FRAMES
 
+/* ---------------- The painted clumps ---------------- */
+
+/** A painted clump: its feet (bottom middle) at (x, y), which one, and whether it's flipped. */
+type Spot = { x: number; y: number; clump: Clump; flip: boolean }
+
+/** How clumps tile a patch (px): apart in a row and between rows, the back row's feet below the patch's top, the front row's past its bottom, and the sides' inset. */
+const LAYOUT = { dx: 16, dy: 9, top: 12, bottom: 3, side: 8 } as const
+
+/** Patch `i`'s clumps, back row first: rows staggered, each clump picked, nudged and flipped by a hash, the same on every device. */
+const spotsOf = (r: Rect, i: number): Spot[] => {
+  const out: Spot[] = []
+  for (let y = r.y0 + LAYOUT.top, row = 0; y <= r.y1 + LAYOUT.bottom; y += LAYOUT.dy, row++) {
+    for (let x = r.x0 + LAYOUT.side + (row % 2) * (LAYOUT.dx / 2); x <= r.x1 - LAYOUT.side; x += LAYOUT.dx) {
+      out.push({ x: x + Math.round((hash2(x, y, 65 + i) - 0.5) * 4), y, clump: CLUMPS[Math.floor(hash2(x, y, 64 + i) * CLUMPS.length)]!, flip: hash2(x, y, 66 + i) < 0.5 })
+    }
+  }
+  return out
+}
+
+const SPOTS = VALE.grass.map(spotsOf)
+
+const clumpArt = (s: Spot, frame: ClumpFrame) => (s.flip ? valeArtMirrored(`grass-${s.clump}${frame}`) : valeArt(`grass-${s.clump}${frame}`))
+
+let clumpsReady = false
+/** Whether every clump's frames have loaded (until then the code's blades stand in). */
+const clumpsLoaded = () => (clumpsReady ||= CLUMPS.every((c) => (['', '-sway', '-rustle'] as const).every((f) => valeArt(`grass-${c}${f}`) !== null)))
+
+/** Whether a Pokémon the viewer sees walks through clump `s` of patch `i` (a hidden rival never rustles one). */
+const rustling = (g: Game, viewer: Player, s: Spot, i: number) => {
+  for (const p of g.players) {
+    if (!p.moving || p.gone || p.hp <= 0 || p.versus?.grass !== i || concealed(viewer, p)) continue
+    if (Math.abs(p.x - s.x) < 12 && p.y > s.y - 16 && p.y < s.y + 6) return true
+  }
+  return false
+}
+
+/** Patch `i`'s clumps, swaying in a wave across it (`FPS`), the ones walked through on their rustle frame. */
+const drawClumps = (ctx: Ctx, g: Game, viewer: Player, i: number, t: number) => {
+  for (const s of SPOTS[i]!) {
+    const frame: ClumpFrame = rustling(g, viewer, s, i) ? '-rustle' : (Math.floor(t * FPS - s.x / 48) & 1) === 1 ? '-sway' : ''
+    const art = clumpArt(s, frame)
+    if (art) ctx.drawImage(art, s.x - (art.width >> 1), s.y - art.height)
+  }
+}
+
 /** Every patch in view (`visible`), swaying: on the ground, under the Pokémon. */
-export const drawGrassPatches = (ctx: Ctx, t: number, visible: (x: number, y: number, m?: number) => boolean) => {
+export const drawGrassPatches = (ctx: Ctx, g: Game, t: number, visible: (x: number, y: number, m?: number) => boolean) => {
+  const painted = clumpsLoaded()
+  const viewer = localPlayer(g)
   VALE.grass.forEach((r, i) => {
     if (!visible((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, 80)) return
+    if (painted) return drawClumps(ctx, g, viewer, i, t)
     const f = frameAt(t, i)
     const key = `${i}:${f}`
     let s = patches.get(key)

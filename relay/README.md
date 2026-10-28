@@ -142,9 +142,10 @@ four things, all additive (no `PROTOCOL` bump: a client or relay before them wor
   co-op), the result more than half of the end's voters sent is posted to the API as an
   `ArenaReport` (`POST <ARENA_API_URL>/arena/report`, header `x-arena-signature`: hex HMAC-SHA256
   of the raw body with `ARENA_REPORT_SECRET`): kind `room` for a friends' room, else its queue's,
-  `ranked` only when the matchmaker rated it and at least `minHumansRanked` humans played and agreed
-  on the result (no lone client rates a match), seats by slot (Clerk user id and handle, bots'
-  slots null, `left` for a human who left the run). Once per run, never for co-op. It goes into an
+  `ranked` only when the matchmaker rated it and at least `minHumansRanked` humans played;
+  `confirmed` only when at least `minHumansRanked` of them agreed on the result (unconfirmed, the API
+  rates only who left, as a loss: no lone client rates a match, no leaver dodges one); seats by slot
+  (Clerk user id and handle, bots' slots null, `left` for a human who left the run). Once per run, never for co-op. It goes into an
   outbox: posted at once, retried with backoff (5 s, 30 s, 2 min, 10 min, 30 min, 1 h) on a 5xx,
   408, 429 or no answer, dropped on any other 4xx; the shard keeps it under `out:<id>` and its alarm
   retries (it outlives the room); the VPS relay keeps it in `vault.db` (`outbox`) with a timer. The
@@ -157,7 +158,8 @@ four things, all additive (no `PROTOCOL` bump: a client or relay before them wor
   share); `ARENA_QUEUE=off` closes it (`closed`). New accounts' MMR comes from `POST
   <ARENA_API_URL>/arena/tickets` (`{ userIds }`, signed the same way; no answer: `mmr.start`). Every
   second (`formMatches`): pools by kind and build, the oldest party anchors a match within its MMR
-  window (`mmrWindow`), parties stay on one team (`splitTeams`), the match goes at 8 humans or once
+  window (`mmrWindow`), parties stay on one team and solo humans spread across both
+  (`splitTeams`), the match goes at 8 humans or once
   its anchor waited `botsAfter` (bots fill the rest), a ranked match of fewer than
   `minHumansRanked` humans plays unrated (`matched.ranked: false`). Its locked room is made in a
   shard of the region most of its players are nearest, everyone gets `matched` (room, team) and the

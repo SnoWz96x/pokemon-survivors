@@ -577,7 +577,7 @@ describe('arena rooms', () => {
     const out = say(state, 'c1', { t: 'over', tick: 900, h: 'end', result: result(0) }, T0 + 9000)
     const [report] = reports(out)
     expect(reports(out)).toHaveLength(1)
-    expect(report).toMatchObject({ v: 1, room: 'ABCDE', run: 1, kind: 'ranked', region: 'enam', endedAt: T0 + 9000, result: JSON.parse(result(0)) })
+    expect(report).toMatchObject({ v: 1, room: 'ABCDE', run: 1, kind: 'ranked', region: 'enam', endedAt: T0 + 9000, result: JSON.parse(result(0)), confirmed: true })
     expect(report?.seats).toHaveLength(ARENA_RANKED.queue.players)
     // Guests have no account; the bots' slots follow the humans'.
     expect(report?.seats.slice(0, 4)).toEqual([0, 1, 2, 3].map((slot) => ({ slot, userId: null, handle: null, left: false })))
@@ -588,7 +588,7 @@ describe('arena rooms', () => {
     expect(reports(say(coop, 'c1', { t: 'over', tick: 900, h: 'end', result: result(0) }, t0))).toHaveLength(0)
   })
 
-  it("rates nothing a lone client says: a split result isn't reported, a match one human finished plays casual", () => {
+  it("trusts no lone client: a split result isn't reported, a ranked match one human finished goes unconfirmed", () => {
     const split = matchedPlaying(2)
     say(split, 'c0', { t: 'over', tick: 900, h: 'end', result: result(0) }, T0 + 9000)
     const out = say(split, 'c1', { t: 'over', tick: 900, h: 'end', result: result(1) }, T0 + 9000)
@@ -598,18 +598,25 @@ describe('arena rooms', () => {
     const left = matchedPlaying(2)
     say(left, 'c1', { t: 'leave' }, T0 + 5000)
     const [report] = reports(say(left, 'c0', { t: 'over', tick: 900, h: 'end', result: result(0) }, T0 + 9000))
-    expect(report?.kind).toBe('casual')
+    // Still ranked, so the API rates the leaver's loss; unconfirmed, so it rates nothing else.
+    expect(report).toMatchObject({ kind: 'ranked', confirmed: false })
     expect(report?.seats[1]).toMatchObject({ slot: 1, left: true })
+
+    // A match the matchmaker didn't rate stays casual.
+    const unrated = matchedPlaying(2, false)
+    say(unrated, 'c0', { t: 'over', tick: 900, h: 'end', result: result(0) }, T0 + 9000)
+    const [casual] = reports(say(unrated, 'c1', { t: 'over', tick: 900, h: 'end', result: result(0) }, T0 + 9000))
+    expect(casual).toMatchObject({ kind: 'casual', confirmed: true })
   })
 
   it('ends a match a player abandoned (tab closed) once their seat goes away, and reports them as having left', () => {
-    const state = matchedPlaying(2, false)
+    const state = matchedPlaying(2)
     disconnect(state, 'c1', T0 + 4000)
     say(state, 'c0', { t: 'ping', at: 1 }, T0 + 8000)
     expect(reports(say(state, 'c0', { t: 'over', tick: 300, h: 'end', result: result(0) }, T0 + 8000))).toHaveLength(0)
     const [report] = reports(tick(state, T0 + 8000))
     expect(roomOf(state).phase).toBe('ended')
-    expect(report?.kind).toBe('casual')
+    expect(report).toMatchObject({ kind: 'ranked', confirmed: false })
     expect(report?.seats.slice(0, 2)).toMatchObject([{ slot: 0, left: false }, { slot: 1, left: true }])
   })
 

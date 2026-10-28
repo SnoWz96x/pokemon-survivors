@@ -846,9 +846,11 @@ const agreedResult = (run: Run, voters: readonly number[]): { result: string; vo
 /**
  * What the relay tells the API about an Arena match (`ArenaReport`): the kind
  * (a friends' room, or the queue it was matched in: ranked only with enough
- * humans in the run and agreeing on the result, so no lone client rates a
- * match), each slot's account (bots' slots after the humans', null) and the
- * agreed result as the clients built it. Null when that result isn't JSON.
+ * humans in the run), whether enough of them agreed on the result
+ * (`confirmed`: when not, the API rates only who left, so no lone client
+ * rates a match and no leaver dodges a loss), each slot's account (bots'
+ * slots after the humans', null) and the agreed result as the clients built
+ * it. Null when that result isn't JSON.
  */
 export const arenaReport = (room: Room, run: Run, agreed: { result: string; votes: number }, now: number): ArenaReport | null => {
   let result: unknown
@@ -859,15 +861,15 @@ export const arenaReport = (room: Room, run: Run, agreed: { result: string; vote
   }
   const { minHumansRanked, players: size } = ARENA_RANKED.queue
   const humans = run.start.players.length
-  const rated = room.lock?.ranked === true && countsForRank('ranked', humans) && agreed.votes >= minHumansRanked
-  const kind: ArenaReport['kind'] = room.lock ? (rated ? 'ranked' : 'casual') : 'room'
+  const ranked = room.lock?.ranked === true && countsForRank('ranked', humans)
+  const kind: ArenaReport['kind'] = room.lock ? (ranked ? 'ranked' : 'casual') : 'room'
   const seats = Array.from({ length: Math.max(size, humans) }, (_, slot): ArenaReport['seats'][number] => {
     const p = run.start.players[slot]
     const id = run.who[slot] ?? ''
     if (!p) return { slot, userId: null, handle: null, left: false }
     return { slot, userId: id.startsWith('u:') ? id.slice(2) : null, handle: p.account && p.name.startsWith('@') ? p.name.slice(1) : null, left: run.left.includes(p.seat) }
   })
-  return { v: 1, room: room.code, run: run.start.id, kind, region: room.region, endedAt: now, seats, result }
+  return { v: 1, room: room.code, run: run.start.id, kind, region: room.region, endedAt: now, seats, result, confirmed: agreed.votes >= minHumansRanked }
 }
 
 /**
@@ -917,7 +919,7 @@ const evaluateOver = (state: State, room: Room, now: number): Effect[] => {
     event(room, 'run.over', { run: run.start.id, tick: run.ended.tick, votes: best[1], connected: connected.length }),
     ...toSeated(state, { t: 'ended', run: run.start.id, tick: run.ended.tick, h }),
     ...broadcastRoom(state, room),
-    ...(report ? [event(room, 'arena.result', { run: run.start.id, kind: report.kind, votes: agreed?.votes ?? 0, humans: run.start.players.length }), { k: 'report' as const, report }] : []),
+    ...(report ? [event(room, 'arena.result', { run: run.start.id, kind: report.kind, confirmed: report.confirmed !== false, votes: agreed?.votes ?? 0, humans: run.start.players.length }), { k: 'report' as const, report }] : []),
   ]
 }
 

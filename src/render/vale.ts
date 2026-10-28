@@ -5,6 +5,7 @@ import { channelTime, goalOpen } from '../game/versusRules'
 import type { GoalState, VersusState } from '../game/versus'
 import type { Game, Player } from '../game/types'
 import { localPlayer } from '../game/players'
+import { teamFile, valeArt, type PostLook } from './arenaArt'
 import { dashedRing } from './strokes'
 import { concealed } from './valeGrass'
 import { bannerOf, FLOWER_PATCHES, lampOf, LOG, MUSHROOMS, TALL_GRASS, TALL_GRASS_SMALL } from './valeDecor'
@@ -13,9 +14,12 @@ import { bannerOf, FLOWER_PATCHES, lampOf, LOG, MUSHROOMS, TALL_GRASS, TALL_GRAS
  * The Vale (Arena, `game/versus.ts`) on screen, draw-only: its floor baked in
  * 256 px tiles of code-authored pixel art (grass, the lanes' worn dirt paths,
  * the darker jungle, the bases' flagstones tinted to their team, a hedge wall
- * around it all), the spawn pads and goal zones on the ground, the Energy
- * orbs, each scorer's channel arc and the goals' points left. `render` calls
- * the passes only while `g.versus` is set.
+ * around it all), the spawn pads and goal zones on the ground, the goals'
+ * posts (standing among the Pokémon, `render/valeProps.ts`), the Energy
+ * orbs, each scorer's channel arc and the goals' points left. The pads and
+ * posts are PixelLab pictures (`render/arenaArt.ts`); until they load, the
+ * code's own (`bakePad`, `bakePost`) stand in. `render` calls the passes only
+ * while `g.versus` is set.
  */
 
 type Ctx = CanvasRenderingContext2D
@@ -544,7 +548,7 @@ export const drawValeFloor = (ctx: Ctx, camX: number, camY: number, w: number, h
 
 /* ---------------- Pads and goals ---------------- */
 
-type ZoneLook = 'open' | 'locked' | 'broken' | 'pad'
+type ZoneLook = PostLook | 'pad'
 
 const rgba = (c: ArrayLike<number>, a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`
 
@@ -599,9 +603,9 @@ const bakeZone = (team: Team, look: ZoneLook, r: number) => {
 }
 
 /**
- * A team's spawn pad: a ring of stone blocks in the team's trim round a
- * glassy disc of its color, a big healing cross in the middle, small ones
- * round it. Opaque at the rim, so it reads as a place on the plaza.
+ * A team's spawn pad in code, until its picture loads: a ring of stone blocks
+ * in the team's trim round a glassy disc of its color, a big healing cross in
+ * the middle, small ones round it. Opaque at the rim, so it reads as a place on the plaza.
  */
 const bakePad = (team: Team, r: number) => {
   const size = r * 2 + 3
@@ -659,13 +663,11 @@ const zoneSprite = (team: Team, look: ZoneLook, r: number) => {
 
 /* ---------------- Goal posts ---------------- */
 
-type PostLook = 'open' | 'locked' | 'broken'
-
 /** The post's size and where its hoop sits on it (sprite px). */
 const POST = { w: 21, h: 33, hx: 10.5, hy: 9.5, outer: 9.5, inner: 5.5, foot: 29 } as const
 
 /**
- * A goal's post, Unite style: a hoop in the team's colors on a pole over a
+ * A goal's post in code, until its picture loads: a hoop in the team's colors on a pole over a
  * stone pedestal. Shut, it greys over with a chain across the hoop (the
  * padlock goes on top); broken, the pole is a snapped stump with the hoop in
  * pieces at its foot.
@@ -747,42 +749,85 @@ const postSprite = (team: Team, look: PostLook) => {
   return s
 }
 
-/** Where a goal's post sprite goes: its pedestal's foot on the goal's middle. */
-const postLeft = (goal: GoalState) => Math.round(goal.x - POST.hx)
-const postTop = (goal: GoalState) => Math.round(goal.y + 4 - POST.foot)
+/** How a goal looks now: broken, open, or shut until a lane goal of its team falls. */
+const lookOf = (s: VersusState, goal: GoalState): PostLook => (goal.broken ? 'broken' : goalOpen(s, goal) ? 'open' : 'locked')
 
-/** A base goal still shut: a small padlock. */
+/** Where a goal's post stands: its pedestal's middle a little below the goal's. */
+const postFoot = (goal: GoalState) => Math.round(goal.y + 4)
+/** The painted post's pedestal middle, from the picture's bottom row. */
+const ART_FOOT = 5
+
+const postArt = (goal: GoalState, look: PostLook) => valeArt(`goal-post-${teamFile(goal.team)}-${look}`)
+
+/** A goal's post as drawn now: the painted one, or the code's until it lands. Its box (top left, size) and its hoop's middle. */
+const postLayout = (goal: GoalState, look: PostLook) => {
+  const art = postArt(goal, look)
+  if (art) {
+    const x = Math.round(goal.x) - (art.width >> 1)
+    const y = postFoot(goal) + ART_FOOT - art.height
+    return { art, x, y, w: art.width, h: art.height, hx: x + art.width / 2, hy: y + 11, spark: 9 }
+  }
+  const x = Math.round(goal.x - POST.hx)
+  const y = postFoot(goal) - POST.foot
+  return { art: null, x, y, w: POST.w, h: POST.h, hx: x + POST.hx, hy: y + POST.hy, spark: 7.5 }
+}
+
+/** A base goal still shut: a small padlock (over the code post; the painted one wears its own). */
 const PADLOCK = lazy(() =>
   fromStrings(['.11111.', '11...11', '1.....1', '1111111', '1222221', '1223221', '1222221', '1111111'], { 1: '#282830', 2: '#e0b848', 3: '#282830' }),
 )
 
-/** Ground zones under everything: the spawn pads and the goals (open, shut until a lane goal falls, broken). */
+/** Ground zones under everything: the spawn pads and the goals (open, shut until a lane goal falls, broken), with each post's shadow. */
 export const drawValeZones = (ctx: Ctx, g: Game, t: number) => {
   const s = g.versus
   if (!s) return
   VALE.spawn.forEach((pad, team) => {
-    blitCentered(ctx, zoneSprite(team as Team, 'pad', VERSUS.spawnPad.r), pad.x, pad.y)
+    const art = valeArt(`spawn-pad-${teamFile(team as Team)}`)
+    if (art) ctx.drawImage(art, Math.round(pad.x - art.width / 2), Math.round(pad.y - art.height / 2))
+    else blitCentered(ctx, zoneSprite(team as Team, 'pad', VERSUS.spawnPad.r), pad.x, pad.y)
     dashedRing(ctx, pad.x, pad.y, VERSUS.spawnPad.r - 4, t * 0.8, [TEAM_LIGHT[team as Team], '#ffffff'], 0.35)
   })
   for (const goal of s.goals) {
-    const open = goalOpen(s, goal)
-    const look: ZoneLook = goal.broken ? 'broken' : open ? 'open' : 'locked'
+    const look = lookOf(s, goal)
     blitCentered(ctx, zoneSprite(goal.team, look, goal.r), goal.x, goal.y)
     // An open goal's rim runs, faster as it empties.
     if (look === 'open') dashedRing(ctx, goal.x, goal.y, goal.r + 2, t * (1.5 + (1 - goal.left / goal.max) * 3), [TEAM_LIGHT[goal.team], '#ffffff', TEAM_COLORS[goal.team]], 0.45)
     blitEllipse(ctx, 10, 3, 'rgba(12,20,12,0.35)', goal.x + 1, goal.y + 5)
-    const x = postLeft(goal)
-    const y = postTop(goal)
-    if (look === 'open') blitEllipse(ctx, 13, 13, GLOWS[goal.team], x + POST.hx, y + POST.hy)
-    ctx.drawImage(postSprite(goal.team, look), x, y)
-    if (look === 'locked') blitCentered(ctx, PADLOCK(), goal.x, y + POST.hy + 1)
-    else if (look === 'open') {
-      // A spark runs round the hoop.
-      const a = t * 3 + goal.x * 0.01
-      ctx.fillStyle = '#ffffff'
-      ctx.fillRect(Math.round(x + POST.hx + Math.cos(a) * 7.5 - 0.5), Math.round(y + POST.hy + Math.sin(a) * 7.5 - 0.5), 1, 1)
-    }
   }
+}
+
+/** The world box goal `i`'s post covers now, for the depth pass to tell who stands behind it. */
+export const goalPostBox = (g: Game, i: number) => {
+  const s = g.versus
+  const goal = s?.goals[i]
+  return s && goal ? postLayout(goal, lookOf(s, goal)) : null
+}
+
+/**
+ * Goal `i`'s post, Unite style, standing among the Pokémon (the depth pass
+ * sorts it by its foot): a hoop on a pole over a pedestal, shut with a chain
+ * and padlock, broken in pieces. An open one glows and a spark runs round its
+ * hoop. `see`: faint, when this screen's player stands behind it.
+ */
+export const drawGoalPost = (ctx: Ctx, g: Game, i: number, t: number, see: boolean) => {
+  const s = g.versus
+  const goal = s?.goals[i]
+  if (!s || !goal) return
+  const look = lookOf(s, goal)
+  const at = postLayout(goal, look)
+  if (see) ctx.globalAlpha = 0.5
+  if (look === 'open') blitEllipse(ctx, 13, 13, GLOWS[goal.team], at.hx, at.hy)
+  if (at.art) ctx.drawImage(at.art, at.x, at.y)
+  else {
+    ctx.drawImage(postSprite(goal.team, look), at.x, at.y)
+    if (look === 'locked') blitCentered(ctx, PADLOCK(), goal.x, at.hy + 1)
+  }
+  if (look === 'open') {
+    const a = t * 3 + goal.x * 0.01
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(Math.round(at.hx + Math.cos(a) * at.spark - 0.5), Math.round(at.hy + Math.sin(a) * at.spark - 0.5), 1, 1)
+  }
+  ctx.globalAlpha = 1
 }
 
 /* ---------------- Orbs and channels ---------------- */
@@ -874,7 +919,7 @@ export const drawValeAir = (ctx: Ctx, g: Game) => {
   for (const goal of s.goals) {
     if (goal.broken) continue
     const open = goalOpen(s, goal)
-    const top = postTop(goal)
+    const top = postLayout(goal, open ? 'open' : 'locked').y
     blitPacked(ctx, textSprite(numberText(Math.max(0, Math.round(goal.left))), open ? TEAM_LIGHT[goal.team] : '#a8a8b0'), goal.x, top - 7)
     const w = 16
     const x = Math.round(goal.x - w / 2)

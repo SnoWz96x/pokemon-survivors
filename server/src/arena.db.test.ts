@@ -94,6 +94,20 @@ describe.skipIf(!url)('arena store (Postgres)', () => {
     expect(entry?.outcome).toBe('loss')
   })
 
+  it('rates only who left an unconfirmed match, and keeps the stayer’s line unrated', async () => {
+    const seats = [
+      { slot: 0, userId: 'u_a', handle: null, left: false },
+      { slot: 2, userId: 'u_b', handle: null, left: true },
+    ]
+    expect((await arena.report(report({ confirmed: false, seats }))).rated).toBe(true)
+    expect(await rating('u_b')).toMatchObject({ games: 1, wins: 0, losses: 1 })
+    expect(await rating('u_a')).toMatchObject({ games: 0, wins: 0, losses: 0, mmr: 1000, rp: 0 })
+    expect((await arena.history('u_a', LATER, 1)).map((e) => [e.outcome, e.rp])).toEqual([['win', null]])
+    // Nobody left: nothing to rate.
+    expect((await arena.report(report({ run: 2, confirmed: false }))).rated).toBe(false)
+    expect((await rating('u_b'))?.games).toBe(1)
+  })
+
   it('starts a new season from the last one’s reset rating', async () => {
     const last = { mmr: 1400, rp: 950, peak: 1000, games: 40 }
     await sql`insert into users (id) values ('u_a')`

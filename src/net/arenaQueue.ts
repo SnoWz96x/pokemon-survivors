@@ -20,15 +20,20 @@ export const mmrWindow = (seconds: number) => {
 /** A party in the queue: its players' MMRs (1 to 4), kept on one team. */
 export type QueueGroup = { id: string; mmrs: readonly number[] }
 
-/** A split of groups into Blue and Red: each group's team, by the input order, and the gap between the teams' summed MMR. */
-export type TeamSplit = { teams: Side[]; gap: number }
+/**
+ * A split of groups into Blue and Red: each group's team, by the input order,
+ * the gap between the teams' summed MMR, and the score it was picked by (the
+ * gap plus the extra humans' penalty).
+ */
+export type TeamSplit = { teams: Side[]; gap: number; score: number }
 
 /**
  * Splits up to `queue.players` humans (in parties) into two teams of at most
  * half each, never separating a party, minimizing the difference between the
- * teams' summed MMR (bots fill the short side later, at `mmr.bot`). Brute
- * force over the groups' assignments (2^groups, at most 256). Null when no
- * split fits.
+ * teams' summed MMR (bots fill the short side later, at `mmr.bot`) plus
+ * `humanSplitPenalty` per human one side has over the other, so humans don't
+ * land together against bots. Brute force over the groups' assignments
+ * (2^groups, at most 256). Null when no split fits.
  */
 export const splitTeams = (groups: readonly QueueGroup[]): TeamSplit | null => {
   const half = ARENA_RANKED.queue.players / 2
@@ -43,7 +48,8 @@ export const splitTeams = (groups: readonly QueueGroup[]): TeamSplit | null => {
     if (blue.size > half || red.size > half) continue
     // The short side gets bots at their MMR.
     const gap = Math.abs(blue.sum + (half - blue.size) * ARENA_RANKED.mmr.bot - (red.sum + (half - red.size) * ARENA_RANKED.mmr.bot))
-    if (!best || gap < best.gap) best = { teams, gap }
+    const score = gap + ARENA_RANKED.queue.humanSplitPenalty * Math.abs(blue.size - red.size)
+    if (!best || score < best.score) best = { teams, gap, score }
   }
   return best
 }
