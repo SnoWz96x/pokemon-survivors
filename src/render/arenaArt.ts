@@ -1,3 +1,4 @@
+import type { TierId } from '../data/arenaRanked'
 import type { Role, Team } from '../data/versus'
 import { canvasCache, context2d, createCanvas, drawable } from '../engine/pixelart'
 
@@ -118,3 +119,9 @@ export const ROLE_ICONS = {
   defender: 'roleDefender',
   supporter: 'roleSupporter',
 } as const satisfies Record<Role, ArenaIcon>
+
+/** Each ranked tier's ball: the official item sprites (PokeAPI), 18 px. */
+const TIER_ICONS = { poke: 'tierPoke', great: 'tierGreat', ultra: 'tierUltra', master: 'tierMaster' } as const satisfies Record<TierId, ArenaIcon>
+
+/** A ranked tier's ball, for an `<img>`. */
+export const tierBallUrl = (tier: TierId) => arenaIconUrl(TIER_ICONS[tier])

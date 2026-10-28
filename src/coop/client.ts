@@ -156,6 +156,15 @@ export type SocketHandlers = { open: () => void; message: (data: unknown) => voi
 /** A socket, as the client uses it (`webSocket` wraps the browser's and Node's `WebSocket`). */
 export type SocketLike = { send: (data: string) => void; close: () => void; isOpen: () => boolean; buffered: () => number }
 
+/** This device's guest id on the relays (kept in `ps:coopGuest`, made once): co-op seats and the Arena's queue know a guest by it. */
+export const coopGuestId = (store: Store, random: () => number) => {
+  const kept = store.get('ps:coopGuest')
+  if (kept && /^[A-Za-z0-9_-]{16,64}$/.test(kept)) return kept
+  const id = Array.from({ length: 24 }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(random() * 36)]).join('')
+  store.set('ps:coopGuest', id)
+  return id
+}
+
 /** The standard `WebSocket` (browsers, Node 22+) as a `SocketLike`. */
 export const webSocket = (url: string, on: SocketHandlers): SocketLike => {
   const ws = new WebSocket(url)
@@ -330,15 +339,7 @@ export const createCoopClient = (deps: CoopDeps) => {
   const relayUrl = (home: RelayHome) => base((home === 'cf' ? undefined : vps[home]) ?? deps.url)
   const wsUrl = (code: string) => `${base(relayFor(code, deps.url, vps)).replace(/^http/, 'ws')}/rooms/${code}/ws`
   const secretKey = (code: string) => `ps:coopSeat:${code}`
-  const GUEST_KEY = 'ps:coopGuest'
-
-  const guestId = () => {
-    const kept = deps.store.get(GUEST_KEY)
-    if (kept && /^[A-Za-z0-9_-]{16,64}$/.test(kept)) return kept
-    const id = Array.from({ length: 24 }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(deps.random() * 36)]).join('')
-    deps.store.set(GUEST_KEY, id)
-    return id
-  }
+  const guestId = () => coopGuestId(deps.store, deps.random)
 
   const send = (msg: ClientMessage) => {
     const ws = s.socket

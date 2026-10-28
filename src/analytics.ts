@@ -11,6 +11,7 @@ import type { RunMode } from './game/ranking'
 import type { RelayHome, VpsHome } from './net/protocol'
 import type { LobbyFocus } from './ui/title'
 import type { NetSummary } from './coop/netStats'
+import type { MatchKind } from './data/arenaRanked'
 import type { CrumbMoment, Quality } from './crumb'
 import type { DeviceInfo } from './telemetry'
 
@@ -176,6 +177,8 @@ type AnalyticsEvents = {
    */
   versus_end: {
     mode: 'bots' | 'friends'
+    /** Where the match came from: practice against bots, a public queue's (casual, ranked as matched) or a friends' room. */
+    kind: MatchKind
     winner: 'blue' | 'red' | 'draw'
     team: 'blue' | 'red'
     result: 'win' | 'loss' | 'draw'
