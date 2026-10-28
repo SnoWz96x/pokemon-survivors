@@ -18039,7 +18039,7 @@ button.hall-tile:hover {
   height: 32px;
   image-rendering: pixelated;
   border-radius: 4px;
-  background: #dce0ec;
+  background: var(--dk-surface-3, #dce0ec);
 }
 
 .dojo-who b {
@@ -18054,7 +18054,7 @@ button.hall-tile:hover {
 .dojo-who small {
   font-size: 16px;
   line-height: 1;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .btn.dojo-reset,
@@ -18152,7 +18152,7 @@ button.hall-tile:hover {
 }
 
 .dojo-body .dojo-empty {
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-tabs {
@@ -18204,14 +18204,14 @@ button.hall-tile:hover {
   margin: 0 0 2px;
   font-size: 15px;
   line-height: 1.05;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-slots {
   margin: 0;
   font-family: var(--title);
   font-size: 8px;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-row {
@@ -18220,14 +18220,14 @@ button.hall-tile:hover {
   align-items: center;
   gap: 8px;
   padding: 5px 6px;
-  background: #eef0f6;
+  background: var(--dk-surface-2, #eef0f6);
   border: 2px solid transparent;
   border-radius: 6px;
 }
 
 .dojo-row.on {
-  background: #fff;
-  border-color: #6878a8;
+  background: var(--dk-surface-0, #fff);
+  border-color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-row.evolved {
@@ -18264,7 +18264,7 @@ button.hall-tile:hover {
 .dojo-row-note {
   font-size: 15px;
   line-height: 1;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-row-full {
@@ -18272,7 +18272,7 @@ button.hall-tile:hover {
   font-size: 15px;
   line-height: 1;
   text-align: right;
-  color: #a8a8b8;
+  color: var(--dk-ink-3, #a8a8b8);
 }
 
 .dojo-learn {
@@ -18298,7 +18298,7 @@ button.hall-tile:hover {
   font-family: var(--title);
   font-size: 12px;
   color: var(--ink);
-  background: #dce0ec;
+  background: var(--dk-surface-3, #dce0ec);
   border: 0;
   border-radius: 5px;
 }
@@ -18331,7 +18331,7 @@ button.hall-tile:hover {
   align-self: center;
   font-family: var(--title);
   font-size: 7px;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-chips {
@@ -18350,7 +18350,7 @@ button.hall-tile:hover {
   font-size: 17px;
   line-height: 1;
   color: var(--ink);
-  background: #dce0ec;
+  background: var(--dk-surface-3, #dce0ec);
   border: 2px solid transparent;
   border-radius: 5px;
 }
@@ -18371,7 +18371,7 @@ button.hall-tile:hover {
   font-family: var(--title);
   font-size: 8px;
   font-weight: 400;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-forms,
@@ -18392,14 +18392,14 @@ button.hall-tile:hover {
   font-size: 17px;
   line-height: 1;
   color: var(--ink);
-  background: #eef0f6;
+  background: var(--dk-surface-2, #eef0f6);
   border: 2px solid transparent;
   border-radius: 6px;
 }
 
 .dojo-form.on,
 .dojo-target.on {
-  background: #fff;
+  background: var(--dk-surface-0, #fff);
   border-color: #e83838;
 }
 
@@ -18413,7 +18413,7 @@ button.hall-tile:hover {
 .dojo-form-at {
   font-family: var(--title);
   font-size: 7px;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-innate {
@@ -18423,7 +18423,7 @@ button.hall-tile:hover {
   margin: 0 0 2px;
   font-size: 15px;
   line-height: 1;
-  color: #6878a8;
+  color: color-mix(in srgb, #6878a8 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-innate img {
@@ -18436,7 +18436,7 @@ button.hall-tile:hover {
   display: block;
   font-style: normal;
   font-size: 14px;
-  color: #c04830;
+  color: color-mix(in srgb, #c04830 var(--dk-lift, 100%), #fff);
 }
 
 .dojo-target .types {
