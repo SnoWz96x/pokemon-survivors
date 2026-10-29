@@ -17,6 +17,11 @@ import type { ConsumableId } from '../game/consumables'
 import type { FriendMilestone } from '../game/referral'
 import type { Difficulty } from '../game/difficulty'
 import type { Role } from '../data/versus'
+import type { MapId } from '../data/versusMaps'
+import type { ArenaFormat } from '../data/arenaFormats'
+import type { BoardStat, PingKind, QuickChat } from '../game/versusSocial'
+import type { Priority } from '../game/versusKit'
+import type { AimAssist } from '../ui/arenaAim'
 import type { MatchKind, TierId } from '../data/arenaRanked'
 import type { SurveyAnswer } from '../data/survey'
 import type { BackgroundId, FrameId, StyleSlot, WallpaperId } from '../data/style'
@@ -243,9 +248,15 @@ export const pt = {
     entry: 'Arena',
     fresh: 'NOVO',
     title: 'Arena',
-    tagline: 'MOBA 4v4',
-    map: 'Vale',
-    intro: 'Duas equipes de 4 no Vale. Derrote Pokémon selvagens, junte Energia e marque nos gols rivais.',
+    tagline: 'MOBA 4v4 · 3v3',
+    /** The Arena's maps' names (`data/versusMaps.ts`). */
+    maps: { vale: 'Vale', glade: 'Clareira' } satisfies Record<MapId, string>,
+    /** The match formats (`data/arenaFormats.ts`): the name, the size, the clock and a line on the map. */
+    formats: {
+      standard: { name: 'Padrão', size: '4v4', clock: '7 min', text: 'No Vale · 3 gols por equipe' },
+      quick: { name: 'Rápida', size: '3v3', clock: '3 min', text: 'Na Clareira · 2 gols por equipe' },
+    } satisfies Record<ArenaFormat, { name: string; size: string; clock: string; text: string }>,
+    intro: 'Duas equipes no Vale (4v4) ou na Clareira (3v3). Derrote Pokémon selvagens, junte Energia e marque nos gols rivais.',
     lobby: {
       how: 'Como jogar',
       /** The Como jogar strip, in order: each step's title and line. */
@@ -253,7 +264,7 @@ export const pt = {
         { title: 'Derrote selvagens', text: 'Os acampamentos soltam orbes de Energia.' },
         { title: 'Junte Energia', text: 'Cada Pokémon carrega até 30.' },
         { title: 'Marque no gol rival', text: 'Fique dentro do gol até a barra encher.' },
-        { title: 'Reta final', text: 'Nos 2:00 finais, pontos em dobro e Zapdos.' },
+        { title: 'Reta final', text: 'No fim, pontos em dobro e Zapdos.' },
       ],
       stats: { damage: 'Dano', toughness: 'Resistência', speed: 'Velocidade', healing: 'Cura' },
       roleInfo: {
@@ -265,19 +276,22 @@ export const pt = {
       } satisfies Record<Role, string>,
       all: 'Todos',
       line: 'Evolui na partida',
-      quick: { title: 'Partida rápida', text: '4v4 contra bots, sem conta. Começa na hora.' },
+      quick: { title: 'Treino', text: 'Contra bots, sem conta. Começa na hora.' },
       room: { title: 'Com amigos', text: 'Crie uma sala e mande o código. Vagas vazias viram bots.', account: 'Precisa de conta com @' },
       offline: 'Indisponível nesta versão',
       casual: { title: 'Casual', text: 'Fila pública com outros treinadores. Sem RP.' },
       ranked: { title: 'Ranqueada', text: 'Vale RP na temporada. Da Poké à Master Ball.' },
       /** The button to the Arena's hub (`ui/arenaHub.ts`). */
+      /** The format picker over the ways to play, and why Ranqueada is off in the 3v3. */
+      format: 'Formato',
+      rankedOnly: 'Ranqueada só no 4v4',
       hub: 'Ranking',
     },
     pick: 'Escolha seu Pokémon',
     free: 'Os 27 iniciais, liberados para todos.',
     roles: { attacker: 'Atacante', speedster: 'Velocista', allRounder: 'Equilibrado', defender: 'Defensor', supporter: 'Suporte' } satisfies Record<Role, string>,
     back: 'Voltar',
-    hintKeys: '← → ↑ ↓ escolher · ENTER partida rápida · ESC voltar',
+    hintKeys: '← → ↑ ↓ escolher · ENTER treino · ESC voltar',
     hintTouch: 'Toque num Pokémon e escolha como jogar',
     /** Team names, Blue (0) then Red (1). */
     teams: ['Azul', 'Vermelho'],
@@ -304,10 +318,23 @@ export const pt = {
       joining: 'Entrando na partida…',
       downgraded: 'Poucos treinadores na fila: esta partida vale como Casual.',
       lost: 'A conexão com a fila caiu.',
-      refused: { auth: 'Entre com sua conta para jogar na fila.', duplicate: 'Você já está na fila em outra aba.', build: 'Há uma versão nova do jogo: recarregue a página.', closed: 'A fila está fechada agora. Tente mais tarde.' },
+      refused: { auth: 'Entre com sua conta para jogar na fila.', duplicate: 'Você já está na fila em outra aba.', build: 'Há uma versão nova do jogo: recarregue a página.', closed: 'A fila está fechada agora. Tente mais tarde.', fairPlay: 'Seu Fair Play está baixo para a Ranqueada.' },
+      /** Fair Play holds the ticket (`queued`'s `hold`): the time before the search starts. */
+      holding: (time: string) => `Fair Play baixo: a busca começa em ${time}`,
+      holdNote: 'Quem sai de partidas espera mais na fila. Termine partidas para recuperar o Fair Play.',
+      /** The Ranqueada refused for Fair Play (`refused` `fairPlay`). */
+      blocked: {
+        title: 'Ranqueada bloqueada',
+        score: (score: number, min: number) => `Seu Fair Play: ${score}/100. A Ranqueada pede ${min} ou mais.`,
+        how: (n: number) => `Termine ${n} ${n === 1 ? 'partida' : 'partidas'} de Casual até o fim para voltar.`,
+        casual: 'Jogar Casual',
+        back: 'Voltar',
+      },
+      /** Before season 1: ranked matches are kept unrated. `date`: when season 1 starts, in the player's time. */
+      preseason: (date: string) => `Pré-temporada: a Ranqueada fica no seu Histórico, mas só vale RP a partir de ${date}, quando começa a Temporada 1.`,
     },
     splash: {
-      loading: 'Carregando o Vale…',
+      loading: 'Carregando a arena…',
       ready: 'Tudo pronto!',
       tip: 'Dica',
       tips: [
@@ -315,10 +342,16 @@ export const pt = {
         'Cada aliado no mesmo gol acelera a marcação em 50%.',
         'Um golpe rival interrompe quem está marcando.',
         'No seu gol você se cura e corre 20% mais rápido.',
-        'O gol da base só abre depois que cai um gol de rota.',
+        'No Vale, o gol da base só abre depois que cai um gol de rota; a Clareira não tem gol de base.',
         'Derrotar o Drednaw dá escudo e Energia ao time todo.',
         'No mato alto os rivais não te veem, mas seus ataques param: bom para emboscar e fugir.',
         'As cartas de nível não pausam: toque numa ou use 1–4.',
+        'O ataque básico é automático: Q, E e R lançam o Golpe 1, o Golpe 2 e o Unite.',
+        'Clique ou toque num rival para travar o alvo; Tab troca. No celular, arraste o botão do golpe para mirar.',
+        'Cada evolução troca o Golpe 1, depois o Golpe 2, por um golpe da nova forma.',
+        'T abre o chat rápido, G marca o mapa e segurar ` mostra o placar completo.',
+        'Da metade da partida em diante, o time pode votar pela rendição: conta como derrota, não como abandono.',
+        'Terminar a partida devolve Fair Play; sair ou ficar parado custa, e abaixo de 80 não tem Ranqueada.',
       ],
     },
     hud: {
@@ -351,6 +384,12 @@ export const pt = {
       drednaw: '*Drednaw* no centro: vença-o e ganhe um escudo',
       zapdos: '*Zapdos* no centro: quem vencer marca na hora',
       stretch: 'Reta final: pontos em *dobro*!',
+      /** The kit, in the opening seconds: the keys bound to Move 1, Move 2 and the Unite Move. */
+      kit: (q: string, e: string, r: string) => `Ataque básico *automático* · *${q}* e *${e}* lançam golpes, *${r}* o Unite`,
+      kitTouch: 'Ataque básico *automático* · toque nos *botões* para lançar, arraste para mirar',
+      /** A rival in reach and nothing locked: how to lock (the key that switches targets). */
+      aim: (tab: string) => `Clique num rival para *travar o alvo* · *${tab}* troca`,
+      aimTouch: 'Toque num rival para *travar o alvo*',
     },
     toast: {
       weScored: (name: string) => `*${name}* marcou!`,
@@ -367,6 +406,20 @@ export const pt = {
       fellThem: (name: string) => `Os rivais derrotaram *${name}*`,
       stretch: 'Reta final! Pontos em dobro',
       back: 'De volta à luta!',
+      surrenderOpen: (name: string) => `*${name}* propôs a rendição: vote!`,
+    },
+    /** The Arena's kit on the HUD (`ui/arenaControls.ts`): the touch buttons and the desktop's key badges. */
+    kit: {
+      basic: 'Ataque básico',
+      move1: 'Golpe 1',
+      move2: 'Golpe 2',
+      unite: 'Golpe Unite',
+      /** The basic attack's badge, where the others show their key. */
+      auto: 'AUTO',
+      /** A move not learned yet: the level it comes at. */
+      learnAt: (level: number) => `Nv ${level}`,
+      /** Moves hold in tall grass. */
+      grass: 'MATO',
     },
     tray: {
       first: 'Escolha um golpe',
@@ -374,6 +427,56 @@ export const pt = {
       branch: 'Evoluir para',
       ability: 'Habilidade',
       auto: 'escolha automática',
+      second: 'Seu Golpe 2',
+      upgrade: (n: number) => `Evoluiu! Novo Golpe ${n}`,
+    },
+    /** Quick chat (`game/versusSocial.ts`): each line by id, as each screen reads it. "Bom jogo!" reaches both teams; the rest only the sender's. */
+    chat: {
+      title: 'Chat rápido',
+      lines: { go: 'Vamos!', retreat: 'Recuar!', help: 'Ajuda!', objective: 'Peguem o objetivo!', defend: 'Defendam o gol!', jungle: 'Cuidado: mato alto!', thanks: 'Obrigado!', gg: 'Bom jogo!' } satisfies Record<QuickChat, string>,
+      /** Tag on a line both teams hear. */
+      all: 'TODOS',
+      wait: 'Espere um pouco para mandar outra',
+      muted: 'Chat rápido silenciado (Configurações)',
+    },
+    /** Pings on the map: what each says. */
+    ping: {
+      title: 'Marcar no mapa',
+      kinds: { attack: 'Atacar aqui', danger: 'Perigo!', omw: 'Estou indo', objective: 'Objetivo' } satisfies Record<PingKind, string>,
+      hint: 'Segure o minimapa ou escolha um ponto para marcar',
+    },
+    /** The surrender vote (`game/versusSocial.ts`): from the match's half on, two thirds of the team's humans. */
+    surrender: {
+      button: 'Render-se',
+      locked: (time: string) => `Render-se (com ${time} no relógio)`,
+      cooldown: (s: number) => `Render-se (em ${s} s)`,
+      running: 'Votação em andamento',
+      confirmSolo: 'Desistir da partida? Ela conta como derrota.',
+      confirmTeam: 'Propor ao time desistir? Se 2/3 aceitarem, a partida acaba em derrota.',
+      title: (name: string) => `${name} quer se render`,
+      mine: 'Você propôs a rendição',
+      tally: (yes: number, need: number) => `${yes}/${need} votos`,
+      yes: 'Render',
+      no: 'Continuar',
+      voted: 'Voto enviado',
+      failed: 'A rendição não passou: a partida continua',
+    },
+    /** The scoreboard (hold its key or tap the score) and the end screen's tables. */
+    board: {
+      title: 'Placar',
+      cols: { kos: 'KO', assists: 'AS', deaths: 'Q', scored: 'PTS', dealt: 'DANO', taken: 'SOFR', healed: 'CURA', interrupts: 'INT' } satisfies Record<BoardStat, string>,
+      full: {
+        kos: 'Nocautes',
+        assists: 'Assistências (acertou um rival nocauteado em até 8 s)',
+        deaths: 'Quedas',
+        scored: 'Pontos marcados',
+        dealt: 'Dano em Pokémon rivais',
+        taken: 'Dano sofrido de rivais',
+        healed: 'Cura (golpes, Habilidade e aura)',
+        interrupts: 'Marcações rivais interrompidas',
+      } satisfies Record<BoardStat, string>,
+      hintKeys: (key: string) => `Segure ${key} para ver o placar`,
+      down: (s: number) => `volta em ${s}`,
     },
     end: {
       victory: 'Vitória!',
@@ -387,6 +490,12 @@ export const pt = {
       playAgain: 'Jogar de novo',
       lobby: 'Voltar ao lobby',
       again: 'Preparando a próxima…',
+      surrendered: 'Seu time se rendeu',
+      theySurrendered: 'Os rivais se renderam',
+      rematch: 'Revanche',
+      rematchTeam: 'Revanche com o time',
+      rematchNote: (s: number) => `Volta à fila com quem do time apertar em até ${s} s`,
+      readyCount: (ready: number, total: number) => `${ready}/${total} prontos para a revanche`,
       mvp: 'MVP',
       mvpLine: (points: number, kos: number, damage: number) => `${points} pontos · ${kos} KOs · ${damage} de dano`,
       medals: { points: 'Artilheiro', kos: 'Caçador', damage: 'Mais dano' },
@@ -397,6 +506,8 @@ export const pt = {
         casual: 'Casual: sem RP',
         calculating: 'Calculando RP…',
         late: 'O RP aparece no Histórico em instantes.',
+        protected: 'Proteção usada! Esta derrota não custou RP.',
+        preseason: (date: string) => `Pré-temporada: a partida fica no Histórico, sem RP. A Temporada 1 começa em ${date}.`,
       },
     },
     menu: { note: 'A partida segue com o menu aberto.', leave: 'Sair da partida', confirm: 'Sair da partida? Um CPU assume o seu lugar.' },
@@ -430,6 +541,29 @@ export const pt = {
         none: 'Nenhuma partida ranqueada nesta temporada ainda. Jogue uma Ranqueada para entrar no ranking!',
         device: 'Neste aparelho',
         deviceLine: (matches: number, wins: number) => `${matches} partidas de treino · ${wins} vitórias`,
+        /** Fair Play (`ARENA_RANKED.fairPlay`): the score, what it allows, what moves it and the latest penalties. */
+        fairPlay: {
+          title: 'Fair Play',
+          ok: 'Tudo certo: Casual e Ranqueada liberadas.',
+          noRanked: (min: number, n: number) => `Abaixo de ${min}: sem Ranqueada. Termine ${n} ${n === 1 ? 'partida' : 'partidas'} para voltar.`,
+          held: (s: number) => `A fila espera ${s} s a mais antes de procurar sua partida.`,
+          explain: (r: { left: number; afk: number; afkAfter: number; awayAfter: number; finish: number }) =>
+            `Sair antes do fim: −${r.left}. Ficar ${r.afkAfter} s sem jogar (andar, lançar, travar alvo), ou ${r.awayAfter} s ausente: −${r.afk}. Cada partida até o fim: +${r.finish}. Vale na Casual e na Ranqueada com outro treinador.`,
+          penalties: { left: 'Você saiu de uma partida', afk: 'Você ficou ausente numa partida' } satisfies Record<'left' | 'afk', string>,
+          penalty: (what: string, n: number) => `${what}: −${Math.abs(n)} Fair Play`,
+        },
+        /** The protection meter (`ARENA_RANKED.protection`). */
+        protection: {
+          title: 'Proteção',
+          ready: 'Pronta! Sua próxima derrota na Ranqueada não custa RP.',
+          filling: 'Boas partidas na Ranqueada enchem a barra. Cheia, ela segura uma derrota inteira.',
+        },
+        /** Before season 1 (`seasonAt` null): ranked matches are stored unrated. */
+        preseason: {
+          title: 'Pré-temporada',
+          text: (date: string) => `A Ranqueada já roda, mas o RP só conta a partir de ${date}, quando começa a Temporada 1.`,
+          played: (n: number) => (n === 1 ? 'Sua Ranqueada da pré-temporada está no Histórico, sem RP: nada se perdeu.' : `Suas ${n} Ranqueadas da pré-temporada estão no Histórico, sem RP: nada se perdeu.`),
+        },
       },
       season: {
         title: (n: number) => `Temporada ${n}`,
@@ -457,16 +591,62 @@ export const pt = {
         more: 'Carregar mais',
         empty: 'Nenhuma partida ainda. Jogue na Arena!',
         device: 'Partidas deste aparelho. Entre para guardar o histórico na sua conta.',
+        protected: 'Proteção',
       },
       rules: {
         title: 'Como funciona a Ranqueada',
-        items: (r: { win: number; loss: number; perf: number; casual: number; ranked: number; humans: number; days: number }) => [
+        items: (r: {
+          win: number
+          loss: number
+          perf: number
+          casual: number
+          ranked: number
+          humans: number
+          days: number
+          /** Fair Play's numbers, as positive points. */
+          fair: { max: number; left: number; afk: number; afkAfter: number; awayAfter: number; finish: number; rankedMin: number; holdBelow: number }
+          /** When season 1 starts, in the player's time. */
+          season1: string
+          /** The clock when a team may vote to surrender (half-time), in the 4v4 and the 3v3. */
+          surrender: { standard: string; quick: string }
+        }) => [
+          'Dois formatos: 4v4 Padrão no Vale (7 min, Casual e Ranqueada) e 3v3 Rápida na Clareira (3 min, só Casual, sem RP).',
           `MMR e RP: o MMR é escondido e decide com quem você joga. O RP aparece no ranking: vitória +${r.win}, derrota ${r.loss}, e até +${r.perf} pelo seu desempenho.`,
           `Se faltar gente, bots completam a partida: depois de ${r.casual} s na Casual e de ${r.ranked} s na Ranqueada.`,
-          `A Ranqueada precisa de pelo menos ${r.humans} treinadores na partida. Com menos, ela vale como Casual.`,
-          'Sair no meio da partida conta como derrota: um bot assume o seu lugar.',
+          `A Ranqueada precisa de pelo menos ${r.humans} treinadores na partida, com gente nos dois times. Senão, ela vale como Casual.`,
+          'Sair no meio da partida conta como derrota (um bot assume o seu lugar) e custa Fair Play.',
           `As temporadas duram ${r.days} dias e viram à meia-noite de Brasília.`,
-          'Partidas rápidas contra bots são treino: ficam no histórico, mas não contam para o ranking. Partidas com amigos também não valem RP.',
+          'Os treinos contra bots ficam no histórico, mas não contam para o ranking. Partidas com amigos também não valem RP.',
+          `Fair Play: todo mundo começa com ${r.fair.max}. Sair antes do fim custa ${r.fair.left}, ficar ${r.fair.afkAfter} s sem jogar (sem andar, lançar golpes nem travar alvo) ou ${r.fair.awayAfter} s ausente custa ${r.fair.afk} e cada partida terminada devolve ${r.fair.finish}. Abaixo de ${r.fair.rankedMin}, sem Ranqueada; abaixo de ${r.fair.holdBelow}, a fila espera mais.`,
+          `Proteção: boas partidas na Ranqueada enchem a barra. Cheia, a próxima derrota não custa RP (o MMR ainda se move) e a barra zera.`,
+          `Pré-temporada: até ${r.season1}, as Ranqueadas ficam no Histórico sem RP. O ranking começa com a Temporada 1.`,
+          `Render-se: da metade da partida em diante (${r.surrender.standard} no relógio no 4v4, ${r.surrender.quick} no 3v3), o time pode votar pela rendição. Passa com 2/3 dos treinadores do time (sozinho com bots, você decide) e conta como derrota normal, não como abandono.`,
+          'Revanche: entre amigos, a sala joga de novo com o mesmo time. Na fila pública, "Revanche com o time" volta à fila em grupo com quem do time também apertar.',
+        ],
+      },
+      /** The Arena's controls, under the rules: `keys` are the bound labels of Move 1, Move 2, the Unite Move and switching targets. */
+      controls: {
+        title: 'Controles da Arena',
+        items: (k: {
+          move1: string
+          move2: string
+          unite: string
+          target: string
+          chat: string
+          ping: string
+          board: string
+          /** The level Move 2 comes at, and each format's evolution levels. */
+          second: number
+          evo: { standard: readonly [number, number]; quick: readonly [number, number] }
+        }) => [
+          'Ataque básico: sai sozinho, no alvo travado ou no rival que a sua prioridade escolhe (Configurações → Controles: mais perto, menos HP % ou menos HP).',
+          `Golpe 1 (${k.move1}) e Golpe 2 (${k.move2}): você lança e mira. Golpe Unite (${k.unite}): o especial do seu tipo, com recarga.`,
+          `Trocar de alvo: clique ou toque num Pokémon, ou use ${k.target}. No controle: R, ZR e ZL lançam; o analógico direito mira e troca de alvo.`,
+          'No celular: toque no botão para lançar com mira assistida, arraste para mirar e volte ao botão para cancelar. Tocar no ataque básico troca de alvo.',
+          'Mira assistida (padrão) acerta o alvo travado ou o melhor rival por perto; a manual vai exatamente para onde o mouse ou o dedo apontar.',
+          `Golpe 1 vem no começo e o Golpe 2 no nível ${k.second}. Na Arena se evolui mais cedo: nos níveis ${k.evo.standard[0]} e ${k.evo.standard[1]} no 4v4, ${k.evo.quick[0]} e ${k.evo.quick[1]} no 3v3. Cada evolução troca um golpe por um da nova forma, no mesmo nível.`,
+          'No mato alto o Golpe 1 e o Golpe 2 param; o Unite funciona, mas te revela.',
+          `Chat rápido (${k.chat}) e marcações (${k.ping}, Alt+clique ou segurar o minimapa) chegam só ao seu time; "Bom jogo!" chega a todos. Segure ${k.board} (ou toque no placar do topo) para ver o placar completo. Dá para silenciar o chat em Configurações.`,
         ],
       },
       hintKeys: '← → abas · ↑ ↓ rolar · ESC voltar',
@@ -474,6 +654,7 @@ export const pt = {
     },
     room: {
       mode: 'Modo',
+      format: 'Formato',
       modes: { run: 'Horda', versus: 'Arena' },
       team: 'Sua equipe',
       fill: 'Vagas livres viram CPU (4 contra 4).',
@@ -755,6 +936,8 @@ export const pt = {
     /** The HUD's mini map (`render/minimap.ts`): its shape, or off. */
     minimap: 'Mini mapa',
     minimapModes: { square: 'Quadrado', round: 'Redondo', off: 'OFF' },
+    /** The Arena's quick chat (`ui/versusTalk.ts`): off hides the other players' lines (pings still show). */
+    quickChat: 'Chat rápido da Arena',
     /** Menus' and HUD's colors (`ui/theme.ts`): light, dark or the system's. */
     theme: 'Tema',
     themes: { system: 'Sistema', light: 'Claro', dark: 'Escuro' },
@@ -770,6 +953,10 @@ export const pt = {
     /** Touch only: the side of the special, lunge and Mega buttons (the fixed stick takes the other one). */
     buttonSide: 'Lado dos botões',
     buttonSides: { right: 'Direita', left: 'Esquerda' },
+    aimAssist: 'Mira na Arena',
+    aimAssists: { assist: 'Assistida', manual: 'Manual' } satisfies Record<AimAssist, string>,
+    targetPriority: 'Alvo na Arena',
+    priorities: { closest: 'Mais perto', lowestShare: 'Menos HP %', lowest: 'Menos HP' } satisfies Record<Priority, string>,
     /** Fixed stick only: how high it sits and how far from the side edge. */
     stickHeight: 'Altura do joystick',
     stickHeights: { low: 'Baixa', mid: 'Média', high: 'Alta' },
@@ -808,6 +995,13 @@ export const pt = {
       pause: 'Pausar',
       confirm: 'Confirmar',
       back: 'Voltar',
+      move1: 'Arena: Golpe 1',
+      move2: 'Arena: Golpe 2',
+      unite: 'Arena: Golpe Unite',
+      target: 'Arena: trocar de alvo',
+      chat: 'Arena: chat rápido',
+      ping: 'Arena: marcar no mapa',
+      board: 'Arena: placar',
     } satisfies Record<Action, string>,
     press: (action: string) => `*${action}*: pressione uma tecla ou um botão do controle… (ESC cancela)`,
     reserved: 'As setas e o ESC são fixos. Escolha outra tecla.',
@@ -5485,7 +5679,7 @@ export const pt = {
     /** Ninjask, the Arena's judge, before the Arena opens: the first visit, then one of these in turn. */
     first: [
       'Bzzz! Bem-vindo ao Estádio! Eu sou o juiz da Arena: rápido demais para deixar qualquer lance passar.',
-      'Duas equipes de quatro se enfrentam no Vale. Derrote Pokémon selvagens, junte Energia e leve-a ao gol rival.',
+      'Duas equipes se enfrentam: de quatro no Vale, ou de três na Clareira para uma partida rápida. Derrote Pokémon selvagens, junte Energia e leve-a ao gol rival.',
       'Partida rápida: contra bots, começa na hora. Casual: contra treinadores, sem pontos. Ranqueada: cada vitória sobe seu tier.',
       'Cada temporada dura duas semanas. Os quadros do pátio mostram o ranking, a temporada, seu histórico e as regras.',
     ],

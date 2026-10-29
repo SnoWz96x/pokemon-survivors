@@ -40,6 +40,7 @@ import { createMegaState, updateMega, updateMegaIntro } from './mega'
 import { NO_RANKS, runCharges, type Ranks } from './meta'
 import { afterCast as afterModCast, echoStats, hasMod, MOD } from './mods'
 import { forkAt, isManual, MOVES, moveStats, type CastStats, type MoveDef, type MoveId } from './moves'
+import { VERSUS_KIT } from '../data/versus'
 import { afterCast, updateMoveKit } from './moveHooks'
 import { updateSignatures } from './signatures'
 import { createTmState, pickTm } from './tms'
@@ -65,6 +66,8 @@ import { updateArena, updateArenaFall } from './riftArena'
 import { domainCamera, updateDomainScene } from './domain'
 import { isAsleep, tickSleep } from './playerSleep'
 import { inGrass } from './versusGrass'
+import { aimCast, autoFocus, type Cast } from './versusKit'
+import { kitOffers, queueUpgrade } from './versusPacing'
 import { updateLegendScene } from './legendScene'
 import { updateRiftPortal } from './riftPortal'
 import { updateSightings } from './sightings'
@@ -78,7 +81,7 @@ import { createWeather, updateWeather } from './weather'
 import { updateTraits } from './traitSystem'
 import { BASE_STATS } from './stats'
 import { TERRAIN } from '../data/terrain'
-import { actAs, eachPlayer, followPlayers, inPlay, phaseOf, setPhase } from './players'
+import { actAs, eachPlayer, followPlayers, inPlay, ownAttack, phaseOf, setPhase } from './players'
 import { createCoopState, createRecord, updateCoop } from './coop'
 import { COOP } from '../data/coop'
 import type { Game, Offer, OwnedMove, Player } from './types'
@@ -376,8 +379,10 @@ const rolling = (g: Game): RollOptions => {
 /**
  * Per-tick player input, as plain data so the simulation stays DOM-free. `mega`
  * presses the Mega button and `lunge` fires the manual moves (Quick Attack).
+ * `casts` are the Arena kit's aimed casts this tick (`versusKit.ts`), at most one per skill;
+ * `locked`, a target locked or let go this tick (only Fair Play's idle count, `trackIdle`, reads it).
  */
-export type StepInput = { move: Vec; special: boolean; mega?: boolean; lunge?: boolean }
+export type StepInput = { move: Vec; special: boolean; mega?: boolean; lunge?: boolean; casts?: Cast[]; locked?: boolean }
 
 /** A player with no input this tick: stands still, presses nothing. */
 const STILL: StepInput = { move: { x: 0, y: 0 }, special: false }
@@ -426,7 +431,8 @@ export const walkPlayer = (g: Game, input: Vec, dt: number) => {
 const updatePlayer = (g: Game, input: Vec, dt: number) => {
   const p = g.player
   const moving = walkPlayer(g, input, dt)
-  if (moving) {
+  // In the Arena a cast holds the Pokémon turned to its aim for a moment (`VersusSeat.hold`).
+  if (moving && !(p.versus && p.versus.hold > 0)) {
     const len = dm.hypot(input.x, input.y)
     p.facing = { x: input.x / len, y: input.y / len }
     p.dir = dir8(input.x, input.y)
@@ -449,13 +455,24 @@ const castMove = (g: Game, owned: OwnedMove, s: CastStats) => {
   if (hasMod(s.mods, 'echo')) owned.echo = MOD.echo.delay
 }
 
+/** Casts `owned` with its stats now and starts its cooldown, with what follows a cast (`afterCast`, a curse's price). */
+const castOwned = (g: Game, owned: OwnedMove) => {
+  const s = moveStats(owned.id, owned.level, g.player.stats, owned.path)
+  castMove(g, owned, s)
+  owned.cooldown += s.cooldown
+  afterCast(g, owned)
+  curseCast(g)
+}
+
 /**
  * Casts every move of the acting player whose cooldown ran out. A manual move
  * instead waits, recharged, for a `press`, and holds it while the special
- * moves the player.
+ * moves the player. The Arena plays its kit instead (`updateKit`).
  */
-const updateMoves = (g: Game, press: boolean, dt: number) => {
+const updateMoves = (g: Game, input: StepInput, dt: number) => {
   const p = g.player
+  if (p.versus) return updateKit(g, input.casts, dt)
+  const press = input.lunge === true
   for (const owned of p.moves) {
     if (owned.echo !== undefined && owned.echo > 0) {
       owned.echo -= dt
@@ -468,11 +485,52 @@ const updateMoves = (g: Game, press: boolean, dt: number) => {
       owned.cooldown -= dt
       if (owned.cooldown > 0) continue
     }
-    const s = moveStats(owned.id, owned.level, p.stats, owned.path)
-    castMove(g, owned, s)
-    owned.cooldown += s.cooldown
-    afterCast(g, owned)
-    curseCast(g)
+    castOwned(g, owned)
+  }
+}
+
+/**
+ * The Arena's kit (`versusKit.ts`): the first move is the basic attack, cast
+ * on its own at the auto target (the lock, else the best rival in reach);
+ * Move 1 and Move 2 wait, recharged, for the player's cast and fire where it
+ * aimed (held while the special moves the player). The focus lasts the cast.
+ */
+const updateKit = (g: Game, casts: readonly Cast[] | undefined, dt: number) => {
+  const p = g.player
+  const v = p.versus!
+  for (let i = 0; i < p.moves.length; i++) {
+    const owned = p.moves[i]!
+    if (owned.echo !== undefined && owned.echo > 0) {
+      owned.echo -= dt
+      if (owned.echo <= 0) castMove(g, owned, echoStats(moveStats(owned.id, owned.level, p.stats, owned.path)))
+    }
+    if (i === 0) {
+      owned.cooldown -= dt
+      if (owned.cooldown > 0) continue
+      v.focus = autoFocus(g, p)
+    } else {
+      owned.cooldown = Math.max(0, owned.cooldown - dt)
+      const cast = casts?.find((c) => c.skill === i - 1)
+      if (!cast || owned.cooldown > 0 || specialBusy(p.special)) continue
+      v.focus = aimCast(g, p, cast)
+      g.events.push({ kind: 'versusCast', skill: cast.skill })
+    }
+    castOwned(g, owned)
+    if (i > 0) holdLasting(g, owned.id)
+    v.focus = null
+  }
+}
+
+/**
+ * A move whose effect lasts on its own in a run (an aura, a trail: its hitbox
+ * has no end, each cast refreshing it) lasts `VERSUS_KIT.persist` seconds past
+ * each cast of Move 1 or Move 2, so the player casts it rather than owning it.
+ */
+const holdLasting = (g: Game, move: MoveId) => {
+  for (const a of g.attacks) {
+    if (a.move !== move || !ownAttack(g, a) || (a.ttl !== Infinity && !a.lasting)) continue
+    a.lasting = true
+    a.ttl = a.age + VERSUS_KIT.persist
   }
 }
 
@@ -485,7 +543,8 @@ export const advancePhase = (g: Game): void => {
   const p = g.player
   p.prize = null
   if (p.pendingLevelUps > 0) {
-    p.offers = rollOffers(loadout(g), g.rng, 3, rolling(g))
+    // The Arena's kit has level-ups of its own (Move 2, an evolution's upgrade: `versusPacing.ts`).
+    p.offers = (p.versus ? kitOffers(g, loadout(g)) : null) ?? rollOffers(loadout(g), g.rng, 3, rolling(g))
     setPhase(g, 'levelup')
     g.events.push({ kind: 'levelup' })
     return
@@ -641,7 +700,8 @@ const pickOffer = (g: Game, offer: Offer) => {
     return advancePhase(g)
   }
   if (phase !== 'levelup' || offer.kind === 'form' || offer.kind === 'ability' || offer.kind === 'curse' || offer.kind === 'tm' || offer.kind === 'forget' || offer.kind === 'pass') return
-  if (offer.kind === 'move' && forkAt(offer.id, offer.level)) {
+  // A fork opens its branches, except on the Arena kit's own screens (a move taking a slot's place at its level, `versusPacing.ts`).
+  if (offer.kind === 'move' && forkAt(offer.id, offer.level) && !p.versus?.learn) {
     p.offers = branchOffers(offer)
     return
   }
@@ -753,6 +813,8 @@ export const updateEvolution = (g: Game, dt: number) => {
   p.banishes++
   p.freshMoves = FRESH_LEVELUPS
   p.evolution = null
+  // In the Arena the new form brings a move upgrade (`versusPacing.ts`).
+  queueUpgrade(p)
   g.events.push({ kind: 'evolved', to: evo.to })
   if (p.ability.id === null) offerAbilities(g)
   else advancePhase(g)
@@ -795,7 +857,7 @@ export const stepMoves = (g: Game, input: StepInput, dt: number) => {
   updateLegendary(g)
   // Asleep (Dark Void), or in the Arena's tall grass, no move is cast: their cooldowns wait.
   if (isAsleep(g.player) || inGrass(g.player)) return
-  updateMoves(g, input.lunge === true, dt)
+  updateMoves(g, input, dt)
   updateDuos(g, dt)
 }
 

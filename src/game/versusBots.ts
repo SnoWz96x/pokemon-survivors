@@ -1,8 +1,10 @@
-import { VALE, VERSUS, type Rect, type Team } from '../data/versus'
+import { VERSUS, type Team } from '../data/versus'
+import { MAPS, type MapId, type Rect } from '../data/versusMaps'
 import { inPlay } from './players'
 import type { VersusSeat } from './versus'
-import { goalOpen, rivalTeam } from './versusRules'
+import { goalOpen, mapOf, rivalTeam } from './versusRules'
 import type { StepInput } from './game'
+import { aimCode, reachCode, type Cast, type Skill } from './versusKit'
 import type { Enemy, Game, Player } from './types'
 import * as dm from '../engine/dmath'
 
@@ -11,8 +13,9 @@ import * as dm from '../engine/dmath'
  * by the simulation itself, so every client drives them the same. Each tick a
  * bot picks where to go (retreat, score, fight, farm its lane, take the
  * objective, push) and walks there through the map's rooms (`route`). Its
- * moves fire on their own like anyone's; it presses its special when a rival
- * is close. It doesn't see rivals hidden in tall grass, and slips into grass
+ * basic attack fires on its own like anyone's; it casts Move 1 and Move 2 at
+ * the foe in front of it once they recharge, and its Unite Move (the special)
+ * when a rival is close (`castKit`). It doesn't see rivals hidden in tall grass, and slips into grass
  * itself to shake off a stronger rival. Pure on the game state: no rng, no clock.
  */
 
@@ -21,24 +24,26 @@ const contains = (r: Rect, x: number, y: number) => x >= r.x0 && x <= r.x1 && y 
 /** Where two rooms of the map overlap: the door between them. */
 type Door = { x: number; y: number }
 
-const RECTS = VALE.rects
+/**
+ * A map's rooms as a graph: its rects, the door between each pair that
+ * overlaps (`doors[a * n + b]`), the rooms between each pair (`hops`: steps
+ * from room a to b) and the next room on a shortest way (`next`).
+ */
+type Routes = { rects: readonly Rect[]; n: number; doors: (Door | null)[]; hops: number[]; next: number[] }
 
-/** The door between each pair of rooms that overlap, by `a * n + b`. */
-const DOORS: (Door | null)[] = RECTS.flatMap((a) =>
-  RECTS.map((b) => {
-    if (a === b) return null
-    const x0 = Math.max(a.x0, b.x0)
-    const x1 = Math.min(a.x1, b.x1)
-    const y0 = Math.max(a.y0, b.y0)
-    const y1 = Math.min(a.y1, b.y1)
-    return x0 < x1 && y0 < y1 ? { x: (x0 + x1) / 2, y: (y0 + y1) / 2 } : null
-  }),
-)
-
-const n = RECTS.length
-
-/** Rooms between each pair (`HOPS[a * n + b]`: steps from room a to b) and the next room on a shortest way (`NEXT`). */
-const { HOPS, NEXT } = (() => {
+/** Works out a map's routes from its rects. Pure. */
+const routesOf = (rects: readonly Rect[]): Routes => {
+  const n = rects.length
+  const doors = rects.flatMap((a) =>
+    rects.map((b) => {
+      if (a === b) return null
+      const x0 = Math.max(a.x0, b.x0)
+      const x1 = Math.min(a.x1, b.x1)
+      const y0 = Math.max(a.y0, b.y0)
+      const y1 = Math.min(a.y1, b.y1)
+      return x0 < x1 && y0 < y1 ? { x: (x0 + x1) / 2, y: (y0 + y1) / 2 } : null
+    }),
+  )
   const hops = new Array<number>(n * n).fill(Infinity)
   const next = new Array<number>(n * n).fill(-1)
   for (let from = 0; from < n; from++) {
@@ -48,28 +53,37 @@ const { HOPS, NEXT } = (() => {
     while (queue.length > 0) {
       const at = queue.shift()!
       for (let to = 0; to < n; to++) {
-        if (!DOORS[at * n + to] || hops[from * n + to] !== Infinity) continue
+        if (!doors[at * n + to] || hops[from * n + to] !== Infinity) continue
         hops[from * n + to] = hops[from * n + at]! + 1
         next[from * n + to] = at === from ? to : next[from * n + at]!
         queue.push(to)
       }
     }
   }
-  return { HOPS: hops, NEXT: next }
-})()
+  return { rects, n, doors, hops, next }
+}
+
+/** Each map's routes, worked out the first time a bot walks it: derived from the map's data alone, never part of a match's state. */
+const ROUTES = new Map<MapId, Routes>()
+
+const routesFor = (map: MapId) => {
+  let r = ROUTES.get(map)
+  if (!r) ROUTES.set(map, (r = routesOf(MAPS[map].rects)))
+  return r
+}
 
 /** The rooms (x, y) stands in. */
-const roomsAt = (x: number, y: number) => {
+const roomsAt = (m: Routes, x: number, y: number) => {
   const out: number[] = []
-  for (let i = 0; i < n; i++) if (contains(RECTS[i]!, x, y)) out.push(i)
+  for (let i = 0; i < m.n; i++) if (contains(m.rects[i]!, x, y)) out.push(i)
   return out
 }
 
 /** The room nearest (x, y) when it stands in none (pushed against a wall). */
-const nearestRoom = (x: number, y: number) => {
+const nearestRoom = (m: Routes, x: number, y: number) => {
   let best = 0
   let bestD = Infinity
-  RECTS.forEach((r, i) => {
+  m.rects.forEach((r, i) => {
     const d = dm.sq(Math.max(r.x0 - x, 0, x - r.x1)) + dm.sq(Math.max(r.y0 - y, 0, y - r.y1))
     if (d < bestD) {
       bestD = d
@@ -80,22 +94,23 @@ const nearestRoom = (x: number, y: number) => {
 }
 
 /**
- * The point to walk toward on the way from (x, y) to (tx, ty): the target
- * itself when one room holds both, else the door to the next room on a
- * shortest way.
+ * The point to walk toward on `map` on the way from (x, y) to (tx, ty): the
+ * target itself when one room holds both, else the door to the next room on
+ * a shortest way.
  */
-export const route = (x: number, y: number, tx: number, ty: number): Door => {
-  const from = roomsAt(x, y)
-  const to = roomsAt(tx, ty)
-  if (from.length === 0) from.push(nearestRoom(x, y))
-  if (to.length === 0) to.push(nearestRoom(tx, ty))
+export const route = (map: MapId, x: number, y: number, tx: number, ty: number): Door => {
+  const m = routesFor(map)
+  const from = roomsAt(m, x, y)
+  const to = roomsAt(m, tx, ty)
+  if (from.length === 0) from.push(nearestRoom(m, x, y))
+  if (to.length === 0) to.push(nearestRoom(m, tx, ty))
   let best = -1
   let bestHops = Infinity
   let target = -1
   for (const a of from) {
     for (const b of to) {
       if (a === b) return { x: tx, y: ty }
-      const h = HOPS[a * n + b]!
+      const h = m.hops[a * m.n + b]!
       if (h < bestHops) {
         bestHops = h
         best = a
@@ -104,8 +119,18 @@ export const route = (x: number, y: number, tx: number, ty: number): Door => {
     }
   }
   if (best < 0) return { x: tx, y: ty }
-  const step = NEXT[best * n + target]!
-  return DOORS[best * n + step] ?? { x: tx, y: ty }
+  const step = m.next[best * m.n + target]!
+  return m.doors[best * m.n + step] ?? { x: tx, y: ty }
+}
+
+/** How many rooms apart (x, y) and (tx, ty) are on `map` (0: the same one; Infinity: no way between). */
+export const hopsBetween = (map: MapId, x: number, y: number, tx: number, ty: number) => {
+  const m = routesFor(map)
+  const from = roomsAt(m, x, y)
+  const to = roomsAt(m, tx, ty)
+  let best = Infinity
+  for (const a of from) for (const b of to) best = Math.min(best, m.hops[a * m.n + b]!)
+  return best
 }
 
 /**
@@ -138,11 +163,12 @@ const nearestRival = (g: Game, p: Player, team: Team, r: number) => {
   return best
 }
 
-/** Whether (x, y) lies in a bot's lane: the north lane, the south one, or the jungle between. */
-const inLane = (lane: VersusSeat['lane'], y: number) => (lane === 'north' ? y < -170 : lane === 'south' ? y > 170 : y >= -170 && y <= 170)
+/** Whether (x, y) lies in a bot's lane on a map whose lanes start at |y| `lanes`: the north lane, the south one, or the jungle between. */
+const inLane = (lane: VersusSeat['lane'], y: number, lanes: number) => (lane === 'north' ? y < -lanes : lane === 'south' ? y > lanes : y >= -lanes && y <= lanes)
 
 /** The camp Pokémon nearest `p` in its lane, or anywhere when its lane is clear. */
 const nearestWild = (g: Game, p: Player, lane: VersusSeat['lane']) => {
+  const lanes = mapOf(g.versus!).lanes
   let best: Enemy | null = null
   let bestD = Infinity
   let any: Enemy | null = null
@@ -150,7 +176,7 @@ const nearestWild = (g: Game, p: Player, lane: VersusSeat['lane']) => {
   for (const e of g.enemies) {
     if (e.dying >= 0 || e.behavior.kind !== 'camp' || e.id === g.versus?.objective?.id) continue
     const d = d2(p, e)
-    if (inLane(lane, e.y) && d < bestD) {
+    if (inLane(lane, e.y, lanes) && d < bestD) {
       bestD = d
       best = e
     }
@@ -165,11 +191,12 @@ const nearestWild = (g: Game, p: Player, lane: VersusSeat['lane']) => {
 /** The open rival goal nearest `p`, preferring its lane's. */
 const rivalGoal = (g: Game, p: Player, team: Team) => {
   const s = g.versus!
+  const lanes = mapOf(s).lanes
   let best: { x: number; y: number } | null = null
   let bestD = Infinity
   for (const goal of s.goals) {
     if (goal.team === team || !goalOpen(s, goal)) continue
-    const d = d2(p, goal) * (inLane(p.versus!.lane, goal.y) ? 1 : 1.6)
+    const d = d2(p, goal) * (inLane(p.versus!.lane, goal.y, lanes) ? 1 : 1.6)
     if (d < bestD) {
       bestD = d
       best = goal
@@ -182,10 +209,10 @@ const rivalGoal = (g: Game, p: Player, team: Team) => {
 const COVER = 110
 
 /** The middle of the tall-grass patch nearest `p`, within `COVER` px, or null. */
-const nearestCover = (p: Player) => {
+const nearestCover = (g: Game, p: Player) => {
   let best: { x: number; y: number } | null = null
   let bestD = COVER * COVER
-  for (const r of VALE.grass) {
+  for (const r of mapOf(g.versus!).grass) {
     const x = (r.x0 + r.x1) / 2
     const y = (r.y0 + r.y1) / 2
     const d = dm.sq(x - p.x) + dm.sq(y - p.y)
@@ -206,7 +233,7 @@ const spot = (x: number, y: number, near = 0): Aim => ({ kind: 'spot', x, y, nea
 const decide = (g: Game, p: Player): Aim => {
   const s = g.versus!
   const v = p.versus!
-  const pad = VALE.spawn[v.team]
+  const pad = mapOf(s).spawn[v.team]
   // Hurt: back to the spawn pad until healed, unless it's about to score.
   if (share(p) < (v.aim?.kind === 'spot' && v.aim.x === pad.x ? 0.9 : 0.32) && v.goal < 0) return spot(pad.x, pad.y, 12)
   // Carrying enough: to the nearest open rival goal, standing in it until the score lands.
@@ -219,7 +246,7 @@ const decide = (g: Game, p: Player): Aim => {
   const rival = nearestRival(g, p, v.team, 140)
   if (rival) {
     if (share(p) + 0.15 >= share(rival)) return { kind: 'player', slot: rival.slot, near: 34 }
-    const cover = v.grass >= 0 && !v.hidden ? null : nearestCover(p)
+    const cover = v.grass >= 0 && !v.hidden ? null : nearestCover(g, p)
     return cover ? spot(cover.x, cover.y, 6) : spot(pad.x, pad.y, 12)
   }
   // The objective: the jungler takes it, and everyone in the last stretch.
@@ -249,6 +276,34 @@ const aimAt = (g: Game, aim: Aim): { x: number; y: number } | null => {
   return null
 }
 
+/** Farthest (px) a bot casts Move 1 and Move 2 at a rival it sees, and at the wild Pokémon it's after. */
+const CAST_RIVAL = 130
+const CAST_WILD = 90
+
+/** A bot's cast of `skill` straight at `e`, picking it as the target. */
+const castAt = (p: Player, skill: Skill, e: Enemy): Cast => ({ skill, dir: aimCode(e.x - p.x, e.y - p.y), reach: reachCode(dm.hypot(e.x - p.x, e.y - p.y)), target: e.id })
+
+/**
+ * What a bot casts this tick (`versusKit.ts`): Move 1 and Move 2 once
+ * recharged, at the nearest rival it sees in reach (its body), else at the
+ * wild Pokémon it's after; the Unite Move, when it presses the special, at
+ * the same foe. Aimed at the foe itself, so no rng and no lead.
+ */
+const castKit = (g: Game, p: Player, input: StepInput, aim: Aim) => {
+  const rival = nearestRival(g, p, p.versus!.team, CAST_RIVAL)
+  const body = rival ? g.enemies.find((e) => e.id === rival.versus!.avatar && e.dying < 0) : undefined
+  const wild = aim.kind === 'enemy' ? g.enemies.find((e) => e.id === aim.id && e.dying < 0 && d2(p, e) < CAST_WILD * CAST_WILD) : undefined
+  const foe = body ?? wild
+  if (!foe) return
+  const casts: Cast[] = []
+  for (const skill of [0, 1] as const) {
+    const owned = p.moves[skill + 1]
+    if (owned && owned.cooldown <= 0) casts.push(castAt(p, skill, foe))
+  }
+  if (input.special) casts.push(castAt(p, 2, foe))
+  if (casts.length > 0) input.casts = casts
+}
+
 /** Ticks a bot holds an aim before thinking again (a slot's offset spreads the thinking out). */
 const THINK = 15
 
@@ -259,7 +314,8 @@ const THINK = 15
  * rival close.
  */
 export const driveBots = (g: Game, inputs: StepInput[]) => {
-  if (!g.versus) return
+  const s = g.versus
+  if (!s) return
   for (const p of g.players) {
     const v = p.versus
     const input = inputs[p.slot]
@@ -273,11 +329,12 @@ export const driveBots = (g: Game, inputs: StepInput[]) => {
     }
     const rival = nearestRival(g, p, v.team, 70)
     input.special = rival !== null || (v.aim.kind === 'enemy' && d2(p, at) < 50 * 50)
+    castKit(g, p, input, v.aim)
     if (v.aim.near > 0 && d2(p, at) < v.aim.near * v.aim.near) {
       input.move = { x: 0, y: 0 }
       continue
     }
-    const to = route(p.x, p.y, at.x, at.y)
+    const to = route(s.map, p.x, p.y, at.x, at.y)
     const dx = to.x - p.x
     const dy = to.y - p.y
     const len = dm.hypot(dx, dy)

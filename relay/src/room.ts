@@ -1,6 +1,7 @@
 import { ARENA_RANKED } from '../../src/data/arenaRanked'
+import { arenaPlayers, parseArenaFormat } from '../../src/data/arenaFormats'
 import type { ArenaReport, MatchedSettings } from '../../src/net/arena'
-import { countsForRank } from '../../src/net/arenaQueue'
+import { countsForRank, humansOnBothSides } from '../../src/net/arenaQueue'
 import {
   COALESCED_KINDS,
   MAX_ARENA_PLAYERS,
@@ -159,6 +160,8 @@ export type Over = { tick: number; h: string; result?: string }
  */
 export type ArenaLock = {
   queue: MatchedSettings['queue']
+  /** The match's format when it isn't the standard 4v4 (the room's settings carry it). */
+  format?: MatchedSettings['format']
   /** Rated: the matchmaker matched enough humans (`minHumansRanked`); still checked against who played. */
   ranked: boolean
   /** The matched identities (`u:<clerk id>`, or `g:<guest id>` on a dev relay) and their teams. */
@@ -375,7 +378,9 @@ export const createRoom = (
   if (state.room) return { ok: false, effects: [] }
   const claim = state.gen.secret()
   const lock: ArenaLock | null = init.lock ? { ...init.lock, startBy: now + ARENA_RANKED.queue.joinTimeout * 1000 } : null
-  const settings: Settings = lock ? ({ difficulty: 'normal', mode: 'versus', queue: lock.queue, locked: true } satisfies MatchedSettings) : {}
+  const settings: Settings = lock
+    ? ({ difficulty: 'normal', mode: 'versus', queue: lock.queue, locked: true, ...(lock.format && lock.format !== 'standard' && { format: lock.format }) } satisfies MatchedSettings)
+    : {}
   const room: Room = {
     code: init.code,
     build: init.build,
@@ -400,8 +405,11 @@ export const createRoom = (
 /** An Arena room: its settings say `mode: 'versus'` (a friends' room, or a matchmade one). */
 const isArena = (room: Room) => room.settings.mode === 'versus'
 
-/** The most seats the room takes: the matched players in a locked room, two teams in an Arena room, else a co-op party. */
-export const seatCap = (room: Room) => (room.lock ? room.lock.players.length : isArena(room) ? MAX_ARENA_PLAYERS : MAX_PLAYERS)
+/** Seats in an Arena room with `settings`: both teams of its format (`settings.format`, the standard 4v4 when absent). */
+const arenaSeats = (settings: Settings) => Math.min(MAX_ARENA_PLAYERS, arenaPlayers(parseArenaFormat(settings.format)))
+
+/** The most seats the room takes: the matched players in a locked room, two teams of its format in an Arena room, else a co-op party. */
+export const seatCap = (room: Room) => (room.lock ? room.lock.players.length : isArena(room) ? arenaSeats(room.settings) : MAX_PLAYERS)
 
 /** A new socket (before its `hello`). */
 export const connect = (state: State, id: ConnId, ua: string, now: number): Conn => {
@@ -458,14 +466,15 @@ const updateUploader = (state: State, room: Room): Effect[] => {
 const removeSeat = (state: State, room: Room, seat: Seat, now: number): Effect[] => {
   room.seats = room.seats.filter((s) => s !== seat)
   if (room.host === seat.seat) room.host = (room.seats.find((s) => online(state, s)) ?? room.seats[0])?.seat ?? null
-  if (room.seats.length === 0) return wipe(state, room, 'empty')
+  if (room.seats.length === 0) return wipe(state, room, 'empty', now)
   return [{ k: 'save' }, ...broadcastRoom(state, room), ...evaluateOver(state, room, now), ...settle(state, room, now)]
 }
 
-/** Ends the room: nothing about it is saved again. */
-const wipe = (state: State, room: Room, why: string): Effect[] => {
+/** Ends the room: nothing about it is saved again. A matchmade match still unfinished in it is reported as abandoned (`abandonedReport`). */
+const wipe = (state: State, room: Room, why: string, now: number): Effect[] => {
   state.room = null
-  return [event(room, 'room.ended', { why, runs: room.runs }), { k: 'wipe' }]
+  const report = abandonedReport(room, now)
+  return [event(room, 'room.ended', { why, runs: room.runs }), ...(report ? [event(room, 'arena.abandoned', { run: report.run, kind: report.kind }), { k: 'report' as const, report }] : []), { k: 'wipe' }]
 }
 
 /* ---------------- Hello ---------------- */
@@ -693,8 +702,8 @@ export const message = (state: State, connId: ConnId, msg: ClientMessage | null,
       seat.ready = msg.ready && seat.loadout !== null
       return [...out, { k: 'save' }, ...broadcastRoom(state, room)]
     case 'settings':
-      // A matched room's settings are the match's; a full Arena room can't turn into a co-op one.
-      if (!outside || !isHost || room.lock || (room.seats.length > MAX_PLAYERS && msg.settings.mode !== 'versus')) return out
+      // A matched room's settings are the match's; a room can't shrink below who's in it (a full Arena room into a co-op one, a 4v4 one of 7 into a 3v3).
+      if (!outside || !isHost || room.lock || room.seats.length > (msg.settings.mode === 'versus' ? arenaSeats(msg.settings) : MAX_PLAYERS)) return out
       room.settings = msg.settings
       return [...out, { k: 'save' }, ...broadcastRoom(state, room)]
     case 'kick': {
@@ -829,7 +838,7 @@ const autoStart = (state: State, room: Room, now: number): Effect[] => {
   const everyone = lock.players.every((p) => room.seats.some((s) => s.identity === p.id && s.loadout !== null))
   if (everyone) return startRun(state, room, now)
   if (now < lock.startBy) return []
-  return room.seats.some((s) => s.loadout !== null) ? startRun(state, room, now) : wipe(state, room, 'unjoined')
+  return room.seats.some((s) => s.loadout !== null) ? startRun(state, room, now) : wipe(state, room, 'unjoined', now)
 }
 
 /** The Arena result most of the end's voters sent (more than half of them), with its count, or null. */
@@ -844,9 +853,32 @@ const agreedResult = (run: Run, voters: readonly number[]): { result: string; vo
 }
 
 /**
+ * The kind of match a run is, for its report: a friends' room, or the queue
+ * it was matched in, ranked only with enough humans in the run and some on
+ * each team (`humansOnBothSides`: humans together against bots only play it
+ * as casual, so they can't farm RP).
+ */
+const reportKind = (room: Room, run: Run): ArenaReport['kind'] => {
+  if (!room.lock) return 'room'
+  const lock = room.lock
+  const sides = run.who.flatMap((id) => lock.players.filter((p) => p.id === id).map((p) => p.team))
+  return lock.ranked && countsForRank('ranked', run.start.players.length) && humansOnBothSides(sides) ? 'ranked' : 'casual'
+}
+
+/** The report's seats, as many as the room's format seats (`arenaSeats`): each slot's account (bots' slots after the humans', null), `left` as `gone` says. */
+const reportSeats = (room: Room, run: Run, gone: (seat: number) => boolean): ArenaReport['seats'] => {
+  const humans = run.start.players.length
+  return Array.from({ length: Math.max(arenaSeats(room.settings), humans) }, (_, slot): ArenaReport['seats'][number] => {
+    const p = run.start.players[slot]
+    const id = run.who[slot] ?? ''
+    if (!p) return { slot, userId: null, handle: null, left: false }
+    return { slot, userId: id.startsWith('u:') ? id.slice(2) : null, handle: p.account && p.name.startsWith('@') ? p.name.slice(1) : null, left: gone(p.seat) }
+  })
+}
+
+/**
  * What the relay tells the API about an Arena match (`ArenaReport`): the kind
- * (a friends' room, or the queue it was matched in: ranked only with enough
- * humans in the run), whether enough of them agreed on the result
+ * (`reportKind`), whether enough of them agreed on the result
  * (`confirmed`: when not, the API rates only who left, so no lone client
  * rates a match and no leaver dodges a loss), each slot's account (bots'
  * slots after the humans', null) and the agreed result as the clients built
@@ -859,17 +891,20 @@ export const arenaReport = (room: Room, run: Run, agreed: { result: string; vote
   } catch {
     return null
   }
-  const { minHumansRanked, players: size } = ARENA_RANKED.queue
-  const humans = run.start.players.length
-  const ranked = room.lock?.ranked === true && countsForRank('ranked', humans)
-  const kind: ArenaReport['kind'] = room.lock ? (ranked ? 'ranked' : 'casual') : 'room'
-  const seats = Array.from({ length: Math.max(size, humans) }, (_, slot): ArenaReport['seats'][number] => {
-    const p = run.start.players[slot]
-    const id = run.who[slot] ?? ''
-    if (!p) return { slot, userId: null, handle: null, left: false }
-    return { slot, userId: id.startsWith('u:') ? id.slice(2) : null, handle: p.account && p.name.startsWith('@') ? p.name.slice(1) : null, left: run.left.includes(p.seat) }
-  })
-  return { v: 1, room: room.code, run: run.start.id, kind, region: room.region, endedAt: now, seats, result, confirmed: agreed.votes >= minHumansRanked }
+  const seats = reportSeats(room, run, (seat) => run.left.includes(seat))
+  return { v: 1, room: room.code, run: run.start.id, kind: reportKind(room, run), region: room.region, endedAt: now, seats, result, confirmed: agreed.votes >= ARENA_RANKED.queue.minHumansRanked }
+}
+
+/**
+ * A matchmade match whose room closes before its end (every human left or
+ * went quiet for good): reported as abandoned, every human a leaver, so the
+ * API takes their Fair Play (`ArenaReport.abandoned`). Null for any other
+ * room, or a run that ended or never started.
+ */
+export const abandonedReport = (room: Room, now: number): ArenaReport | null => {
+  const run = room.run
+  if (!room.lock || !isArena(room) || !run || run.ended || room.phase !== 'playing') return null
+  return { v: 1, room: room.code, run: run.start.id, kind: reportKind(room, run), region: room.region, endedAt: now, seats: reportSeats(room, run, () => true), result: null, abandoned: true }
 }
 
 /**
@@ -879,7 +914,8 @@ export const arenaReport = (room: Room, run: Run, agreed: { result: string; vote
  * on its result too is reported (`arenaReport`), once. An Arena match ends on
  * its clock, so a seat gone silent (`away`: tab closed, connection lost)
  * without voting has abandoned it: it doesn't hold the end, and it's
- * reported as having left.
+ * reported as having left. One that left after voting the agreed end
+ * finished it.
  */
 const evaluateOver = (state: State, room: Room, now: number): Effect[] => {
   const run = room.run
@@ -902,7 +938,14 @@ const evaluateOver = (state: State, room: Room, now: number): Effect[] => {
     const o = run.overs[seat]
     return !!o && `${o.tick}:${o.h}` === best[0]
   })
-  const agreed = isArena(room) ? agreedResult(run, voters) : null
+  // A seat that left after voting this same end had finished the match (it tapped out of the end
+  // screen before the others' votes came in): it isn't a leaver, and its vote counts for the result.
+  const finished = isArena(room) ? run.left.filter((seat) => {
+    const o = run.overs[seat]
+    return !!o && `${o.tick}:${o.h}` === best[0]
+  }) : []
+  run.left = run.left.filter((seat) => !finished.includes(seat))
+  const agreed = isArena(room) ? agreedResult(run, [...voters, ...finished]) : null
   run.left.push(...gone)
   run.ended = { tick: Number(tick), h, result: agreed?.result ?? null }
   const report = agreed ? arenaReport(room, run, agreed, now) : null
@@ -1089,8 +1132,8 @@ export const tick = (state: State, now: number): Effect[] => {
   const room = state.room
   if (!room) return []
   // A room the group moved away from keeps answering old links (`moved`) until its maximum age.
-  if (room.emptySince !== null && room.movedTo === null && now - room.emptySince >= TIMES.idle) return wipe(state, room, 'idle')
-  if (now - room.createdAt >= TIMES.maxAge) return wipe(state, room, 'age')
+  if (room.emptySince !== null && room.movedTo === null && now - room.emptySince >= TIMES.idle) return wipe(state, room, 'idle', now)
+  if (now - room.createdAt >= TIMES.maxAge) return wipe(state, room, 'age', now)
   // A matchmade room's join window closed: it plays with whoever came (or goes).
   if (room.lock && room.phase === 'lobby' && now >= room.lock.startBy) return autoStart(state, room, now)
   const out: Effect[] = []

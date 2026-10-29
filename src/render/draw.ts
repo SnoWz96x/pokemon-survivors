@@ -69,9 +69,12 @@ import { localPlayer } from '../game/players'
 import { riftDomain } from '../game/rift'
 import { drawTeamAir, drawTeamGround, drawTeammate, drawTeamMarkers, showsPlain, showsStanding } from './team'
 import { drawVersusGuide } from './versusGuide'
+import { mapOf } from '../game/versusRules'
+import { drawArenaAim, type ArenaOverlay } from './arenaAim'
 import { drawValeAir, drawValeFloor, drawValeGround, drawValeZones, dropVale, TEAM_COLORS, warmVale } from './vale'
 import { concealed, drawGrassFront, drawGrassPatches, grassAlpha } from './valeGrass'
 import { drawValeProp, valePropCovers, valePropsInView, type ValeProp } from './valeProps'
+import { drawValePings } from './valePings'
 import { paintAttacks, type AttackSide } from './attackLayers'
 import { drawImpacts, watchImpacts } from './impacts'
 import { drawCrunch, drawDragonBreath, drawEarthquake, drawEmber, drawPinMissile, drawFireSpin, drawWhirlpool, drawFlashCannon, drawPsyshock, drawPyroBall, drawGust, drawRazorLeaf, drawRockTombLanding, drawSludge, drawSludgeGround, drawSwift, drawThunder, drawThunderGround, drawVineWhip, drawWaterGun } from './baseMoveFx'
@@ -618,9 +621,9 @@ const drawPlayer = (ctx: Ctx, g: Game, calm: boolean) => {
   // Invulnerable after a hit: blinking, or a steady see-through when calm.
   const faded = calm ? p.iframes > 0 && localPlayer(g).special.active <= 0 : blink
   // Versus: in tall grass, the viewer's team draws see-through (`grassAlpha`).
-  const alpha = (egg ? egg.alpha : p.hidden ? 0.3 : faded && mega.flash === 0 ? (calm ? 0.65 : 0.45) : 1) * grassAlpha(viewer, p)
+  const alpha = (egg ? egg.alpha : p.hidden ? 0.3 : faded && mega.flash === 0 ? (calm ? 0.65 : 0.45) : 1) * grassAlpha(g, viewer, p)
   if (alpha > 0) drawPokemon(ctx, s, anim, p.dir, p.animTime, p.x, p.y - (egg?.lift ?? 0), { alpha, flash, tint, outline: mega.outline })
-  if (p.versus) drawGrassFront(ctx, p.x, p.y, s.bodyW, g.now, p.moving, p.slot)
+  if (p.versus && g.versus) drawGrassFront(ctx, mapOf(g.versus).grass, p.x, p.y, s.bodyW, g.now, p.moving, p.slot)
   // The shiny entrance plays shortly after the run starts.
   if (p.shiny) drawSparkles(ctx, p.x, p.y - s.bodyH / 2, Math.max(s.bodyW, s.bodyH), g.now - 0.3, 0)
   drawMegaAir(ctx, g, p.y - s.bodyH, p.animTime)
@@ -774,7 +777,7 @@ export const warmScenery = (g: Game | null, calm: boolean, fog: FogMode) => {
   if (!g?.rift.arena || g.rift.arena.domain) dropArenas()
   if (!g?.place.inside) dropPlaceFloor()
   if (!g?.versus) dropVale()
-  else if (warmVale()) return true
+  else if (warmVale(g.versus.map)) return true
   if (g && warmDomain(g)) return true
   if (g && !roomOf(g)) {
     const { w, h } = g.view
@@ -827,6 +830,8 @@ export type RenderOptions = {
   companion?: CompanionView | null
   mates?: readonly Game[]
   shakeOffset?: { x: number; y: number }
+  /** The Arena's lock-on and a touch button's aim (`render/arenaAim.ts`), this screen's. */
+  arena?: ArenaOverlay | null
 }
 
 /** The Arena's viewer (this screen's player, `render` sets it; null outside Versus): who the grass hides from and shows see-through. */
@@ -929,7 +934,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   if (g.rift.arena?.domain) drawDomainFloor(ctx, g.rift.arena, g.rift.arena.domain, camX, camY, w, h, t)
   else if (g.rift.arena) drawArena(ctx, g.rift.arena, camX, camY, w, h, t)
   else if (inside) drawPlaceFloor(ctx, inside, camX, camY, w, h, t)
-  else if (g.versus) drawValeFloor(ctx, camX, camY, w, h)
+  else if (g.versus) drawValeFloor(ctx, g.versus.map, camX, camY, w, h)
   else drawGround(ctx, camX, camY, w, h, g.biome.id, fade)
   const upcoming = biomeAt(g.time + BIOME_WARMUP)
   // Scenery warms in idle time (`warmScenery`); in case that never comes, one of the next biome's chunks per frame.
@@ -1015,7 +1020,7 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
   const companion = opts.companion
   if (companion) drawables.push('companion')
   solidsInView(g, camX, camY, w, h, drawables)
-  if (g.versus) valePropsInView(visible, drawables)
+  if (g.versus) valePropsInView(g.versus.map, visible, drawables)
   // Mid-jump leapers sort last so they fly over the horde, and so does a flyer over a rock or a mountain.
   const depth = (d: Drawable) =>
     d === 'player' ? localPlayer(g).y : isMate(d) ? localPlayer(d.mate).y : d === 'companion' ? (companion?.y ?? 0) : isSolid(d) || isValeProp(d) ? d.y : isAirborne(d) || (overTerrain(d) && inSolid(g, d.x, d.y, 4)) ? d.y + 4096 : d.y
@@ -1126,7 +1131,11 @@ export const render = (ctx: Ctx, g: Game, t: number, opts: RenderOptions) => {
     drawPlayerAir(ctx, g, t)
   }
   // Teammates' name tags and bubbles, over everyone (in Versus, the goals' points left under them).
-  if (g.versus) drawValeAir(ctx, g)
+  if (g.versus) {
+    drawValeAir(ctx, g)
+    drawValePings(ctx, g, t)
+  }
+  if (g.versus && opts.arena) drawArenaAim(ctx, g, me, opts.arena, t)
   if (g.coop) drawTeamAir(ctx, g, me, t)
   // Roar of Time's clocks over the foes it stopped: a mark on them, not a move, so it stays opaque.
   drawStoppedFoes(ctx, g, t, visible)

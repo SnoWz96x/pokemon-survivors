@@ -6,6 +6,8 @@ import { TRANSLATORS } from '../data/translators'
 import { bugReportsEnabled } from '../bugReport'
 import { bugReportForm } from './bugReport'
 import { openControls } from './controls'
+import { AIM_ASSISTS } from './arenaAim'
+import { PRIORITIES } from '../game/versusKit'
 import { h, later } from './dom'
 import { DAMAGE_NUMBERS } from '../render/damageNumbers'
 import { FLASH_MODES } from '../render/flashes'
@@ -283,6 +285,7 @@ export const openSettings = (root: HTMLElement, input: Input, onClose: () => voi
           choiceRow(m.fog, 'fog', FOG_MODES, (mode) => m.fogModes[mode]),
           choiceRow(m.runToasts, 'runToasts', RUN_TOASTS, (mode) => m.runToastModes[mode]),
           choiceRow(m.minimap, 'minimap', MINIMAP_MODES, (mode) => m.minimapModes[mode]),
+          toggle(m.quickChat, (s) => s.quickChat, (on) => ({ quickChat: on })),
           slider(m.attackOpacity, 'attackOpacity', undefined, MIN_ATTACK_OPACITY * SLIDER_STEPS),
           // Teammates' moves only matter in a build with co-op.
           ...(coopUrl() ? [slider(m.teamAttackOpacity, 'teamAttackOpacity', undefined, MIN_ATTACK_OPACITY * SLIDER_STEPS)] : []),
@@ -305,6 +308,9 @@ export const openSettings = (root: HTMLElement, input: Input, onClose: () => voi
                   : []),
               ]
             : []),
+          // The Arena's aim: how a cast picks where it goes, and which rival the basic attack and the assist go for.
+          choiceRow(m.aimAssist, 'aimAssist', AIM_ASSISTS, (mode) => m.aimAssists[mode]),
+          choiceRow(m.targetPriority, 'targetPriority', PRIORITIES, (prio) => m.priorities[prio]),
           openRow(t().controls.open, () => showSub(openControls)),
         ]
       case 'about':

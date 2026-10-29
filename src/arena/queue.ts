@@ -1,6 +1,7 @@
 import type { SocketHandlers, SocketLike } from '../coop/client'
 import { isRecord } from '../game/parse'
 import type { QueueKind } from '../data/arenaRanked'
+import type { ArenaFormat } from '../data/arenaFormats'
 import type { QueueAuth, QueueClientMessage, QueueServerMessage } from '../net/arena'
 
 /**
@@ -29,7 +30,11 @@ export type QueueDeps = {
   rtts?: () => Promise<Record<string, number>>
 }
 
-export type Ticket = { kind: QueueKind; starter: string; party: string | null }
+/** A party in the queue: its code and how many it expects (a rematch's team). */
+export type QueueParty = { code: string; size: number }
+
+/** What a player queues with: the kind, the format it plays, their Pokémon, and their party, or null. */
+export type Ticket = { kind: QueueKind; format: ArenaFormat; starter: string; party: QueueParty | null }
 
 /** The matchmaker's WebSocket URL from the relay's: same origin, `ws(s)`, path `/arena/queue`. */
 export const queueUrl = (relay: string) => `${relay.replace(/^http/, 'ws').replace(/\/+$/, '')}/arena/queue`
@@ -52,13 +57,18 @@ export const parseQueueMessage = (data: unknown): QueueServerMessage | null => {
     const found = whole(m.found)
     const botsIn = whole(m.botsIn)
     const kind = QUEUES.find((k) => k === m.kind)
-    return kind && waited !== null && found !== null && botsIn !== null ? { t: 'queued', kind, waited, found, botsIn } : null
+    const hold = whole(m.hold) ?? 0
+    return kind && waited !== null && found !== null && botsIn !== null ? { t: 'queued', kind, waited, found, botsIn, ...(hold > 0 && { hold }) } : null
   }
   if (m.t === 'matched') {
     const humans = whole(m.humans)
     return typeof m.room === 'string' && (m.team === 0 || m.team === 1) && typeof m.ranked === 'boolean' && humans !== null ? { t: 'matched', room: m.room, team: m.team, ranked: m.ranked, humans } : null
   }
   if (m.t === 'refused') {
+    if (m.why === 'fairPlay') {
+      const fairPlay = whole(m.fairPlay)
+      return fairPlay === null ? null : { t: 'refused', why: 'fairPlay', fairPlay }
+    }
     const why = REFUSALS.find((w) => w === m.why)
     return why ? { t: 'refused', why } : null
   }
@@ -80,7 +90,9 @@ export const joinQueue = (deps: QueueDeps, ticket: Ticket, on: (e: QueueEvent) =
     if (over) return
     ws = deps.socket(queueUrl(deps.relay), {
       open: () => {
-        send({ t: 'queue', kind: ticket.kind, starter: ticket.starter, party: ticket.party, build: deps.build, auth })
+        const party = ticket.party
+        // The standard 4v4 goes without a format, as every ticket before formats did.
+        send({ t: 'queue', kind: ticket.kind, ...(ticket.format !== 'standard' && { format: ticket.format }), starter: ticket.starter, party: party?.code ?? null, ...(party && { size: party.size }), build: deps.build, auth })
         void deps.rtts?.().then((homes) => !over && Object.keys(homes).length > 0 && send({ t: 'rtt', homes }))
       },
       message: (data) => {

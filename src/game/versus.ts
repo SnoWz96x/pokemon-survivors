@@ -1,7 +1,10 @@
 import { retain } from '../engine/math'
 import { createRng } from '../engine/rng'
 import { ARENA_FEET } from '../data/arenas'
-import { AURA_RANGE, ROLES, VALE, VERSUS, VERSUS_PICKS, valeFloor, type Team, type VersusPick } from '../data/versus'
+import { ARENA_RANKED } from '../data/arenaRanked'
+import { AURA_RANGE, ROLES, VERSUS, VERSUS_FORMATS, VERSUS_PICKS, type Team, type VersusPick } from '../data/versus'
+import { floorOf, MAPS, type MapId, type VersusMap } from '../data/versusMaps'
+import type { ArenaFormat } from '../data/arenaFormats'
 import { updateAttacks } from './attacks'
 import { updateBosses, updateHazards } from './bosses'
 import { healPlayer } from './combat'
@@ -19,14 +22,17 @@ import { footOf, updateTerrain } from './terrain'
 import { updateVerbEvolved } from './verbEvolutions'
 import { addAvatar, knockOut, roleOf, syncAvatars } from './versusCombat'
 import { reveal, updateGrass, usedSpecial } from './versusGrass'
-import { channelTime, goalOpen, rivalTeam, scoreValue, winnerOf } from './versusRules'
+import { channelTime, goalOpen, mapOf, rivalTeam, rulesOf, scoreValue, winnerOf } from './versusRules'
 import type { Enemy, Game, Player } from './types'
 import type { Aim } from './versusBots'
+import { fullBucket, updateSocial, type Bucket, type Ping, type SurrenderVote, type Talk } from './versusSocial'
+import { aimCast, type Focus } from './versusKit'
+import { specialReady } from './special'
 import * as dm from '../engine/dmath'
 
 /**
- * Versus: a Unite-style match on the Vale (`data/versus.ts`), two teams of
- * `VERSUS.teamSize`, run by the co-op lockstep like any co-op run (humans
+ * Versus: a Unite-style match in one of its formats (`VERSUS_FORMATS`: two
+ * teams of its size on its map, `data/versusMaps.ts`, on its clock), run by the co-op lockstep like any co-op run (humans
  * by seat; the rest are bots the simulation drives, `versusBots.ts`). The map
  * is a room (`room.ts`), so the world's spawns, weather and map events stay
  * out; `stepVersus` runs only what a match needs. PvP goes through each
@@ -68,10 +74,43 @@ export type VersusSeat = {
   grass: number
   hidden: boolean
   reveal: number
+  /**
+   * The kit (`versusKit.ts`): the enemy the player locked (-1 none; the basic
+   * attack and the assist aim there while it's in reach), how they rank the
+   * rest (`PRIORITIES` index), a cast's focus while its move fires (null
+   * between ticks), and seconds the Pokémon stays turned to its last cast.
+   */
+  lock: number
+  prio: number
+  focus: Focus | null
+  hold: number
+  /** The kit's pace (`versusPacing.ts`): the slot the level-up on screen teaches (0 a regular one), and the slot an evolution's upgrade waits for (0 none). */
+  learn: number
+  upgrade: number
   /** Match stats: knockouts dealt, times knocked out, points scored. */
   kos: number
   deaths: number
   scored: number
+  /** A human's current stretch without acting (seconds: stick idle and no special, or away) and its longest, the report's AFK (`trackIdle`). */
+  still: number
+  afk: number
+  /**
+   * The scoreboard's other stats: assists (a rival it hit within
+   * `VERSUS.assist` seconds of their knockout, the knocker aside), damage
+   * dealt to and taken from rival Pokémon, HP its moves, Ability and aura
+   * healed (the goals' and the pads' don't count), and rival channels its hits
+   * interrupted.
+   */
+  assists: number
+  dealt: number
+  taken: number
+  healed: number
+  interrupts: number
+  /** `g.now` of each rival's last hit on it, by slot (-99: none since it last came in), for the assists. */
+  hitAt: number[]
+  /** Its quick chat's and pings' rate limits (`versusSocial.ts`). */
+  talkBucket: Bucket
+  pingBucket: Bucket
 }
 
 /** A goal zone in play: its team, where it is, the points it still takes before it breaks. */
@@ -87,7 +126,9 @@ export type Orb = { id: number; x: number; y: number; vx: number; vy: number; va
 export type Objective = { kind: 'drednaw' | 'zapdos'; id: number }
 
 export type VersusState = {
-  map: 'vale'
+  /** The match's format and the map it plays (`rulesOf`, `mapOf`). */
+  format: ArenaFormat
+  map: MapId
   room: Room
   score: [number, number]
   goals: GoalState[]
@@ -99,8 +140,14 @@ export type VersusState = {
   objective: Objective | null
   /** When Drednaw comes (back) to the center (match seconds). */
   drednawAt: number
-  /** Set when the clock runs out. */
-  result: { winner: Team | null } | null
+  /** Quick chat lines and pings of the last few seconds (`versusSocial.ts`): shown by the shell, read by no rule. */
+  talk: Talk[]
+  pings: Ping[]
+  /** Each team's surrender vote while one runs, and the match second its next one may start (after a failed one). */
+  surrender: [SurrenderVote | null, SurrenderVote | null]
+  surrenderAt: [number, number]
+  /** Set when the clock runs out, or a team surrenders (`surrender`: that team, which loses). */
+  result: { winner: Team | null; surrender: Team | null } | null
 }
 
 /** A human's seat: their Pokémon, the name the room sees and the team they asked for (Blue when left out). */
@@ -110,13 +157,13 @@ export type VersusLoadout = { starter: VersusPick; name: string; team?: Team }
 const LANES: readonly Lane[] = ['north', 'south', 'jungle', 'south', 'north']
 
 /**
- * The seats of a match: the humans on the teams they asked for (a full team
- * sends the rest to the other), then bots filling each team to
- * `VERSUS.teamSize` with Pokémon nobody on that team plays. Humans keep the
- * first slots, in order (their seats' slots on the relay). Pure: `seed` draws the bots.
+ * The seats of a match of `size` a side: the humans on the teams they asked
+ * for (a full team sends the rest to the other; past both teams they're left
+ * out), then bots filling each team with Pokémon nobody on that team plays.
+ * Humans keep the first slots, in order (their seats' slots on the relay).
+ * Pure: `seed` draws the bots.
  */
-export const seatMatch = (seed: number, humans: readonly VersusLoadout[]) => {
-  const size = VERSUS.teamSize
+export const seatMatch = (seed: number, humans: readonly VersusLoadout[], size: number = VERSUS_FORMATS.standard.teamSize) => {
   const counts = [0, 0]
   const seats = humans.slice(0, size * 2).map((h) => {
     const want: Team = h.team ?? 0
@@ -137,64 +184,74 @@ export const seatMatch = (seed: number, humans: readonly VersusLoadout[]) => {
   return seats
 }
 
-const createSeat = (team: Team, bot: boolean, lane: Lane): VersusSeat => ({
-  team, bot, lane, energy: 0, respawn: 0, safe: 0, channel: 0, goal: -1, hurtAt: -99, lastBy: -1, shield: 0, avatar: -1, slow: 1, pace: 1, aim: null, think: 0, grass: -1, hidden: false, reveal: 0, kos: 0, deaths: 0, scored: 0,
+/** A fresh seat for a match of `players` Pokémon. */
+const createSeat = (team: Team, bot: boolean, lane: Lane, players: number): VersusSeat => ({
+  team, bot, lane, energy: 0, respawn: 0, safe: 0, channel: 0, goal: -1, hurtAt: -99, lastBy: -1, shield: 0, avatar: -1, slow: 1, pace: 1, aim: null, think: 0, grass: -1, hidden: false, reveal: 0, lock: -1, prio: 0, focus: null, hold: 0, learn: 0, upgrade: 0, kos: 0, deaths: 0, scored: 0, still: 0, afk: 0,
+  assists: 0, dealt: 0, taken: 0, healed: 0, interrupts: 0, hitAt: new Array<number>(players).fill(-99), talkBucket: fullBucket(VERSUS.talk), pingBucket: fullBucket(VERSUS.ping),
 })
 
-const createRoom = (): Room => ({
+const createRoom = (map: VersusMap): Room => ({
   x: 0,
   y: 0,
-  layout: valeFloor,
+  layout: floorOf(map),
   terrain: {
     lake: null,
-    solids: VALE.solids.map((s, i) => {
+    solids: map.solids.map((s, i) => {
       const foot = ARENA_FEET[s.piece]
       return { kind: s.piece, x: s.x, y: s.y, variant: i, foot: [{ ...foot, x: s.x + foot.x, y: s.y + foot.y }] }
     }),
   },
 })
 
-/** Where the `i`th Pokémon of `team` stands on its spawn pad. */
-const padSpot = (team: Team, i: number) => {
-  const pad = VALE.spawn[team]
-  return { x: pad.x, y: pad.y + (i - (VERSUS.teamSize - 1) / 2) * 22 }
+/** Where the `i`th Pokémon of `team` stands on its spawn pad in match `s`. */
+const padSpot = (s: VersusState, team: Team, i: number) => {
+  const pad = mapOf(s).spawn[team]
+  return { x: pad.x, y: pad.y + (i - (rulesOf(s).teamSize - 1) / 2) * 22 }
 }
 
 /**
- * A fresh match for `humans` (1 to 8, by slot) and the bots that fill the
- * teams (`seatMatch`). Every client that calls it with the same seed and
+ * A fresh match of `format` for `humans` (by slot, up to both teams) and the
+ * bots that fill the teams (`seatMatch`). Every client that calls it with the same seed and
  * loadouts gets the same game. Nobody brings anything from their save: no
  * Poké Mart ranks, Bag, TMs or items, and no shiny luck that would change a
  * fight. Each Pokémon opens with the draft (its second move).
  */
-export const createVersusGame = (seed: number, humans: readonly VersusLoadout[]): Game => {
-  const seats = seatMatch(seed, humans)
+export const createVersusGame = (seed: number, humans: readonly VersusLoadout[], format: ArenaFormat = 'standard'): Game => {
+  const rules = VERSUS_FORMATS[format]
+  const map = MAPS[rules.map]
+  const seats = seatMatch(seed, humans, rules.teamSize)
   const setups: PlayerSetup[] = seats.map((s) => ({ starter: s.starter, ranks: NO_RANKS, shiny: false }))
   const g = createRun({ ...VERSUS.view }, seed, setups, undefined, { draft: true }, true)
   g.coop!.names = seats.map((s) => s.name)
-  g.versus = {
-    map: 'vale',
-    room: createRoom(),
+  const s: VersusState = {
+    format,
+    map: rules.map,
+    room: createRoom(map),
     score: [0, 0],
-    goals: VALE.goals.map((d) => ({ team: d.team, x: d.x, y: d.y, r: d.r, left: d.points, max: d.points, base: d.base, broken: false })),
-    camps: VALE.camps.map((c) => ({ alive: [], respawnAt: c.first })),
+    goals: map.goals.map((d) => ({ team: d.team, x: d.x, y: d.y, r: d.r, left: d.points, max: d.points, base: d.base, broken: false })),
+    camps: map.camps.map((c) => ({ alive: [], respawnAt: c.first })),
     orbs: [],
     stretch: false,
     blessing: [0, 0],
     objective: null,
-    drednawAt: VERSUS.drednaw.first,
+    drednawAt: rules.drednaw.first,
+    talk: [],
+    pings: [],
+    surrender: [null, null],
+    surrenderAt: [0, 0],
     result: null,
   }
+  g.versus = s
   g.events.length = 0
   const placed = [0, 0]
   const before = g.player
   for (const p of g.players) {
     const seat = seats[p.slot]!
     const i = placed[seat.team]!++
-    p.versus = createSeat(seat.team, seat.bot, LANES[i % LANES.length]!)
+    p.versus = createSeat(seat.team, seat.bot, LANES[i % LANES.length]!, g.players.length)
     p.shiny = false
     p.luckyShiny = false
-    const spot = padSpot(seat.team, i)
+    const spot = padSpot(s, seat.team, i)
     p.x = spot.x
     p.y = spot.y
     p.facing = { x: seat.team === 0 ? 1 : -1, y: 0 }
@@ -232,14 +289,22 @@ export const stepVersus = (g: Game, inputs: readonly StepInput[], dt: number) =>
   hurryEvolutions(g)
   g.now += dt
   g.time += dt
+  trackIdle(g, inputs, dt)
   const actor = g.player
   for (const p of g.players) {
     if (!inPlay(p)) continue
     g.player = p
+    const input = inputs[p.slot] ?? STILL
+    const v = p.versus
+    if (v) v.hold = Math.max(0, v.hold - dt)
+    // The Unite Move goes where its cast aimed: the Pokémon turns that way first, since the special releases along `facing`.
+    const unite = v && input.special ? input.casts?.find((c) => c.skill === 2) : undefined
+    if (v && unite && (specialReady(p.special) || p.special.window > 0)) v.focus = aimCast(g, p, unite)
     const cooldown = p.special.cooldown
-    stepPlayer(g, inputs[p.slot] ?? STILL, dt)
+    stepPlayer(g, input, dt)
+    if (v) v.focus = null
     // A special shows its user, grass or not.
-    if (p.versus && usedSpecial(p.special, cooldown)) reveal(p.versus)
+    if (v && usedSpecial(p.special, cooldown)) reveal(v)
   }
   g.player = actor
   syncAvatars(g)
@@ -273,6 +338,34 @@ export const stepVersus = (g: Game, inputs: readonly StepInput[], dt: number) =>
 
 const STILL: StepInput = { move: { x: 0, y: 0 }, special: false }
 
+/**
+ * Each human's stretch without acting, for Fair Play's AFK: it grows while
+ * they don't play, and slower while they're away (a bot plays the seat then;
+ * `fairPlay.awayWeight`), and
+ * goes back to 0 when they act (`acts`). Knocked out or channeling into a
+ * goal (standing still to score), it holds. Never read by the match's rules:
+ * only the report's `afk` (its longest) says it.
+ */
+const trackIdle = (g: Game, inputs: readonly StepInput[], dt: number) => {
+  for (const p of g.players) {
+    const v = p.versus
+    if (!v || v.bot || !inPlay(p) || v.channel > 0) continue
+    const i = inputs[p.slot]
+    const acting = !p.away && i !== undefined && acts(i)
+    v.still = acting ? 0 : v.still + (p.away ? dt * ARENA_RANKED.fairPlay.awayWeight : dt)
+    if (v.still > v.afk) v.afk = v.still
+  }
+}
+
+/**
+ * Whether a tick's input is playing, for `trackIdle`: the stick, the special
+ * (the Unite Move), Mega, a lunge, a cast of Move 1 or Move 2, a target
+ * locked or let go. Quick chat, pings, a surrender vote, the target priority
+ * and level-up picks aren't: a player parked at the base can do all of them.
+ */
+export const acts = (i: StepInput) =>
+  i.move.x !== 0 || i.move.y !== 0 || i.special || i.mega === true || i.lunge === true || (i.casts?.length ?? 0) > 0 || i.locked === true
+
 /** Keeps the players and the wild on the map's floor. */
 const keepEveryoneOn = (g: Game, room: Room) => {
   const floor = room.layout.floor
@@ -297,7 +390,8 @@ const CAMP_LEASH = 150
 /** Camps fill up when they're due, and start their clock once the last of them falls. */
 const updateCamps = (g: Game) => {
   const s = g.versus!
-  VALE.camps.forEach((def, i) => {
+  const map = mapOf(s)
+  map.camps.forEach((def, i) => {
     const camp = s.camps[i]!
     if (camp.alive.length > 0) {
       camp.alive = camp.alive.filter((id) => g.enemies.some((e) => e.id === id && e.dying < 0))
@@ -314,8 +408,7 @@ const updateCamps = (g: Game) => {
     camp.respawnAt = Infinity
   })
   if (!s.stretch && s.objective === null && g.time >= s.drednawAt) {
-    const d = VERSUS.drednaw
-    const e = spawnWild(g, 'drednaw', -1, VALE.center.x, VALE.center.y, d.hp, 14, 120)
+    const e = spawnWild(g, 'drednaw', -1, map.center.x, map.center.y, rulesOf(s).drednaw.hp, 14, 120)
     s.objective = { kind: 'drednaw', id: e.id }
     g.events.push({ kind: 'versusObjective', enemy: 'drednaw', team: -1 })
   }
@@ -329,9 +422,9 @@ const startStretch = (g: Game) => {
     const old = g.enemies.find((e) => e.id === s.objective!.id)
     if (old) old.dying = 0
   }
-  const z = VERSUS.zapdos
-  const e = spawnWild(g, 'zapdos', -1, VALE.center.x, VALE.center.y, z.hp, 0, 160)
-  e.damage = 30 * z.damage
+  const center = mapOf(s).center
+  const e = spawnWild(g, 'zapdos', -1, center.x, center.y, rulesOf(s).zapdos.hp, 0, 160)
+  e.damage = 30 * VERSUS.zapdos.damage
   s.objective = { kind: 'zapdos', id: e.id }
   g.bossId = e.id
   g.flash = 0.6
@@ -348,6 +441,7 @@ const goalUnder = (s: VersusState, p: Player, team: Team) => s.goals.findIndex((
 
 /** Players back from a knockout, protection wearing off. */
 const updateRespawns = (g: Game, dt: number) => {
+  const s = g.versus!
   for (const p of g.players) {
     const v = p.versus
     if (!v) continue
@@ -356,7 +450,7 @@ const updateRespawns = (g: Game, dt: number) => {
     v.respawn -= dt
     if (v.respawn > 0) continue
     v.respawn = 0
-    const spot = padSpot(v.team, p.slot % VERSUS.teamSize)
+    const spot = padSpot(s, v.team, p.slot % rulesOf(s).teamSize)
     p.x = spot.x
     p.y = spot.y
     p.hp = p.stats.maxHp
@@ -406,7 +500,7 @@ const updateGoals = (g: Game, dt: number) => {
     const own = goalUnder(s, p, v.team)
     if (own >= 0) {
       const before = actAs(g, p)
-      healPlayer(g, p.stats.maxHp * VERSUS.ownGoal.heal * dt)
+      healPlayer(g, p.stats.maxHp * VERSUS.ownGoal.heal * dt, null)
       actAs(g, before)
     }
     const at = v.energy > 0 ? goalUnder(s, p, rivalTeam(v.team)) : -1
@@ -453,14 +547,15 @@ const score = (g: Game, p: Player, goal: GoalState, at: number) => {
 
 /** Each team's spawn pad heals its own and burns a rival who walks in (a knockout there is nobody's). */
 const updatePads = (g: Game, dt: number) => {
+  const spawn = mapOf(g.versus!).spawn
   const before = g.player
   for (const p of g.players) {
     const v = p.versus
     if (!v || !inPlay(p)) continue
-    VALE.spawn.forEach((pad, team) => {
+    spawn.forEach((pad, team) => {
       if (!inside(p, pad.x, pad.y, VERSUS.spawnPad.r)) return
       g.player = p
-      if (team === v.team) healPlayer(g, p.stats.maxHp * VERSUS.spawnPad.heal * dt)
+      if (team === v.team) healPlayer(g, p.stats.maxHp * VERSUS.spawnPad.heal * dt, null)
       else {
         p.hp -= p.stats.maxHp * VERSUS.spawnPad.burn * dt
         // A knockout on a rival's pad is nobody's.
@@ -471,7 +566,7 @@ const updatePads = (g: Game, dt: number) => {
   g.player = before
 }
 
-/** Supporters' healing auras on their teammates nearby. */
+/** Supporters' healing auras on their teammates nearby (the Supporter's healing, on the scoreboard). */
 const updateAuras = (g: Game, dt: number) => {
   const before = g.player
   for (const p of g.players) {
@@ -480,7 +575,7 @@ const updateAuras = (g: Game, dt: number) => {
     for (const q of g.players) {
       if (q === p || q.versus?.team !== p.versus?.team || !inPlay(q) || !inside(q, p.x, p.y, AURA_RANGE)) continue
       g.player = q
-      healPlayer(g, q.stats.maxHp * aura * dt)
+      healPlayer(g, q.stats.maxHp * aura * dt, p)
     }
   }
   g.player = before
@@ -496,19 +591,22 @@ const updatePaces = (g: Game) => {
   }
 }
 
-/** The clock ran out: the team with more points wins (a draw on a tie). */
-const endMatch = (g: Game) => {
+/** The clock ran out (the team with more points wins, a draw on a tie), or `surrender` gave up (the other team wins, whatever the score). */
+const endMatch = (g: Game, surrender: Team | null = null) => {
   const s = g.versus!
-  const winner = winnerOf(s.score)
-  s.result = { winner }
+  const winner = surrender === null ? winnerOf(s.score) : rivalTeam(surrender)
+  s.result = { winner, surrender }
   g.phase = 'gameover'
-  g.events.push({ kind: 'versusEnd', winner })
+  g.events.push({ kind: 'versusEnd', winner, surrender })
 }
 
-/** The match's rules after the step: the clock, respawns, Energy, goals, spawn pads, auras and paces. */
+/** The match's rules after the step: the clock, respawns, Energy, goals, spawn pads, auras and paces; then quick chat, pings and the surrender vote. */
 const updateVersus = (g: Game, dt: number) => {
   const s = g.versus!
-  if (!s.stretch && g.time >= VERSUS.length - VERSUS.stretch) startStretch(g)
+  const surrendered = updateSocial(g)
+  if (surrendered !== null) return endMatch(g, surrendered)
+  const rules = rulesOf(s)
+  if (!s.stretch && g.time >= rules.length - rules.stretch) startStretch(g)
   updateRespawns(g, dt)
   updateOrbs(g, dt)
   updateGoals(g, dt)
@@ -517,8 +615,8 @@ const updateVersus = (g: Game, dt: number) => {
   updatePaces(g)
   s.blessing[0] = Math.max(0, s.blessing[0] - dt)
   s.blessing[1] = Math.max(0, s.blessing[1] - dt)
-  if (g.time >= VERSUS.length) endMatch(g)
+  if (g.time >= rules.length) endMatch(g)
 }
 
-/** Seconds left on the match clock. */
-export const timeLeft = (g: Game) => Math.max(0, VERSUS.length - g.time)
+/** Seconds left on the match clock (0 outside a match). */
+export const timeLeft = (g: Game) => (g.versus ? Math.max(0, rulesOf(g.versus).length - g.time) : 0)

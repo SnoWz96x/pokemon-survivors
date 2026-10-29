@@ -6,6 +6,7 @@ import { goalOpen } from '../game/versusRules'
 import type { VersusState } from '../game/versus'
 import { channelShare } from '../render/vale'
 import { createCoach } from './versusCoach'
+import { boundKey } from './inputLabels'
 import { formAt } from '../game/branch'
 import { localPlayer } from '../game/players'
 import type { Game, GameEvent, Player } from '../game/types'
@@ -15,6 +16,7 @@ import { cryUrl, portraitUrl } from '../render/sprites'
 import { energyIcon, teamColor } from './arena'
 import { h, rich, setStyle, setText } from './dom'
 import { banner, runToast } from './toasts'
+import { settings } from './settings'
 
 /**
  * A Versus match's own HUD, over the run's (`ui/hud.ts`, whose clock and
@@ -44,15 +46,19 @@ let koBy = ''
 const COUNTDOWN = 3
 const GO = 0.8
 
-/** A team's three goals as the score bar lists them: north lane, base, south lane (indices into `VersusState.goals`). */
-const goalOrder = (s: VersusState, team: Team) => {
+type GoalPos = 'top' | 'base' | 'bottom'
+
+/**
+ * A team's goals as the score bar (and the end screen) list them: north
+ * lane, base, south lane, each with its index into `VersusState.goals`. A
+ * map without a base goal (the Clareira) has just its two lanes'.
+ */
+export const goalOrder = (s: VersusState, team: Team): { i: number; pos: GoalPos }[] => {
   const mine = s.goals.flatMap((goal, i) => (goal.team === team ? [i] : []))
   const lane = (north: boolean) => mine.find((i) => !s.goals[i]!.base && s.goals[i]!.y < 0 === north)
   const base = mine.find((i) => s.goals[i]!.base)
-  return [lane(true), base, lane(false)].filter((i): i is number => i !== undefined)
+  return ([['top', lane(true)], ['base', base], ['bottom', lane(false)]] as const).flatMap(([pos, i]) => (i === undefined ? [] : [{ i, pos }]))
 }
-
-const GOAL_POS = ['top', 'base', 'bottom'] as const
 
 /**
  * `local`: a match against bots on the in-page relay (no connection to show).
@@ -65,18 +71,10 @@ export const createVersusHud = (root: HTMLElement, local: boolean, goAt: number 
   const red = h('b', { class: 'vs-points' })
   const clock = h('span', { class: 'vs-clock' })
   const double = h('em', { class: 'vs-double hidden' }, m.hud.double)
-  /** Each team's goals under its score: open with their points left, locked, or broken. */
+  /** Each team's goals under its score, one pip per goal of the map (`goalOrder`, made at the first update): open with their points left, locked, or broken. */
   const pips: [HTMLElement[], HTMLElement[]] = [[], []]
-  const goalRow = (team: Team) =>
-    h(
-      'span',
-      { class: `vs-goals ${team === 0 ? 'blue' : 'red'}`, style: `--team:${teamColor(team)}` },
-      ...GOAL_POS.map((pos) => {
-        const pip = h('i', { class: `vs-goal ${pos}`, title: m.hud.goals[pos] })
-        pips[team].push(pip)
-        return pip
-      }),
-    )
+  const rows = ([0, 1] as const).map((team) => h('span', { class: `vs-goals ${team === 0 ? 'blue' : 'red'}`, style: `--team:${teamColor(team)}` }))
+  const goalRow = (team: Team) => rows[team]!
   const bar = h(
     'div',
     { class: 'vs-score' },
@@ -87,7 +85,7 @@ export const createVersusHud = (root: HTMLElement, local: boolean, goAt: number 
     h('span', { class: 'vs-goals-mid' }),
     goalRow(1),
   )
-  const coach = createCoach()
+  const coach = createCoach(boundKey)
   const blessing = h('div', { class: 'vs-pill vs-blessing hidden' })
   const shield = h('div', { class: 'vs-pill vs-shield hidden' }, m.hud.shield)
   const energyText = h('b', { class: 'vs-energy-text' })
@@ -144,12 +142,17 @@ export const createVersusHud = (root: HTMLElement, local: boolean, goAt: number 
     if (goalsKey !== goalsShown) {
       goalsShown = goalsKey
       for (const team of [0, 1] as const) {
-        goalOrder(s, team).forEach((i, k) => {
+        const order = goalOrder(s, team)
+        if (pips[team].length !== order.length) {
+          pips[team] = order.map(({ pos }) => h('i', { class: `vs-goal ${pos}`, title: m.hud.goals[pos] }))
+          rows[team]!.replaceChildren(...pips[team])
+        }
+        order.forEach(({ i, pos }, k) => {
           const goal = s.goals[i]!
           const pip = pips[team][k]
           if (!pip) return
           const state = goal.broken ? 'broken' : goalOpen(s, goal) ? 'open' : 'locked'
-          pip.className = `vs-goal ${GOAL_POS[k]} ${state}`
+          pip.className = `vs-goal ${pos} ${state}`
           setText(pip, goal.broken ? '' : String(Math.max(0, Math.round(goal.left))))
         })
       }
@@ -222,7 +225,9 @@ const teamToast = (team: Team, ...children: (HTMLElement | false | undefined | n
 /**
  * The match's moments as sounds and toasts, from this player's side: a score
  * (big, in the scorer's team color), a goal breaking, knockouts this player's
- * team took part in, the objectives arriving and falling, the stretch and the end.
+ * team took part in, the objectives arriving and falling, the stretch and the
+ * end; a teammate's quick chat line (unless muted) or ping as a chirp, and the
+ * team's surrender vote opening or failing (the vote's prompt is `versusTalk.ts`'s).
  */
 export const versusFeedback = (root: HTMLElement, g: Game, e: GameEvent) => {
   const me = localPlayer(g)
@@ -276,6 +281,28 @@ export const versusFeedback = (root: HTMLElement, g: Game, e: GameEvent) => {
       const ours = e.team === mine
       playSfx(ours ? 'evolve' : 'denied', 0)
       return runToast(root, 'important', teamToast(e.team, h('img', { class: 'vs-toast-face', src: portraitUrl(def.dex), alt: '' }), rich(ours ? m.fellUs(def.name) : m.fellThem(def.name))), 3600, 'versusObjective')
+    }
+    case 'versusTalk': {
+      const speaker = g.players[e.slot]
+      if (e.slot === me.slot || !settings().quickChat) return
+      if (e.msg !== 'gg' && speaker?.versus?.team !== mine) return
+      return playSfx('chat', 120)
+    }
+    case 'versusPing':
+      if (g.players[e.slot]?.versus?.team !== mine) return
+      return playSfx('ping', 150)
+    case 'versusSurrender': {
+      if (e.team !== mine) return
+      if (e.state === 'open') {
+        if (e.slot === me.slot) return
+        playSfx('select', 0)
+        return runToast(root, 'important', teamToast(mine, face(g.players[e.slot]), rich(m.surrenderOpen(versusName(g, e.slot)))), 3000, 'versusSurrender')
+      }
+      if (e.state === 'failed') {
+        playSfx('denied', 0)
+        return runToast(root, 'important', teamToast(mine, h('span', {}, t().versus.surrender.failed)), 3000, 'versusSurrender')
+      }
+      return
     }
     case 'versusEnd': {
       const won = e.winner === mine

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { freshRating, seasonById, seasonReset, type ArenaResult, type ArenaSeatResult } from '../../src/game/arenaRank'
-import { arenaSignature, createArenaRewards, parseArenaReport, planMatch, ratingSeason, startingRating, verifyArenaSignature, type ReportSeat } from './arena'
+import { ARENA_RANKED } from '../../src/data/arenaRanked'
+import { arenaSignature, createArenaRewards, parseAbandonedReport, parseArenaReport, planMatch, ratingSeason, startingRating, verifyArenaSignature, type ReportSeat } from './arena'
 
 const seat = (slot: number, team: 0 | 1, bot = false, extra: Partial<ArenaSeatResult> = {}): ArenaSeatResult => ({
   slot,
@@ -12,11 +13,17 @@ const seat = (slot: number, team: 0 | 1, bot = false, extra: Partial<ArenaSeatRe
   deaths: 1,
   scored: 10,
   damage: 500,
+  assists: 1,
+  dealt: 300,
+  taken: 250,
+  healed: 0,
+  interrupts: 0,
+  afk: 0,
   ...extra,
 })
 
 /** Blue (slots 0, 1) beats Red (slots 2, 3), 2v2. */
-const result: ArenaResult = { v: 1, score: [40, 20], winner: 0, seconds: 420, objective: 0, seats: [seat(0, 0), seat(1, 0), seat(2, 1), seat(3, 1)] }
+const result: ArenaResult = { v: 1, score: [40, 20], winner: 0, seconds: 420, objective: 0, surrender: null, seats: [seat(0, 0), seat(1, 0), seat(2, 1), seat(3, 1)] }
 
 const humans = (...ids: (string | null)[]): ReportSeat[] => ids.map((userId, slot) => ({ slot, userId, left: false }))
 
@@ -136,6 +143,28 @@ describe('planMatch', () => {
     expect(left?.change?.mmr).toBeLessThan(0)
   })
 
+  it('rates a surrender as an ordinary win and loss, whatever the score, nobody a leaver nor penalized', () => {
+    // Blue led 40–20 and gave up: Red won.
+    const given: ArenaResult = { ...result, winner: 1, surrender: 0 }
+    const parsed = parseArenaReport(report({ result: given }))
+    expect(parsed?.result).toMatchObject({ winner: 1, surrender: 0 })
+    const [a, c] = planMatch(given, humans('a', null, 'c', null), ratings)
+    expect([a?.outcome, a?.left, c?.outcome, c?.left]).toEqual(['loss', false, 'win', false])
+    expect(a?.change?.mmr).toBeLessThan(0)
+    expect(c?.change?.mmr).toBeGreaterThan(0)
+    // An agreed end for Fair Play: both sides finished it (+2), the side that gave up too.
+    expect([a?.conduct, c?.conduct]).toEqual(['finished', 'finished'])
+    // A surrender the winner doesn't match is junk.
+    expect(parseArenaReport(report({ result: { ...result, surrender: 0 } }))).toBeNull()
+  })
+
+  it('reads an older report without the surrender, the scoreboard stats or the AFK', () => {
+    const old = { ...result, surrender: undefined, seats: result.seats.map(({ assists: _a, dealt: _d, taken: _t, healed: _h, interrupts: _i, afk: _k, ...rest }) => rest) }
+    const parsed = parseArenaReport(report({ result: JSON.parse(JSON.stringify(old)) }))
+    expect(parsed?.result.surrender).toBeNull()
+    expect(parsed?.result.seats[0]).toMatchObject({ kos: 2, assists: 0, dealt: 0, interrupts: 0, afk: 0 })
+  })
+
   it('rates only the leavers of an unconfirmed match, each as a loss, the stayers unrated', () => {
     // Red's c left; Blue's a reported a loss nobody can confirm.
     const seats: ReportSeat[] = [
@@ -151,14 +180,52 @@ describe('planMatch', () => {
     expect(c?.change?.mmr).toBeLessThan(0)
     expect(c?.change?.after.games).toBe(1)
     // A leaver at their tier's floor stays there.
-    const floored = new Map([['c', { mmr: 1000, rp: 300, peak: 300, games: 20 }]])
+    const floored = new Map([['c', { mmr: 1000, rp: 300, peak: 300, games: 20, protection: 0 }]])
     expect(planMatch(lost, seats, floored, false)[1]?.change?.after.rp).toBe(300)
+  })
+
+  it('reads each human’s conduct: left from the relay, AFK only from a confirmed result', () => {
+    const idle = { ...result, seats: [seat(0, 0, false, { afk: ARENA_RANKED.fairPlay.afkAfter }), seat(1, 0), seat(2, 1), seat(3, 1)] }
+    const seats: ReportSeat[] = [
+      { slot: 0, userId: 'a', left: false },
+      { slot: 1, userId: 'b', left: true },
+      { slot: 2, userId: 'c', left: false },
+    ]
+    expect(planMatch(idle, seats, null).map((l) => l.conduct)).toEqual(['afk', 'left', 'finished'])
+    expect(planMatch(idle, seats, null, false).map((l) => l.conduct)).toEqual(['finished', 'left', 'finished'])
+  })
+
+  it('spends a full protection meter on a fair loss, never on an AFK or a leaver', () => {
+    const full = { ...freshRating(), rp: 150, peak: 150, protection: ARENA_RANKED.protection.max }
+    const shielded = new Map([['c', full], ['d', full], ['a', freshRating()]])
+    const seats: ReportSeat[] = [
+      { slot: 0, userId: 'a', left: false },
+      { slot: 2, userId: 'c', left: false },
+      { slot: 3, userId: 'd', left: true },
+    ]
+    const [, c, d] = planMatch(result, seats, shielded)
+    expect(c?.change).toMatchObject({ rp: 0, protected: true })
+    expect(d?.change?.protected).toBe(false)
+    expect(d?.change?.rp).toBeLessThan(0)
+    const idle = { ...result, seats: [seat(0, 0), seat(1, 0), seat(2, 1, false, { afk: 200 }), seat(3, 1)] }
+    expect(planMatch(idle, seats, shielded)[1]?.change).toMatchObject({ protected: false })
+  })
+})
+
+describe('parseAbandonedReport', () => {
+  const abandoned = { v: 1, room: 'K7QF2', run: 2, kind: 'casual', region: 'sa', endedAt: 1, abandoned: true, result: null, seats: [{ slot: 0, userId: 'u_b', handle: null, left: true }, { slot: 1, userId: 'u_a', handle: null, left: true }, { slot: 2, userId: null, handle: null, left: false }] }
+
+  it('reads the accounts of a match everyone left, and nothing else', () => {
+    expect(parseAbandonedReport(abandoned)).toEqual({ room: 'K7QF2', run: 2, kind: 'casual', endedAt: 1, users: ['u_a', 'u_b'] })
+    expect(parseAbandonedReport({ ...abandoned, abandoned: undefined })).toBeNull()
+    expect(parseAbandonedReport(report())).toBeNull()
+    expect(parseAbandonedReport({ ...abandoned, seats: [...abandoned.seats, { slot: 3, userId: 'u_a', handle: null, left: true }] })).toBeNull()
   })
 })
 
 describe('startingRating', () => {
   it('resets from the previous season, else starts fresh', () => {
-    const last = { mmr: 1400, rp: 950, peak: 1000, games: 80 }
+    const last = { mmr: 1400, rp: 950, peak: 1000, games: 80, protection: 50 }
     expect(startingRating(last)).toEqual(seasonReset(last))
     expect(startingRating(last).games).toBe(0)
     expect(startingRating(null)).toEqual(freshRating())

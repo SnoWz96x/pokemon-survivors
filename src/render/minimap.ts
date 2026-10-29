@@ -15,10 +15,12 @@ import { featureAt, type Feature } from '../game/terrain'
 import type { Game, Pickup } from '../game/types'
 import { missionSpot } from './fieldMissions'
 import { slotColor } from './team'
-import { VALE } from '../data/versus'
-import { goalOpen } from '../game/versusRules'
+import { goalOpen, mapOf } from '../game/versusRules'
+import type { VersusState } from '../game/versus'
 import { TEAM_COLORS } from './vale'
 import { concealed } from './valeGrass'
+import { PING_COLORS, seesPing } from './valePings'
+import { PING_KINDS, type PingKind } from '../game/versusSocial'
 
 /**
  * The HUD's mini map (`ui/minimap.ts`): a pixel-art map around the local
@@ -564,9 +566,7 @@ const frame = (ctx: Ctx, shape: MinimapShape) => {
 
 /* ---------------- Versus ---------------- */
 
-/** World px per map px for the whole Vale (1500 × 760): it fits the round map's window. */
-const VALE_SCALE = 28
-/** The Vale's map colors. */
+/** An Arena map's colors (its scale is the map's own, `look.minimap`: the whole map fits the round window). */
 const VALE_LOOK = { hedge: '#143820', edge: '#7ab060', grass: '#4f8c3e', jungle: '#356a32', path: '#a88258', tall: '#1e4a20', base: ['#3e5c88', '#884048'] } as const
 
 const VALE_GLYPHS = lazy(() => ({
@@ -576,7 +576,7 @@ const VALE_GLYPHS = lazy(() => ({
 }))
 
 /**
- * A match's map: the whole Vale at once, north up (its floor, the jungle, the
+ * A match's map: the whole of it at once, north up (its floor, the jungle, the
  * lanes' paths, the bases in their team's color, the tall grass), the goals
  * by team (shut ones dark, broken ones grey), every Pokémon on its feet as its
  * team's dot (but rivals hidden in the grass),
@@ -584,7 +584,9 @@ const VALE_GLYPHS = lazy(() => ({
  */
 const drawValeMap = (ctx: Ctx, g: Game, shape: MinimapShape, t: number) => {
   const s = g.versus!
-  const v: View = { ox: -C, oy: -C, scale: VALE_SCALE }
+  const map = mapOf(s)
+  const look = map.look
+  const v: View = { ox: -C, oy: -C, scale: look.minimap }
   ctx.globalCompositeOperation = 'source-over'
   ctx.globalAlpha = 1
   const rect = (x0: number, y0: number, x1: number, y1: number, grow = 0) => {
@@ -595,21 +597,21 @@ const drawValeMap = (ctx: Ctx, g: Game, shape: MinimapShape, t: number) => {
   ctx.fillStyle = VALE_LOOK.hedge
   ctx.fillRect(0, 0, S, S)
   ctx.fillStyle = VALE_LOOK.edge
-  for (const r of VALE.rects) rect(r.x0, r.y0, r.x1, r.y1, 1)
+  for (const r of map.rects) rect(r.x0, r.y0, r.x1, r.y1, 1)
   ctx.fillStyle = VALE_LOOK.grass
-  for (const r of VALE.rects) rect(r.x0, r.y0, r.x1, r.y1)
+  for (const r of map.rects) rect(r.x0, r.y0, r.x1, r.y1)
   ctx.fillStyle = VALE_LOOK.jungle
-  rect(-470, -160, 470, 160)
+  rect(look.jungle.x0, look.jungle.y0, look.jungle.x1, look.jungle.y1)
   ctx.fillStyle = VALE_LOOK.path
-  for (const y of [-295, 295]) rect(-540, y - 14, 540, y + 14)
-  VALE.rects.forEach((r) => {
-    if (r.x1 <= -540 || r.x0 >= 540) {
+  for (const y of [-look.laneY, look.laneY]) rect(-look.baseX, y - 14, look.baseX, y + 14)
+  map.rects.forEach((r) => {
+    if (r.x1 <= -look.baseX || r.x0 >= look.baseX) {
       ctx.fillStyle = VALE_LOOK.base[r.x0 < 0 ? 0 : 1]
       rect(r.x0, r.y0, r.x1, r.y1)
     }
   })
   ctx.fillStyle = VALE_LOOK.tall
-  for (const r of VALE.grass) rect(r.x0, r.y0, r.x1, r.y1)
+  for (const r of map.grass) rect(r.x0, r.y0, r.x1, r.y1)
   drawViewBox(ctx, v, g)
   const art = VALE_GLYPHS()
   for (const goal of s.goals) marker(ctx, v, shape, goal.broken ? art.broken : goalOpen(s, goal) ? art.goal[goal.team]! : art.locked[goal.team]!, goal.x, goal.y, true)
@@ -621,6 +623,24 @@ const drawValeMap = (ctx: Ctx, g: Game, shape: MinimapShape, t: number) => {
     marker(ctx, v, shape, teammate(TEAM_COLORS[p.versus.team]), p.x, p.y, true)
   }
   if (me.hp > 0) ctx.drawImage(ARROWS()[heading(me.facing.x, me.facing.y)]!, mapX(v, me.x) - 4, mapY(v, me.y) - 4)
+  // The team's pings over everything, blinking as they land.
+  for (const ping of s.pings) {
+    if (!seesPing(g, ping) || (g.now - ping.at < 1.5 && Math.floor(t * 6) % 2 === 1)) continue
+    marker(ctx, v, shape, pingGlyph(ping.kind), ping.x, ping.y, true)
+  }
+}
+
+const PING_GLYPHS = lazy(() => Object.fromEntries(PING_KINDS.map((kind) => [kind, glyph(['.c.', 'cwc', 'cwc', '.c.'], { c: PING_COLORS[kind], w: '#ffffff' })])) as Record<PingKind, PixelSprite>)
+const pingGlyph = (kind: PingKind) => PING_GLYPHS()[kind]
+
+/**
+ * The world spot under a point of the Arena's mini map (map px, 0 to
+ * `MINIMAP.size`) for match `s`: the middle of the map pixel's patch of its
+ * map (`look.minimap` world px each). The shell pings there (`ui/versusTalk.ts`).
+ */
+export const arenaMapAt = (s: VersusState, mx: number, my: number) => {
+  const scale = mapOf(s).look.minimap
+  return { x: (Math.floor(mx) - C) * scale + scale / 2, y: (Math.floor(my) - C) * scale + scale / 2 }
 }
 
 const teammates = new Map<string, PixelSprite>()

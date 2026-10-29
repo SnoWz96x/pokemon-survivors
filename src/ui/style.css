@@ -20712,6 +20712,10 @@ button.hall-tile:hover {
     padding: 6px;
     gap: 4px;
   }
+  /* Buttons on the left: the kit's cluster (`.arena-kit`, 140 px) holds that corner, so the cards stand just right of it. */
+  [data-hand='left'] .vs-tray {
+    left: calc(max(14px, var(--safe-l)) + 148px);
+  }
   .vs-card {
     min-height: 38px;
   }
@@ -21547,6 +21551,10 @@ span.arena-hub-face {
   background: #2a7ab8;
 }
 
+.arena-hub-kind.quick {
+  background: #8a5a10;
+}
+
 .arena-hub-score {
   font-family: var(--title);
   font-size: 10px;
@@ -21596,6 +21604,212 @@ span.arena-hub-face {
   line-height: 1.05;
 }
 
+.arena-hub-delta.shield {
+  color: #b07800;
+}
+
+/* Fair Play and the protection meter: two cards side by side, a bar each. */
+.arena-hub-meters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.arena-hub-card.arena-hub-meter {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  border-left: 6px solid var(--meter, #2f9a40);
+}
+
+.arena-hub-meter.fair.good {
+  --meter: #2f9a40;
+}
+
+.arena-hub-meter.fair.warn {
+  --meter: #e08a10;
+}
+
+.arena-hub-meter.fair.bad {
+  --meter: #c03040;
+}
+
+.arena-hub-meter.shield {
+  --meter: #e8b020;
+}
+
+.arena-hub-meter.shield.ready {
+  background: linear-gradient(100deg, var(--dk-wash-gold, #fff8d8), var(--dk-surface-2, #e8e8f0));
+}
+
+.arena-hub-meter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.arena-hub-card .arena-hub-meter-value {
+  font-size: 11px;
+  color: var(--meter);
+}
+
+.arena-hub-bar.meter.good i {
+  background: #2f9a40;
+}
+
+.arena-hub-bar.meter.warn i {
+  background: #e08a10;
+}
+
+.arena-hub-bar.meter.bad i {
+  background: #c03040;
+}
+
+.arena-hub-bar.meter.gold i {
+  background: #e8b020;
+}
+
+.arena-hub-card .arena-hub-meter-status,
+.arena-hub-card .arena-hub-meter-explain {
+  margin: 0;
+}
+
+.arena-hub-card .arena-hub-meter-explain {
+  font-size: 16px;
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-hub-card .arena-hub-penalty {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 8px;
+  margin: 0;
+  color: #c03040;
+}
+
+.arena-hub-penalty span,
+.arena-hub-penalty small {
+  margin: 0;
+}
+
+.arena-hub-penalty small {
+  font-family: var(--body);
+  font-size: 15px;
+  color: var(--dk-ink-3, #707088);
+}
+
+/* The pre-season: before season 1, ranked matches are kept without RP. */
+.arena-hub-preseason {
+  border: 3px solid #3878e8;
+  background: var(--dk-wash-blue, #e4eefc);
+}
+
+.arena-hub-preseason img {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  align-self: flex-start;
+  image-rendering: pixelated;
+}
+
+/* A Fair Play penalty this device hasn't told yet, above every tab. */
+.dialog.arena-hub > .arena-hub-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--dk-wash-red, #fde8ea);
+  border: 3px solid #c03040;
+  border-radius: 8px;
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.05;
+}
+
+.dialog.arena-hub > .arena-hub-notice[hidden] {
+  display: none;
+}
+
+.arena-hub-notice p {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 8px;
+  margin: 0;
+}
+
+.arena-hub-notice b {
+  font-family: var(--title);
+  font-size: 9px;
+  color: #c03040;
+}
+
+.arena-hub-notice small,
+.arena-hub-notice .arena-hub-notice-score {
+  color: var(--dk-ink-2, #505870);
+}
+
+/* The queue: Fair Play's hold, a Ranqueada refused for it, and the pre-season note. */
+.arena-queue.held .arena-queue-bots {
+  color: #c03040;
+}
+
+.arena-queue-honest.preseason {
+  color: #3878e8;
+}
+
+.arena-queue-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(440px, 100%);
+  margin: 0 auto;
+  font-family: var(--body);
+  font-size: 20px;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.arena-queue-block p {
+  margin: 0;
+}
+
+.arena-queue.blocked .arena-queue-head img {
+  width: 28px;
+  height: 28px;
+  image-rendering: pixelated;
+}
+
+/* The end screen: a loss the protection meter took, and the pre-season's line. */
+.vs-end-rank.shield .vs-end-rp {
+  color: #b07800;
+}
+
+.vs-end-rank.shield {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.vs-end-rp {
+  white-space: nowrap;
+}
+
+.vs-end-shield {
+  flex-basis: 100%;
+  order: 1;
+  margin-top: 6px;
+  line-height: 1.4;
+  font-family: var(--title);
+  font-size: 10px;
+  color: #b07800;
+}
+
+.vs-end-rank.preseason {
+  color: #3878e8;
+}
+
 /* Phones held upright: two ways to play a row, the hub's numbers in fewer columns. */
 @media (max-width: 640px) {
   .dialog.arena .arena-modes {
@@ -21630,6 +21844,16 @@ span.arena-hub-face {
   }
   .arena-hub-stats {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .arena-hub-meters {
+    grid-template-columns: 1fr;
+  }
+  .arena-hub-notice b {
+    font-size: 8px;
+    line-height: 1.3;
+  }
+  .vs-end-rank {
+    flex-wrap: wrap;
   }
   .arena-hub-fav-list {
     grid-template-columns: 1fr;
@@ -21695,5 +21919,1102 @@ span.arena-hub-face {
   .vs-end-rank {
     min-height: 0;
     font-size: 16px;
+  }
+}
+
+/* ---------- Arena formats (ui/arena.ts, ui/coopRoom.ts, ui/arenaQueue.ts, ui/versusEnd.ts): 4v4 Padrão and 3v3 Rápida ---------- */
+
+/* The format the ways to play play: a label and two big toggles, each its size, name, clock and map. */
+.arena-formats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.arena-format-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  flex: 1;
+}
+
+.arena-format {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 5px 10px;
+  text-align: left;
+  color: var(--dk-ink, #283040);
+  background: var(--dk-surface-2, #e8e8f0);
+  border: 3px solid transparent;
+  border-radius: 8px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+}
+
+.arena-format-size {
+  flex: none;
+  padding: 5px 6px 4px;
+  font-family: var(--title);
+  font-size: 11px;
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.45);
+  background: linear-gradient(100deg, #4890f0 0 50%, #f05858 50% 100%);
+  border: 2px solid #283040;
+  border-radius: 6px;
+}
+
+.arena-format-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.arena-format-text b {
+  font-family: var(--title);
+  font-size: 9px;
+}
+
+.arena-format-text small {
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 0.95;
+  color: var(--dk-ink-2, #505870);
+}
+
+.arena-format.on {
+  background: var(--dk-wash-gold, #fff8d8);
+  border-color: #283040;
+}
+
+.arena-format.on .arena-format-size {
+  box-shadow: 0 0 0 2px #f8d030;
+}
+
+.arena-format.selected,
+.arena-format:hover {
+  border-color: #e83838;
+}
+
+/* A format as a small chip: the queue screens and the end screen wear it. */
+.arena-format-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1;
+  color: #fff;
+  background: #283040;
+  border-radius: 99px;
+}
+
+.arena-format-chip b {
+  font-family: var(--title);
+  font-size: 8px;
+}
+
+.arena-format-chip.quick {
+  background: #8a5a10;
+}
+
+/* The end screen: the map and format under the score, and each team's goals beside its total. */
+.vs-end-format {
+  display: flex;
+  justify-content: center;
+  margin: -4px 0 0;
+}
+
+.vs-end-team-head .vs-goals {
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+/* Phones held upright: the label over the toggles, a shorter line. */
+@media (max-width: 640px) {
+  .arena-formats {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .arena-format {
+    gap: 6px;
+    padding: 4px 6px;
+  }
+  .arena-format-size {
+    font-size: 9px;
+    padding: 4px;
+  }
+  .arena-format-text b {
+    font-size: 8px;
+  }
+  .arena-format-text small {
+    font-size: 13px;
+  }
+}
+
+/* Phones on their side: no line, just the size and name. */
+@media (max-height: 500px) {
+  .arena-format {
+    min-height: 34px;
+  }
+  .arena-format-text small {
+    display: none;
+  }
+}
+
+.vs-end-team-head .vs-goal {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.coop-format .shell-seg-option {
+  white-space: nowrap;
+}
+
+/* ---------- A match's social layer (ui/versusTalk.ts): the buttons, quick chat, the ping wheel, the feed, the bubbles, the vote; the scoreboard (ui/versusBoard.ts) ---------- */
+
+/* Laid out in viewport px (the bubbles and the wheel follow the field): the safe areas go on each piece. */
+.vs-talk {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--body);
+  color: #fff;
+}
+
+/* A menu or the end covers the match: the buttons step aside. */
+.vs-talk.off .vs-social,
+.vs-talk.off .vs-wheel {
+  display: none;
+}
+
+/* Under the mini map, at the right edge: chat, ping, scoreboard. */
+.vs-social {
+  position: absolute;
+  right: calc(8px + var(--safe-r));
+  top: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vs-social-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  background: rgba(24, 32, 48, 0.82);
+  border: 2px solid #101020;
+  border-radius: 8px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.vs-social-btn img {
+  width: 22px;
+  height: 22px;
+  image-rendering: pixelated;
+}
+
+.vs-social-btn:active {
+  transform: translateY(2px);
+}
+
+.vs-social-key {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  font-family: var(--title);
+  font-size: 6px;
+  color: #f8f8f8;
+  text-shadow: 1px 1px 0 #101020;
+}
+
+@media (pointer: coarse) {
+  .vs-social-btn {
+    width: 42px;
+    height: 42px;
+  }
+  .vs-social-btn img {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+@media (pointer: coarse) and (max-height: 500px) {
+  .vs-social {
+    gap: 4px;
+  }
+  .vs-social-btn {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* Quick chat: a list of ready-made lines, left of its button. */
+.vs-chat,
+.vs-vote,
+.vs-board {
+  color: var(--ink);
+  text-shadow: none;
+}
+
+.vs-chat {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: min(240px, 60 * var(--vw));
+  max-height: calc(100 * var(--vh) - 24px);
+  overflow-y: auto;
+  padding: 6px;
+  pointer-events: auto;
+  animation: vs-pop 0.12s ease-out;
+}
+
+.vs-chat.hidden {
+  display: none;
+}
+
+.vs-chat-title {
+  padding: 0 2px 2px;
+  font-family: var(--title);
+  font-size: 8px;
+  font-weight: normal;
+}
+
+.vs-chat-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 3px;
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1;
+  text-align: left;
+  color: var(--ink);
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.vs-chat-line:hover,
+.vs-chat-line:focus-visible {
+  background: var(--dk-wash-gold, #fff8d8);
+  border-color: #f8d030;
+}
+
+.vs-chat-num {
+  font-family: var(--title);
+  font-size: 7px;
+  font-style: normal;
+  color: var(--dk-ink-3, #707088);
+}
+
+.vs-chat-all {
+  margin-left: auto;
+  padding: 1px 3px 0;
+  font-family: var(--title);
+  font-size: 6px;
+  font-style: normal;
+  color: #181010;
+  background: #f8d030;
+  border-radius: 2px;
+}
+
+.vs-chat-note {
+  max-width: 200px;
+  font-size: 15px;
+  color: #d04848;
+}
+
+.vs-chat-note:empty {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .vs-chat-line {
+    padding: 4px 8px 5px;
+    font-size: 19px;
+  }
+}
+
+@media (max-height: 500px) {
+  .vs-chat-line {
+    padding: 1px 6px 2px;
+    font-size: 16px;
+  }
+}
+
+@keyframes vs-pop {
+  from {
+    opacity: 0;
+    scale: 0.9;
+  }
+}
+
+/* The ping wheel: four signs around the spot it pings, a × in the middle. */
+.vs-wheel {
+  position: absolute;
+  width: 0;
+  height: 0;
+  animation: vs-pop 0.12s ease-out;
+}
+
+.vs-wheel.hidden {
+  display: none;
+}
+
+.vs-wheel-sign {
+  position: absolute;
+  translate: -50% -50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  pointer-events: auto;
+  touch-action: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.vs-wheel-sign img {
+  width: 22px;
+  height: 28px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.4));
+}
+
+.vs-wheel-sign span {
+  padding: 1px 5px 2px;
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1;
+  white-space: nowrap;
+  color: #fff;
+  text-shadow: 1px 1px 0 #101020;
+  background: rgba(16, 16, 32, 0.85);
+  border: 2px solid var(--ping);
+  border-radius: 6px;
+}
+
+.vs-wheel-sign span i {
+  font-family: var(--title);
+  font-size: 7px;
+  font-style: normal;
+  color: #f8d030;
+}
+
+.vs-wheel-sign:hover span,
+.vs-wheel-sign:active span {
+  background: var(--ping);
+  color: #101020;
+  text-shadow: none;
+}
+
+.vs-wheel-sign.attack {
+  top: -50px;
+}
+
+.vs-wheel-sign.danger {
+  left: 62px;
+}
+
+.vs-wheel-sign.omw {
+  top: 50px;
+}
+
+.vs-wheel-sign.objective {
+  left: -62px;
+}
+
+.vs-wheel-close {
+  position: absolute;
+  translate: -50% -50%;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-family: var(--title);
+  font-size: 12px;
+  color: #fff;
+  pointer-events: auto;
+  touch-action: none;
+  background: rgba(16, 16, 32, 0.85);
+  border: 2px solid #f8f8f8;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.vs-wheel-hint {
+  position: absolute;
+  top: 84px;
+  translate: -50% 0;
+  width: max-content;
+  max-width: 220px;
+  padding: 1px 5px 2px;
+  font-size: 14px;
+  text-align: center;
+  text-shadow: 1px 1px 0 #101020;
+  background: rgba(16, 16, 32, 0.7);
+  border-radius: 4px;
+}
+
+/* The mini map takes clicks in a match (a ping there). */
+.hud.versus .minimap {
+  pointer-events: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* The score bar opens the scoreboard. */
+.versus-hud .vs-score {
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
+}
+
+/* Under the score: the vote, then the feed. */
+.vs-talk-stack {
+  position: absolute;
+  top: 130px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: min(380px, 92 * var(--vw));
+}
+
+.vs-feed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.vs-feed-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 1px 7px 2px 5px;
+  font-size: 17px;
+  line-height: 1;
+  text-shadow: 1px 1px 0 #101020;
+  background: rgba(16, 16, 32, 0.72);
+  border-left: 4px solid var(--team);
+  border-radius: 3px;
+  animation: vs-feed-in 0.18s ease-out;
+}
+
+.vs-feed-line b {
+  flex: none;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: normal;
+  color: var(--team);
+  filter: brightness(1.35);
+}
+
+.vs-feed-line b::after {
+  content: ':';
+  color: #f8f8f8;
+}
+
+.vs-feed-line span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vs-feed-line.ping span {
+  color: var(--ping);
+}
+
+.vs-feed-line img {
+  width: 11px;
+  height: 14px;
+  image-rendering: pixelated;
+}
+
+.vs-feed-line em {
+  padding: 1px 3px 0;
+  font-family: var(--title);
+  font-size: 6px;
+  font-style: normal;
+  color: #181010;
+  background: #f8d030;
+  border-radius: 2px;
+}
+
+@keyframes vs-feed-in {
+  from {
+    opacity: 0;
+    translate: 0 -6px;
+  }
+}
+
+/* Over the speakers' heads, in the world (positioned every frame). */
+.vs-bubbles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.vs-bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -100%;
+  padding: 1px 6px 2px;
+  font-size: 16px;
+  line-height: 1;
+  white-space: nowrap;
+  color: #101020;
+  background: #f8f8f8;
+  border: 2px solid #101020;
+  border-top: 3px solid var(--team);
+  border-radius: 6px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  animation: vs-pop 0.15s ease-out;
+  transition: opacity 0.6s;
+}
+
+.vs-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  translate: -50% 0;
+  border: 4px solid transparent;
+  border-top-color: #101020;
+  border-bottom: 0;
+}
+
+.vs-bubble.fading {
+  opacity: 0;
+}
+
+.vs-bubble.hidden {
+  display: none;
+}
+
+/* The team's surrender vote. */
+.vs-vote {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 220px;
+  padding: 6px 10px 8px;
+  pointer-events: auto;
+  border-color: #d04848;
+  animation: vs-pop 0.15s ease-out;
+}
+
+.vs-vote.hidden {
+  display: none;
+}
+
+.vs-vote-title {
+  font-family: var(--title);
+  font-size: 9px;
+  font-weight: normal;
+  text-align: center;
+}
+
+.vs-vote-tally {
+  font-size: 17px;
+}
+
+.vs-vote-bar {
+  width: 100%;
+  height: 4px;
+  background: #c8d0e0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.vs-vote-fill {
+  display: block;
+  height: 100%;
+  background: #d04848;
+}
+
+.vs-vote-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.vs-vote-buttons.hidden,
+.vs-vote-done.hidden {
+  display: none;
+}
+
+.vs-vote-buttons .btn i {
+  font-style: normal;
+  opacity: 0.7;
+}
+
+.vs-vote-done {
+  font-size: 15px;
+  color: var(--dk-ink-3, #707088);
+}
+
+/* The menu's "Render-se" before it may be used. */
+.pause .btn.off {
+  opacity: 0.55;
+}
+
+/* The live scoreboard: over the middle of the field. */
+.vs-board {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(900px, 96 * var(--vw));
+  max-height: calc(100 * var(--vh) - 24px);
+  overflow-y: auto;
+  padding: 8px;
+  pointer-events: auto;
+}
+
+.vs-board.hidden {
+  display: none;
+}
+
+.vs-board-title {
+  font-family: var(--title);
+  font-size: 10px;
+  font-weight: normal;
+  text-align: center;
+}
+
+.vs-board-scroll {
+  overflow-x: auto;
+}
+
+.vs-board-level {
+  font-size: 14px;
+  color: var(--dk-ink-3, #707088);
+}
+
+.vs-end-team tr.down td {
+  opacity: 0.5;
+}
+
+/* The scoreboard's numbers: a size down, the points bold in the team's color. */
+.vs-end-team td.vs-stat {
+  padding: 2px 2px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.vs-end-team .vs-stat.scored {
+  font-weight: bold;
+  color: var(--team);
+}
+
+.vs-end-team th.vs-stat {
+  padding: 4px 2px;
+  cursor: help;
+}
+
+.vs-end-box {
+  width: min(960px, 96 * var(--vw));
+}
+
+.vs-end-surrender {
+  margin: -6px 0 0;
+  font-size: 18px;
+  text-align: center;
+  color: var(--dk-ink-3, #707088);
+}
+
+/* Both tables side by side only where nine columns fit. */
+@media (max-width: 900px) {
+  .vs-end-tables {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .vs-end-who img {
+    width: 18px;
+    height: 18px;
+  }
+  .vs-end-who {
+    max-width: 112px;
+  }
+  .vs-end-team td.vs-stat {
+    font-size: 14px;
+    padding: 2px 1px;
+  }
+  .vs-end-team th.vs-stat {
+    font-size: 6px;
+    padding: 4px 1px;
+  }
+}
+
+/* Over the match's HUD (the Energy box, the special button): the open menus and the scoreboard, which close under a menu or the end. */
+.vs-chat,
+.vs-wheel,
+.vs-board {
+  z-index: 4;
+}
+
+/* A phone held sideways: quick chat in two columns, so it fits above the bottom. */
+@media (max-height: 500px) {
+  .vs-chat {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    max-width: min(340px, 70 * var(--vw));
+  }
+  .vs-chat-title,
+  .vs-chat-note {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A phone held upright: the vote and the feed down the left, clear of the mini map on the right; the vote over the toasts. */
+.vs-vote {
+  position: relative;
+  z-index: 4;
+}
+
+@media (orientation: portrait) and (max-width: 600px) {
+  .vs-talk-stack {
+    left: calc(8px + var(--safe-l));
+    translate: none;
+    align-items: flex-start;
+    max-width: calc(100 * var(--vw) - 140px);
+  }
+  .vs-feed {
+    align-items: flex-start;
+  }
+  .vs-vote {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* ---------- The Arena's kit (ui/arenaControls.ts): a right-thumb cluster on touch, key badges on desktop ---------- */
+
+/* A match plays its kit: the run's own special, Mega and lunge controls step aside. */
+[data-arena] .special-button,
+[data-arena] .mega-button,
+[data-arena] .lunge-button,
+[data-arena] .special-badge:not(.kit-badge) {
+  display: none !important;
+}
+
+/* The basic attack in the corner, Move 1, Move 2 and the Unite Move on an arc around it (78 px from its center). */
+.arena-kit {
+  position: absolute;
+  right: max(14px, var(--safe-r));
+  bottom: max(14px, var(--safe-b));
+  width: 140px;
+  height: 140px;
+  pointer-events: none;
+  display: none;
+}
+
+.kit-btn {
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  border-radius: 50%;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.kit-btn img {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+}
+
+.kit-btn::after {
+  background: conic-gradient(transparent calc(var(--fill) * 360deg), rgba(8, 8, 20, 0.62) 0);
+}
+
+.kit-btn:active {
+  transform: translateY(2px);
+}
+
+.kit-btn.kit-basic {
+  right: 0;
+  bottom: 0;
+  width: 68px;
+  height: 68px;
+}
+
+.kit-btn.kit-basic img {
+  width: 40px;
+  height: 40px;
+}
+
+.kit-btn.kit-move1 {
+  right: 85px;
+  bottom: 7px;
+}
+
+.kit-btn.kit-move2 {
+  right: 62px;
+  bottom: 62px;
+}
+
+.kit-btn.kit-unite {
+  right: 7px;
+  bottom: 85px;
+}
+
+/* The Unite Move ready: its type's glow, wider than a move's. */
+.kit-btn.kit-unite.ready {
+  animation-duration: 0.6s;
+}
+
+/* Being dragged: a white rim while it aims. */
+.kit-btn.aiming {
+  box-shadow:
+    inset 0 0 0 2px #ffffff,
+    0 0 0 3px var(--type);
+}
+
+/* The seconds left on a cooldown, over the shade. */
+.kit-time {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: #ffffff;
+  text-shadow:
+    1px 1px 0 #101018,
+    -1px -1px 0 #101018,
+    1px -1px 0 #101018,
+    -1px 1px 0 #101018;
+  pointer-events: none;
+}
+
+.kit-time:empty {
+  display: none;
+}
+
+/* What holds it: the level Move 2 comes at, or the tall grass. */
+.kit-tag {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  padding: 1px 2px;
+  font-size: 6px;
+  line-height: 1;
+  white-space: nowrap;
+  color: #ffffff;
+  background: #101018;
+  pointer-events: none;
+}
+
+.kit-btn .kit-tag {
+  font-size: 7px;
+  bottom: 5px;
+}
+
+/* Not learned yet: an empty socket. */
+.special.empty {
+  background: rgba(16, 24, 48, 0.35);
+  box-shadow: inset 0 0 0 2px #606878;
+}
+
+.special.empty::after {
+  display: none;
+}
+
+/* Held in the grass: dimmed under a green rim. */
+.special.held {
+  box-shadow: inset 0 0 0 2px #58b848;
+  animation: none;
+}
+
+.special.held img {
+  opacity: 0.5;
+}
+
+/* The desktop's badges: a row in the bottom-right corner (the Energy carried has the bottom center), each with its key. */
+.arena-keys {
+  position: absolute;
+  right: max(14px, var(--safe-r));
+  bottom: max(14px, var(--safe-b));
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.kit-badge {
+  width: 52px;
+  height: 52px;
+}
+
+.kit-badge img {
+  width: 34px;
+  height: 34px;
+  image-rendering: pixelated;
+}
+
+.kit-badge .special-key {
+  bottom: 2px;
+  font-size: 7px;
+}
+
+.kit-badge .kit-time {
+  font-size: 12px;
+}
+
+/* On a badge the key sits at the bottom: what holds the slot goes on top. */
+.kit-badge .kit-tag {
+  top: 2px;
+  bottom: auto;
+}
+
+/* The Unite Move stands apart, a size up. */
+.kit-badge.s2 {
+  width: 60px;
+  height: 60px;
+  margin-left: 6px;
+}
+
+@media (pointer: coarse) {
+  .arena-kit {
+    display: block;
+  }
+  .arena-keys {
+    display: none;
+  }
+}
+
+/* Buttons on the left (Settings → Controls): the cluster mirrors. */
+@media (pointer: coarse) {
+  [data-hand='left'] .arena-kit {
+    right: auto;
+    left: max(14px, var(--safe-l));
+  }
+  [data-hand='left'] .kit-btn.kit-basic {
+    right: auto;
+    left: 0;
+  }
+  [data-hand='left'] .kit-btn.kit-move1 {
+    right: auto;
+    left: 85px;
+  }
+  [data-hand='left'] .kit-btn.kit-move2 {
+    right: auto;
+    left: 62px;
+  }
+  [data-hand='left'] .kit-btn.kit-unite {
+    right: auto;
+    left: 7px;
+  }
+}
+
+/* A small phone: the cluster a size down (the arc 66 px out). */
+@media (pointer: coarse) and (max-width: 380px), (pointer: coarse) and (max-height: 380px) {
+  .arena-kit {
+    width: 122px;
+    height: 122px;
+  }
+  .kit-btn {
+    width: 48px;
+    height: 48px;
+  }
+  .kit-btn img {
+    width: 28px;
+    height: 28px;
+  }
+  .kit-btn.kit-basic {
+    width: 60px;
+    height: 60px;
+  }
+  .kit-btn.kit-move1 {
+    right: 72px;
+    bottom: 6px;
+  }
+  .kit-btn.kit-move2 {
+    right: 53px;
+    bottom: 53px;
+  }
+  .kit-btn.kit-unite {
+    right: 6px;
+    bottom: 72px;
+  }
+  [data-hand='left'] .kit-btn.kit-move1 {
+    left: 72px;
+  }
+  [data-hand='left'] .kit-btn.kit-move2 {
+    left: 53px;
+  }
+  [data-hand='left'] .kit-btn.kit-unite {
+    left: 6px;
+  }
+}
+
+/* The cluster takes the corner the special button had: the Energy and the coach make room for it. */
+@media (pointer: coarse) {
+  [data-arena] .vs-energy {
+    bottom: calc(max(14px, var(--safe-b)) + 150px);
+  }
+}
+
+@media (pointer: coarse) and (max-height: 500px) {
+  [data-arena] .vs-energy {
+    right: calc(max(14px, var(--safe-r)) + 150px);
+    bottom: max(14px, var(--safe-b));
+  }
+  [data-arena][data-hand='left'] .vs-energy {
+    right: auto;
+    left: calc(max(14px, var(--safe-l)) + 150px);
+  }
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+  [data-arena] .vs-coach {
+    right: 158px;
+  }
+  [data-arena][data-hand='left'] .vs-coach {
+    left: 158px;
+    right: 8px;
+  }
+  /* The pick tray's strip rides over the cluster. */
+  [data-arena] .vs-tray {
+    bottom: calc(max(12px, var(--safe-b)) + 160px);
   }
 }

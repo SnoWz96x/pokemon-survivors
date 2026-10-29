@@ -16,7 +16,7 @@ import { offerView } from './screens'
  * with 1–4, still moving. Its bar drains to the auto-pick. The pick goes out
  * as co-op's (`pick`: the team layer's, with the screen's round).
  */
-export const createVersusTray = (root: HTMLElement, input: Input, pick: (offer: Offer) => void) => {
+export const createVersusTray = (root: HTMLElement, input: Input, pick: (offer: Offer) => void, busy: () => boolean = () => false) => {
   const title = h('b', { class: 'vs-tray-title' })
   const fill = h('i', { class: 'vs-tray-fill' })
   const cards = h('div', { class: 'vs-tray-cards' })
@@ -45,13 +45,22 @@ export const createVersusTray = (root: HTMLElement, input: Input, pick: (offer: 
 
   const off = input.onKey((key) => {
     const n = key.startsWith('Digit') ? Number(key.slice(5)) : NaN
-    if (n >= 1 && n <= 4 && !el.classList.contains('hidden')) choose(n - 1)
+    // The quick chat's or the ping wheel's numbers while one is open (`versusTalk.ts`).
+    if (n >= 1 && n <= 4 && !el.classList.contains('hidden') && !busy()) choose(n - 1)
   })
 
   const build = (g: Game, me: Player) => {
     const m = t().versus.tray
     offers = me.offers
-    title.textContent = me.phase === 'branch' ? m.branch : me.phase === 'ability' ? m.ability : me.level <= 1 ? m.first : m.levelup(me.level)
+    // The kit's own screens (`game/versusPacing.ts`): Move 2, then a move of the new form taking Move 1's or Move 2's place.
+    const learn = me.phase === 'levelup' ? (me.versus?.learn ?? 0) : 0
+    title.textContent =
+      me.phase === 'branch' ? m.branch
+      : me.phase === 'ability' ? m.ability
+      : learn > 0 && me.moves.length <= learn ? m.second
+      : learn > 0 ? m.upgrade(learn)
+      : me.level <= 1 ? m.first
+      : m.levelup(me.level)
     cards.replaceChildren(
       ...me.offers.map((offer, i) => {
         const v = offerView(g, offer)

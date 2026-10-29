@@ -9,9 +9,16 @@ describe('versusReport', () => {
     g.versus!.score = [12, 30]
     const left = versusReport(g, 0, 'casual', false, 'quit')!
     expect(left).toMatchObject({ outcome: 'quit', second: 185, winner: null, result: null, team: 'blue', blue: 12, red: 30 })
-    g.versus!.result = { winner: 1 }
+    g.versus!.result = { winner: 1, surrender: null }
     expect(versusReport(g, 0, 'casual', false, 'left')).toMatchObject({ outcome: 'end', winner: 'red', result: 'loss' })
     expect(versusReport(g, 99, 'casual', false, 'quit')).toBeNull()
+  })
+
+  it('says the format and, when one did, which team surrendered (still an `end`)', () => {
+    const g = createVersusGame(3, [], 'quick')
+    expect(versusReport(g, 0, 'casual', false, 'quit')).toMatchObject({ format: 'quick', surrender: null })
+    g.versus!.result = { winner: 1, surrender: 0 }
+    expect(versusReport(g, 0, 'casual', false, 'left')).toMatchObject({ outcome: 'end', winner: 'red', result: 'loss', surrender: 'blue', format: 'quick' })
   })
 })
 

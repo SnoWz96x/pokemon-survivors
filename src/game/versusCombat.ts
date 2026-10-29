@@ -1,7 +1,7 @@
 import { dirTo } from '../engine/math'
 import { chance, range } from '../engine/rng'
 import { effectiveness, TYPE_COLORS } from '../data/types'
-import { VALE, VERSUS_ROSTER, VERSUS, isVersusPick, type Role, type Team } from '../data/versus'
+import { VERSUS_ROSTER, VERSUS, isVersusPick, type Role, type Team } from '../data/versus'
 import { armored, drainHeal } from './combat'
 import { burst, damageText } from './effects'
 import { despawnEnemy, spawnEnemy } from './enemies'
@@ -9,8 +9,9 @@ import { actAs, inPlay } from './players'
 import { applyStatus, hitTakenMult, statusPace } from './status'
 import { playerTypes } from './terrain'
 import { gainXp } from './leveling'
-import { isAlly, pvpDamage, respawnTime } from './versusRules'
+import { isAlly, mapOf, pvpDamage, respawnTime, rulesOf } from './versusRules'
 import { reveal } from './versusGrass'
+import { assistsOf } from './versusSocial'
 import type { Attack, DamageSource, Enemy, Game, Player } from './types'
 import type { Objective } from './versus'
 import * as dm from '../engine/dmath'
@@ -38,9 +39,10 @@ export const avatarPlayer = (g: Game, e: Enemy): Player | null => (e.behavior.ki
 /**
  * `amount` of damage from the acting player's move `move` to `target`, a
  * rival: cut to PvP scale and armor, soaked by a Drednaw shield first. Stops
- * the target's channel, shows it in the grass (`reveal`) and marks who hit it
- * (`hurtAt`, `lastBy`). Returns the
- * HP taken. A knockout goes through `knockOut`.
+ * the target's channel (an interrupt on the hitter's scoreboard when one was
+ * filling), shows it in the grass (`reveal`) and marks who hit it (`hurtAt`,
+ * `lastBy`, `hitAt` for the assists). Returns the HP taken, dealt and taken on
+ * the scoreboard. A knockout goes through `knockOut`.
  */
 export const pvpHit = (g: Game, target: Player, amount: number, move: DamageSource | null) => {
   const by = g.player
@@ -55,6 +57,8 @@ export const pvpHit = (g: Game, target: Player, amount: number, move: DamageSour
   }
   tv.hurtAt = g.now
   tv.lastBy = by.slot
+  tv.hitAt[by.slot] = g.now
+  if (tv.channel > 0) bv.interrupts++
   tv.channel = 0
   // Taking a hit shows a Pokémon, in the grass or not.
   reveal(tv)
@@ -62,6 +66,8 @@ export const pvpHit = (g: Game, target: Player, amount: number, move: DamageSour
   if (dmg <= 0) return 0
   target.hp -= dmg
   target.record.taken += dmg
+  tv.taken += dmg
+  bv.dealt += dmg
   if (move) by.damageByMove[move] = (by.damageByMove[move] ?? 0) + dmg
   if (target.hp <= 0) knockOut(g, target, by.slot)
   return dmg
@@ -109,7 +115,8 @@ export const tickAvatar = (g: Game, e: Enemy, amount: number, move: DamageSource
 /**
  * `p` is knocked out (by the player at `by`, -1 for the wild or the spawn
  * pad, which credit the last rival to hit them within `ASSIST`): out until their respawn, half their Energy scattered where they fell,
- * their body gone from the field, and EXP for the knocker's team.
+ * their body gone from the field, and EXP for the knocker's team. Every other
+ * rival who hit them within `VERSUS.assist` seconds gets an assist.
  */
 export const knockOut = (g: Game, p: Player, by: number) => {
   const v = p.versus
@@ -124,7 +131,7 @@ export const knockOut = (g: Game, p: Player, by: number) => {
   v.deaths++
   v.channel = 0
   v.shield = 0
-  v.respawn = respawnTime(p.level, s.stretch)
+  v.respawn = respawnTime(rulesOf(s), p.level, s.stretch)
   dropOrbs(g, p.x, p.y, Math.floor(v.energy * VERSUS.energy.dropShare))
   v.energy = 0
   removeAvatar(g, p)
@@ -136,6 +143,11 @@ export const knockOut = (g: Game, p: Player, by: number) => {
     killer.record.kills++
     shareXp(g, killer.versus.team, VERSUS.pvp.koXp * p.level, p.x, p.y)
   }
+  for (const slot of assistsOf(v.hitAt, g.now, VERSUS.assist, killer ? credit : -1)) {
+    const q = g.players[slot]?.versus
+    if (q && q.team !== v.team) q.assists++
+  }
+  v.hitAt.fill(-99)
   burst(g, p.x, p.y - 10, { colors: ['#f83838', '#ffffff', '#202028'], count: 24, speed: 90, ttl: 0.5 })
   g.events.push({ kind: 'versusKo', slot: p.slot, by: killer ? credit : -1 })
 }
@@ -156,16 +168,18 @@ export const dropOrbs = (g: Game, x: number, y: number, energy: number) => {
 }
 
 /**
- * EXP worth `xp` for `team` from a faint at (x, y): in full to the teammates
- * nearby, a share to the rest (`xpShareOf`), knocked out ones included.
+ * EXP worth `xp` (times the format's `xp`) for `team` from a faint at (x, y):
+ * in full to the teammates nearby, a share to the rest (`xpShareOf`),
+ * knocked out ones included.
  */
 export const shareXp = (g: Game, team: Team, xp: number, x: number, y: number) => {
+  const scale = g.versus ? rulesOf(g.versus).xp : 1
   const before = g.player
   for (const q of g.players) {
     if (q.gone || q.versus?.team !== team) continue
     g.player = q
     const near = dm.sq(q.x - x) + dm.sq(q.y - y) <= dm.sq(VERSUS.xpShare.radius)
-    gainXp(g, near ? xp : xp * VERSUS.xpShare.remote)
+    gainXp(g, (near ? xp : xp * VERSUS.xpShare.remote) * scale)
   }
   g.player = before
 }
@@ -252,7 +266,7 @@ export const wildDown = (g: Game, e: Enemy) => {
   g.events.push({ kind: 'kill', boss: e.boss })
   const b = e.behavior
   if (b.kind === 'camp' && b.camp >= 0) {
-    const def = VALE.camps[b.camp]!
+    const def = mapOf(s).camps[b.camp]!
     dropOrbs(g, e.x, e.y, def.energy)
     shareXp(g, team, def.xp, e.x, e.y)
   }
@@ -274,6 +288,6 @@ const objectiveDown = (g: Game, o: Objective, team: Team, e: Enemy) => {
   }
   shareXp(g, team, zap ? 120 : 60, e.x, e.y)
   if (zap) s.blessing[team] = VERSUS.zapdos.blessing
-  else s.drednawAt = g.time + VERSUS.drednaw.respawn
+  else s.drednawAt = g.time + rulesOf(s).drednaw.respawn
   g.events.push({ kind: 'versusObjective', enemy: o.kind, team })
 }
