@@ -298,6 +298,27 @@ onCanvasReset(() => {
 checkCanvases()
 setInterval(() => document.hidden || checkCanvases(), 3000)
 
+/**
+ * A held frame (paused, a level-up, any menu over a run) draws only when something asks for it,
+ * and iOS may throw away the one drawn as the page comes back from a locked screen: the game's
+ * canvas then stayed blank behind the pause menu for good. So for `HELD_BACK` ms after coming
+ * back it redraws every frame, and while held it redraws at least every `HELD_KEEP` ms.
+ */
+const HELD_BACK = 1500
+const HELD_KEEP = 1000
+/** When the page last came back into view (`performance.now()` ms). */
+let backAt = -Infinity
+/** When the run's frame was last drawn. */
+let runDrawnAt = -Infinity
+
+/** The page is back in view (unlocked, another app or tab left): sizes, caches and the frame are checked and drawn again. */
+const cameBack = () => {
+  backAt = performance.now()
+  scheduleResize()
+  checkCanvases()
+  dirty = true
+}
+
 /* ---------------- App state ---------------- */
 
 type Run = {
@@ -531,13 +552,15 @@ describeWith(() => {
   // The canvases the caches hold (`heldCanvases`) stand for the report's canvas memory.
   const memory = sampleMemory()
   const perf = { canvases: memory.canvases, canvasMb: memory.canvasMb, peakCanvases: memory.peakCanvases, peakCanvasMb: memory.peakCanvasMb, frameMs: recentFrameMs(frames), ...canvasLosses }
+  const played = { last: input.lastKind(), pads: input.pads() }
   const g = run && shownGame(run)
-  if (!g || g.phase === 'gameover' || g.phase === 'victory') return { view, run: null, perf, memory }
+  if (!g || g.phase === 'gameover' || g.phase === 'victory') return { view, run: null, perf, memory, input: played }
   const boss = g.bossId === null ? undefined : g.enemies.find((e) => e.id === g.bossId)
   return {
     view,
     perf,
     memory,
+    input: played,
     run: {
       partner: localPlayer(g).starter,
       form: playerName(g),
@@ -2169,12 +2192,11 @@ document.addEventListener('visibilitychange', () => {
   // An Arena match's report as it stands, for the next page load if this one never comes back (`gone`).
   if (document.hidden && run?.coop) holdVersus(run.coop)
   if (document.hidden && !run?.coop && run?.game.phase === 'playing') run.game.phase = 'paused'
-  // Back: the paused frame is drawn again, in case the browser dropped the canvas' pixels while hidden (its caches' too).
-  if (!document.hidden) {
-    checkCanvases()
-    dirty = true
-  }
+  if (!document.hidden) cameBack()
 })
+// iOS doesn't always say `visibilitychange` on unlocking or coming back from another app: these say it too.
+window.addEventListener('pageshow', () => cameBack())
+window.addEventListener('focus', () => cameBack())
 
 /**
  * Asks before closing or reloading the tab while a run is on (paused and
@@ -3347,10 +3369,11 @@ const frame = (now: number) => {
       // Toasts and banners wait out menus, level-ups and evolutions with their clocks stopped.
       tickToasts(ui, dt, g.phase !== 'playing')
       // Redraw only when the simulation advanced: halves the work on 120 Hz phones and
-      // idles the GPU while a menu is open over a frozen frame.
+      // idles the GPU while a menu is open over a frozen frame (but for `HELD_BACK` and `HELD_KEEP`).
       if (r.companion && steps > 0) stepCompanion(r.companion, localPlayer(g), steps * STEP)
-      if (steps > 0 || dirty) {
+      if (steps > 0 || dirty || now - backAt < HELD_BACK || now - runDrawnAt >= HELD_KEEP) {
         dirty = false
+        runDrawnAt = now
         render(ctx, g, t, { ...settings(), companion: r.companion })
         const stick = input.readStick()
         if (stick && g.phase === 'playing') drawJoystick(ctx, stick, cssScale)
